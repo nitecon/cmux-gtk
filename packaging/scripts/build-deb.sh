@@ -41,15 +41,15 @@ install -Dm0755 "$AGENT_BROWSER" "$PKG_ROOT/usr/lib/cmux/agent-browser"
 ln -s ../lib/cmux/agent-browser "$PKG_ROOT/usr/bin/agent-browser"
 
 # Desktop metadata
-install -Dm0644 "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.desktop" \
-    "$PKG_ROOT/usr/share/applications/com.cmux_lx.terminal.desktop"
-install -Dm0644 "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.metainfo.xml" \
-    "$PKG_ROOT/usr/share/metainfo/com.cmux_lx.terminal.metainfo.xml"
+install -Dm0644 "$REPO_ROOT/packaging/desktop/io.cmux.App.desktop" \
+    "$PKG_ROOT/usr/share/applications/io.cmux.App.desktop"
+install -Dm0644 "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml" \
+    "$PKG_ROOT/usr/share/metainfo/io.cmux.App.metainfo.xml"
 
 # Icons
 for size in 48x48 128x128 256x256; do
     install -Dm0644 "$REPO_ROOT/packaging/icons/hicolor/${size}/apps/com.cmux_lx.terminal.png" \
-        "$PKG_ROOT/usr/share/icons/hicolor/${size}/apps/com.cmux_lx.terminal.png"
+        "$PKG_ROOT/usr/share/icons/hicolor/${size}/apps/io.cmux.App.png"
 done
 
 # Shell completions

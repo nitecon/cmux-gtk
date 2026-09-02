@@ -18,13 +18,13 @@ check() {
 
 # META-01: Reverse-DNS ID consistency
 check "META-01: .desktop has correct ID" \
-    grep -q 'Icon=com.cmux_lx.terminal' "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.desktop"
+    grep -q 'Icon=io.cmux.App' "$REPO_ROOT/packaging/desktop/io.cmux.App.desktop"
 check "META-01: metainfo has correct ID" \
-    grep -q '<id>com.cmux_lx.terminal</id>' "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.metainfo.xml"
+    grep -q '<id>io.cmux.App</id>' "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml"
 
 # META-02: AppStream metainfo validates
 check "META-02: appstreamcli validate" \
-    appstreamcli validate --no-net "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.metainfo.xml"
+    appstreamcli validate --no-net "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml"
 
 # META-03: Icons exist at correct sizes
 for SIZE in 48 128 256; do

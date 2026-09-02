@@ -65,7 +65,7 @@ jobs:
       - name: Install packaging dependencies
         run: |
           apt-get update
-          apt-get install -y binutils ca-certificates git nodejs npm rpm ruby
+          apt-get install -y appstream binutils ca-certificates desktop-file-utils git nodejs npm rpm ruby
 
       - name: Trust the container workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"

@@ -44,6 +44,11 @@ check() {
 # Cache file listing and control output
 FILE_LIST=$(dpkg-deb -c "$DEB")
 CONTROL=$(dpkg-deb -f "$DEB")
+EXTRACTED_ROOT=$(mktemp -d)
+trap 'rm -rf "$EXTRACTED_ROOT"' EXIT
+dpkg-deb -x "$DEB" "$EXTRACTED_ROOT"
+DESKTOP_FILE="$EXTRACTED_ROOT/usr/share/applications/io.cmux.App.desktop"
+METAINFO_FILE="$EXTRACTED_ROOT/usr/share/metainfo/io.cmux.App.metainfo.xml"
 
 # --- File listing checks ---
 echo "File listing:"
@@ -65,19 +70,37 @@ check "usr/bin/agent-browser exists" \
     'echo "$FILE_LIST" | grep -q "\./usr/bin/agent-browser"'
 
 check "desktop entry exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/applications/com.cmux_lx.terminal.desktop"'
+    'echo "$FILE_LIST" | grep -q "\./usr/share/applications/io.cmux.App.desktop"'
 
 check "metainfo exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/metainfo/com.cmux_lx.terminal.metainfo.xml"'
+    'echo "$FILE_LIST" | grep -q "\./usr/share/metainfo/io.cmux.App.metainfo.xml"'
 
 check "48x48 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png"'
+    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/48x48/apps/io.cmux.App.png"'
 
 check "128x128 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/128x128/apps/com.cmux_lx.terminal.png"'
+    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/128x128/apps/io.cmux.App.png"'
 
 check "256x256 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/256x256/apps/com.cmux_lx.terminal.png"'
+    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/256x256/apps/io.cmux.App.png"'
+
+echo ""
+echo "Desktop integration:"
+
+check "desktop entry is valid" \
+    'desktop-file-validate "$DESKTOP_FILE"'
+
+check "desktop entry launches cmux-app" \
+    'grep -qx "Exec=cmux-app" "$DESKTOP_FILE"'
+
+check "desktop icon matches GTK application ID" \
+    'grep -qx "Icon=io.cmux.App" "$DESKTOP_FILE"'
+
+check "desktop window class matches GTK application ID" \
+    'grep -qx "StartupWMClass=io.cmux.App" "$DESKTOP_FILE"'
+
+check "AppStream metadata is valid" \
+    'appstreamcli validate --no-net "$METAINFO_FILE"'
 
 check "bash completion exists" \
     'echo "$FILE_LIST" | grep -q "\./usr/share/bash-completion/completions/cmux"'

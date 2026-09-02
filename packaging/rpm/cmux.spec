@@ -38,12 +38,12 @@ install -Dm0755 %{_sourcedir}/cmuxd-remote %{buildroot}%{_libdir}/cmux/cmuxd-rem
 install -Dm0755 %{_sourcedir}/agent-browser %{buildroot}%{_libdir}/cmux/agent-browser
 ln -s ../%{_lib}/cmux/agent-browser %{buildroot}%{_bindir}/agent-browser
 
-install -Dm0644 %{_sourcedir}/com.cmux_lx.terminal.desktop %{buildroot}%{_datadir}/applications/com.cmux_lx.terminal.desktop
-install -Dm0644 %{_sourcedir}/com.cmux_lx.terminal.metainfo.xml %{buildroot}%{_datadir}/metainfo/com.cmux_lx.terminal.metainfo.xml
+install -Dm0644 %{_sourcedir}/io.cmux.App.desktop %{buildroot}%{_datadir}/applications/io.cmux.App.desktop
+install -Dm0644 %{_sourcedir}/io.cmux.App.metainfo.xml %{buildroot}%{_datadir}/metainfo/io.cmux.App.metainfo.xml
 
-install -Dm0644 %{_sourcedir}/icons/48x48.png %{buildroot}%{_datadir}/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png
-install -Dm0644 %{_sourcedir}/icons/128x128.png %{buildroot}%{_datadir}/icons/hicolor/128x128/apps/com.cmux_lx.terminal.png
-install -Dm0644 %{_sourcedir}/icons/256x256.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/com.cmux_lx.terminal.png
+install -Dm0644 %{_sourcedir}/icons/48x48.png %{buildroot}%{_datadir}/icons/hicolor/48x48/apps/io.cmux.App.png
+install -Dm0644 %{_sourcedir}/icons/128x128.png %{buildroot}%{_datadir}/icons/hicolor/128x128/apps/io.cmux.App.png
+install -Dm0644 %{_sourcedir}/icons/256x256.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/io.cmux.App.png
 
 install -Dm0644 %{_sourcedir}/cmux.bash %{buildroot}%{_datadir}/bash-completion/completions/cmux
 install -Dm0644 %{_sourcedir}/_cmux %{buildroot}%{_datadir}/zsh/vendor-completions/_cmux
@@ -68,11 +68,11 @@ install -Dm0644 %{_sourcedir}/CLAUDE.md %{buildroot}%{_datadir}/cmux/CLAUDE.md
 %{_bindir}/agent-browser
 %{_libdir}/cmux/cmuxd-remote
 %{_libdir}/cmux/agent-browser
-%{_datadir}/applications/com.cmux_lx.terminal.desktop
-%{_datadir}/metainfo/com.cmux_lx.terminal.metainfo.xml
-%{_datadir}/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png
-%{_datadir}/icons/hicolor/128x128/apps/com.cmux_lx.terminal.png
-%{_datadir}/icons/hicolor/256x256/apps/com.cmux_lx.terminal.png
+%{_datadir}/applications/io.cmux.App.desktop
+%{_datadir}/metainfo/io.cmux.App.metainfo.xml
+%{_datadir}/icons/hicolor/48x48/apps/io.cmux.App.png
+%{_datadir}/icons/hicolor/128x128/apps/io.cmux.App.png
+%{_datadir}/icons/hicolor/256x256/apps/io.cmux.App.png
 %{_datadir}/bash-completion/completions/cmux
 %{_datadir}/zsh/vendor-completions/_cmux
 %{_datadir}/fish/vendor_completions.d/cmux.fish

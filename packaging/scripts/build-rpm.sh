@@ -46,8 +46,8 @@ cp "$CMUXD_REMOTE" "$STAGING/cmuxd-remote"
 cp "$AGENT_BROWSER" "$STAGING/agent-browser"
 
 # Desktop metadata
-cp "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.desktop" "$STAGING/"
-cp "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.metainfo.xml" "$STAGING/"
+cp "$REPO_ROOT/packaging/desktop/io.cmux.App.desktop" "$STAGING/"
+cp "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml" "$STAGING/"
 
 # Icons (flatten to simple names for spec)
 cp "$REPO_ROOT/packaging/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png" "$STAGING/icons/48x48.png"
