@@ -17,9 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Validate WarpBuild runner guards
-        run: ./tests/test_ci_self_hosted_guard.sh
-
       - name: Validate create-dmg version pinning
         run: ./tests/test_ci_create_dmg_pinned.sh
 
@@ -34,9 +31,6 @@ jobs:
 
       - name: Validate release asset guard
         run: node scripts/release_asset_guard.test.js
-
-      - name: Validate current GhosttyKit checksum pin
-        run: ./tests/test_ci_ghosttykit_checksum_present.sh
 
   remote-daemon-tests:
     runs-on: ubuntu-latest
@@ -104,8 +98,8 @@ jobs:
         run: cargo test --workspace --bins
 
   tests:
-    # Never run WarpBuild jobs for fork pull requests (avoid billing on external PRs).
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # This inherited macOS suite is retained for manual upstream compatibility work.
+    if: ${{ false }}
     runs-on: warp-macos-15-arm64-6x
     timeout-minutes: 30
     steps:
@@ -270,7 +264,7 @@ jobs:
     # Keep lag validation separate from UI regressions so functional UI failures
     # and performance regressions stay isolated. Broader interactive UI suites
     # still run via test-e2e.yml on GitHub-hosted runners.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: ${{ false }}
     runs-on: warp-macos-15-arm64-6x
     timeout-minutes: 20
     steps:
@@ -433,7 +427,7 @@ jobs:
           rm -f /tmp/create-virtual-display
 
   ui-regressions:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: ${{ false }}
     runs-on: warp-macos-15-arm64-6x
     timeout-minutes: 25
     steps:

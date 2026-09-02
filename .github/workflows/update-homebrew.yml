@@ -1,11 +1,6 @@
 name: Update Homebrew Cask
 
 on:
-  # Trigger after the release workflow completes (not on release:published,
-  # which fires before assets finish uploading — causing SHA mismatch).
-  workflow_run:
-    workflows: ["Release macOS app"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       version:
