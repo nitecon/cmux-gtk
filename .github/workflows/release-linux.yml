@@ -62,6 +62,9 @@ jobs:
           apt-get update
           apt-get install -y binutils ca-certificates git golang-go nodejs npm rpm ruby
 
+      - name: Trust the container workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Install Linux build dependencies and build Ghostty
         run: ./scripts/setup-linux-dev.sh
 
