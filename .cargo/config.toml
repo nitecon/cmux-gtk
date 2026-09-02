@@ -3,3 +3,12 @@
 # Without this, cargo uses the build machine's native CPU features (e.g. AVX-512),
 # producing binaries that SIGILL on VMs or older hardware.
 rustflags = ["-C", "target-cpu=x86-64"]
+
+# Ghostty's static archive contains C++ objects compiled against the libc++
+# bundled with its required Zig toolchain. Use Zig for the final Linux link so
+# those objects and their C++ runtime always match across distributions.
+[target.x86_64-unknown-linux-gnu]
+linker = "scripts/zig-cc.sh"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "scripts/zig-cc.sh"
