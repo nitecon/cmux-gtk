@@ -10,11 +10,11 @@ command -v rpm &>/dev/null || {
     exit 1
 }
 
-# Accept optional path to .rpm, default to dist/cmux-*.rpm
+# Accept optional path to .rpm, default to dist/cmux-gtk-*.rpm
 if [[ -n "${1:-}" ]]; then
     RPM="$1"
 else
-    RPMS=("$REPO_ROOT"/dist/cmux-*.rpm)
+    RPMS=("$REPO_ROOT"/dist/cmux-gtk-*.rpm)
     if [[ ${#RPMS[@]} -eq 0 || ! -f "${RPMS[0]}" ]]; then
         echo "ERROR: No .rpm found in dist/. Build first or pass path as argument." >&2
         exit 1
@@ -64,6 +64,7 @@ check "/usr/bin/cmux-app" grep -q '/usr/bin/cmux-app' "$FILE_LIST_FILE"
 check "/usr/bin/cmux (exact)" grep -qx '/usr/bin/cmux' "$FILE_LIST_FILE"
 check "/usr/lib64/cmux/cmuxd-remote" grep -q '/usr/lib64/cmux/cmuxd-remote' "$FILE_LIST_FILE"
 check "/usr/lib64/cmux/agent-browser" grep -q '/usr/lib64/cmux/agent-browser' "$FILE_LIST_FILE"
+check "/usr/bin/agent-browser" grep -qx '/usr/bin/agent-browser' "$FILE_LIST_FILE"
 check ".desktop file" grep -q '/usr/share/applications/com.cmux_lx.terminal.desktop' "$FILE_LIST_FILE"
 check "metainfo xml" grep -q '/usr/share/metainfo/com.cmux_lx.terminal.metainfo.xml' "$FILE_LIST_FILE"
 check "icon 48x48" grep -q '/usr/share/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png' "$FILE_LIST_FILE"
@@ -87,13 +88,13 @@ check "no release skill (D-13)" bash -c '! grep -q "skills/release" "'"$FILE_LIS
 # --- Metadata checks (RPM-01, RPM-02) ---
 echo ""
 echo "Metadata:"
-check "Name is cmux" grep -q '^Name.*: cmux$' "$INFO_FILE"
+check "Name is cmux-gtk" grep -q '^Name.*: cmux-gtk$' "$INFO_FILE"
 check "Architecture is x86_64" grep -q 'Architecture.*x86_64' "$INFO_FILE"
 
 # --- Dependency checks (RPM-02) ---
 echo ""
 echo "Dependencies:"
-for dep in gtk4 fontconfig freetype oniguruma mesa-libGL harfbuzz glib2 cairo pango; do
+for dep in gtk4 fontconfig freetype oniguruma mesa-libGL harfbuzz glib2 cairo pango libcxx libcxxabi libxml2; do
     check "Requires $dep" grep -q "$dep" "$REQUIRES_FILE"
 done
 

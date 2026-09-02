@@ -11,6 +11,7 @@ xcuserdata/
 # Local env
 .env
 .envrc
+.tools/
 
 # Swift Package Manager
 .swiftpm/

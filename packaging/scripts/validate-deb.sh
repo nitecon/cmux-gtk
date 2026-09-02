@@ -12,7 +12,7 @@ if [[ -n "${1:-}" ]]; then
     DEB="$1"
 else
     # shellcheck disable=SC2012
-    DEB=$(ls -t "$REPO_ROOT"/dist/cmux_*_amd64.deb 2>/dev/null | head -1)
+    DEB=$(ls -t "$REPO_ROOT"/dist/cmux-gtk_*_amd64.deb 2>/dev/null | head -1)
     if [[ -z "$DEB" ]]; then
         echo "ERROR: No .deb file found in dist/" >&2
         exit 1
@@ -34,10 +34,10 @@ check() {
     local desc="$1" cmd="$2"
     if eval "$cmd" &>/dev/null; then
         echo "  PASS: $desc"
-        ((PASS++))
+        PASS=$((PASS + 1))
     else
         echo "  FAIL: $desc"
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
     fi
 }
 
@@ -53,13 +53,16 @@ check "usr/bin/cmux-app exists" \
 
 # Anchored match to avoid matching cmux-app
 check "usr/bin/cmux exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/bin/cmux[[:space:]]"'
+    'echo "$FILE_LIST" | grep -qE "\./usr/bin/cmux([[:space:]]|$)"'
 
 check "usr/lib/cmux/cmuxd-remote exists" \
     'echo "$FILE_LIST" | grep -q "\./usr/lib/cmux/cmuxd-remote"'
 
 check "usr/lib/cmux/agent-browser exists" \
     'echo "$FILE_LIST" | grep -q "\./usr/lib/cmux/agent-browser"'
+
+check "usr/bin/agent-browser exists" \
+    'echo "$FILE_LIST" | grep -q "\./usr/bin/agent-browser"'
 
 check "desktop entry exists" \
     'echo "$FILE_LIST" | grep -q "\./usr/share/applications/com.cmux_lx.terminal.desktop"'
@@ -114,8 +117,8 @@ check "no release skill packaged (D-13)" \
 echo ""
 echo "Metadata:"
 
-check "Package: cmux" \
-    'echo "$CONTROL" | grep -q "^Package: cmux$"'
+check "Package: cmux-gtk" \
+    'echo "$CONTROL" | grep -q "^Package: cmux-gtk$"'
 
 check "Architecture: amd64" \
     'echo "$CONTROL" | grep -q "^Architecture: amd64$"'
@@ -143,6 +146,15 @@ check "Depends contains libharfbuzz0b" \
 
 check "Depends contains libglib2.0-0" \
     'echo "$CONTROL" | grep "^Depends:" | grep -q "libglib2.0-0"'
+
+check "Depends contains libc++1" \
+    'echo "$CONTROL" | grep "^Depends:" | grep -q "libc++1"'
+
+check "Depends contains libc++abi1" \
+    'echo "$CONTROL" | grep "^Depends:" | grep -q "libc++abi1"'
+
+check "Depends contains libxml2" \
+    'echo "$CONTROL" | grep "^Depends:" | grep -q "libxml2"'
 
 check "Depends contains libcairo2" \
     'echo "$CONTROL" | grep "^Depends:" | grep -q "libcairo2"'

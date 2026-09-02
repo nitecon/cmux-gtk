@@ -14,10 +14,11 @@ command -v rpmbuild &>/dev/null || {
 CMUX_APP="${1:-${REPO_ROOT}/target/release/cmux-app}"
 CMUX_CLI="${2:-${REPO_ROOT}/target/release/cmux}"
 CMUXD_REMOTE="${3:-${REPO_ROOT}/daemon/remote/cmuxd-remote}"
-AGENT_BROWSER="${4:-${REPO_ROOT}/target/release/agent-browser}"
+AGENT_BROWSER="${4:-$(${REPO_ROOT}/scripts/resolve-agent-browser.sh)}"
 
 # Extract version from Cargo.toml
-VERSION=$(grep '^version' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+VERSION="${CMUX_VERSION:-$(grep '^version' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')}"
+VERSION="${VERSION#v}"
 
 # Verify binaries exist
 for bin in "$CMUX_APP" "$CMUX_CLI" "$CMUXD_REMOTE" "$AGENT_BROWSER"; do

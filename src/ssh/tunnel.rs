@@ -1,5 +1,5 @@
 use base64::Engine;
-use crate::ssh::bridge::{SshBridge, WriteRequest};
+use crate::ssh::bridge::SshBridge;
 use crate::ssh::{SshEvent, SshEventTx};
 use crate::workspace::ConnectionState;
 use std::collections::HashMap;

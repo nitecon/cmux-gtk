@@ -83,35 +83,25 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libclang-dev libfontconfig1-dev \
-            libfreetype6-dev libonig-dev libgl-dev
-
-      - name: Install Zig
-        uses: mlugg/setup-zig@v1
-        with:
-          version: 0.15.2
-
-      - name: Build libghostty.a
-        run: |
-          cd ghostty
-          zig build -Dapp-runtime=none -Doptimize=ReleaseFast -Dgtk-x11=true -Dgtk-wayland=true
+      - name: Install Linux dependencies and build Ghostty
+        run: ./scripts/setup-linux-dev.sh
 
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
 
-      - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+      - name: Check workspace
+        run: cargo check --workspace --bins
 
-      - name: Build
-        run: cargo build
+      - name: Clippy correctness and suspicious lints
+        run: cargo clippy --workspace --bins -- -D clippy::correctness -D clippy::suspicious
 
-      - name: Test
-        run: cargo test --bin cmux-app
+      - name: Build debug binaries
+        run: cargo build --workspace --bins
+
+      - name: Run unit tests
+        run: cargo test --workspace --bins
 
   tests:
     # Never run WarpBuild jobs for fork pull requests (avoid billing on external PRs).

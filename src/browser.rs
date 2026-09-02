@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use serde_json::Value;
 use base64::Engine as _;
 use futures_util::StreamExt;
@@ -21,7 +21,6 @@ pub enum PreviewState {
 }
 
 pub struct BrowserManager {
-    daemon_process: Option<Child>,
     session_name: String,
     stream_task: Option<tokio::task::JoinHandle<()>>,
     pub frame_tx: Option<tokio::sync::mpsc::UnboundedSender<Vec<u8>>>,
@@ -31,7 +30,6 @@ pub struct BrowserManager {
 impl BrowserManager {
     pub fn new() -> Self {
         BrowserManager {
-            daemon_process: None,
             session_name: SESSION_NAME.to_string(),
             stream_task: None,
             frame_tx: None,
@@ -75,9 +73,9 @@ impl BrowserManager {
             return Ok(());
         }
 
-        // Find agent-browser binary: check PATH, then alongside cmux binary.
+        // Find an explicitly configured, installed, packaged, or locally linked binary.
         let binary_path = which_agent_browser().ok_or_else(|| {
-            "agent-browser not found in PATH. Install it or place it alongside the cmux binary."
+            "agent-browser is not installed; browser panes are unavailable. Install it with: npm install -g agent-browser && agent-browser install"
                 .to_string()
         })?;
 
@@ -86,17 +84,34 @@ impl BrowserManager {
         std::fs::create_dir_all(&socket_dir)
             .map_err(|e| format!("Failed to create socket dir {}: {}", socket_dir.display(), e))?;
 
-        let child = Command::new(&binary_path)
-            .env("AGENT_BROWSER_DAEMON", "1")
+        // Use the public CLI to launch the browser and its daemon. The old
+        // AGENT_BROWSER_DAEMON entry point is private and has changed between
+        // releases, which defeated using an unpinned installation.
+        let mut command = Command::new(&binary_path);
+        command
+            .arg("--session")
+            .arg(&self.session_name)
             .env("AGENT_BROWSER_SESSION", &self.session_name)
             .env("AGENT_BROWSER_STREAM_PORT", "0")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn agent-browser: {}", e))?;
+            .stdin(Stdio::null());
 
-        self.daemon_process = Some(child);
+        // Ubuntu's AppArmor policy can reject the downloaded Chrome for
+        // Testing sandbox. Prefer an installed, sandboxed browser when one is
+        // available, while honoring the user's explicit agent-browser choice.
+        if std::env::var_os("AGENT_BROWSER_EXECUTABLE_PATH").is_none() {
+            if let Some(browser) = find_system_chrome() {
+                command.arg("--executable-path").arg(browser);
+            }
+        }
+        command.arg("open").arg("about:blank");
+
+        let output = command
+            .output()
+            .map_err(|e| format!("Failed to launch agent-browser: {}", e))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("agent-browser failed to launch: {}", stderr.trim()));
+        }
 
         // Poll daemon_ready() with 200ms intervals, up to 50 retries (10s).
         for _ in 0..50 {
@@ -166,25 +181,6 @@ impl BrowserManager {
             "close",
             serde_json::json!({"id": "cmux-shutdown"}),
         );
-
-        if let Some(ref mut child) = self.daemon_process {
-            // Wait up to 2 seconds, then kill.
-            let start = std::time::Instant::now();
-            loop {
-                match child.try_wait() {
-                    Ok(Some(_)) => break,
-                    Ok(None) => {
-                        if start.elapsed() > std::time::Duration::from_secs(2) {
-                            let _ = child.kill();
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                    }
-                    Err(_) => break,
-                }
-            }
-        }
-        self.daemon_process = None;
 
         if let Some(task) = self.stream_task.take() {
             task.abort();
@@ -454,6 +450,13 @@ pub fn spawn_motion_forwarder(
 
 /// Find agent-browser binary in PATH or alongside the cmux binary.
 fn which_agent_browser() -> Option<PathBuf> {
+    // Allow deployments and local development to select an exact binary.
+    if let Ok(path) = std::env::var("CMUX_AGENT_BROWSER") {
+        let candidate = PathBuf::from(path);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
     // Check PATH
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in path_var.split(':') {
@@ -472,12 +475,35 @@ fn which_agent_browser() -> Option<PathBuf> {
             }
         }
     }
-    // Check /usr/lib/cmux/ (FHS install path for .deb/.rpm packages)
-    let candidate = PathBuf::from("/usr/lib/cmux/agent-browser");
-    if candidate.is_file() {
-        return Some(candidate);
+    // Check FHS install paths used by Debian and Fedora-family packages.
+    for candidate in [
+        PathBuf::from("/usr/lib/cmux/agent-browser"),
+        PathBuf::from("/usr/lib64/cmux/agent-browser"),
+    ] {
+        if candidate.is_file() {
+            return Some(candidate);
+        }
     }
     None
+}
+
+fn find_system_chrome() -> Option<PathBuf> {
+    [
+        "google-chrome-stable",
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+    ]
+    .iter()
+    .find_map(|name| find_on_path(name))
+}
+
+fn find_on_path(name: &str) -> Option<PathBuf> {
+    std::env::var_os("PATH").and_then(|path| {
+        std::env::split_paths(&path)
+            .map(|dir| dir.join(name))
+            .find(|candidate| candidate.is_file())
+    })
 }
 
 /// Simple random u64 for request IDs (no external crate needed).

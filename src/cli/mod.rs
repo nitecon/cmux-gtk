@@ -6,6 +6,9 @@
 pub mod discovery;
 pub mod format;
 pub mod socket_client;
+#[path = "../updater.rs"]
+#[allow(dead_code)]
+mod updater;
 
 pub use socket_client::CliError;
 
@@ -13,7 +16,7 @@ use clap::{Parser, Subcommand};
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "cmux", about = "Control cmux terminal multiplexer")]
+#[command(name = "cmux", version = env!("CMUX_VERSION"), about = "Control cmux terminal multiplexer")]
 pub struct Cli {
     /// Path to the cmux socket (overrides discovery)
     #[arg(long, global = true, env = "CMUX_SOCKET")]
@@ -41,6 +44,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Update a self-managed cmux installation
+    Update,
     /// Ping the running cmux instance
     Ping,
     /// Show cmux instance identity (version, platform, pid)
@@ -387,6 +392,11 @@ pub enum BrowserCommand {
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
+    if matches!(cli.command, Commands::Update) {
+        updater::manual_update().map_err(|e| CliError::CommandError(format!("{e:#}")))?;
+        return Ok(());
+    }
+
     // Resolve socket path: --socket flag > discovery > error
     let socket_path = if let Some(ref path) = cli.socket {
         path.clone()
@@ -560,6 +570,7 @@ fn browser_command_to_rpc(cmd: &BrowserCommand) -> (&'static str, serde_json::Va
 fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use serde_json::{json, Value};
     match cmd {
+        Commands::Update => unreachable!("update is handled before socket discovery"),
         Commands::Ping => ("system.ping", json!({})),
         Commands::Identify => ("system.identify", json!({})),
         Commands::Capabilities => ("system.capabilities", json!({})),

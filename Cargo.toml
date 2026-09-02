@@ -1,8 +1,8 @@
 [workspace]
-members = [".", "agent-browser/cli"]
+members = ["."]
 
 [package]
-name = "cmux-linux"
+name = "cmux-gtk"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,7 +15,7 @@ name = "cmux"
 path = "src/bin/cmux.rs"
 
 [dependencies]
-gtk4 = { version = "0.10.3", features = ["v4_12", "v4_14"] }
+gtk4 = { version = "0.10.3", features = ["v4_8"] }
 tokio = { version = "1", features = ["full"] }
 glib = "0.21.5"
 serde = { version = "1", features = ["derive"] }
@@ -26,6 +26,12 @@ libc = "0.2"
 base64 = "0.22.1"
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"
+anyhow = "1"
+flate2 = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+semver = "1"
+sha2 = "0.10"
+tar = "0.4"
 clap = { version = "4", features = ["derive", "color", "env"] }
 clap_complete = "4.6"
 clap_mangen = "0.3"

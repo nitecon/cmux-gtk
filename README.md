@@ -1,4 +1,4 @@
-<h1 align="center">cmux for Linux</h1>
+<h1 align="center">cmux GTK</h1>
 <p align="center">A GPU-accelerated terminal multiplexer with tabs, splits, workspaces, browser automation, and socket CLI control — powered by Ghostty</p>
 
 <p align="center">
@@ -25,27 +25,50 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 
 ## Install
 
+### Homebrew on Linux
+
+```bash
+brew install --cask nitecon/cmux-gtk/cmux-gtk
+```
+
 ### Debian / Ubuntu (.deb)
 
 ```bash
-sudo dpkg -i cmux_0.1.0_amd64.deb
+sudo dpkg -i cmux-gtk_0.1.0_amd64.deb
 sudo apt-get install -f  # install dependencies if needed
 ```
 
 ### Fedora / RHEL (.rpm)
 
 ```bash
-sudo rpm -i cmux-0.1.0-1.x86_64.rpm
+sudo rpm -i cmux-gtk-0.1.0-1.x86_64.rpm
 ```
 
 ### Build from source
 
 ```bash
-# Prerequisites: Rust toolchain, GTK4 dev libraries, Zig 0.15.2 (for libghostty)
-./scripts/setup.sh          # init submodules, build GhosttyKit
+# Prerequisite: Rust toolchain (the setup script installs system libraries and Zig)
+git clone --recurse-submodules https://github.com/nitecon/cmux-gtk.git
+cd cmux-gtk
+./scripts/setup-linux-dev.sh # install dev dependencies and build libghostty
 cargo build --release --bin cmux --bin cmux-app
-cargo build --release -p agent-browser
 ```
+
+cmux uses an existing `agent-browser` from `CMUX_AGENT_BROWSER`, `PATH`, or its
+package installation path. Browser panes remain disabled when it is absent and
+cmux prints the upstream installation command. This keeps agent-browser optional
+and independently upgradeable.
+
+### Direct binary install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nitecon/cmux-gtk/main/scripts/install-linux.sh | bash
+```
+
+Direct binary installs check for updates quietly at most once per hour. Run
+`cmux update` to update immediately, or set `CMUX_NO_UPDATE=1` to disable
+automatic checks. Homebrew, Debian, RPM, and AppImage installations remain
+owned by their package manager.
 
 ## Browser Automation
 
@@ -140,7 +163,9 @@ Shortcuts are configurable via TOML config file.
 ```bash
 # Build all release binaries
 cargo build --release --bin cmux --bin cmux-app
-cargo build --release -p agent-browser
+
+# Optional: resolve an installed or locally linked agent-browser
+./scripts/resolve-agent-browser.sh
 
 # Build .deb
 ./packaging/scripts/build-deb.sh
@@ -152,6 +177,19 @@ cargo build --release -p agent-browser
 ./packaging/scripts/validate-deb.sh
 ./packaging/scripts/validate-rpm.sh
 ```
+
+## Continuous Integration and Releases
+
+Pull requests and commits to `main` run the development CI suite: workspace
+checks, Clippy correctness vetting, debug builds, unit tests, remote-daemon
+tests, and the existing macOS/web checks.
+
+Pushing a semantic version tag such as `v0.2.0` runs the Linux release workflow
+without rerunning the development suite. It builds against the Debian 12 glibc
+baseline, validates the binaries and packages, publishes the tarball, checksum,
+DEB, and RPM to the GitHub release, then updates
+[`nitecon/homebrew-cmux-gtk`](https://github.com/nitecon/homebrew-cmux-gtk). The workflow
+can also be dispatched manually without publishing for an artifact-only dry run.
 
 ## License
 

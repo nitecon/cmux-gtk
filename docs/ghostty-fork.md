@@ -102,25 +102,20 @@ The fork branch HEAD is now the section 6 zsh redraw follow-up commit.
 
 The fork branch HEAD is now the section 7 cmux theme picker helper commit.
 
-### 8) GHOSTTY_PLATFORM_GTK4 — Linux GTK4 embedded variant
+### 8) Linux embedding now uses the generic OpenGL platform
 
-- Files:
-  - `include/ghostty.h` (at repo root: `ghostty.h`)
-  - `src/apprt/embedded.zig`
-  - `src/renderer/OpenGL.zig`
-- Summary:
-  - Adds `GHOSTTY_PLATFORM_GTK4 = 3` to `ghostty_platform_e` enum in ghostty.h.
-  - Adds `ghostty_platform_gtk4_s` struct (single `void* gl_area` field) and `gtk4` member to `ghostty_platform_u` union.
-  - Adds `gtk4 = 3` to `PlatformTag` enum in embedded.zig.
-  - Adds `GTK4` type (linux-only, `gl_area: *anyopaque`) and `gtk4` arm to the `Platform` union.
-  - Adds `gtk4` member to `Platform.C` extern union and `gtk4` arm to `Platform.init()`.
-  - Replaces the "strictly broken" TODO stub in `OpenGL.zig surfaceInit` with a GTK4 dispatch: calls `prepareContext(null)` when the embedded surface's platform is GTK4 (same path as the GTK apprt).
-  - Adds no-op GTK4 arms in `threadEnter` and `threadExit` (GtkGLArea manages context lifecycle on the Rust side).
-- Design notes:
-  - `void* gl_area` avoids requiring GTK4 headers in ghostty.h — consistent with `void* nsview` (macOS) pattern.
-  - `GdkGLContext` is NOT passed; GTK4 manages it internally via `GtkGLArea`. Rust side calls `gl_area.make_current()` in the realize signal handler.
-  - `wakeup_cb` and `userdata` are registered globally via `ghostty_runtime_config_s`, not per-surface.
-  - `GTK4` type is `void` on non-Linux targets so the type compiles cross-platform.
+The former fork-only `GHOSTTY_PLATFORM_GTK4` ABI is retired. The Linux port now
+uses Ghostty's supported `GHOSTTY_PLATFORM_OPENGL` interface and supplies
+make-current, clear-current, proc-address, and swap callbacks from its
+`GtkGLArea` host. `build.rs` generates bindings from the selected submodule's
+`zig-out/include/ghostty.h`, so future ABI changes fail at compile time instead
+of silently drifting behind the old copied root header.
+
+The parent currently selects `aea262f832299e29a0a9cfa3437acc60837365b7`, a
+reachable fork revision that builds the embedded archive with Zig 0.16.0. The
+newer font-resolution series must be re-evaluated before advancing this pointer;
+at the time of the Linux stabilization pass it did not compile the embedded
+FreeType surface path.
 
 ## Upstreamed fork changes
 
@@ -150,12 +145,9 @@ These files change frequently upstream; be careful when rebasing the fork:
     If upstream reorganizes the preview loop or key handling, re-check the cmux mode path and keep the
     stock Ghostty behavior unchanged when the cmux env vars are absent.
 
-- `src/apprt/embedded.zig` (Platform/PlatformTag)
-  - `ghostty_platform_e` enum will conflict if upstream adds new platform values at position 3.
-  - `Platform` union and `PlatformTag` enum conflict on any change to these types.
-
-- `src/renderer/OpenGL.zig` (surfaceInit/threadEnter/threadExit)
-  - The embedded arm switch blocks are conflict-prone during upstream renderer updates.
-  - Re-check GTK4 dispatch if upstream changes the apprt.embedded arm structure.
+- `include/ghostty.h` and `src/apprt/embedded.zig`
+  - Re-check the generic OpenGL callback ABI whenever advancing the Linux
+    submodule pointer. The Rust build intentionally binds the generated header
+    from the same revision.
 
 If you resolve a conflict, update this doc with what changed.

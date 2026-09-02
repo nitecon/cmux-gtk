@@ -160,26 +160,27 @@ pub fn handle_close_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Applica
         return; // No-op: cannot close the last workspace
     }
 
-    let dialog = gtk4::AlertDialog::builder()
-        .message("Close Workspace?")
-        .detail("All panes in this workspace will be closed. This cannot be undone.")
+    let dialog = gtk4::MessageDialog::builder()
+        .text("Close Workspace?")
+        .secondary_text("All panes in this workspace will be closed. This cannot be undone.")
         .modal(true)
         .build();
-    dialog.set_buttons(&["Keep Workspace", "Close Workspace"]);
-    dialog.set_default_button(0);
-    dialog.set_cancel_button(0);
-
-    let window = app.windows().into_iter().next();
-
-    dialog.choose(window.as_ref(), None::<&gtk4::gio::Cancellable>, {
+    if let Some(window) = app.windows().into_iter().next() {
+        dialog.set_transient_for(Some(&window));
+    }
+    dialog.add_button("Keep Workspace", gtk4::ResponseType::Cancel);
+    dialog.add_button("Close Workspace", gtk4::ResponseType::Accept);
+    dialog.set_default_response(gtk4::ResponseType::Cancel);
+    dialog.connect_response({
         let state = state.clone();
-        move |result| {
-            // Button index 1 = "Close Workspace" (destructive)
-            if let Ok(1) = result {
+        move |dialog, response| {
+            if response == gtk4::ResponseType::Accept {
                 state.borrow_mut().close_workspace(active_index);
             }
+            dialog.close();
         }
     });
+    dialog.present();
 }
 
 /// Split the active pane. `vertical=false` -> split right (Ctrl+D), `vertical=true` -> split down.

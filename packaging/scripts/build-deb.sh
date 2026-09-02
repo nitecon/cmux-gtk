@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # build-deb.sh -- Build a .deb package from pre-built cmux binaries
-# Usage: ./build-deb.sh [cmux-app] [cmux-cli] [cmuxd-remote]
+# Usage: ./build-deb.sh [cmux-app] [cmux-cli] [cmuxd-remote] [agent-browser]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -11,10 +11,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CMUX_APP="${1:-$REPO_ROOT/target/release/cmux-app}"
 CMUX_CLI="${2:-$REPO_ROOT/target/release/cmux}"
 CMUXD_REMOTE="${3:-$REPO_ROOT/daemon/remote/cmuxd-remote}"
-AGENT_BROWSER="${4:-$REPO_ROOT/target/release/agent-browser}"
+AGENT_BROWSER="${4:-$($REPO_ROOT/scripts/resolve-agent-browser.sh)}"
 
 # Extract version from Cargo.toml
-VERSION=$(grep '^version' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
+VERSION="${CMUX_VERSION:-$(grep '^version' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')}"
+VERSION="${VERSION#v}"
 
 # Verify all binaries exist
 for bin in "$CMUX_APP" "$CMUX_CLI" "$CMUXD_REMOTE" "$AGENT_BROWSER"; do
@@ -37,6 +38,7 @@ install -Dm0755 "$REPO_ROOT/packaging/scripts/cmux-app-wrapper.sh" "$PKG_ROOT/us
 install -Dm0755 "$CMUX_CLI" "$PKG_ROOT/usr/bin/cmux"
 install -Dm0755 "$CMUXD_REMOTE" "$PKG_ROOT/usr/lib/cmux/cmuxd-remote"
 install -Dm0755 "$AGENT_BROWSER" "$PKG_ROOT/usr/lib/cmux/agent-browser"
+ln -s ../lib/cmux/agent-browser "$PKG_ROOT/usr/bin/agent-browser"
 
 # Desktop metadata
 install -Dm0644 "$REPO_ROOT/packaging/desktop/com.cmux_lx.terminal.desktop" \
@@ -76,20 +78,20 @@ install -Dm0644 "$REPO_ROOT/packaging/CLAUDE.md" "$PKG_ROOT/usr/share/cmux/CLAUD
 # DEBIAN/control
 mkdir -p "$PKG_ROOT/DEBIAN"
 cat > "$PKG_ROOT/DEBIAN/control" << CTRL
-Package: cmux
+Package: cmux-gtk
 Version: ${VERSION}
 Architecture: amd64
 Maintainer: cmux <noreply@cmux.dev>
 Section: x11
 Priority: optional
-Depends: libgtk-4-1, libfontconfig1, libfreetype6, libonig5, libgl1, libegl1, libharfbuzz0b, libglib2.0-0, libcairo2, libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, libepoxy0, libxkbcommon0, libgraphene-1.0-0
-Homepage: https://cmux.dev
+Depends: libgtk-4-1, libfontconfig1, libfreetype6, libonig5, libgl1, libegl1, libharfbuzz0b, libglib2.0-0, libcairo2, libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, libepoxy0, libxkbcommon0, libgraphene-1.0-0, libc++1, libc++abi1, libxml2-16 | libxml2
+Homepage: https://github.com/nitecon/cmux-gtk
 Description: GPU-accelerated terminal multiplexer
  cmux provides tabs, splits, workspaces, and socket CLI control
  powered by Ghostty's GPU-accelerated terminal rendering.
 CTRL
 
 # Build the .deb
-DEB_FILE="$OUTPUT_DIR/cmux_${VERSION}_amd64.deb"
+DEB_FILE="$OUTPUT_DIR/cmux-gtk_${VERSION}_amd64.deb"
 dpkg-deb --build --root-owner-group "$PKG_ROOT" "$DEB_FILE"
 echo "Built: $DEB_FILE"

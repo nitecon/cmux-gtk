@@ -1,0 +1,166 @@
+name: Release Linux packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (for example 0.2.0 or v0.2.0)"
+        required: true
+        type: string
+      publish:
+        description: "Publish the artifacts to a GitHub release"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-release-${{ github.ref }}-${{ inputs.version || '' }}
+  cancel-in-progress: false
+
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    container: rust:1.96-bookworm@sha256:a339861ae23e9abb272cea45dfafde21760d2ce6577a70f8a926153677902663
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_PUBLISH: ${{ inputs.publish }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            PUBLISH=true
+          else
+            VERSION="${REQUESTED_VERSION#v}"
+            PUBLISH="$REQUESTED_PUBLISH"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "CMUX_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install packaging dependencies
+        run: |
+          apt-get update
+          apt-get install -y binutils ca-certificates git golang-go nodejs npm rpm ruby
+
+      - name: Install Linux build dependencies and build Ghostty
+        run: ./scripts/setup-linux-dev.sh
+
+      - name: Install current agent-browser
+        run: |
+          npm install --global agent-browser@latest
+          agent-browser --version
+
+      - name: Build optimized binaries
+        env:
+          CMUX_RELEASE_BUILD: "1"
+        run: |
+          cargo build --release --bin cmux --bin cmux-app
+          (cd daemon/remote && go build -trimpath -o cmuxd-remote ./cmd/cmuxd-remote)
+
+      - name: Enforce Debian 12 glibc ceiling
+        run: |
+          ./scripts/check-glibc-floor.sh 2.36 \
+            target/release/cmux \
+            target/release/cmux-app \
+            daemon/remote/cmuxd-remote
+
+      - name: Build updater archive
+        run: |
+          mkdir -p dist/archive
+          install -m 0755 target/release/cmux dist/archive/cmux
+          install -m 0755 target/release/cmux-app dist/archive/cmux-app
+          tar -C dist/archive -czf dist/cmux-gtk-linux-x86_64.tar.gz cmux cmux-app
+          (cd dist && sha256sum cmux-gtk-linux-x86_64.tar.gz > cmux-gtk-linux-x86_64.tar.gz.sha256)
+
+      - name: Preflight updater archive
+        run: |
+          mkdir -p dist/preflight
+          tar -xzf dist/cmux-gtk-linux-x86_64.tar.gz -C dist/preflight
+          dist/preflight/cmux --version
+          dist/preflight/cmux-app --version
+          (cd dist && sha256sum --check cmux-gtk-linux-x86_64.tar.gz.sha256)
+
+      - name: Build native packages
+        run: |
+          ./packaging/scripts/build-deb.sh
+          ./packaging/scripts/build-rpm.sh
+
+      - name: Validate native packages
+        run: |
+          ./packaging/scripts/validate-deb.sh "dist/cmux-gtk_${CMUX_VERSION}_amd64.deb"
+          ./packaging/scripts/validate-rpm.sh "dist/cmux-gtk-${CMUX_VERSION}-1.x86_64.rpm"
+
+      - name: Upload workflow artifacts
+        if: steps.release.outputs.publish != 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-gtk-${{ steps.release.outputs.version }}-x86_64
+          if-no-files-found: error
+          path: |
+            dist/cmux-gtk-linux-x86_64.tar.gz
+            dist/cmux-gtk-linux-x86_64.tar.gz.sha256
+            dist/cmux-gtk_${{ steps.release.outputs.version }}_amd64.deb
+            dist/cmux-gtk-${{ steps.release.outputs.version }}-1.x86_64.rpm
+
+      - name: Publish GitHub release assets
+        if: steps.release.outputs.publish == 'true'
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          generate_release_notes: true
+          overwrite_files: false
+          files: |
+            dist/cmux-gtk-linux-x86_64.tar.gz
+            dist/cmux-gtk-linux-x86_64.tar.gz.sha256
+            dist/cmux-gtk_${{ steps.release.outputs.version }}_amd64.deb
+            dist/cmux-gtk-${{ steps.release.outputs.version }}-1.x86_64.rpm
+
+      - name: Checkout Homebrew tap
+        if: steps.release.outputs.publish == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: nitecon/homebrew-cmux-gtk
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: homebrew-tap
+
+      - name: Publish Homebrew Cask
+        if: steps.release.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          SHA256="$(sha256sum dist/cmux-gtk-linux-x86_64.tar.gz | cut -d' ' -f1)"
+          mkdir -p homebrew-tap/Casks
+          cp packaging/homebrew/cmux-gtk.rb homebrew-tap/Casks/cmux-gtk.rb
+          sed -i "s/version \"0.1.0\"/version \"${VERSION}\"/" homebrew-tap/Casks/cmux-gtk.rb
+          sed -i "s/REPLACE_WITH_RELEASE_SHA256/${SHA256}/" homebrew-tap/Casks/cmux-gtk.rb
+          ruby -c homebrew-tap/Casks/cmux-gtk.rb
+          grep -q "sha256 \"${SHA256}\"" homebrew-tap/Casks/cmux-gtk.rb
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C homebrew-tap add Casks/cmux-gtk.rb
+          if git -C homebrew-tap diff --cached --quiet; then
+            echo "Homebrew Cask already matches v${VERSION}"
+          else
+            git -C homebrew-tap commit -m "Update cmux-gtk to ${VERSION}"
+            git -C homebrew-tap push
+          fi

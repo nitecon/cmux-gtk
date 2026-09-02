@@ -353,9 +353,10 @@ pub fn build_browser_context_menu() -> gio::Menu {
 }
 
 /// Build GtkShortcutsWindow (D-14) with all shortcuts grouped by category.
-/// Uses GTK 4.14 add_section/add_group API.
+/// Uses the GtkBox APIs inherited by shortcut containers for GTK 4.8 support.
 fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let window = gtk4::ShortcutsWindow::builder().build();
+    let sections = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
 
     // Workspaces section
     let ws_section = gtk4::ShortcutsSection::builder()
@@ -366,14 +367,14 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let ws_group = gtk4::ShortcutsGroup::builder()
         .title("Workspaces")
         .build();
-    ws_group.add_shortcut(&shortcut("<Ctrl>n", "New Workspace"));
-    ws_group.add_shortcut(&shortcut("<Ctrl><Shift>w", "Close Workspace"));
-    ws_group.add_shortcut(&shortcut("<Ctrl>bracketright", "Next Workspace"));
-    ws_group.add_shortcut(&shortcut("<Ctrl>bracketleft", "Previous Workspace"));
-    ws_group.add_shortcut(&shortcut("<Ctrl><Shift>r", "Rename Workspace"));
-    ws_group.add_shortcut(&shortcut("<Ctrl>1..9", "Switch to Workspace 1-9"));
-    ws_section.add_group(&ws_group);
-    window.add_section(&ws_section);
+    ws_group.append(&shortcut("<Ctrl>n", "New Workspace"));
+    ws_group.append(&shortcut("<Ctrl><Shift>w", "Close Workspace"));
+    ws_group.append(&shortcut("<Ctrl>bracketright", "Next Workspace"));
+    ws_group.append(&shortcut("<Ctrl>bracketleft", "Previous Workspace"));
+    ws_group.append(&shortcut("<Ctrl><Shift>r", "Rename Workspace"));
+    ws_group.append(&shortcut("<Ctrl>1..9", "Switch to Workspace 1-9"));
+    ws_section.append(&ws_group);
+    sections.append(&ws_section);
 
     // Panes section
     let pane_section = gtk4::ShortcutsSection::builder()
@@ -384,15 +385,15 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let pane_group = gtk4::ShortcutsGroup::builder()
         .title("Panes")
         .build();
-    pane_group.add_shortcut(&shortcut("<Ctrl>d", "Split Right"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>d", "Split Down"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>x", "Close Pane"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>Left", "Focus Left"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>Right", "Focus Right"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>Up", "Focus Up"));
-    pane_group.add_shortcut(&shortcut("<Ctrl><Shift>Down", "Focus Down"));
-    pane_section.add_group(&pane_group);
-    window.add_section(&pane_section);
+    pane_group.append(&shortcut("<Ctrl>d", "Split Right"));
+    pane_group.append(&shortcut("<Ctrl><Shift>d", "Split Down"));
+    pane_group.append(&shortcut("<Ctrl><Shift>x", "Close Pane"));
+    pane_group.append(&shortcut("<Ctrl><Shift>Left", "Focus Left"));
+    pane_group.append(&shortcut("<Ctrl><Shift>Right", "Focus Right"));
+    pane_group.append(&shortcut("<Ctrl><Shift>Up", "Focus Up"));
+    pane_group.append(&shortcut("<Ctrl><Shift>Down", "Focus Down"));
+    pane_section.append(&pane_group);
+    sections.append(&pane_section);
 
     // Edit section
     let edit_section = gtk4::ShortcutsSection::builder()
@@ -403,11 +404,11 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let edit_group = gtk4::ShortcutsGroup::builder()
         .title("Edit")
         .build();
-    edit_group.add_shortcut(&shortcut("<Ctrl><Shift>c", "Copy"));
-    edit_group.add_shortcut(&shortcut("<Ctrl><Shift>v", "Paste"));
-    edit_group.add_shortcut(&shortcut("<Ctrl>f", "Find"));
-    edit_section.add_group(&edit_group);
-    window.add_section(&edit_section);
+    edit_group.append(&shortcut("<Ctrl><Shift>c", "Copy"));
+    edit_group.append(&shortcut("<Ctrl><Shift>v", "Paste"));
+    edit_group.append(&shortcut("<Ctrl>f", "Find"));
+    edit_section.append(&edit_group);
+    sections.append(&edit_section);
 
     // View section
     let view_section = gtk4::ShortcutsSection::builder()
@@ -418,11 +419,11 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let view_group = gtk4::ShortcutsGroup::builder()
         .title("View")
         .build();
-    view_group.add_shortcut(&shortcut("<Ctrl>b", "Toggle Sidebar"));
-    view_group.add_shortcut(&shortcut("<Ctrl><Shift>b", "Open Browser"));
-    view_group.add_shortcut(&shortcut("<Ctrl><Shift>s", "New SSH Workspace"));
-    view_section.add_group(&view_group);
-    window.add_section(&view_section);
+    view_group.append(&shortcut("<Ctrl>b", "Toggle Sidebar"));
+    view_group.append(&shortcut("<Ctrl><Shift>b", "Open Browser"));
+    view_group.append(&shortcut("<Ctrl><Shift>s", "New SSH Workspace"));
+    view_section.append(&view_group);
+    sections.append(&view_section);
 
     // General section
     let general_section = gtk4::ShortcutsSection::builder()
@@ -433,9 +434,11 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
     let general_group = gtk4::ShortcutsGroup::builder()
         .title("General")
         .build();
-    general_group.add_shortcut(&shortcut("<Ctrl>q", "Quit"));
-    general_section.add_group(&general_group);
-    window.add_section(&general_section);
+    general_group.append(&shortcut("<Ctrl>q", "Quit"));
+    general_section.append(&general_group);
+    sections.append(&general_section);
+
+    window.set_child(Some(&sections));
 
     window
 }

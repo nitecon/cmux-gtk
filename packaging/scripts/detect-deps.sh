@@ -51,6 +51,10 @@ declare -A FEDORA_FALLBACK=(
     ["libpixman-1.so.0"]="pixman"
     ["libpng16.so.16"]="libpng"
     ["libz.so.1"]="zlib"
+    ["libc++.so.1"]="libcxx"
+    ["libc++abi.so.1"]="libcxxabi"
+    ["libxml2.so.2"]="libxml2"
+    ["libxml2.so.16"]="libxml2"
 )
 
 # Static fallback: lib soname -> Debian package name
@@ -80,6 +84,10 @@ declare -A DEBIAN_FALLBACK=(
     ["libfribidi.so.0"]="libfribidi0"
     ["libpng16.so.16"]="libpng16-16"
     ["libz.so.1"]="zlib1g"
+    ["libc++.so.1"]="libc++1"
+    ["libc++abi.so.1"]="libc++abi1"
+    ["libxml2.so.2"]="libxml2"
+    ["libxml2.so.16"]="libxml2-16"
 )
 
 # System libs to skip (always present, not package dependencies)

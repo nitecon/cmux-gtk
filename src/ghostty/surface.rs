@@ -29,6 +29,38 @@ extern "C" {
 const GL_VIEWPORT: u32 = 0x0BA2;
 const GL_DRAW_FRAMEBUFFER_BINDING: u32 = 0x8CA6;
 
+unsafe extern "C" fn opengl_make_current(userdata: *mut std::ffi::c_void) -> bool {
+    if userdata.is_null() {
+        return false;
+    }
+    let area = userdata.cast();
+    let context = gtk4::ffi::gtk_gl_area_get_context(area);
+    if !context.is_null() && gtk4::gdk::ffi::gdk_gl_context_get_current() == context {
+        return true;
+    }
+    gtk4::ffi::gtk_gl_area_make_current(area);
+    gtk4::ffi::gtk_gl_area_get_error(area).is_null()
+}
+
+unsafe extern "C" fn opengl_clear_current(_userdata: *mut std::ffi::c_void) {
+    // GtkGLArea owns the context for the full render callback. Clearing it
+    // here breaks GTK's post-render compositing and libepoxy dispatch.
+}
+
+unsafe extern "C" fn opengl_get_proc_address(
+    _userdata: *mut std::ffi::c_void,
+    name: *const std::ffi::c_char,
+) -> *mut std::ffi::c_void {
+    extern "C" {
+        fn glXGetProcAddressARB(name: *const u8) -> *mut std::ffi::c_void;
+    }
+    glXGetProcAddressARB(name.cast())
+}
+
+unsafe extern "C" fn opengl_swap_buffers(_userdata: *mut std::ffi::c_void) {
+    // GtkGLArea presents its framebuffer after the render signal returns.
+}
+
 /// Creates and returns a GtkGLArea with a Ghostty terminal surface wired up.
 /// Initializes ghostty_app_t, then defers ghostty_surface_t creation to the
 /// GtkGLArea realize signal — when the GL context is guaranteed to exist.
@@ -56,6 +88,8 @@ pub fn create_surface(
         gl_area.as_ptr(),
         pane_id
     );
+    // Ghostty's embedded renderer expects desktop OpenGL. GTK 4.8 has no
+    // per-GLArea API selector, so application startup sets GDK's gl-prefer-gl.
     // Per Pitfall 1: require OpenGL 4.3 before the area is realized.
     gl_area.set_required_version(4, 3);
     // Manual render mode: only render when wakeup_cb schedules queue_render().
@@ -114,12 +148,6 @@ pub fn create_surface(
                     area.as_ptr(),
                     existing_surface
                 );
-                // Reinitialize renderer GL resources (shaders, swap chain) for the
-                // new GL context. This matches Ghostty's own GTK apprt glareaRealize
-                // which calls displayRealized() after reparent/display-move.
-                unsafe {
-                    ffi::ghostty_surface_display_realized(existing_surface);
-                }
                 let scale = area.scale_factor() as f64;
                 let w = area.width();
                 let h = area.height();
@@ -156,18 +184,22 @@ pub fn create_surface(
                 let gl_area_ptr = area.as_ptr() as *mut std::ffi::c_void;
 
                 let platform = ffi::ghostty_platform_u {
-                    gtk4: ffi::ghostty_platform_gtk4_s {
-                        gl_area: gl_area_ptr,
+                    opengl: ffi::ghostty_platform_opengl_s {
+                        userdata: gl_area_ptr,
+                        make_current: Some(opengl_make_current),
+                        clear_current: Some(opengl_clear_current),
+                        get_proc_address: Some(opengl_get_proc_address),
+                        swap_buffers: Some(opengl_swap_buffers),
                     },
                 };
 
                 let mut surface_config = if let Some(ic) = inherited_config {
                     ic // already owned by value — no dangling pointer
                 } else {
-                    unsafe { ffi::ghostty_surface_config_new() }
+                    ffi::ghostty_surface_config_new()
                 };
 
-                surface_config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_GTK4;
+                surface_config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
                 surface_config.platform = platform;
                 surface_config.userdata = std::ptr::null_mut();
                 surface_config.scale_factor = area.scale_factor() as f64;
@@ -264,17 +296,10 @@ pub fn create_surface(
                 area.as_ptr(),
                 pane_id_unrealize,
             );
-            // Make GL context current so Ghostty can properly free GL objects.
-            area.make_current();
-            if let Some(surface) = *cell_unrealize.borrow() {
-                unsafe {
-                    ffi::ghostty_surface_display_unrealized(surface);
-                }
-                eprintln!(
-                    "cmux: display_unrealized called for surface {:p}",
-                    surface
-                );
-            }
+            // The generic OpenGL embedding API owns renderer cleanup as part
+            // of surface teardown; GtkGLArea may be realized again after a
+            // reparent without destroying the terminal surface.
+            let _ = &cell_unrealize;
         });
     }
 
@@ -394,12 +419,9 @@ pub fn create_surface(
         let cell = surface_cell.clone();
         move |widget, _| {
             if let Some(surface) = *cell.borrow() {
-                // Prefer fractional scale from GdkSurface (Wayland fractional scaling)
-                // over Widget::scale_factor() which returns the integer ceiling.
-                let scale = widget.native()
-                    .and_then(|n| n.surface())
-                    .map(|s| s.scale())
-                    .unwrap_or(widget.scale_factor() as f64);
+                // GdkSurface::scale() is GTK 4.12+, so retain compatibility with
+                // Debian 12 by using the integer widget scale factor.
+                let scale = widget.scale_factor() as f64;
                 eprintln!("cmux: scale-factor changed to {} for surface {:p}", scale, surface);
                 unsafe {
                     ffi::ghostty_surface_set_content_scale(surface, scale, scale);
@@ -624,19 +646,19 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
     _userdata: *mut std::ffi::c_void,
     clipboard_type: crate::ghostty::ffi::ghostty_clipboard_e,
     request: *mut std::ffi::c_void,
-) {
+) -> bool {
     use gtk4::prelude::*;
     use std::sync::atomic::Ordering;
 
     let surface_ptr = crate::ghostty::callbacks::SURFACE_PTR.load(Ordering::SeqCst);
     if surface_ptr == 0 {
-        return;
+        return false;
     }
     let surface = surface_ptr as ffi::ghostty_surface_t;
 
     let display = match gtk4::gdk::Display::default() {
         Some(d) => d,
-        None => return,
+        None => return false,
     };
     let clipboard = if clipboard_type == ffi::ghostty_clipboard_e_GHOSTTY_CLIPBOARD_SELECTION {
         display.primary_clipboard()
@@ -650,17 +672,17 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
     let text_result = glib::MainContext::default().block_on(clipboard.read_text_future());
 
     let c_text = match text_result {
-        Ok(Some(ref s)) => std::ffi::CString::new(s.as_str()).ok(),
-        _ => None,
+        Ok(Some(ref s)) => match std::ffi::CString::new(s.as_str()) {
+            Ok(text) => text,
+            Err(_) => return false,
+        },
+        _ => return false,
     };
-    let text_ptr = c_text
-        .as_ref()
-        .map(|s| s.as_ptr())
-        .unwrap_or(std::ptr::null());
 
     unsafe {
-        ffi::ghostty_surface_complete_clipboard_request(surface, text_ptr, request, true);
+        ffi::ghostty_surface_complete_clipboard_request(surface, c_text.as_ptr(), request, true);
     }
+    true
 }
 
 pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(

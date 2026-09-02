@@ -1,9 +1,9 @@
-Name:           cmux
+Name:           cmux-gtk
 Version:        %{_cmux_version}
 Release:        1%{?dist}
 Summary:        GPU-accelerated terminal multiplexer
-License:        Proprietary
-URL:            https://cmux.dev
+License:        AGPL-3.0-only
+URL:            https://github.com/nitecon/cmux-gtk
 
 # Pre-built binary package -- no Source0, no %build
 AutoReqProv:    no
@@ -23,6 +23,9 @@ Requires:       gdk-pixbuf2
 Requires:       libepoxy
 Requires:       libxkbcommon
 Requires:       graphene
+Requires:       libcxx
+Requires:       libcxxabi
+Requires:       libxml2
 
 %description
 cmux is a GPU-accelerated terminal with tabs, splits, workspaces,
@@ -33,6 +36,7 @@ install -Dm0755 %{_sourcedir}/cmux-app %{buildroot}%{_bindir}/cmux-app
 install -Dm0755 %{_sourcedir}/cmux %{buildroot}%{_bindir}/cmux
 install -Dm0755 %{_sourcedir}/cmuxd-remote %{buildroot}%{_libdir}/cmux/cmuxd-remote
 install -Dm0755 %{_sourcedir}/agent-browser %{buildroot}%{_libdir}/cmux/agent-browser
+ln -s ../%{_lib}/cmux/agent-browser %{buildroot}%{_bindir}/agent-browser
 
 install -Dm0644 %{_sourcedir}/com.cmux_lx.terminal.desktop %{buildroot}%{_datadir}/applications/com.cmux_lx.terminal.desktop
 install -Dm0644 %{_sourcedir}/com.cmux_lx.terminal.metainfo.xml %{buildroot}%{_datadir}/metainfo/com.cmux_lx.terminal.metainfo.xml
@@ -61,6 +65,7 @@ install -Dm0644 %{_sourcedir}/CLAUDE.md %{buildroot}%{_datadir}/cmux/CLAUDE.md
 %files
 %{_bindir}/cmux-app
 %{_bindir}/cmux
+%{_bindir}/agent-browser
 %{_libdir}/cmux/cmuxd-remote
 %{_libdir}/cmux/agent-browser
 %{_datadir}/applications/com.cmux_lx.terminal.desktop

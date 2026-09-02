@@ -1,6 +1,6 @@
 
 use gtk4::prelude::*;
-use gtk4::{Application, ApplicationWindow, gio, CssProvider, StyleContext};
+use gtk4::{Application, ApplicationWindow, gio, CssProvider};
 use std::ffi::CString;
 
 mod ghostty;
@@ -18,6 +18,8 @@ mod menus;
 mod header_bar;
 mod ssh_hosts;
 mod ssh_dialog;
+#[allow(dead_code)]
+mod updater;
 
 const APP_ID: &str = "io.cmux.App";
 
@@ -43,8 +45,6 @@ paned > separator:hover { background-color: #5b8dd9; }
     border-radius: 50%;
     min-width: 8px;
     min-height: 8px;
-    max-width: 8px;
-    max-height: 8px;
     margin: 0 4px;
 }
 /* Phase 4: SSH connection state subtitle (SSH-01, SSH-04) */
@@ -73,7 +73,6 @@ paned > separator:hover { background-color: #5b8dd9; }
 .browser-nav-btn:active { background-color: rgba(255, 255, 255, 0.12); }
 .browser-nav-btn:disabled { color: #555555; }
 .browser-nav-go { color: #5b8dd9; font-weight: 600; }
-.browser-nav-devtools { margin-left: auto; }
 .browser-nav-devtools:checked { background-color: rgba(91, 141, 217, 0.2); color: #5b8dd9; }
 /* Phase 8 Plan 06: DevTools overlay */
 .devtools-overlay { background-color: rgba(26, 26, 26, 0.92); }
@@ -98,6 +97,28 @@ popover.menu accelerator { color: #5b8dd9; font-size: 12px; }
 ";
 
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("cmux-app {}", env!("CMUX_VERSION"));
+        return;
+    }
+
+    updater::spawn_auto_update();
+
+    // GTK may create its compositor context before the first GtkGLArea. Prefer
+    // desktop GL up front so that context can be shared with Ghostty's GL 4.3
+    // renderer (GTK otherwise prefers GLES on some Wayland drivers).
+    let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_default();
+    if !gdk_debug
+        .split([':', ' ', ','])
+        .any(|flag| flag == "gl-prefer-gl")
+    {
+        let separator = if gdk_debug.is_empty() { "" } else { ":" };
+        std::env::set_var(
+            "GDK_DEBUG",
+            format!("{gdk_debug}{separator}gl-prefer-gl"),
+        );
+    }
+
     // Tokio runtime for socket I/O (kept alive for app lifetime).
     let runtime = tokio::runtime::Runtime::new()
         .expect("Failed to create tokio runtime");
@@ -215,6 +236,7 @@ fn build_ui(
             confirm_read_clipboard_cb: Some(crate::ghostty::surface::confirm_read_clipboard_cb),
             write_clipboard_cb: Some(crate::ghostty::surface::write_clipboard_cb),
             close_surface_cb: Some(crate::ghostty::callbacks::close_surface_cb),
+            tmux_control_cb: None,
         };
 
         let ghostty_app = ffi::ghostty_app_new(&runtime_config, config);
