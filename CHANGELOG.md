@@ -2,6 +2,19 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.1] - 2026-09-02
+
+### Fixed
+
+- Made release archives portable across current Linuxbrew systems by statically linking libxml2 and its versioned ICU and liblzma dependency closure.
+- Added release-time ELF checks that reject distro-specific XML runtime dependencies.
+- Restored the Zig linker wrapper required by Linux Cargo builds.
+
+### Changed
+
+- Removed the inherited Swift/macOS application, Xcode workflows, tracked Node dependencies, and obsolete macOS-only assets.
+- Simplified contributor instructions for the Rust and GTK Linux application.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added
