@@ -1,6 +1,10 @@
 <h1 align="center">cmux GTK</h1>
 <p align="center">A GPU-accelerated terminal multiplexer with tabs, splits, workspaces, browser automation, and socket CLI control — powered by Ghostty</p>
 
+> ⭐ **Want a trusted Homebrew install?** Star this repository to help cmux GTK
+> qualify for inclusion in Homebrew's official Cask repository. Once accepted,
+> users can install it without explicitly trusting a third-party tap.
+
 <p align="center">
   <img src="./docs/assets/main-first-image.png" alt="cmux screenshot" width="900" />
 </p>
