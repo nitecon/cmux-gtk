@@ -94,10 +94,18 @@ jobs:
 
       - name: Build updater archive
         run: |
-          mkdir -p dist/archive
+          mkdir -p dist/archive/share/applications
+          mkdir -p dist/archive/share/metainfo
           install -m 0755 target/release/cmux dist/archive/cmux
           install -m 0755 target/release/cmux-app dist/archive/cmux-app
-          tar -C dist/archive -czf dist/cmux-gtk-linux-x86_64.tar.gz cmux cmux-app
+          install -m 0644 packaging/desktop/io.cmux.App.desktop dist/archive/share/applications/io.cmux.App.desktop
+          install -m 0644 packaging/desktop/io.cmux.App.metainfo.xml dist/archive/share/metainfo/io.cmux.App.metainfo.xml
+          for size in 48x48 128x128 256x256; do
+            mkdir -p "dist/archive/share/icons/hicolor/${size}/apps"
+            install -m 0644 "packaging/icons/hicolor/${size}/apps/com.cmux_lx.terminal.png" \
+              "dist/archive/share/icons/hicolor/${size}/apps/io.cmux.App.png"
+          done
+          tar -C dist/archive -czf dist/cmux-gtk-linux-x86_64.tar.gz cmux cmux-app share
           (cd dist && sha256sum cmux-gtk-linux-x86_64.tar.gz > cmux-gtk-linux-x86_64.tar.gz.sha256)
 
       - name: Preflight updater archive
@@ -106,6 +114,8 @@ jobs:
           tar -xzf dist/cmux-gtk-linux-x86_64.tar.gz -C dist/preflight
           dist/preflight/cmux --version
           dist/preflight/cmux-app --version
+          desktop-file-validate dist/preflight/share/applications/io.cmux.App.desktop
+          appstreamcli validate --no-net dist/preflight/share/metainfo/io.cmux.App.metainfo.xml
           (cd dist && sha256sum --check cmux-gtk-linux-x86_64.tar.gz.sha256)
 
       - name: Build native packages

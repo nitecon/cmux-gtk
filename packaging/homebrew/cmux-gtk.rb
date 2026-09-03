@@ -35,4 +35,17 @@ cask "cmux-gtk" do
                     export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/libxml2/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                     exec "#{staged_path}/cmux-app" "$@"
                   SH
+  artifact "share/applications/io.cmux.App.desktop",
+           target: "#{Dir.home}/.local/share/applications/io.cmux.App.desktop"
+  artifact "share/icons/hicolor/48x48/apps/io.cmux.App.png",
+           target: "#{Dir.home}/.local/share/icons/hicolor/48x48/apps/io.cmux.App.png"
+  artifact "share/icons/hicolor/128x128/apps/io.cmux.App.png",
+           target: "#{Dir.home}/.local/share/icons/hicolor/128x128/apps/io.cmux.App.png"
+  artifact "share/icons/hicolor/256x256/apps/io.cmux.App.png",
+           target: "#{Dir.home}/.local/share/icons/hicolor/256x256/apps/io.cmux.App.png"
+
+  preflight do
+    desktop_file = staged_path/"share/applications/io.cmux.App.desktop"
+    desktop_file.write desktop_file.read.sub(/^Exec=cmux-app$/, "Exec=#{HOMEBREW_PREFIX}/bin/cmux-app")
+  end
 end
