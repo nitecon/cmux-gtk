@@ -199,9 +199,9 @@ cargo build --release --bin cmux --bin cmux-app
 
 ## Continuous Integration and Releases
 
-Pull requests and commits to `main` run the development CI suite: workspace
-checks, Clippy correctness vetting, debug builds, unit tests, remote-daemon
-tests, and the existing macOS/web checks.
+Pull requests and commits to `main` run the development CI suite: formatting,
+workspace checks, Clippy correctness vetting, debug builds, unit tests,
+remote-daemon tests, and the web typecheck.
 
 Pushing a semantic version tag such as `v0.2.0` runs the Linux release workflow
 without rerunning the development suite. It builds against the Debian 12 glibc

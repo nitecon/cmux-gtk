@@ -15,7 +15,8 @@ Status and alternatives for capturing browser automation evidence in cmux.
 
 `cmux browser` currently does not expose a built-in video recording command.
 
-Why: cmux browser automation runs on WKWebView, and the agent-browser style recording pipeline is Chrome/CDP-specific.
+The embedded runtime uses Chromium/CDP through `agent-browser`, but cmux does
+not yet expose recording through its CLI.
 
 ## Recommended Alternatives
 
@@ -35,9 +36,9 @@ cmux browser surface:7 click e3 --snapshot-after --json > /tmp/action-1.json
 cmux browser surface:7 snapshot --interactive > /tmp/snap-2.txt
 ```
 
-### 3. macOS Window Capture (external)
+### 3. Desktop Window Capture (external)
 
-Use an external screen recorder if full-motion capture is required.
+Use a Linux desktop screen recorder if full-motion capture is required.
 
 ## Use Cases
 

@@ -169,7 +169,7 @@ jobs:
           SHA256="$(sha256sum dist/cmux-gtk-linux-x86_64.tar.gz | cut -d' ' -f1)"
           mkdir -p homebrew-tap/Casks
           cp packaging/homebrew/cmux-gtk.rb homebrew-tap/Casks/cmux-gtk.rb
-          sed -i "s/version \"0.1.0\"/version \"${VERSION}\"/" homebrew-tap/Casks/cmux-gtk.rb
+          sed -i -E "0,/version \"[^\"]+\"/s//version \"${VERSION}\"/" homebrew-tap/Casks/cmux-gtk.rb
           sed -i "s/REPLACE_WITH_RELEASE_SHA256/${SHA256}/" homebrew-tap/Casks/cmux-gtk.rb
           ruby -c homebrew-tap/Casks/cmux-gtk.rb
           grep -q "sha256 \"${SHA256}\"" homebrew-tap/Casks/cmux-gtk.rb

@@ -1,1 +1,38 @@
-CLAUDE.md
+- **Scope**
+  - Treat this repository as the Linux-only Rust/GTK port of cmux.
+  - Keep distribution names as `cmux-gtk` and executable names as `cmux` and `cmux-app`.
+  - Keep the GTK application ID and desktop integration name as `io.cmux.App`.
+- **Setup**
+  - Run `./scripts/setup-linux-dev.sh` for a new development environment.
+  - Run `./scripts/setup-linux.sh` when system dependencies and Zig are installed.
+  - Keep `agent-browser` optional and independently upgradeable.
+  - Disable browser panes when `agent-browser` is unavailable and print its install command.
+- **Build**
+  - Build all binaries with `cargo build --workspace --bins`.
+  - Build optimized binaries with `cargo build --release --bin cmux --bin cmux-app`.
+  - Build Ghostty through `scripts/setup-linux.sh` with `ReleaseFast` and baseline CPU compatibility.
+  - Build `daemon/remote` with the Go version declared in `daemon/remote/go.mod`.
+- **Verification**
+  - Do not run tests locally.
+  - Use GitHub Actions for Rust, Go, packaging, and integration tests.
+  - Run `git diff --check` for documentation-only or metadata-only changes.
+  - Add executable behavior tests; do not add source-text, AST-fragment, or metadata-presence tests.
+- **Ghostty**
+  - Keep `ghostty` as a complete submodule; do not delete its unused platform directories.
+  - Do not modify the submodule unless the task requires a Ghostty change.
+  - Push Ghostty commits to a reachable remote branch before updating the parent pointer.
+- **Socket behavior**
+  - Parse, validate, deduplicate, and coalesce telemetry off the GTK main thread.
+  - Schedule only required model or UI mutations on the GTK main thread.
+  - Preserve focus for non-focus commands.
+  - Change focus only for commands whose documented intent is focus or selection.
+- **Packaging**
+  - Keep DEB, RPM, release archive, desktop launcher, icons, and Homebrew Cask content aligned.
+  - Keep direct-binary auto-update behavior disabled for package-manager-owned installations.
+  - Resolve release binaries against the Debian 12 glibc ceiling.
+- **Release**
+  - Run CI for commits to `main` and pull requests.
+  - Run only `.github/workflows/release-linux.yml` for `v*` tags.
+  - Update `CHANGELOG.md` and bump `Cargo.toml` before tagging.
+  - Publish the archive, checksum, DEB, RPM, and Homebrew Cask from the tag workflow.
+  - Do not tag documentation-only changes.

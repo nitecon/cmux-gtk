@@ -1,29 +1,24 @@
-# Xcode
-.build/
-build/
-DerivedData/
-*.xcuserstate
-xcuserdata/
-
-# macOS
-.DS_Store
-
-# Local env
+# Local environment
 .env
 .envrc
 .tools/
 
-# Swift Package Manager
-.swiftpm/
+# Rust
+target/
 
-# GhosttyKit binary (built from ghostty submodule via scripts/setup.sh)
-GhosttyKit.xcframework
-GhosttyKit.xcframework.bak-*/
+# Zig and Ghostty build output
+.zig-cache/
+zig-out/
+zig-*-linux-*/
 
-# Release artifacts
-GhosttyTabs-*.zip
-cmux-macos.dmg
-appcast.xml
+# Go build output
+daemon/remote/cmuxd-remote
+
+# Node and web build output
+node_modules/
+agent-browser/
+.next/
+.vercel/
 
 # Python
 __pycache__/
@@ -31,30 +26,18 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .hypothesis/
-.vercel
 
-# Zig
-.zig-cache/
-zig-out/
-zig-x86_64-linux-0.15.2/
-
-# Rust
-target/
-agent-browser/
-
-# Node
-node_modules/
-.next/
-
-# Test outputs
+# Release and test output
+dist/
 tests/visual_output/
 tests/visual_report.html
 
-# Local scratch (screenshots, etc.)
+# Local scratch and logs
 tmp/
 tmp-*/
+*.log
 
-# Build artifacts
-dist/
-daemon/remote/cmuxd-remote
-found
+# Editors and operating systems
+.DS_Store
+*.swp
+*.swo

@@ -5,7 +5,8 @@ description: End-user browser automation with cmux. Use when you need to open si
 
 # Browser Automation with cmux
 
-Use this skill for browser tasks inside cmux webviews.
+Use this skill for browser tasks inside cmux Chromium surfaces managed through
+`agent-browser`.
 
 ## Core Workflow
 
@@ -101,7 +102,7 @@ If `get url` is empty or `about:blank`, navigate first instead of waiting on loa
 | [references/authentication.md#saving-authentication-state](references/authentication.md#saving-authentication-state) | Save authenticated state right after login |
 | [references/session-management.md](references/session-management.md) | Multi-surface isolation and state persistence patterns |
 | [references/video-recording.md](references/video-recording.md) | Current recording status and practical alternatives |
-| [references/proxy-support.md](references/proxy-support.md) | Proxy behavior in WKWebView and workarounds |
+| [references/proxy-support.md](references/proxy-support.md) | Proxy behavior and network-level workarounds |
 
 ## Ready-to-Use Templates
 
@@ -111,9 +112,10 @@ If `get url` is empty or `about:blank`, navigate first instead of waiting on loa
 | [templates/authenticated-session.sh](templates/authenticated-session.sh) | Login once, save/load state |
 | [templates/capture-workflow.sh](templates/capture-workflow.sh) | Navigate + capture snapshots/screenshots |
 
-## Limits (WKWebView)
+## CLI Limits
 
-These commands currently return `not_supported` because they rely on Chrome/CDP-only APIs not exposed by WKWebView:
+The embedded runtime uses Chromium/CDP, but the `cmux browser` CLI currently
+exposes only the command families documented above. It does not yet expose:
 - viewport emulation
 - offline emulation
 - trace/screencast recording
