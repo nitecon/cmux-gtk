@@ -140,7 +140,11 @@ fn link_static_libxml2() {
                 linked_xml2 = true;
             }
         } else if let Some(lib) = flag.strip_prefix("-l") {
-            println!("cargo:rustc-link-lib=dylib={lib}");
+            if matches!(lib, "m" | "dl" | "pthread" | "rt") {
+                println!("cargo:rustc-link-lib=dylib={lib}");
+            } else {
+                println!("cargo:rustc-link-lib=static={lib}");
+            }
         } else if let Some(path) = flag.strip_prefix("-L") {
             println!("cargo:rustc-link-search=native={path}");
         } else {
