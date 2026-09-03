@@ -25,11 +25,26 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 
 ## Install
 
-### Homebrew on Linux
+### Homebrew on Linux (recommended)
+
+Homebrew 6 requires explicit trust before loading Casks from third-party taps.
+Trust only the cmux GTK Cask, then install it:
 
 ```bash
+brew tap nitecon/cmux-gtk
+brew trust --cask nitecon/cmux-gtk/cmux-gtk
 brew install --cask nitecon/cmux-gtk/cmux-gtk
 ```
+
+The trust decision is stored by Homebrew for future upgrades. It applies only
+to `cmux-gtk`, not every current or future Cask in the tap.
+
+```bash
+brew upgrade --cask cmux-gtk
+```
+
+Launch cmux from your desktop application menu or run `cmux-app`. The installed
+commands are `cmux` and `cmux-app`.
 
 ### Debian / Ubuntu (.deb)
 
