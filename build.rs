@@ -152,4 +152,9 @@ fn link_static_libxml2() {
         }
     }
     assert!(linked_xml2, "pkg-config did not return -lxml2");
+
+    // Debian's static ICU archives use libstdc++. Emit the runtime after the
+    // archives so one-pass linkers retain the symbols ICU references.
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+    println!("cargo:rustc-link-lib=dylib=gcc_s");
 }
