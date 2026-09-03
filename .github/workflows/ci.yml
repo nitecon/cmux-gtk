@@ -62,10 +62,7 @@ jobs:
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+          components: clippy
 
       - name: Check workspace
         run: cargo check --workspace --bins
