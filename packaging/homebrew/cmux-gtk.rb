@@ -18,7 +18,6 @@ cask "cmux-gtk" do
     fontconfig
     freetype
     gtk4
-    libxml2
     llvm
     oniguruma
   ]
@@ -26,13 +25,13 @@ cask "cmux-gtk" do
   command_wrapper "cmux",
                   content: <<~SH
                     #!/bin/sh
-                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/libxml2/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                     exec "#{staged_path}/cmux" "$@"
                   SH
   command_wrapper "cmux-app",
                   content: <<~SH
                     #!/bin/sh
-                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/libxml2/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                     exec "#{staged_path}/cmux-app" "$@"
                   SH
   artifact "share/applications/io.cmux.App.desktop",

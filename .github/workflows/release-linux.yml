@@ -92,6 +92,12 @@ jobs:
             target/release/cmux-app \
             daemon/remote/cmuxd-remote
 
+      - name: Enforce portable runtime libraries
+        run: |
+          ./scripts/check-release-libraries.sh \
+            target/release/cmux \
+            target/release/cmux-app
+
       - name: Build updater archive
         run: |
           mkdir -p dist/archive/share/applications

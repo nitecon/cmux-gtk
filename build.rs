@@ -2,9 +2,12 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
-    let version = env::var("CMUX_VERSION")
-        .unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap());
-    println!("cargo:rustc-env=CMUX_VERSION={}", version.trim_start_matches('v'));
+    let version =
+        env::var("CMUX_VERSION").unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap());
+    println!(
+        "cargo:rustc-env=CMUX_VERSION={}",
+        version.trim_start_matches('v')
+    );
     println!("cargo:rerun-if-env-changed=CMUX_VERSION");
     let release_build = env::var("CMUX_RELEASE_BUILD").unwrap_or_else(|_| "0".into());
     println!("cargo:rustc-env=CMUX_RELEASE_BUILD={release_build}");
@@ -28,7 +31,11 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=gcc_s"); // For __gxx_personality_v0
     println!("cargo:rustc-link-lib=dylib=fontconfig");
     println!("cargo:rustc-link-lib=dylib=freetype");
-    println!("cargo:rustc-link-lib=dylib=xml2");
+    if release_build == "1" {
+        link_static_libxml2();
+    } else {
+        println!("cargo:rustc-link-lib=dylib=xml2");
+    }
 
     // Try to link the versioned onig library if dev package isn't installed
     if std::process::Command::new("pkg-config")
@@ -110,4 +117,35 @@ fn main() {
     bindings
         .write_to_file(out_path.join("ghostty_sys.rs"))
         .expect("Couldn't write ghostty_sys.rs");
+}
+
+fn link_static_libxml2() {
+    let output = std::process::Command::new("pkg-config")
+        .args(["--libs", "--static", "libxml-2.0"])
+        .output()
+        .expect("pkg-config is required to statically link libxml2 for release builds");
+    if !output.status.success() {
+        panic!(
+            "pkg-config could not resolve static libxml2 dependencies: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let flags = String::from_utf8_lossy(&output.stdout);
+    let mut linked_xml2 = false;
+    for flag in flags.split_whitespace() {
+        if flag == "-lxml2" {
+            if !linked_xml2 {
+                println!("cargo:rustc-link-lib=static=xml2");
+                linked_xml2 = true;
+            }
+        } else if let Some(lib) = flag.strip_prefix("-l") {
+            println!("cargo:rustc-link-lib=dylib={lib}");
+        } else if let Some(path) = flag.strip_prefix("-L") {
+            println!("cargo:rustc-link-search=native={path}");
+        } else {
+            println!("cargo:rustc-link-arg={flag}");
+        }
+    }
+    assert!(linked_xml2, "pkg-config did not return -lxml2");
 }
