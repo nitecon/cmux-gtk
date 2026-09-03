@@ -153,8 +153,24 @@ fn link_static_libxml2() {
     }
     assert!(linked_xml2, "pkg-config did not return -lxml2");
 
-    // Debian's static ICU archives use libstdc++. Emit the runtime after the
-    // archives so one-pass linkers retain the symbols ICU references.
-    println!("cargo:rustc-link-lib=dylib=stdc++");
+    // Debian's static ICU archives use GNU libstdc++. Zig handles -lstdc++ as
+    // a C++ driver request, so pass the compiler-resolved shared object
+    // directly after the archives to satisfy ICU's symbols.
+    let libstdcpp = std::process::Command::new("c++")
+        .args(["-print-file-name=libstdc++.so.6"])
+        .output()
+        .expect("a C++ compiler is required to resolve libstdc++.so.6");
+    assert!(
+        libstdcpp.status.success(),
+        "the C++ compiler could not resolve libstdc++.so.6"
+    );
+    let libstdcpp_path = String::from_utf8_lossy(&libstdcpp.stdout)
+        .trim()
+        .to_string();
+    assert!(
+        libstdcpp_path != "libstdc++.so.6" && std::path::Path::new(&libstdcpp_path).is_file(),
+        "the C++ compiler returned an invalid libstdc++.so.6 path: {libstdcpp_path}"
+    );
+    println!("cargo:rustc-link-arg={libstdcpp_path}");
     println!("cargo:rustc-link-lib=dylib=gcc_s");
 }
