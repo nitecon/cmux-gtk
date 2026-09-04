@@ -90,6 +90,10 @@ paned > separator:hover { background-color: #5b8dd9; }
 .sidebar-close-btn { min-width: 20px; min-height: 20px; padding: 0; margin: 0; background-color: transparent; color: #888888; border: none; font-size: 14px; opacity: 0; }
 .workspace-list row:hover .sidebar-close-btn { opacity: 1; }
 .sidebar-close-btn:hover { color: #cccccc; }
+/* Surface tabs: reveal a compact close affordance on hover/focus. */
+.surface-tab-close { min-width: 18px; min-height: 18px; padding: 0; margin: 0; background: transparent; border: none; opacity: 0; }
+.surface-tab-label:hover .surface-tab-close, .surface-tab-close:focus { opacity: 1; }
+.surface-tab-close:hover { color: #cccccc; background-color: rgba(255, 255, 255, 0.08); }
 /* Phase 9: Context menu popover */
 popover.menu { background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; }
 popover.menu modelbutton { padding: 8px 16px; color: #cccccc; font-size: 14px; }

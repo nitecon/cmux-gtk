@@ -2,6 +2,18 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.6] - 2026-09-04
+
+### Added
+
+- Added hover close buttons and right-click **Close Tab** actions to terminal and browser surface tabs.
+
+### Fixed
+
+- Stopped terminal PTYs and render threads before removing their pane widgets, preventing crashes and stale callbacks during close.
+- Detached surviving nested panes before reparenting them, preventing GTK parenting assertions when closing a split.
+- Made `surface.close` close the addressed surface tab and only remove its pane when it is the final tab.
+
 ## [0.1.5] - 2026-09-04
 
 ### Fixed

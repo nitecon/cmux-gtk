@@ -212,6 +212,27 @@ pub fn handle_close_pane(state: &Rc<RefCell<AppState>>, app: &gtk4::Application)
     }
 }
 
+/// Close one terminal/browser tab. The final tab follows the pane-close flow.
+pub fn handle_close_surface_tab(
+    state: &Rc<RefCell<AppState>>,
+    app: &gtk4::Application,
+    uuid: uuid::Uuid,
+) {
+    let result = state
+        .borrow_mut()
+        .active_split_engine_mut()
+        .map(|engine| engine.close_surface_tab(uuid));
+    match result {
+        Some(crate::split_engine::CloseSurfaceResult::Closed) => {
+            state.borrow().trigger_session_save();
+        }
+        Some(crate::split_engine::CloseSurfaceResult::LastSurfaceInPane) => {
+            handle_close_pane(state, app);
+        }
+        Some(crate::split_engine::CloseSurfaceResult::NotFound) | None => {}
+    }
+}
+
 /// Open the SSH connect dialog (Ctrl+Shift+S).
 pub fn handle_new_ssh_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Application) {
     crate::ssh_dialog::show_ssh_dialog(app, state.clone());

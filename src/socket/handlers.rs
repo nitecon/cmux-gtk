@@ -426,31 +426,34 @@ pub fn handle_socket_command(
         }
 
         SocketCommand::SurfaceClose { req_id, id, resp_tx } => {
-            // Close pane by uuid. Set it as active, then close_active().
-            let pane_id = {
-                let s = state.borrow();
-                s.split_engines.get(s.active_index)
-                    .and_then(|engine| engine.find_pane_id_by_uuid(&id))
+            let Some(uuid) = uuid::Uuid::parse_str(&id).ok() else {
+                let _ = resp_tx.send(err(req_id, "invalid_request", "invalid surface UUID"));
+                return;
             };
-            match pane_id {
-                Some(pid) => {
-                    let result = {
-                        let mut s = state.borrow_mut();
-                        let idx = s.active_index;
-                        if let Some(engine) = s.split_engines.get_mut(idx) {
-                            engine.active_pane_id = pid;
-                            engine.root.update_focus_css(pid);
-                            engine.close_active()
-                        } else {
-                            None
+            let closed = {
+                let mut s = state.borrow_mut();
+                let idx = s.active_index;
+                s.split_engines.get_mut(idx).map(|engine| {
+                    match engine.close_surface_tab(uuid) {
+                        crate::split_engine::CloseSurfaceResult::Closed => true,
+                        crate::split_engine::CloseSurfaceResult::LastSurfaceInPane => {
+                            engine.close_active().is_some()
                         }
-                    };
-                    match result {
-                        Some(_) => { let _ = resp_tx.send(ok(req_id, json!({}))); }
-                        None => { let _ = resp_tx.send(err(req_id, "close_failed", "cannot close last pane")); }
+                        crate::split_engine::CloseSurfaceResult::NotFound => false,
                     }
+                })
+            };
+            match closed {
+                Some(true) => {
+                    state.borrow().trigger_session_save();
+                    let _ = resp_tx.send(ok(req_id, json!({})));
                 }
-                None => { let _ = resp_tx.send(err(req_id, "not_found", "surface not found")); }
+                Some(false) => {
+                    let _ = resp_tx.send(err(req_id, "close_failed", "cannot close last surface"));
+                }
+                None => {
+                    let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                }
             }
         }
 

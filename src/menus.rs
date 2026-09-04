@@ -69,6 +69,26 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // win.close-surface-tab — close one terminal/browser tab in its pane.
+    let action = gio::SimpleAction::new(
+        "close-surface-tab",
+        Some(&String::static_variant_type()),
+    );
+    action.connect_activate({
+        let state = state.clone();
+        let app = app.clone();
+        move |_, parameter| {
+            let Some(uuid) = parameter
+                .and_then(|value| value.str())
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            else {
+                return;
+            };
+            crate::shortcuts::handle_close_surface_tab(&state, &app, uuid);
+        }
+    });
+    window.add_action(&action);
+
     // win.close-pane
     let action = gio::SimpleAction::new("close-pane", None);
     action.connect_activate({

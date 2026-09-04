@@ -1,5 +1,6 @@
 use crate::ghostty::ffi;
 use gtk4::prelude::*;
+use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 /// Direction for pane focus navigation (Ctrl+Shift+arrows per D-10).
@@ -68,13 +69,112 @@ fn surface_for_area(area: &gtk4::GLArea) -> Option<ffi::ghostty_surface_t> {
         .map(|surface| surface as ffi::ghostty_surface_t)
 }
 
+/// Stop a terminal and remove every global callback route before its widget is
+/// detached. Ghostty synchronously stops the PTY/IO and renderer threads in
+/// `ghostty_surface_free`, so the shell is gone before GTK destroys the pane.
+pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
+    let raw_area = area.as_ptr() as *mut gtk4::ffi::GtkGLArea;
+    let surface = crate::ghostty::callbacks::GL_TO_SURFACE
+        .lock()
+        .ok()
+        .and_then(|mut registry| registry.remove(&(raw_area as usize)))
+        .map(|raw| raw as ffi::ghostty_surface_t);
+
+    if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
+        areas.retain(|candidate| candidate.0 != raw_area);
+    }
+
+    let Some(surface) = surface else {
+        return;
+    };
+    if crate::ghostty::callbacks::SURFACE_PTR.load(Ordering::SeqCst) == surface as usize {
+        crate::ghostty::callbacks::SURFACE_PTR.store(0, Ordering::SeqCst);
+    }
+
+    unsafe { ffi::ghostty_surface_set_focus(surface, false) };
+    if area.is_realized() {
+        area.make_current();
+        if area.error().is_none() {
+            unsafe { ffi::ghostty_surface_display_unrealized(surface) };
+        }
+    }
+    unsafe { ffi::ghostty_surface_free(surface) };
+    if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
+        registry.remove(&(surface as usize));
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseSurfaceResult {
+    Closed,
+    LastSurfaceInPane,
+    NotFound,
+}
+
+fn request_surface_tab_close(widget: &impl IsA<gtk4::Widget>, uuid: Uuid) {
+    let _ = widget.activate_action(
+        "win.close-surface-tab",
+        Some(&uuid.to_string().to_variant()),
+    );
+}
+
+fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
+    let uuid = surface.uuid();
+    let tab = gtk4::Box::new(gtk4::Orientation::Horizontal, 4);
+    tab.add_css_class("surface-tab-label");
+    let label = gtk4::Label::new(Some(surface.tab_title()));
+    let close = gtk4::Button::from_icon_name("window-close-symbolic");
+    close.add_css_class("surface-tab-close");
+    close.set_tooltip_text(Some("Close Tab"));
+    close.set_focusable(false);
+    close.connect_clicked({
+        let tab = tab.downgrade();
+        move |_| {
+            if let Some(tab) = tab.upgrade() {
+                request_surface_tab_close(&tab, uuid);
+            }
+        }
+    });
+    tab.append(&label);
+    tab.append(&close);
+
+    let popover = gtk4::Popover::new();
+    popover.set_parent(&tab);
+    popover.set_has_arrow(false);
+    let close_item = gtk4::Button::with_label("Close Tab");
+    close_item.add_css_class("flat");
+    close_item.connect_clicked({
+        let tab = tab.downgrade();
+        move |_| {
+            if let Some(tab) = tab.upgrade() {
+                request_surface_tab_close(&tab, uuid);
+            }
+        }
+    });
+    popover.set_child(Some(&close_item));
+    let gesture = gtk4::GestureClick::new();
+    gesture.set_button(3);
+    gesture.connect_released({
+        let popover = popover.downgrade();
+        move |_, _, x, y| {
+            let Some(popover) = popover.upgrade() else { return };
+            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
+                x as i32, y as i32, 1, 1,
+            )));
+            popover.popup();
+        }
+    });
+    tab.add_controller(gesture);
+    tab
+}
+
 fn append_pane_surface(
     notebook: &gtk4::Notebook,
     surfaces: &std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>,
     surface: PaneSurface,
     select: bool,
 ) -> u32 {
-    let label = gtk4::Label::new(Some(surface.tab_title()));
+    let label = surface_tab_label(&surface);
     let page = notebook.append_page(&surface.widget(), Some(&label));
     notebook.set_tab_reorderable(&surface.widget(), true);
     surfaces.borrow_mut().push(surface);
@@ -261,21 +361,20 @@ impl SplitNode {
         }
     }
 
-    /// Collect all surfaces into a Vec (for ghostty_surface_free on workspace close).
-    pub fn collect_surfaces(&self, out: &mut Vec<ffi::ghostty_surface_t>) {
+    /// Collect terminal widgets so workspace teardown can stop each PTY while
+    /// its GL context is still valid and unregister its callbacks.
+    pub fn collect_terminal_areas(&self, out: &mut Vec<gtk4::GLArea>) {
         match self {
             SplitNode::Leaf { surfaces, .. } => {
                 for surface in surfaces.borrow().iter() {
                     if let Some(area) = surface.terminal_area() {
-                        if let Some(handle) = surface_for_area(&area) {
-                            out.push(handle);
-                        }
+                        out.push(area);
                     }
                 }
             }
             SplitNode::Split { start, end, .. } => {
-                start.collect_surfaces(out);
-                end.collect_surfaces(out);
+                start.collect_terminal_areas(out);
+                end.collect_terminal_areas(out);
             }
         }
     }
@@ -1101,39 +1200,13 @@ impl SplitEngine {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let surfaces_to_free = terminal_areas
-            .iter()
-            .filter_map(surface_for_area)
-            .collect::<Vec<_>>();
-        let raw_gl_areas = terminal_areas
-            .iter()
-            .map(|area| area.as_ptr() as *mut gtk4::ffi::GtkGLArea)
-            .collect::<Vec<_>>();
+        // End the PTYs and renderers while their GL contexts are still valid.
+        for area in &terminal_areas {
+            destroy_terminal_area(area);
+        }
 
         // Remove the leaf from the tree and get the surviving sibling's pane_id.
         let surviving_id = remove_leaf_from_tree(&mut self.root, active_id)?;
-
-        // Remove the now-dropped GLArea from GL_AREA_REGISTRY before any further
-        // callbacks can dereference the dangling pointer (Gap 2 fix).
-        for raw_ptr in raw_gl_areas {
-            if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-                areas.retain(|p| p.0 != raw_ptr);
-            }
-            // Also remove from GL_TO_SURFACE mapping.
-            if let Ok(mut gl_to_surface) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
-                gl_to_surface.remove(&(raw_ptr as usize));
-            }
-        }
-
-        // Deregister from SURFACE_REGISTRY and free the surface.
-        for surface in surfaces_to_free {
-            unsafe {
-                ffi::ghostty_surface_free(surface);
-            }
-            if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                registry.remove(&(surface as usize));
-            }
-        }
 
         // Update focus to the surviving pane.
         self.active_pane_id = surviving_id;
@@ -1154,6 +1227,38 @@ impl SplitEngine {
         }
 
         Some(surviving_id)
+    }
+
+    /// Close one sibling surface tab without removing its containing pane.
+    /// Closing the final surface delegates to the existing pane-close flow.
+    pub fn close_surface_tab(&mut self, uuid: Uuid) -> CloseSurfaceResult {
+        let Some(pane_id) = self.find_pane_id_by_uuid(&uuid.to_string()) else {
+            return CloseSurfaceResult::NotFound;
+        };
+        let Some((notebook, surfaces)) = find_pane_tabs(&self.root, pane_id) else {
+            return CloseSurfaceResult::NotFound;
+        };
+        let index = surfaces.borrow().iter().position(|surface| surface.uuid() == uuid);
+        let Some(index) = index else { return CloseSurfaceResult::NotFound };
+        if surfaces.borrow().len() == 1 {
+            self.active_pane_id = pane_id;
+            self.root.update_focus_css(pane_id);
+            return CloseSurfaceResult::LastSurfaceInPane;
+        }
+
+        let surface = surfaces.borrow()[index].clone();
+        let widget = surface.widget();
+        if let Some(area) = surface.terminal_area() {
+            destroy_terminal_area(&area);
+        }
+        if let Some(page) = notebook.page_num(&widget) {
+            notebook.remove_page(Some(page));
+        }
+        surfaces.borrow_mut().remove(index);
+        self.active_pane_id = pane_id;
+        self.root.update_focus_css(pane_id);
+        self.focus_active_surface();
+        CloseSurfaceResult::Closed
     }
 
     /// Navigate focus to the pane adjacent in `direction` (Ctrl+Alt+arrows per D-10).
@@ -1336,6 +1441,9 @@ fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
                 // Surviving sibling is end. Replace this Split with end in the GTK tree.
                 let surviving = *end.clone();
                 let surviving_widget = surviving.widget();
+                // Detach from the split being removed before inserting into
+                // its parent; GTK rejects widgets that already have a parent.
+                remove_widget_from_parent(&surviving_widget);
                 // Find the paned's parent and replace it with the surviving widget.
                 if let Some(parent) = paned.parent() {
                     replace_child_in_parent(
@@ -1356,6 +1464,7 @@ fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
             if end_is_target {
                 let surviving = *start.clone();
                 let surviving_widget = surviving.widget();
+                remove_widget_from_parent(&surviving_widget);
                 if let Some(parent) = paned.parent() {
                     replace_child_in_parent(
                         &parent,

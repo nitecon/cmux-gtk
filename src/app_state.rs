@@ -326,7 +326,6 @@ impl AppState {
 
     /// Close the workspace at `index`. Removes the sidebar row and GtkStack page.
     /// Returns false if there is only one workspace (cannot close the last one).
-    /// The caller (Plan 04) is responsible for calling ghostty_surface_free on all panes first.
     pub fn close_workspace(&mut self, index: usize) -> bool {
         if self.workspaces.len() <= 1 {
             return false; // Cannot close the last workspace
@@ -339,19 +338,12 @@ impl AppState {
             }
         }
 
-        // Before removing from workspaces, free all Ghostty surfaces in the split engine.
+        // Stop PTYs and unregister their callbacks before removing GTK widgets.
         if let Some(engine) = self.split_engines.get(index) {
-            let mut surfaces = Vec::new();
-            engine.root.collect_surfaces(&mut surfaces);
-            for surface in surfaces {
-                if !surface.is_null() {
-                    unsafe {
-                        crate::ghostty::ffi::ghostty_surface_free(surface);
-                    }
-                    if let Ok(mut reg) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                        reg.remove(&(surface as usize));
-                    }
-                }
+            let mut terminal_areas = Vec::new();
+            engine.root.collect_terminal_areas(&mut terminal_areas);
+            for area in terminal_areas {
+                crate::split_engine::destroy_terminal_area(&area);
             }
         }
         self.split_engines.remove(index);

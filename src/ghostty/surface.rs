@@ -14,12 +14,6 @@ pub enum SurfaceIoMode {
     },
 }
 
-extern "C" {
-    fn glGetIntegerv(pname: u32, params: *mut i32);
-}
-const GL_VIEWPORT: u32 = 0x0BA2;
-const GL_DRAW_FRAMEBUFFER_BINDING: u32 = 0x8CA6;
-
 unsafe extern "C" fn opengl_make_current(userdata: *mut std::ffi::c_void) -> bool {
     if userdata.is_null() {
         return false;
@@ -282,9 +276,16 @@ pub fn create_surface(
                 area.as_ptr(),
                 pane_id_unrealize,
             );
-            area.make_current();
-            if area.error().is_none() {
-                if let Some(surface) = *cell_unrealize.borrow() {
+            if let Some(surface) = *cell_unrealize.borrow() {
+                let is_registered = crate::ghostty::callbacks::GL_TO_SURFACE
+                    .lock()
+                    .ok()
+                    .and_then(|registry| registry.get(&(area.as_ptr() as usize)).copied())
+                    == Some(surface as usize);
+                if is_registered {
+                    area.make_current();
+                }
+                if is_registered && area.error().is_none() {
                     unsafe { ffi::ghostty_surface_display_unrealized(surface) };
                 }
             }
@@ -295,47 +296,11 @@ pub fn create_surface(
     // Called by GTK frame clock when queue_render() was requested.
     gl_area.connect_render({
         let cell = surface_cell.clone();
-        let render_count = std::rc::Rc::new(std::cell::Cell::new(0u64));
-        let pane_id_render = pane_id;
-        move |area, _ctx| {
-            let count = render_count.get() + 1;
-            render_count.set(count);
-            // Log every render — keep the session short!
-            if true {
-                eprintln!(
-                    "cmux: render #{} pane={} area={:p} size={}x{} err={:?}",
-                    count,
-                    pane_id_render,
-                    area.as_ptr(),
-                    area.width(),
-                    area.height(),
-                    area.error()
-                );
-            }
+        move |_area, _ctx| {
             if let Some(surface) = *cell.borrow() {
-                // Log GL state before draw to diagnose render stalls.
-                if count % 60 == 1 || count <= 5 {
-                    let mut viewport = [0i32; 4];
-                    let mut draw_fbo = 0i32;
-                    unsafe {
-                        glGetIntegerv(GL_VIEWPORT, viewport.as_mut_ptr());
-                        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &mut draw_fbo);
-                    }
-                    eprintln!(
-                        "cmux: render GL state pane={}: viewport={}x{}+{}+{} draw_fbo={}",
-                        pane_id_render,
-                        viewport[2],
-                        viewport[3],
-                        viewport[0],
-                        viewport[1],
-                        draw_fbo
-                    );
-                }
                 unsafe {
                     ffi::ghostty_surface_draw(surface);
                 }
-            } else {
-                eprintln!("cmux: render callback — surface not yet initialized, skipping draw");
             }
             gtk4::glib::Propagation::Stop // suppress GTK default render
         }
