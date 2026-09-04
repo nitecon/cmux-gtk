@@ -178,6 +178,13 @@ A `CLAUDE.md` at `/usr/share/cmux/CLAUDE.md` references skill paths so Claude Co
 
 Shortcuts are configurable via TOML config file.
 
+## Diagnostics
+
+cmux records startup, pane/tab lifecycle events, and panic backtraces in
+`$XDG_STATE_HOME/cmux/cmux.log` (normally `~/.local/state/cmux/cmux.log`). Set
+`CMUX_LOG` to use a different path. Desktop-launch output is also available
+through `journalctl --user`.
+
 ## Building Packages
 
 ```bash

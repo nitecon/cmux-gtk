@@ -19,6 +19,7 @@ mod menus;
 mod header_bar;
 mod ssh_hosts;
 mod ssh_dialog;
+mod diagnostics;
 #[allow(dead_code)]
 mod updater;
 
@@ -106,6 +107,14 @@ fn main() {
         println!("cmux-app {}", env!("CMUX_VERSION"));
         return;
     }
+
+    diagnostics::install_panic_hook();
+    diagnostics::event(format_args!(
+        "starting version={} pid={} diagnostics={}",
+        env!("CMUX_VERSION"),
+        std::process::id(),
+        diagnostics::log_path().display(),
+    ));
 
     updater::spawn_auto_update();
 

@@ -79,5 +79,8 @@ jobs:
       - name: Test terminal pane close lifecycle
         run: dbus-run-session -- xvfb-run -a ./tests/test_linux_terminal_pane_close.sh
 
+      - name: Test surface tab close with browser mapping
+        run: dbus-run-session -- xvfb-run -a ./tests/test_linux_surface_tab_reentrant_close.sh
+
       - name: Run unit tests
         run: cargo test --workspace --bins

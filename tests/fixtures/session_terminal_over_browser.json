@@ -1,0 +1,29 @@
+{
+  "version": 3,
+  "active_index": 0,
+  "workspaces": [
+    {
+      "uuid": "10000000-0000-4000-8000-000000000001",
+      "name": "Terminal over browser",
+      "working_directory": "/tmp",
+      "active_pane_uuid": null,
+      "layout": {
+        "type": "Pane",
+        "active_surface_uuid": "30000000-0000-4000-8000-000000000003",
+        "surfaces": [
+          {
+            "type": "Browser",
+            "surface_uuid": "20000000-0000-4000-8000-000000000002",
+            "url": "about:blank"
+          },
+          {
+            "type": "Terminal",
+            "surface_uuid": "30000000-0000-4000-8000-000000000003",
+            "shell": "/bin/sh",
+            "cwd": "/tmp"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -196,15 +196,15 @@ pub fn handle_split(state: &Rc<RefCell<AppState>>, vertical: bool) {
 
 /// Close the active pane (Ctrl+Shift+X).
 pub fn handle_close_pane(state: &Rc<RefCell<AppState>>, app: &gtk4::Application) {
-    let (close_workspace, active_index) = {
+    let close_workspace = {
         let mut s = state.borrow_mut();
         if let Some(engine) = s.active_split_engine_mut() {
             match engine.close_active() {
-                None => (true, s.active_index), // last pane -> close workspace
-                Some(_) => (false, 0),
+                None => true, // last pane -> close workspace
+                Some(_) => false,
             }
         } else {
-            (false, 0)
+            false
         }
     };
     if close_workspace {
@@ -218,10 +218,12 @@ pub fn handle_close_surface_tab(
     app: &gtk4::Application,
     uuid: uuid::Uuid,
 ) {
+    crate::diagnostics::event(format_args!("surface-tab close requested uuid={uuid}"));
     let result = state
         .borrow_mut()
         .active_split_engine_mut()
         .map(|engine| engine.close_surface_tab(uuid));
+    crate::diagnostics::event(format_args!("surface-tab close result uuid={uuid} result={result:?}"));
     match result {
         Some(crate::split_engine::CloseSurfaceResult::Closed) => {
             state.borrow().trigger_session_save();
@@ -344,10 +346,7 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
             if url.is_empty() {
                 return;
             }
-            let mut s = state.borrow_mut();
-            if let Some(browser) = s.browser_manager.as_mut() {
-                let _ = browser.run_cli(&["open", &url]);
-            }
+            restore_mapped_browser_url(state.clone(), url);
         }
     });
 
@@ -669,6 +668,24 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         url_entry.grab_focus();
         url_entry.select_region(0, -1);
     });
+}
+
+/// A notebook page can be mapped synchronously while another GTK callback is
+/// mutating AppState (notably when the tab above it is removed). Defer the
+/// navigation until that callback unwinds instead of panicking on RefCell.
+fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
+    let Ok(mut app_state) = state.try_borrow_mut() else {
+        crate::diagnostics::event(format_args!(
+            "browser map deferred while application state is busy"
+        ));
+        glib::idle_add_local_once(move || restore_mapped_browser_url(state, url));
+        return;
+    };
+    if let Some(browser) = app_state.browser_manager.as_mut() {
+        if let Err(error) = browser.run_cli(&["open", &url]) {
+            crate::diagnostics::event(format_args!("browser map navigation failed error={error}"));
+        }
+    }
 }
 
 fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {

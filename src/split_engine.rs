@@ -1233,20 +1233,36 @@ impl SplitEngine {
     /// Closing the final surface delegates to the existing pane-close flow.
     pub fn close_surface_tab(&mut self, uuid: Uuid) -> CloseSurfaceResult {
         let Some(pane_id) = self.find_pane_id_by_uuid(&uuid.to_string()) else {
+            crate::diagnostics::event(format_args!("surface-tab close not found uuid={uuid}"));
             return CloseSurfaceResult::NotFound;
         };
         let Some((notebook, surfaces)) = find_pane_tabs(&self.root, pane_id) else {
+            crate::diagnostics::event(format_args!(
+                "surface-tab close missing pane tabs uuid={uuid} pane={pane_id}"
+            ));
             return CloseSurfaceResult::NotFound;
         };
         let index = surfaces.borrow().iter().position(|surface| surface.uuid() == uuid);
-        let Some(index) = index else { return CloseSurfaceResult::NotFound };
+        let Some(index) = index else {
+            crate::diagnostics::event(format_args!(
+                "surface-tab close missing surface uuid={uuid} pane={pane_id}"
+            ));
+            return CloseSurfaceResult::NotFound;
+        };
         if surfaces.borrow().len() == 1 {
+            crate::diagnostics::event(format_args!(
+                "surface-tab close delegates to pane uuid={uuid} pane={pane_id}"
+            ));
             self.active_pane_id = pane_id;
             self.root.update_focus_css(pane_id);
             return CloseSurfaceResult::LastSurfaceInPane;
         }
 
         let surface = surfaces.borrow()[index].clone();
+        crate::diagnostics::event(format_args!(
+            "surface-tab closing uuid={uuid} pane={pane_id} kind={} index={index}",
+            surface.tab_title().to_ascii_lowercase(),
+        ));
         let widget = surface.widget();
         if let Some(area) = surface.terminal_area() {
             destroy_terminal_area(&area);
@@ -1258,6 +1274,9 @@ impl SplitEngine {
         self.active_pane_id = pane_id;
         self.root.update_focus_css(pane_id);
         self.focus_active_surface();
+        crate::diagnostics::event(format_args!(
+            "surface-tab closed uuid={uuid} pane={pane_id}"
+        ));
         CloseSurfaceResult::Closed
     }
 

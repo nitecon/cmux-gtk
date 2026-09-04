@@ -2,6 +2,16 @@
 
 All notable changes to cmux GTK are documented here.
 
+## Unreleased
+
+### Added
+
+- Added persistent lifecycle diagnostics and panic backtraces at `$XDG_STATE_HOME/cmux/cmux.log`.
+
+### Fixed
+
+- Deferred browser URL restoration when closing a terminal tab synchronously reveals a browser tab, preventing a re-entrant state borrow from aborting cmux.
+
 ## [0.1.6] - 2026-09-04
 
 ### Added
