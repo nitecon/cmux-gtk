@@ -526,13 +526,20 @@ fn which_agent_browser() -> Option<PathBuf> {
     if let Ok(home) = std::env::var("HOME") {
         let versions = PathBuf::from(home).join(".nvm/versions/node");
         if let Ok(entries) = std::fs::read_dir(versions) {
-            let mut candidates: Vec<PathBuf> = entries
+            let mut candidates: Vec<(Vec<u64>, PathBuf)> = entries
                 .flatten()
-                .map(|entry| entry.path().join("bin/agent-browser"))
-                .filter(|path| path.is_file())
+                .filter_map(|entry| {
+                    let version = entry.file_name().to_string_lossy().trim_start_matches('v')
+                        .split('.')
+                        .map(str::parse::<u64>)
+                        .collect::<Result<Vec<_>, _>>()
+                        .ok()?;
+                    let path = entry.path().join("bin/agent-browser");
+                    path.is_file().then_some((version, path))
+                })
                 .collect();
-            candidates.sort();
-            if let Some(candidate) = candidates.pop() {
+            candidates.sort_by(|left, right| left.0.cmp(&right.0));
+            if let Some((_, candidate)) = candidates.pop() {
                 return Some(candidate);
             }
         }
