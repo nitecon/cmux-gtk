@@ -324,7 +324,7 @@ fn build_ui(
                         state.borrow_mut().rename_active(ws_session.name.clone());
                     }
                 }
-                eprintln!("cmux: restored {} workspaces from v2 session", restored_count);
+                eprintln!("cmux: restored {} workspaces from session v{}", restored_count, session.version);
             } else {
                 // Version 1: name-only restore (auto-upgrade on next save per D-01)
                 for ws_session in &session.workspaces {
@@ -385,6 +385,18 @@ fn build_ui(
     {
         let state = state.clone();
         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+            if crate::ghostty::callbacks::NEW_TAB_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                let pane_id = crate::ghostty::callbacks::NEW_TAB_PANE_ID.load(std::sync::atomic::Ordering::SeqCst);
+                let created = {
+                    let mut app_state = state.borrow_mut();
+                    app_state.split_engines.iter_mut().find_map(|engine| {
+                        engine.new_terminal_tab_for_pane(pane_id)
+                    }).is_some()
+                };
+                if created {
+                    state.borrow().trigger_session_save();
+                }
+            }
             // Process bell notifications
             if crate::ghostty::callbacks::BELL_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
                 let pane_id = crate::ghostty::callbacks::BELL_PANE_ID.load(std::sync::atomic::Ordering::SeqCst);
@@ -534,4 +546,13 @@ fn build_ui(
 
     // 8. Present the window
     window.present();
+
+    // Browser widgets are part of the saved pane tree; reconnect them only after
+    // the window is presented so viewport dimensions and focus are meaningful.
+    {
+        let state_for_browser_restore = state.clone();
+        glib::idle_add_local_once(move || {
+            crate::shortcuts::restore_browser_tabs(&state_for_browser_restore);
+        });
+    }
 }

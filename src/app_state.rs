@@ -547,7 +547,7 @@ impl AppState {
             // Snapshot session data on main thread where Rc<RefCell<AppState>> is safe.
             if let Some(ref tx) = self.session_tx {
                 let session = crate::session::SessionData {
-                    version: 2, // D-01: bump to version 2 for full tree serialization
+                    version: 3, // Per-pane terminal/browser tabs and persisted URLs
                     active_index: self.active_index,
                     workspaces: self.workspaces.iter().enumerate().map(|(i, ws)| {
                         // D-02: save full split tree for ALL workspaces

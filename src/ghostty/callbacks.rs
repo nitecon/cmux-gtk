@@ -39,6 +39,11 @@ pub static BELL_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomi
 /// Phase 4: Flag indicating a bell is pending processing.
 pub static BELL_PENDING: AtomicBool = AtomicBool::new(false);
 
+/// Pane requesting Ghostty's native new-tab action. The callback can run while
+/// Ghostty is ticking, so GTK mutation is deferred to the main-loop timer.
+pub static NEW_TAB_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static NEW_TAB_PENDING: AtomicBool = AtomicBool::new(false);
+
 /// Called by Ghostty from its renderer thread. Must not call any ghostty_* API inline.
 /// Instead, schedules ghostty_app_tick() on the GLib main loop (per D-04, GHOST-07).
 /// Wakeup count for diagnostic logging (only logs occasionally to avoid spam)
@@ -121,6 +126,19 @@ pub unsafe extern "C" fn action_cb(
             if let Some(pane_id) = pane_id {
                 BELL_PANE_ID.store(pane_id, std::sync::atomic::Ordering::SeqCst);
                 BELL_PENDING.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        return true;
+    }
+
+    if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_NEW_TAB {
+        if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
+            let surface_ptr = unsafe { _target.target.surface } as usize;
+            if let Ok(registry) = SURFACE_REGISTRY.lock() {
+                if let Some(pane_id) = registry.get(&surface_ptr) {
+                    NEW_TAB_PANE_ID.store(*pane_id, Ordering::SeqCst);
+                    NEW_TAB_PENDING.store(true, Ordering::SeqCst);
+                }
             }
         }
         return true;

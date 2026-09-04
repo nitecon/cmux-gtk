@@ -225,29 +225,34 @@ pub fn handle_focus_direction(state: &Rc<RefCell<AppState>>, direction: FocusDir
     }
 }
 
+/// Create a sibling terminal tab inside the currently focused pane.
+pub fn handle_new_terminal_tab(state: &Rc<RefCell<AppState>>) {
+    let created = state
+        .borrow_mut()
+        .active_split_engine_mut()
+        .and_then(|engine| engine.new_terminal_tab())
+        .is_some();
+    if created {
+        state.borrow().trigger_session_save();
+    }
+}
+
 /// Open a browser preview pane (Ctrl+Shift+B).
 /// Launches the agent-browser daemon, navigates to about:blank, creates a preview pane,
 /// and starts the CDP screencast stream so frames render in the Picture widget.
 pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
-    // Step 1: Ensure daemon is running, launch browser, enable streaming, navigate
+    // Step 1: Launch/navigate through agent-browser's stable public CLI.
     {
         let mut s = state.borrow_mut();
         if s.browser_manager.is_none() {
             s.browser_manager = Some(crate::browser::BrowserManager::new());
         }
         let bm = s.browser_manager.as_mut().unwrap();
-        if let Err(e) = bm.ensure_daemon() {
-            eprintln!("cmux: browser.open failed to start daemon: {e}");
-            return;
-        }
-        // Enable WebSocket stream server, launch Chrome, navigate, start screencast
-        let _ = bm.send_command("stream_enable", serde_json::json!({}));
-        let _ = bm.send_command("launch", serde_json::json!({"headless": true}));
-        if let Err(e) = bm.send_command("navigate", serde_json::json!({"url": "about:blank"})) {
+        if let Err(e) = bm.run_cli(&["open", "about:blank"]) {
             eprintln!("cmux: browser.open navigate failed: {e}");
             return;
         }
-        let _ = bm.send_command("screencast_start", serde_json::json!({"format": "jpeg", "quality": 80}));
+        let _ = bm.run_cli(&["stream", "enable"]);
     } // drop borrow
 
     // Step 2: Create preview pane
@@ -263,6 +268,35 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
     let Some(widgets) = pane_result else {
         return;
     };
+    wire_browser_tab(state, widgets);
+}
+
+/// Reconnect browser tabs reconstructed from session.json and navigate to their
+/// stored address. agent-browser owns one live session, so the last restored tab
+/// is the initially visible stream; selecting/navigating any tab takes ownership.
+pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
+    let tabs = state.borrow().split_engines.iter()
+        .flat_map(|engine| engine.browser_tabs())
+        .collect::<Vec<_>>();
+    for widgets in tabs {
+        let url = widgets.url_entry.text().to_string();
+        {
+            let mut s = state.borrow_mut();
+            if s.browser_manager.is_none() {
+                s.browser_manager = Some(crate::browser::BrowserManager::new());
+            }
+            let bm = s.browser_manager.as_mut().expect("browser manager initialized");
+            if let Err(error) = bm.run_cli(&["open", if url.is_empty() { "about:blank" } else { &url }]) {
+                eprintln!("cmux: failed to restore browser tab: {error}");
+                continue;
+            }
+            let _ = bm.run_cli(&["stream", "enable"]);
+        }
+        wire_browser_tab(state, widgets);
+    }
+}
+
+fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
     let picture = widgets.picture.clone();
     let url_entry = widgets.url_entry.clone();
     let picture_ref = picture.clone();
@@ -279,33 +313,44 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
         }
     } // drop borrow
 
+    // agent-browser uses one independently managed browser session. When a
+    // saved browser surface becomes visible again, restore that surface's URL.
+    widgets.container.connect_map({
+        let state = state.clone();
+        let entry = url_entry.clone();
+        move |_| {
+            let url = entry.text().to_string();
+            if url.is_empty() {
+                return;
+            }
+            let mut s = state.borrow_mut();
+            if let Some(browser) = s.browser_manager.as_mut() {
+                let _ = browser.run_cli(&["open", &url]);
+            }
+        }
+    });
+
     // Step 3b: Wire nav button signals (D-06, D-07)
     {
         // Back button
         let state_for_back = state.clone();
+        let entry_for_back = url_entry.clone();
         widgets.back_btn.connect_clicked(move |_| {
-            let s = state_for_back.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                let _ = bm.send_command("back", serde_json::json!({}));
-            }
+            run_browser_navigation(&state_for_back, &entry_for_back, "back");
         });
 
         // Forward button
         let state_for_fwd = state.clone();
+        let entry_for_fwd = url_entry.clone();
         widgets.forward_btn.connect_clicked(move |_| {
-            let s = state_for_fwd.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                let _ = bm.send_command("forward", serde_json::json!({}));
-            }
+            run_browser_navigation(&state_for_fwd, &entry_for_fwd, "forward");
         });
 
         // Reload button
         let state_for_reload = state.clone();
+        let entry_for_reload = url_entry.clone();
         widgets.reload_btn.connect_clicked(move |_| {
-            let s = state_for_reload.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                let _ = bm.send_command("reload", serde_json::json!({}));
-            }
+            run_browser_navigation(&state_for_reload, &entry_for_reload, "reload");
         });
 
         // Go button: reads URL entry, auto-prepends https://, navigates
@@ -319,15 +364,18 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             }
             let url = if raw_url.contains("://") { raw_url } else { format!("https://{raw_url}") };
             url_entry_for_go.set_text(&url);
-            let s = state_for_go.borrow();
-            if let Some(ref bm) = s.browser_manager {
+            let mut s = state_for_go.borrow_mut();
+            if let Some(ref mut bm) = s.browser_manager {
                 let w = picture_for_go.width();
                 let h = picture_for_go.height();
                 if w > 0 && h > 0 {
-                    let _ = bm.send_command("viewport", serde_json::json!({"width": w, "height": h}));
+                    let width = w.to_string();
+                    let height = h.to_string();
+                    let _ = bm.run_cli(&["set", "viewport", &width, &height]);
                 }
-                let _ = bm.send_command("navigate", serde_json::json!({"url": url}));
+                let _ = bm.run_cli(&["open", &url]);
             }
+            s.trigger_session_save();
         });
     }
 
@@ -352,9 +400,11 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             let pic_w = picture_for_viewport.width();
             let pic_h = picture_for_viewport.height();
             if pic_w > 0 && pic_h > 0 {
-                let s = state_for_viewport.borrow();
-                if let Some(ref bm) = s.browser_manager {
-                    let _ = bm.send_command("viewport", serde_json::json!({"width": pic_w, "height": pic_h}));
+                let mut s = state_for_viewport.borrow_mut();
+                if let Some(ref mut bm) = s.browser_manager {
+                    let width = pic_w.to_string();
+                    let height = pic_h.to_string();
+                    let _ = bm.run_cli(&["set", "viewport", &width, &height]);
                 }
             }
         });
@@ -366,12 +416,9 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
         let state_for_click = state.clone();
         let picture_for_click = picture_ref.clone();
         click_ctrl.connect_released(move |_gesture, _n_press, x, y| {
-            // D-09: Grab focus on the container so keyboard events resume flowing to Chrome
-            if let Some(parent_box) = picture_for_click.parent()
-                .and_then(|o| o.parent()) // overlay -> container box
-            {
-                parent_box.grab_focus();
-            }
+            // Keep browser-page keystrokes scoped to the picture. In particular,
+            // this must not steal typing from the sibling URL GtkEntry.
+            picture_for_click.grab_focus();
             // Scale widget coordinates to viewport coordinates
             let pic_w = picture_for_click.width() as f64;
             let pic_h = picture_for_click.height() as f64;
@@ -504,13 +551,8 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
                 }
             }
         });
-        // Attach to container (the focusable Box) so it receives key events when preview is focused
-        if let Some(parent_box) = picture_ref.parent()
-            .and_then(|o| o.parent()) // overlay -> container box
-        {
-            parent_box.set_focusable(true);
-            parent_box.add_controller(key_ctrl);
-        }
+        picture_ref.set_focusable(true);
+        picture_ref.add_controller(key_ctrl);
     }
 
     // Step 5: Connect URL entry — Enter navigates the browser
@@ -528,17 +570,19 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             format!("https://{raw_url}")
         };
         entry.set_text(&url);
-        let s = state_for_entry.borrow();
-        if let Some(ref bm) = s.browser_manager {
+        let mut s = state_for_entry.borrow_mut();
+        if let Some(ref mut bm) = s.browser_manager {
             // Resize viewport to match current pane size before navigating
             let w = picture_for_nav.width();
             let h = picture_for_nav.height();
             if w > 0 && h > 0 {
-                let _ = bm.send_command("viewport", serde_json::json!({"width": w, "height": h}));
+                let width = w.to_string();
+                let height = h.to_string();
+                let _ = bm.run_cli(&["set", "viewport", &width, &height]);
             }
-            let params = serde_json::json!({"url": url});
-            let _ = bm.send_command("navigate", params);
+            let _ = bm.run_cli(&["open", &url]);
         }
+        s.trigger_session_save();
     });
 
     // Step 6: DevTools toggle (D-10)
@@ -598,6 +642,33 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             }
         }
     });
+
+    state.borrow().trigger_session_save();
+    glib::idle_add_local_once(move || {
+        url_entry.grab_focus();
+        url_entry.select_region(0, -1);
+    });
+}
+
+fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
+    let current_url = {
+        let mut s = state.borrow_mut();
+        let Some(browser) = s.browser_manager.as_mut() else {
+            return;
+        };
+        if let Err(error) = browser.run_cli(&[command]) {
+            eprintln!("cmux: browser {command} failed: {error}");
+            return;
+        }
+        browser
+            .run_cli(&["get", "url"])
+            .ok()
+            .and_then(|data| data.get("url").and_then(serde_json::Value::as_str).map(str::to_owned))
+    };
+    if let Some(url) = current_url {
+        entry.set_text(&url);
+        state.borrow().trigger_session_save();
+    }
 }
 
 /// Map GDK keyval to (CDP key name, CDP code name).

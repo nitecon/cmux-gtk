@@ -11,9 +11,142 @@ pub enum FocusDirection {
     Down,
 }
 
+/// A terminal or browser surface shown as a tab inside one pane.
+#[derive(Clone)]
+pub enum PaneSurface {
+    Terminal {
+        gl_area: gtk4::GLArea,
+        uuid: Uuid,
+    },
+    Browser {
+        widgets: crate::browser::PreviewPaneWidgets,
+        uuid: Uuid,
+    },
+}
+
+impl PaneSurface {
+    fn uuid(&self) -> Uuid {
+        match self {
+            Self::Terminal { uuid, .. } | Self::Browser { uuid, .. } => *uuid,
+        }
+    }
+
+    fn widget(&self) -> gtk4::Widget {
+        match self {
+            Self::Terminal { gl_area, .. } => gl_area.clone().upcast(),
+            Self::Browser { widgets, .. } => widgets.container.clone().upcast(),
+        }
+    }
+
+    fn tab_title(&self) -> &'static str {
+        match self {
+            Self::Terminal { .. } => "Terminal",
+            Self::Browser { .. } => "Browser",
+        }
+    }
+
+    fn terminal_area(&self) -> Option<gtk4::GLArea> {
+        match self {
+            Self::Terminal { gl_area, .. } => Some(gl_area.clone()),
+            Self::Browser { .. } => None,
+        }
+    }
+
+    fn url_entry(&self) -> Option<gtk4::Entry> {
+        match self {
+            Self::Browser { widgets, .. } => Some(widgets.url_entry.clone()),
+            Self::Terminal { .. } => None,
+        }
+    }
+}
+
+fn surface_for_area(area: &gtk4::GLArea) -> Option<ffi::ghostty_surface_t> {
+    crate::ghostty::callbacks::GL_TO_SURFACE
+        .lock()
+        .ok()
+        .and_then(|registry| registry.get(&(area.as_ptr() as usize)).copied())
+        .map(|surface| surface as ffi::ghostty_surface_t)
+}
+
+fn append_pane_surface(
+    notebook: &gtk4::Notebook,
+    surfaces: &std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>,
+    surface: PaneSurface,
+    select: bool,
+) -> u32 {
+    let label = gtk4::Label::new(Some(surface.tab_title()));
+    let page = notebook.append_page(&surface.widget(), Some(&label));
+    notebook.set_tab_reorderable(&surface.widget(), true);
+    surfaces.borrow_mut().push(surface);
+    if select {
+        notebook.set_current_page(Some(page));
+    }
+    page
+}
+
+fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
+    let notebook = gtk4::Notebook::new();
+    notebook.add_css_class("surface-tabs");
+    notebook.set_scrollable(true);
+    notebook.set_show_border(false);
+    notebook.set_hexpand(true);
+    notebook.set_vexpand(true);
+
+    let actions = gtk4::Box::new(gtk4::Orientation::Horizontal, 2);
+    let terminal_btn = gtk4::Button::from_icon_name("utilities-terminal-symbolic");
+    terminal_btn.set_tooltip_text(Some("New Tab (Terminal) (Ctrl+T)"));
+    terminal_btn.set_action_name(Some("win.new-terminal-tab"));
+    terminal_btn.add_css_class("surface-tab-action");
+    let browser_btn = gtk4::Button::from_icon_name("web-browser-symbolic");
+    browser_btn.set_tooltip_text(Some("New Tab (Browser) (Ctrl+Shift+L)"));
+    browser_btn.set_action_name(Some("win.new-browser-tab"));
+    browser_btn.add_css_class("surface-tab-action");
+    actions.append(&terminal_btn);
+    actions.append(&browser_btn);
+    notebook.set_action_widget(&actions, gtk4::PackType::End);
+
+    let surfaces = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    append_pane_surface(&notebook, &surfaces, initial_surface, true);
+
+    notebook.connect_switch_page({
+        let surfaces = surfaces.clone();
+        move |notebook, _, page| {
+            let is_active_pane = notebook.has_css_class("active-pane");
+            for (index, surface) in surfaces.borrow().iter().enumerate() {
+                if let Some(area) = surface.terminal_area() {
+                    let selected = is_active_pane && index == page as usize;
+                    if selected {
+                        area.add_css_class("active-pane");
+                        area.grab_focus();
+                    } else {
+                        area.remove_css_class("active-pane");
+                    }
+                    if let Some(handle) = surface_for_area(&area) {
+                        unsafe { ffi::ghostty_surface_set_focus(handle, selected) };
+                    }
+                } else if is_active_pane && index == page as usize {
+                    if let Some(entry) = surface.url_entry() {
+                        glib::idle_add_local_once(move || {
+                            entry.grab_focus();
+                            entry.select_region(0, -1);
+                        });
+                    }
+                }
+            }
+        }
+    });
+
+    SplitNode::Leaf {
+        pane_id,
+        notebook,
+        surfaces,
+        has_attention: false,
+    }
+}
+
 /// Recursive pane layout tree. Each workspace has one root SplitNode.
-/// - Leaf: a single terminal pane (GtkGLArea + Ghostty surface)
-/// - Split: two child subtrees separated by a GtkPaned divider
+/// - Leaf: one pane containing one or more terminal/browser surface tabs
+/// - Split: two child pane subtrees separated by a GtkPaned divider
 ///
 /// Per SPLIT-06: this is the Bonsplit Rust port — immutable-style tree where
 /// split/close operations return a new root.
@@ -21,21 +154,10 @@ pub enum FocusDirection {
 pub enum SplitNode {
     Leaf {
         pane_id: u64,
-        gl_area: gtk4::GLArea,
-        surface: ffi::ghostty_surface_t,
-        /// Stable UUID for session persistence and v2 socket protocol pane identity.
-        uuid: Uuid,
+        notebook: gtk4::Notebook,
+        surfaces: std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>,
         /// Phase 4 NOTF-01: true when this pane has unread bell activity.
         has_attention: bool,
-    },
-    /// Phase 8: Browser preview pane (agent-browser frame rendering).
-    Preview {
-        pane_id: u64,
-        container: gtk4::Box,
-        picture: gtk4::Picture,
-        #[allow(dead_code)] // Kept alive for GTK widget tree reference counting
-        url_entry: gtk4::Entry,
-        uuid: Uuid,
     },
     Split {
         orientation: gtk4::Orientation,
@@ -46,11 +168,10 @@ pub enum SplitNode {
 }
 
 impl SplitNode {
-    /// Returns the root GTK widget for this node (GLArea for Leaf, Overlay for Preview, Paned for Split).
+    /// Returns the root GTK widget for this node.
     pub fn widget(&self) -> gtk4::Widget {
         match self {
-            SplitNode::Leaf { gl_area, .. } => gl_area.clone().upcast(),
-            SplitNode::Preview { container, .. } => container.clone().upcast(),
+            SplitNode::Leaf { notebook, .. } => notebook.clone().upcast(),
             SplitNode::Split { paned, .. } => paned.clone().upcast(),
         }
     }
@@ -58,17 +179,8 @@ impl SplitNode {
     /// Find the pane_id of the active (focused) leaf by checking CSS class.
     pub fn find_active_pane_id(&self) -> Option<u64> {
         match self {
-            SplitNode::Leaf {
-                pane_id, gl_area, ..
-            } => {
-                if gl_area.has_css_class("active-pane") {
-                    Some(*pane_id)
-                } else {
-                    None
-                }
-            }
-            SplitNode::Preview { pane_id, container, .. } => {
-                if container.has_css_class("active-pane") {
+            SplitNode::Leaf { pane_id, notebook, .. } => {
+                if notebook.has_css_class("active-pane") {
                     Some(*pane_id)
                 } else {
                     None
@@ -83,9 +195,10 @@ impl SplitNode {
     /// Find the UUID for a pane by pane_id. Returns None if not found.
     pub fn find_uuid_for_pane(&self, target_id: u64) -> Option<String> {
         match self {
-            SplitNode::Leaf { pane_id, uuid, .. } | SplitNode::Preview { pane_id, uuid, .. } => {
+            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
                 if *pane_id == target_id {
-                    Some(uuid.to_string())
+                    let index = notebook.current_page().unwrap_or(0) as usize;
+                    surfaces.borrow().get(index).map(|surface| surface.uuid().to_string())
                 } else {
                     None
                 }
@@ -101,20 +214,21 @@ impl SplitNode {
     /// Removes the class from all other leaves.
     pub fn update_focus_css(&self, active_pane_id: u64) {
         match self {
-            SplitNode::Leaf {
-                pane_id, gl_area, ..
-            } => {
+            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
                 if *pane_id == active_pane_id {
-                    gl_area.add_css_class("active-pane");
+                    notebook.add_css_class("active-pane");
                 } else {
-                    gl_area.remove_css_class("active-pane");
+                    notebook.remove_css_class("active-pane");
                 }
-            }
-            SplitNode::Preview { pane_id, container, .. } => {
-                if *pane_id == active_pane_id {
-                    container.add_css_class("active-pane");
-                } else {
-                    container.remove_css_class("active-pane");
+                let active_index = notebook.current_page().unwrap_or(0) as usize;
+                for (index, surface) in surfaces.borrow().iter().enumerate() {
+                    if let Some(area) = surface.terminal_area() {
+                        if *pane_id == active_pane_id && index == active_index {
+                            area.add_css_class("active-pane");
+                        } else {
+                            area.remove_css_class("active-pane");
+                        }
+                    }
                 }
             }
             SplitNode::Split { start, end, .. } => {
@@ -127,7 +241,7 @@ impl SplitNode {
     /// Find a node by pane_id.
     pub fn find_node(&self, target_id: u64) -> Option<&SplitNode> {
         match self {
-            SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => {
+            SplitNode::Leaf { pane_id, .. } => {
                 if *pane_id == target_id { Some(self) } else { None }
             }
             SplitNode::Split { start, end, .. } => {
@@ -139,7 +253,7 @@ impl SplitNode {
     /// Collect all leaf pane_ids into a Vec (for cleanup on workspace close).
     pub fn collect_pane_ids(&self, out: &mut Vec<u64>) {
         match self {
-            SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => out.push(*pane_id),
+            SplitNode::Leaf { pane_id, .. } => out.push(*pane_id),
             SplitNode::Split { start, end, .. } => {
                 start.collect_pane_ids(out);
                 end.collect_pane_ids(out);
@@ -150,8 +264,15 @@ impl SplitNode {
     /// Collect all surfaces into a Vec (for ghostty_surface_free on workspace close).
     pub fn collect_surfaces(&self, out: &mut Vec<ffi::ghostty_surface_t>) {
         match self {
-            SplitNode::Leaf { surface, .. } => out.push(*surface),
-            SplitNode::Preview { .. } => {} // No Ghostty surface
+            SplitNode::Leaf { surfaces, .. } => {
+                for surface in surfaces.borrow().iter() {
+                    if let Some(area) = surface.terminal_area() {
+                        if let Some(handle) = surface_for_area(&area) {
+                            out.push(handle);
+                        }
+                    }
+                }
+            }
             SplitNode::Split { start, end, .. } => {
                 start.collect_surfaces(out);
                 end.collect_surfaces(out);
@@ -163,10 +284,15 @@ impl SplitNode {
     /// Used by debug.type to send text to a specific pane's surface.
     pub fn find_surface_for_pane(&self, target_id: u64) -> Option<ffi::ghostty_surface_t> {
         match self {
-            SplitNode::Leaf { pane_id, surface, .. } => {
-                if *pane_id == target_id { Some(*surface) } else { None }
+            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+                if *pane_id != target_id {
+                    return None;
+                }
+                let index = notebook.current_page().unwrap_or(0) as usize;
+                surfaces.borrow().get(index)
+                    .and_then(PaneSurface::terminal_area)
+                    .and_then(|area| surface_for_area(&area))
             }
-            SplitNode::Preview { .. } => None, // No Ghostty surface
             SplitNode::Split { start, end, .. } => {
                 start.find_surface_for_pane(target_id)
                     .or_else(|| end.find_surface_for_pane(target_id))
@@ -177,8 +303,11 @@ impl SplitNode {
     /// Collect (uuid, pane_id, active) for all leaves in this subtree.
     pub fn collect_pane_info(&self, out: &mut Vec<(Uuid, u64, bool)>, active_id: u64) {
         match self {
-            SplitNode::Leaf { pane_id, uuid, .. } | SplitNode::Preview { pane_id, uuid, .. } => {
-                out.push((*uuid, *pane_id, *pane_id == active_id));
+            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+                let selected = notebook.current_page().unwrap_or(0) as usize;
+                for (index, surface) in surfaces.borrow().iter().enumerate() {
+                    out.push((surface.uuid(), *pane_id, *pane_id == active_id && index == selected));
+                }
             }
             SplitNode::Split { start, end, .. } => {
                 start.collect_pane_info(out, active_id);
@@ -190,10 +319,14 @@ impl SplitNode {
     /// Find the ghostty surface handle for the leaf matching target_uuid (UUID string).
     pub fn find_by_uuid(&self, target_uuid: &str) -> Option<ffi::ghostty_surface_t> {
         match self {
-            SplitNode::Leaf { uuid, surface, .. } => {
-                if uuid.to_string() == target_uuid { Some(*surface) } else { None }
+            SplitNode::Leaf { surfaces, .. } => {
+                surfaces.borrow().iter().find_map(|surface| match surface {
+                    PaneSurface::Terminal { gl_area, uuid } if uuid.to_string() == target_uuid => {
+                        surface_for_area(gl_area)
+                    }
+                    _ => None,
+                })
             }
-            SplitNode::Preview { .. } => None, // No Ghostty surface to return
             SplitNode::Split { start, end, .. } => {
                 start.find_by_uuid(target_uuid).or_else(|| end.find_by_uuid(target_uuid))
             }
@@ -203,8 +336,9 @@ impl SplitNode {
     /// Find the pane_id for the leaf matching target_uuid (UUID string).
     pub fn find_pane_id_by_uuid(&self, target_uuid: &str) -> Option<u64> {
         match self {
-            SplitNode::Leaf { uuid, pane_id, .. } | SplitNode::Preview { uuid, pane_id, .. } => {
-                if uuid.to_string() == target_uuid { Some(*pane_id) } else { None }
+            SplitNode::Leaf { surfaces, pane_id, .. } => {
+                surfaces.borrow().iter().any(|surface| surface.uuid().to_string() == target_uuid)
+                    .then_some(*pane_id)
             }
             SplitNode::Split { start, end, .. } => {
                 start.find_pane_id_by_uuid(target_uuid)
@@ -224,7 +358,6 @@ impl SplitNode {
                     false
                 }
             }
-            SplitNode::Preview { .. } => false, // No attention state
             SplitNode::Split { start, end, .. } => {
                 start.set_attention(target_pane_id, value) || end.set_attention(target_pane_id, value)
             }
@@ -235,7 +368,6 @@ impl SplitNode {
     pub fn any_attention(&self) -> bool {
         match self {
             SplitNode::Leaf { has_attention, .. } => *has_attention,
-            SplitNode::Preview { .. } => false,
             SplitNode::Split { start, end, .. } => start.any_attention() || end.any_attention(),
         }
     }
@@ -246,7 +378,6 @@ impl SplitNode {
             SplitNode::Leaf { pane_id, has_attention, .. } => {
                 *pane_id == target_pane_id && *has_attention
             }
-            SplitNode::Preview { .. } => false,
             SplitNode::Split { start, end, .. } => {
                 start.pane_has_attention(target_pane_id) || end.pane_has_attention(target_pane_id)
             }
@@ -257,7 +388,6 @@ impl SplitNode {
     pub fn clear_all_attention(&mut self) {
         match self {
             SplitNode::Leaf { has_attention, .. } => *has_attention = false,
-            SplitNode::Preview { .. } => {} // No attention state
             SplitNode::Split { start, end, .. } => {
                 start.clear_all_attention();
                 end.clear_all_attention();
@@ -309,7 +439,7 @@ impl SplitEngine {
         app: gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
         initial_gl_area: gtk4::GLArea,
-        initial_surface_cell: std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>,
+        _initial_surface_cell: std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>,
         pane_id: u64,
         working_directory: Option<std::path::PathBuf>,
     ) -> Self {
@@ -317,16 +447,15 @@ impl SplitEngine {
         // so it can read the surface pointer after realize. For focus/split operations
         // that run after realize, we read from the cell.
         // For the tree structure, we store null initially and update after realize.
-        let surface_placeholder: ffi::ghostty_surface_t = std::ptr::null_mut();
         // Phase 9: Attach right-click context menu (D-08)
         attach_terminal_context_menu(&initial_gl_area);
-        let root = SplitNode::Leaf {
+        let root = create_pane(
             pane_id,
-            gl_area: initial_gl_area,
-            surface: surface_placeholder,
-            uuid: Uuid::new_v4(),
-            has_attention: false,
-        };
+            PaneSurface::Terminal {
+                gl_area: initial_gl_area,
+                uuid: Uuid::new_v4(),
+            },
+        );
         SplitEngine {
             root,
             active_pane_id: pane_id,
@@ -345,12 +474,11 @@ impl SplitEngine {
 
     fn set_surface_recursive(node: &mut SplitNode, target_pane_id: u64, surface: ffi::ghostty_surface_t) {
         match node {
-            SplitNode::Leaf { pane_id, surface: s, .. } => {
-                if *pane_id == target_pane_id {
-                    *s = surface;
-                }
+            SplitNode::Leaf { pane_id, .. } => {
+                let _ = (target_pane_id, surface, pane_id);
+                // Surface handles are resolved from GL_TO_SURFACE so multiple
+                // terminal tabs can share a pane ID safely.
             }
-            SplitNode::Preview { .. } => {} // No surface to set
             SplitNode::Split { start, end, .. } => {
                 Self::set_surface_recursive(start, target_pane_id, surface);
                 Self::set_surface_recursive(end, target_pane_id, surface);
@@ -415,14 +543,61 @@ impl SplitEngine {
                 attach_terminal_context_menu(&gl_area);
                 // D-06: preserve UUID from session
                 let uuid = *surface_uuid;
-                let surface_placeholder: ffi::ghostty_surface_t = std::ptr::null_mut();
-                Some(SplitNode::Leaf {
+                Some(create_pane(
                     pane_id,
-                    gl_area,
-                    surface: surface_placeholder,
-                    uuid,
-                    has_attention: false,
-                })
+                    PaneSurface::Terminal { gl_area, uuid },
+                ))
+            }
+            SplitNodeData::Pane { active_surface_uuid, surfaces } => {
+                let pane_id = *next_pane_id;
+                *next_pane_id += 1;
+                let mut restored = surfaces.iter().map(|surface| match surface {
+                    PaneSurfaceData::Terminal { surface_uuid, cwd, .. } => {
+                        let pane_directory = working_directory
+                            .map(std::path::Path::to_path_buf)
+                            .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
+                        let (gl_area, _) = crate::ghostty::surface::create_surface(
+                            app,
+                            ghostty_app,
+                            None,
+                            pane_directory,
+                            pane_id,
+                            crate::ghostty::surface::SurfaceIoMode::Exec,
+                        );
+                        attach_terminal_context_menu(&gl_area);
+                        PaneSurface::Terminal { gl_area, uuid: *surface_uuid }
+                    }
+                    PaneSurfaceData::Browser { surface_uuid, url } => {
+                        let mut widgets = crate::browser::create_preview_pane(pane_id);
+                        widgets.uuid = *surface_uuid;
+                        widgets.url_entry.set_text(url);
+                        PaneSurface::Browser { widgets, uuid: *surface_uuid }
+                    }
+                });
+                let initial = restored.next().unwrap_or_else(|| {
+                    let (gl_area, _) = crate::ghostty::surface::create_surface(
+                        app,
+                        ghostty_app,
+                        None,
+                        working_directory.map(std::path::Path::to_path_buf),
+                        pane_id,
+                        crate::ghostty::surface::SurfaceIoMode::Exec,
+                    );
+                    attach_terminal_context_menu(&gl_area);
+                    PaneSurface::Terminal { gl_area, uuid: Uuid::new_v4() }
+                });
+                let node = create_pane(pane_id, initial);
+                if let SplitNode::Leaf { notebook, surfaces: pane_surfaces, .. } = &node {
+                    for surface in restored {
+                        append_pane_surface(notebook, pane_surfaces, surface, false);
+                    }
+                    if let Some(active_uuid) = active_surface_uuid {
+                        if let Some(index) = pane_surfaces.borrow().iter().position(|surface| surface.uuid() == *active_uuid) {
+                            notebook.set_current_page(Some(index as u32));
+                        }
+                    }
+                }
+                Some(node)
             }
             SplitNodeData::Split { orientation, ratio, start, end } => {
                 let start_node = Self::node_from_data(app, ghostty_app, start, next_pane_id, depth + 1, working_directory)?;
@@ -471,16 +646,9 @@ impl SplitEngine {
 
     fn sync_surfaces_recursive(node: &mut SplitNode) {
         match node {
-            SplitNode::Leaf { gl_area, surface, .. } => {
-                if surface.is_null() {
-                    if let Ok(gl_to_surface) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
-                        if let Some(&s) = gl_to_surface.get(&(gl_area.as_ptr() as usize)) {
-                            *surface = s as ffi::ghostty_surface_t;
-                        }
-                    }
-                }
+            SplitNode::Leaf { .. } => {
+                // Surface handles live in GL_TO_SURFACE and are resolved per tab.
             }
-            SplitNode::Preview { .. } => {} // No surface to sync
             SplitNode::Split { start, end, .. } => {
                 Self::sync_surfaces_recursive(start);
                 Self::sync_surfaces_recursive(end);
@@ -498,6 +666,8 @@ impl SplitEngine {
     pub fn grab_active_focus(&self) {
         if let Some(gl_area) = self.find_gl_area(self.active_pane_id) {
             gl_area.grab_focus();
+        } else if let Some(entry) = find_url_entry_in_tree(&self.root, self.active_pane_id) {
+            entry.grab_focus();
         }
     }
 
@@ -513,6 +683,8 @@ impl SplitEngine {
     pub fn focus_active_surface(&self) {
         if let Some(gl_area) = self.find_gl_area(self.active_pane_id) {
             gl_area.grab_focus();
+        } else if let Some(entry) = find_url_entry_in_tree(&self.root, self.active_pane_id) {
+            entry.grab_focus();
         }
         // Call ghostty_surface_set_focus(true) on the active surface via registry lookup.
         if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
@@ -571,7 +743,7 @@ impl SplitEngine {
         // Only capture this for Leaf roots — for nested splits the outer Paned stays in the Stack.
         let old_root_widget = self.root.widget();
         let stack_slot: Option<(gtk4::Stack, String)> =
-            if matches!(self.root, SplitNode::Leaf { .. } | SplitNode::Preview { .. }) {
+            if matches!(self.root, SplitNode::Leaf { .. }) {
                 old_root_widget
                     .parent()
                     .and_then(|p| p.downcast::<gtk4::Stack>().ok())
@@ -584,7 +756,7 @@ impl SplitEngine {
             };
 
         // Find the active leaf's surface for inherited config.
-        let inherited_surface = self.find_surface(active_id)?;
+        let inherited_surface = find_any_terminal_surface(&self.root, active_id)?;
 
         // Unfocus the old surface before the split — Ghostty routes input by focus state,
         // so without this the old pane continues receiving keystrokes after the new pane
@@ -620,14 +792,13 @@ impl SplitEngine {
         attach_terminal_context_menu(&new_gl_area);
 
         // Replace the active leaf in the tree with a Split node.
-        let new_surface_placeholder: ffi::ghostty_surface_t = std::ptr::null_mut();
-        let new_leaf = SplitNode::Leaf {
-            pane_id: new_pane_id,
-            gl_area: new_gl_area.clone(),
-            surface: new_surface_placeholder, // updated after realize via SURFACE_REGISTRY
-            uuid: Uuid::new_v4(),
-            has_attention: false,
-        };
+        let new_leaf = create_pane(
+            new_pane_id,
+            PaneSurface::Terminal {
+                gl_area: new_gl_area.clone(),
+                uuid: Uuid::new_v4(),
+            },
+        );
 
         let _replaced = self.replace_leaf_with_split(active_id, new_leaf, orientation)?;
 
@@ -656,33 +827,55 @@ impl SplitEngine {
         id
     }
 
-    /// Split the active pane vertically and insert a Preview node on the right.
-    /// Returns (new_pane_id, picture_widget, url_entry) so the caller can wire streaming and URL navigation.
-    /// The active terminal pane stays on the left and retains focus.
+    /// Create and select a terminal surface tab in the focused pane.
+    pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
+        let pane_id = self.active_pane_id;
+        let inherited = find_any_terminal_surface(&self.root, pane_id).map(|surface| unsafe {
+            ffi::ghostty_surface_inherited_config(
+                surface,
+                ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_TAB,
+            )
+        });
+        if let Some(surface) = self.find_surface(pane_id) {
+            unsafe { ffi::ghostty_surface_set_focus(surface, false) };
+        }
+        let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
+            &self.app,
+            self.ghostty_app,
+            inherited,
+            self.working_directory.clone(),
+            pane_id,
+            crate::ghostty::surface::SurfaceIoMode::Exec,
+        );
+        attach_terminal_context_menu(&gl_area);
+        let uuid = Uuid::new_v4();
+        let (notebook, surfaces) = find_pane_tabs(&self.root, pane_id)?;
+        append_pane_surface(
+            &notebook,
+            &surfaces,
+            PaneSurface::Terminal {
+                gl_area: gl_area.clone(),
+                uuid,
+            },
+            true,
+        );
+        self.root.update_focus_css(pane_id);
+        gl_area.grab_focus();
+        Some(uuid)
+    }
+
+    /// Select a pane and create a terminal tab there (used by Ghostty actions).
+    pub fn new_terminal_tab_for_pane(&mut self, pane_id: u64) -> Option<Uuid> {
+        self.root.find_node(pane_id)?;
+        self.active_pane_id = pane_id;
+        self.root.update_focus_css(pane_id);
+        self.new_terminal_tab()
+    }
+
+    /// Create and select a browser surface tab in the focused pane.
     pub fn split_active_with_preview(&mut self) -> Option<crate::browser::PreviewPaneWidgets> {
         let active_id = self.active_pane_id;
-        let new_pane_id = self.next_pane_id;
-        self.next_pane_id += 1;
-
-        // Same stack re-parenting guard as split_active:
-        // When root is a Leaf or Preview, capture the GtkStack parent so we can
-        // re-parent the new Paned into the Stack after the split.
-        let old_root_widget = self.root.widget();
-        let stack_slot: Option<(gtk4::Stack, String)> =
-            if matches!(self.root, SplitNode::Leaf { .. } | SplitNode::Preview { .. }) {
-                old_root_widget
-                    .parent()
-                    .and_then(|p| p.downcast::<gtk4::Stack>().ok())
-                    .and_then(|stack| {
-                        let name = stack.page(&old_root_widget).name()?.to_string();
-                        Some((stack, name))
-                    })
-            } else {
-                None
-            };
-
-        // Create preview pane widgets
-        let widgets = crate::browser::create_preview_pane(new_pane_id);
+        let widgets = crate::browser::create_preview_pane(active_id);
 
         // Phase 9: Attach right-click context menu to browser preview (D-09)
         {
@@ -705,31 +898,19 @@ impl SplitEngine {
             widgets.container.add_controller(gesture);
         }
 
-        let preview_node = SplitNode::Preview {
-            pane_id: new_pane_id,
-            container: widgets.container.clone(),
-            picture: widgets.picture.clone(),
-            url_entry: widgets.url_entry.clone(),
-            uuid: widgets.uuid,
-        };
-
-        // Replace active leaf with Split(active_leaf, preview_node) -- vertical, preview on right
-        let _replaced = self.replace_leaf_with_split(
-            active_id,
-            preview_node,
-            gtk4::Orientation::Horizontal, // Horizontal paned = side-by-side (left terminal, right preview)
-        )?;
-
-        // Re-parent new root Paned into GtkStack if root was a single Leaf
-        if let Some((stack, name)) = stack_slot {
-            let new_root = self.root.widget();
-            stack.add_named(&new_root, Some(&name));
-            stack.set_visible_child_name(&name);
-        }
-
-        // Keep focus on the original terminal pane (do NOT change active_pane_id)
-        // The terminal keeps keyboard input, preview is passive display only.
+        let (notebook, surfaces) = find_pane_tabs(&self.root, active_id)?;
+        append_pane_surface(
+            &notebook,
+            &surfaces,
+            PaneSurface::Browser {
+                widgets: widgets.clone(),
+                uuid: widgets.uuid,
+            },
+            true,
+        );
         self.root.update_focus_css(active_id);
+        widgets.url_entry.grab_focus();
+        widgets.url_entry.select_region(0, -1);
 
         Some(widgets)
     }
@@ -905,41 +1086,36 @@ impl SplitEngine {
         // Cannot close the last pane — workspace close is handled at AppState level.
         let is_single_pane = match &self.root {
             SplitNode::Leaf { pane_id, .. } if *pane_id == active_id => true,
-            SplitNode::Preview { pane_id, .. } if *pane_id == active_id => true,
             _ => false,
         };
         if is_single_pane {
             return None; // Signal to AppState: close the workspace instead
         }
 
-        // Don't close the last terminal pane if only a Preview would survive.
-        // A Preview-only workspace has no terminal and the Ghostty surface free
-        // can crash when no terminal remains to receive focus.
-        let terminal_count = count_terminals(&self.root);
-        let active_is_terminal = matches!(
-            self.root.find_node(active_id),
-            Some(SplitNode::Leaf { .. })
-        );
-        if active_is_terminal && terminal_count <= 1 {
-            return None; // Prevent closing last terminal; close workspace instead
-        }
-
-        // Find the surface before removing it from the tree.
-        let surface_to_free = self.find_surface(active_id)?;
-
-        // Capture the raw GLArea pointer BEFORE the tree removal drops the GObject.
-        // GL_AREA_REGISTRY holds raw pointers; once GTK finalizes the GObject the
-        // pointer becomes dangling. Remove it here while the GLArea is still alive.
-        let raw_gl_area: Option<*mut gtk4::ffi::GtkGLArea> = self
-            .find_gl_area(active_id)
-            .map(|a| a.as_ptr() as *mut gtk4::ffi::GtkGLArea);
+        let terminal_areas = find_pane_tabs(&self.root, active_id)
+            .map(|(_, surfaces)| {
+                surfaces
+                    .borrow()
+                    .iter()
+                    .filter_map(PaneSurface::terminal_area)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let surfaces_to_free = terminal_areas
+            .iter()
+            .filter_map(surface_for_area)
+            .collect::<Vec<_>>();
+        let raw_gl_areas = terminal_areas
+            .iter()
+            .map(|area| area.as_ptr() as *mut gtk4::ffi::GtkGLArea)
+            .collect::<Vec<_>>();
 
         // Remove the leaf from the tree and get the surviving sibling's pane_id.
         let surviving_id = remove_leaf_from_tree(&mut self.root, active_id)?;
 
         // Remove the now-dropped GLArea from GL_AREA_REGISTRY before any further
         // callbacks can dereference the dangling pointer (Gap 2 fix).
-        if let Some(raw_ptr) = raw_gl_area {
+        for raw_ptr in raw_gl_areas {
             if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
                 areas.retain(|p| p.0 != raw_ptr);
             }
@@ -950,11 +1126,13 @@ impl SplitEngine {
         }
 
         // Deregister from SURFACE_REGISTRY and free the surface.
-        unsafe {
-            ffi::ghostty_surface_free(surface_to_free);
-        }
-        if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-            registry.remove(&(surface_to_free as usize));
+        for surface in surfaces_to_free {
+            unsafe {
+                ffi::ghostty_surface_free(surface);
+            }
+            if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
+                registry.remove(&(surface as usize));
+            }
         }
 
         // Update focus to the surviving pane.
@@ -1052,6 +1230,48 @@ impl SplitEngine {
     pub fn gl_area_for_pane(&self, pane_id: u64) -> Option<gtk4::GLArea> {
         find_gl_area_in_tree(&self.root, pane_id)
     }
+
+    /// Browser tabs reconstructed from a saved session and awaiting signal wiring.
+    pub fn browser_tabs(&self) -> Vec<crate::browser::PreviewPaneWidgets> {
+        let mut tabs = Vec::new();
+        collect_browser_tabs(&self.root, &mut tabs);
+        tabs
+    }
+
+}
+
+/// Return the first browser picture in a subtree for socket-driven frames.
+pub fn first_browser_picture(node: &SplitNode) -> Option<gtk4::Picture> {
+    match node {
+        SplitNode::Leaf { surfaces, .. } => surfaces.borrow().iter().find_map(|surface| {
+            if let PaneSurface::Browser { widgets, .. } = surface {
+                Some(widgets.picture.clone())
+            } else {
+                None
+            }
+        }),
+        SplitNode::Split { start, end, .. } => {
+            first_browser_picture(start).or_else(|| first_browser_picture(end))
+        }
+    }
+}
+
+fn collect_browser_tabs(node: &SplitNode, out: &mut Vec<crate::browser::PreviewPaneWidgets>) {
+    match node {
+        SplitNode::Leaf { surfaces, .. } => {
+            out.extend(surfaces.borrow().iter().filter_map(|surface| {
+                if let PaneSurface::Browser { widgets, .. } = surface {
+                    Some(widgets.clone())
+                } else {
+                    None
+                }
+            }));
+        }
+        SplitNode::Split { start, end, .. } => {
+            collect_browser_tabs(start, out);
+            collect_browser_tabs(end, out);
+        }
+    }
 }
 
 // ── Tree traversal helpers ───────────────────────────────────────────────────
@@ -1067,13 +1287,13 @@ where
                 // Take ownership of the old node to pass to replacer.
                 let old = std::mem::replace(
                     node,
-                    SplitNode::Leaf {
-                        pane_id: 0,
-                        gl_area: gtk4::GLArea::new(),
-                        surface: std::ptr::null_mut(),
-                        uuid: Uuid::new_v4(),
-                        has_attention: false,
-                    },
+                    create_pane(
+                        0,
+                        PaneSurface::Terminal {
+                            gl_area: gtk4::GLArea::new(),
+                            uuid: Uuid::new_v4(),
+                        },
+                    ),
                 );
                 *node = r(old);
                 Some(())
@@ -1082,7 +1302,6 @@ where
             }
         }
         SplitNode::Leaf { .. } => None,
-        SplitNode::Preview { .. } => None, // Cannot split a preview pane
         SplitNode::Split {
             start, end, paned, ..
         } => {
@@ -1104,13 +1323,13 @@ where
 /// Replaces the parent Split with the surviving sibling in the GTK widget tree.
 fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
     match node {
-        SplitNode::Leaf { .. } | SplitNode::Preview { .. } => None, // Caller ensures we never remove the root leaf
+        SplitNode::Leaf { .. } => None, // Caller ensures we never remove the root leaf
         SplitNode::Split {
             start, end, paned, ..
         } => {
-            // Check if start is the target (Leaf or Preview).
+            // Check if start is the target leaf.
             let start_is_target = match start.as_ref() {
-                SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => *pane_id == target_id,
+                SplitNode::Leaf { pane_id, .. } => *pane_id == target_id,
                 _ => false,
             };
             if start_is_target {
@@ -1129,9 +1348,9 @@ fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
                 *node = surviving;
                 return Some(surviving_id);
             }
-            // Check if end is the target (Leaf or Preview).
+            // Check if end is the target leaf.
             let end_is_target = match end.as_ref() {
-                SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => *pane_id == target_id,
+                SplitNode::Leaf { pane_id, .. } => *pane_id == target_id,
                 _ => false,
             };
             if end_is_target {
@@ -1199,26 +1418,43 @@ fn replace_child_in_parent(
 /// Return the first (leftmost/topmost) pane_id in a subtree.
 fn first_pane_id(node: &SplitNode) -> u64 {
     match node {
-        SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => *pane_id,
+        SplitNode::Leaf { pane_id, .. } => *pane_id,
         SplitNode::Split { start, .. } => first_pane_id(start),
     }
 }
 
-fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
+fn find_pane_tabs(
+    node: &SplitNode,
+    pane_id: u64,
+) -> Option<(gtk4::Notebook, std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>)> {
     match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            surface,
-            ..
-        } if *id == pane_id => {
-            if surface.is_null() {
-                None
-            } else {
-                Some(*surface)
-            }
+        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => {
+            Some((notebook.clone(), surfaces.clone()))
         }
         SplitNode::Leaf { .. } => None,
-        SplitNode::Preview { .. } => None, // No Ghostty surface
+        SplitNode::Split { start, end, .. } => {
+            find_pane_tabs(start, pane_id).or_else(|| find_pane_tabs(end, pane_id))
+        }
+    }
+}
+
+fn find_any_terminal_surface(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
+    let (_, surfaces) = find_pane_tabs(node, pane_id)?;
+    let found = surfaces
+        .borrow()
+        .iter()
+        .filter_map(PaneSurface::terminal_area)
+        .find_map(|area| surface_for_area(&area));
+    found
+}
+
+fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
+    match node {
+        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
+            .current_page()
+            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::terminal_area))
+            .and_then(|area| surface_for_area(&area)),
+        SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
             find_surface_in_tree(start, pane_id).or_else(|| find_surface_in_tree(end, pane_id))
         }
@@ -1227,32 +1463,22 @@ fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_s
 
 fn find_gl_area_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::GLArea> {
     match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            gl_area,
-            ..
-        } if *id == pane_id => Some(gl_area.clone()),
+        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
+            .current_page()
+            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::terminal_area)),
         SplitNode::Leaf { .. } => None,
-        SplitNode::Preview { .. } => None, // Preview uses Picture, not GLArea
         SplitNode::Split { start, end, .. } => {
             find_gl_area_in_tree(start, pane_id).or_else(|| find_gl_area_in_tree(end, pane_id))
         }
     }
 }
 
-/// Count terminal (Leaf) panes in the tree.
-fn count_terminals(node: &SplitNode) -> usize {
-    match node {
-        SplitNode::Leaf { .. } => 1,
-        SplitNode::Preview { .. } => 0,
-        SplitNode::Split { start, end, .. } => count_terminals(start) + count_terminals(end),
-    }
-}
-
 fn find_url_entry_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::Entry> {
     match node {
-        SplitNode::Preview { pane_id: id, url_entry, .. } if *id == pane_id => Some(url_entry.clone()),
-        SplitNode::Preview { .. } | SplitNode::Leaf { .. } => None,
+        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
+            .current_page()
+            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::url_entry)),
+        SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
             find_url_entry_in_tree(start, pane_id).or_else(|| find_url_entry_in_tree(end, pane_id))
         }
@@ -1261,13 +1487,7 @@ fn find_url_entry_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::Entry>
 
 fn update_surface_in_tree(node: &mut SplitNode, pane_id: u64, surface: ffi::ghostty_surface_t) {
     match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            surface: s,
-            ..
-        } if *id == pane_id => *s = surface,
-        SplitNode::Leaf { .. } => {}
-        SplitNode::Preview { .. } => {} // No surface to update
+        SplitNode::Leaf { .. } => { let _ = (pane_id, surface); }
         SplitNode::Split { start, end, .. } => {
             update_surface_in_tree(start, pane_id, surface);
             update_surface_in_tree(end, pane_id, surface);
@@ -1415,7 +1635,7 @@ fn restore_active_pane_focus() {
 
 fn collect_leaves_in_order(node: &SplitNode, out: &mut Vec<u64>) {
     match node {
-        SplitNode::Leaf { pane_id, .. } | SplitNode::Preview { pane_id, .. } => out.push(*pane_id),
+        SplitNode::Leaf { pane_id, .. } => out.push(*pane_id),
         SplitNode::Split { start, end, .. } => {
             collect_leaves_in_order(start, out);
             collect_leaves_in_order(end, out);
@@ -1437,6 +1657,12 @@ pub enum SplitNodeData {
         /// Absolute working directory path (best-effort; may be empty if /proc unavailable)
         cwd: String,
     },
+    Pane {
+        #[serde(default)]
+        active_surface_uuid: Option<Uuid>,
+        #[serde(default)]
+        surfaces: Vec<PaneSurfaceData>,
+    },
     Split {
         /// "horizontal" or "vertical"
         orientation: String,
@@ -1446,6 +1672,25 @@ pub enum SplitNodeData {
         start: Box<SplitNodeData>,
         end: Box<SplitNodeData>,
     },
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum PaneSurfaceData {
+    Terminal {
+        surface_uuid: Uuid,
+        shell: String,
+        cwd: String,
+    },
+    Browser {
+        surface_uuid: Uuid,
+        #[serde(default = "default_browser_url")]
+        url: String,
+    },
+}
+
+fn default_browser_url() -> String {
+    "about:blank".to_string()
 }
 
 fn default_ratio() -> f64 {
@@ -1508,24 +1753,25 @@ impl SplitNode {
     /// Falls back to empty strings if /proc is unavailable or the pid is unknown.
     pub fn to_data(&self) -> SplitNodeData {
         match self {
-            SplitNode::Leaf { pane_id, uuid, surface, .. } => {
-                let cwd = get_surface_cwd(*surface);
+            SplitNode::Leaf { notebook, surfaces, .. } => {
                 let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-                SplitNodeData::Leaf {
-                    pane_id: *pane_id,
-                    surface_uuid: *uuid,
-                    shell,
-                    cwd,
-                }
-            },
-            SplitNode::Preview { .. } => {
-                // Preview panes are ephemeral; skip in session serialization.
-                // Return a dummy leaf that will be ignored during restore.
-                SplitNodeData::Leaf {
-                    pane_id: 0,
-                    surface_uuid: Uuid::nil(),
-                    shell: String::new(),
-                    cwd: String::new(),
+                let surface_data = surfaces.borrow().iter().map(|surface| match surface {
+                    PaneSurface::Terminal { gl_area, uuid } => PaneSurfaceData::Terminal {
+                        surface_uuid: *uuid,
+                        shell: shell.clone(),
+                        cwd: surface_for_area(gl_area).map(get_surface_cwd).unwrap_or_default(),
+                    },
+                    PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
+                        surface_uuid: *uuid,
+                        url: widgets.url_entry.text().to_string(),
+                    },
+                }).collect();
+                let active_surface_uuid = notebook.current_page().and_then(|page| {
+                    surfaces.borrow().get(page as usize).map(PaneSurface::uuid)
+                });
+                SplitNodeData::Pane {
+                    active_surface_uuid,
+                    surfaces: surface_data,
                 }
             },
             SplitNode::Split { orientation, paned, start, end, .. } => {
@@ -1597,6 +1843,38 @@ mod tests {
         } else {
             panic!("Roundtrip changed variant");
         }
+    }
+
+    #[test]
+    fn pane_tabs_roundtrip_preserves_browser_url_and_active_surface() {
+        let terminal_uuid = Uuid::new_v4();
+        let browser_uuid = Uuid::new_v4();
+        let pane = SplitNodeData::Pane {
+            active_surface_uuid: Some(browser_uuid),
+            surfaces: vec![
+                PaneSurfaceData::Terminal {
+                    surface_uuid: terminal_uuid,
+                    shell: "/bin/sh".to_string(),
+                    cwd: "/tmp".to_string(),
+                },
+                PaneSurfaceData::Browser {
+                    surface_uuid: browser_uuid,
+                    url: "https://example.com/path".to_string(),
+                },
+            ],
+        };
+
+        let json = serde_json::to_string(&pane).expect("serialize pane tabs");
+        let restored: SplitNodeData = serde_json::from_str(&json).expect("restore pane tabs");
+        let SplitNodeData::Pane { active_surface_uuid, surfaces } = restored else {
+            panic!("expected Pane session node");
+        };
+        assert_eq!(active_surface_uuid, Some(browser_uuid));
+        assert!(matches!(
+            &surfaces[1],
+            PaneSurfaceData::Browser { surface_uuid, url }
+                if *surface_uuid == browser_uuid && url == "https://example.com/path"
+        ));
     }
 
     #[test]

@@ -19,10 +19,10 @@ pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBa
     new_ws_btn.add_css_class("headerbar-btn");
     header.pack_start(&new_ws_btn);
 
-    // [Browser] New Browser (D-05, D-07)
+    // [Browser] New browser tab in the focused pane (D-05, D-07)
     let browser_btn = gtk4::Button::from_icon_name("web-browser-symbolic");
-    browser_btn.set_tooltip_text(Some("New Browser (Ctrl+Shift+B)"));
-    browser_btn.set_action_name(Some("win.browser-open"));
+    browser_btn.set_tooltip_text(Some("New Tab (Browser) (Ctrl+Shift+L)"));
+    browser_btn.set_action_name(Some("win.new-browser-tab"));
     browser_btn.add_css_class("headerbar-btn");
     header.pack_start(&browser_btn);
 

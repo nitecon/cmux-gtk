@@ -849,11 +849,5 @@ pub fn handle_socket_command(
 
 /// Walk the split tree to find the first Preview node's Picture widget.
 fn find_preview_picture(node: &crate::split_engine::SplitNode) -> Option<gtk4::Picture> {
-    match node {
-        crate::split_engine::SplitNode::Preview { picture, .. } => Some(picture.clone()),
-        crate::split_engine::SplitNode::Split { start, end, .. } => {
-            find_preview_picture(start).or_else(|| find_preview_picture(end))
-        }
-        crate::split_engine::SplitNode::Leaf { .. } => None,
-    }
+    crate::split_engine::first_browser_picture(node)
 }

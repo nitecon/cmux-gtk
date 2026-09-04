@@ -12,6 +12,11 @@ pub fn register_actions(
     sidebar: &gtk4::Box,
     app: &gtk4::Application,
 ) {
+    if !crate::browser::agent_browser_available() {
+        eprintln!(
+            "cmux: browser tabs disabled; install agent-browser with: npm install -g agent-browser && agent-browser install"
+        );
+    }
     // --- File section actions ---
 
     // win.new-workspace (D-01, D-05)
@@ -22,6 +27,23 @@ pub fn register_actions(
         move |_, _| {
             crate::shortcuts::handle_new_workspace(&state, &app);
         }
+    });
+    window.add_action(&action);
+
+    // win.new-terminal-tab — sibling surface in the focused pane.
+    let action = gio::SimpleAction::new("new-terminal-tab", None);
+    action.connect_activate({
+        let state = state.clone();
+        move |_, _| crate::shortcuts::handle_new_terminal_tab(&state)
+    });
+    window.add_action(&action);
+
+    // win.new-browser-tab — sibling surface in the focused pane.
+    let action = gio::SimpleAction::new("new-browser-tab", None);
+    action.set_enabled(crate::browser::agent_browser_available());
+    action.connect_activate({
+        let state = state.clone();
+        move |_, _| crate::shortcuts::handle_browser_open(&state)
     });
     window.add_action(&action);
 
@@ -38,6 +60,7 @@ pub fn register_actions(
 
     // win.browser-open (D-07)
     let action = gio::SimpleAction::new("browser-open", None);
+    action.set_enabled(crate::browser::agent_browser_available());
     action.connect_activate({
         let state = state.clone();
         move |_, _| {
@@ -260,6 +283,8 @@ pub fn register_accels(app: &gtk4::Application) {
     app.set_accels_for_action("win.close-workspace", &["<Ctrl><Shift>w"]);
     app.set_accels_for_action("win.new-ssh-workspace", &["<Ctrl><Shift>s"]);
     app.set_accels_for_action("win.browser-open", &["<Ctrl><Shift>b"]);
+    app.set_accels_for_action("win.new-terminal-tab", &["<Ctrl>t"]);
+    app.set_accels_for_action("win.new-browser-tab", &["<Ctrl><Shift>l"]);
     app.set_accels_for_action("win.close-pane", &["<Ctrl><Shift>x"]);
     app.set_accels_for_action("win.toggle-sidebar", &["<Ctrl>b"]);
     app.set_accels_for_action("win.split-right", &["<Ctrl>d"]);
@@ -281,7 +306,8 @@ pub fn build_hamburger_menu() -> gio::Menu {
     let file_section = gio::Menu::new();
     file_section.append(Some("New Workspace"), Some("win.new-workspace"));
     file_section.append(Some("New SSH Workspace"), Some("win.new-ssh-workspace"));
-    file_section.append(Some("New Browser"), Some("win.browser-open"));
+    file_section.append(Some("New Tab (Terminal)"), Some("win.new-terminal-tab"));
+    file_section.append(Some("New Tab (Browser)"), Some("win.new-browser-tab"));
     file_section.append(Some("Close Pane"), Some("win.close-pane"));
     file_section.append(Some("Close Workspace"), Some("win.close-workspace"));
     file_section.append(Some("Quit"), Some("app.quit"));

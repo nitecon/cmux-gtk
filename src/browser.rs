@@ -22,6 +22,7 @@ pub enum PreviewState {
 
 pub struct BrowserManager {
     session_name: String,
+    binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
     pub frame_tx: Option<tokio::sync::mpsc::UnboundedSender<Vec<u8>>>,
     pub preview_state: PreviewState,
@@ -31,6 +32,7 @@ impl BrowserManager {
     pub fn new() -> Self {
         BrowserManager {
             session_name: SESSION_NAME.to_string(),
+            binary_path: None,
             stream_task: None,
             frame_tx: None,
             preview_state: PreviewState::Empty,
@@ -69,15 +71,16 @@ impl BrowserManager {
 
     /// Auto-start the agent-browser daemon (D-05).
     pub fn ensure_daemon(&mut self) -> Result<(), String> {
-        if self.daemon_ready() {
-            return Ok(());
-        }
-
         // Find an explicitly configured, installed, packaged, or locally linked binary.
         let binary_path = which_agent_browser().ok_or_else(|| {
             "agent-browser is not installed; browser panes are unavailable. Install it with: npm install -g agent-browser && agent-browser install"
                 .to_string()
         })?;
+        self.binary_path = Some(binary_path.clone());
+
+        if self.daemon_ready() {
+            return Ok(());
+        }
 
         // Create socket dir if needed.
         let socket_dir = Self::agent_browser_socket_dir();
@@ -123,6 +126,37 @@ impl BrowserManager {
         }
 
         Err("agent-browser daemon failed to start within 10 seconds".to_string())
+    }
+
+    /// Run a supported public agent-browser CLI command for this cmux session.
+    /// Lifecycle and navigation use the public CLI because private daemon
+    /// action semantics can change between independently installed releases.
+    pub fn run_cli(&mut self, args: &[&str]) -> Result<Value, String> {
+        self.ensure_daemon()?;
+        let binary = self
+            .binary_path
+            .as_ref()
+            .ok_or_else(|| "agent-browser executable could not be resolved".to_string())?;
+        let output = Command::new(binary)
+            .arg("--session")
+            .arg(&self.session_name)
+            .arg("--json")
+            .args(args)
+            .output()
+            .map_err(|e| format!("Failed to run agent-browser: {e}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let payload: Value = serde_json::from_str(stdout.trim()).map_err(|e| {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            format!("agent-browser returned invalid JSON ({e}): {}", stderr.trim())
+        })?;
+        if !output.status.success() || payload.get("success") == Some(&Value::Bool(false)) {
+            let message = payload
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("agent-browser command failed");
+            return Err(message.to_string());
+        }
+        Ok(payload.get("data").cloned().unwrap_or(payload))
     }
 
     /// Send a newline-delimited JSON command to the daemon socket.
@@ -274,6 +308,7 @@ impl BrowserManager {
 }
 
 /// Widgets returned by create_preview_pane for callers to connect signals.
+#[derive(Clone)]
 pub struct PreviewPaneWidgets {
     pub container: gtk4::Box,
     pub picture: gtk4::Picture,
@@ -325,6 +360,7 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
     // URL entry inside the nav bar
     let url_entry = gtk4::Entry::new();
     url_entry.set_placeholder_text(Some("Enter URL..."));
+    url_entry.set_text("about:blank");
     url_entry.add_css_class("browser-url-bar");
     url_entry.set_hexpand(true);
 
@@ -484,7 +520,28 @@ fn which_agent_browser() -> Option<PathBuf> {
             return Some(candidate);
         }
     }
+
+    // Desktop launchers do not inherit an interactive shell's NVM PATH. Find
+    // independently installed agent-browser versions without pinning one.
+    if let Ok(home) = std::env::var("HOME") {
+        let versions = PathBuf::from(home).join(".nvm/versions/node");
+        if let Ok(entries) = std::fs::read_dir(versions) {
+            let mut candidates: Vec<PathBuf> = entries
+                .flatten()
+                .map(|entry| entry.path().join("bin/agent-browser"))
+                .filter(|path| path.is_file())
+                .collect();
+            candidates.sort();
+            if let Some(candidate) = candidates.pop() {
+                return Some(candidate);
+            }
+        }
+    }
     None
+}
+
+pub fn agent_browser_available() -> bool {
+    which_agent_browser().is_some()
 }
 
 fn find_system_chrome() -> Option<PathBuf> {
