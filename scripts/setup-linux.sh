@@ -30,6 +30,12 @@ if ! command -v zig &>/dev/null; then
     exit 1
 fi
 
+if ! command -v llvm-objcopy &>/dev/null; then
+    echo "ERROR: llvm-objcopy is required to namespace bundled libghostty symbols." >&2
+    echo "Run: ./scripts/setup-linux-dev.sh" >&2
+    exit 1
+fi
+
 if [ "$(zig version)" != "$ZIG_VERSION" ]; then
     echo "ERROR: Zig $ZIG_VERSION is required; found $(zig version)."
     exit 1

@@ -12,17 +12,17 @@ install_system_dependencies() {
     if command -v apt-get &>/dev/null; then
         "${elevate[@]}" apt-get update
         "${elevate[@]}" apt-get install -y \
-            build-essential curl xz-utils pkg-config python3 gettext libclang-dev \
+            build-essential curl xz-utils pkg-config python3 gettext libclang-dev llvm \
             libgtk-4-dev libfontconfig1-dev libfreetype6-dev \
             libonig-dev libgl-dev libc++-dev libc++abi-dev libxml2-dev
     elif command -v dnf &>/dev/null; then
         "${elevate[@]}" dnf install -y \
-            gcc gcc-c++ curl xz pkgconf-pkg-config python3 gettext clang-devel \
+            gcc gcc-c++ curl xz pkgconf-pkg-config python3 gettext clang-devel llvm \
             gtk4-devel fontconfig-devel freetype-devel oniguruma-devel \
             mesa-libGL-devel libcxx-devel libcxxabi-devel libxml2-devel
     elif command -v pacman &>/dev/null; then
         "${elevate[@]}" pacman -S --needed --noconfirm \
-            base-devel curl xz pkgconf python gettext clang gtk4 fontconfig freetype2 \
+            base-devel curl xz pkgconf python gettext clang llvm gtk4 fontconfig freetype2 \
             oniguruma mesa libc++ libxml2
     else
         echo "ERROR: unsupported package manager; install GTK4, Clang, Fontconfig," >&2

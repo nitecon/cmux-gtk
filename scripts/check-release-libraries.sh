@@ -17,5 +17,11 @@ for binary in "$@"; do
         exit 1
     fi
 
-    echo "RUNTIME-LIB-CHECK-OK: $binary does not dynamically link bundled XML dependencies"
+    if readelf --dyn-syms --wide "$binary" | \
+        awk '$5 != "LOCAL" && $8 ~ /^(hb_|FT_)/ { found=1 } END { exit !found }'; then
+        echo "RUNTIME-LIB-CHECK-FAIL: $binary exports bundled HarfBuzz/FreeType symbols" >&2
+        exit 1
+    fi
+
+    echo "RUNTIME-LIB-CHECK-OK: $binary keeps bundled libraries private"
 done

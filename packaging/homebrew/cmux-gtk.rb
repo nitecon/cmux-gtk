@@ -25,14 +25,16 @@ cask "cmux-gtk" do
   command_wrapper "cmux",
                   content: <<~SH
                     #!/bin/sh
-                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
                     exec "#{staged_path}/cmux" "$@"
                   SH
   command_wrapper "cmux-app",
                   content: <<~SH
                     #!/bin/sh
-                    export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-                    exec "#{staged_path}/cmux-app" "$@"
+                    app="#{staged_path}/cmux-app"
+                    if ldd "$app" 2>/dev/null | grep -q "not found"; then
+                      export LD_LIBRARY_PATH="#{HOMEBREW_PREFIX}/opt/llvm/lib:#{HOMEBREW_PREFIX}/opt/gtk4/lib:#{HOMEBREW_PREFIX}/opt/fontconfig/lib:#{HOMEBREW_PREFIX}/opt/freetype/lib:#{HOMEBREW_PREFIX}/opt/oniguruma/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+                    fi
+                    exec "$app" "$@"
                   SH
   artifact "share/applications/io.cmux.App.desktop",
            target: "#{Dir.home}/.local/share/applications/io.cmux.App.desktop"

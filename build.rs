@@ -1,5 +1,7 @@
 use std::env;
+use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
     let version =
@@ -15,12 +17,17 @@ fn main() {
 
     // Get the absolute path to the project directory
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let ghostty_lib_path = format!("{}/ghostty/zig-out/lib", manifest_dir);
+    let ghostty_archive = PathBuf::from(&manifest_dir).join("ghostty/zig-out/lib/libghostty.a");
+    println!("cargo:rerun-if-changed={}", ghostty_archive.display());
+    let private_ghostty_archive = prepare_private_ghostty_archive(&ghostty_archive);
+    let ghostty_lib_path = private_ghostty_archive.parent().unwrap();
 
-    // Static link pre-built libghostty.a (built by scripts/setup-linux.sh)
-    // Use absolute path to ensure it's found
-    println!("cargo:rustc-link-search=native={}", ghostty_lib_path);
-    println!("cargo:rustc-link-lib=static=ghostty");
+    // Static link the namespaced libghostty archive prepared above.
+    println!(
+        "cargo:rustc-link-search=native={}",
+        ghostty_lib_path.display()
+    );
+    println!("cargo:rustc-link-lib=static=ghostty_private");
 
     // Modern Ghostty archives bundle their third-party static dependencies.
     // Only platform libraries are linked separately here.
@@ -117,6 +124,69 @@ fn main() {
     bindings
         .write_to_file(out_path.join("ghostty_sys.rs"))
         .expect("Couldn't write ghostty_sys.rs");
+}
+
+fn prepare_private_ghostty_archive(source: &std::path::Path) -> PathBuf {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let archive = out_dir.join("libghostty_private.a");
+    let symbol_map = out_dir.join("ghostty-private-symbols.map");
+
+    // Ghostty's archive bundles its third-party libraries. Namespace every
+    // definition except the public C API, and rewrite matching references in
+    // every archive member. This prevents GTK/Pango's shared libraries from
+    // binding to Ghostty's private HarfBuzz and FreeType implementations.
+    let nm = env::var("NM").unwrap_or_else(|_| "nm".into());
+    let output = Command::new(&nm)
+        .args(["-g", "--defined-only", "--format=posix"])
+        .arg(source)
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run {nm} for {}: {error}", source.display()));
+    assert!(
+        output.status.success(),
+        "{nm} failed for {}: {}",
+        source.display(),
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+
+    let nm_stdout = String::from_utf8_lossy(&output.stdout);
+    let mut symbols: Vec<&str> = nm_stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let symbol = fields.next()?;
+            let kind = fields.next()?;
+            (kind.len() == 1 && !symbol.starts_with("ghostty_")).then_some(symbol)
+        })
+        .collect();
+    symbols.sort_unstable();
+    symbols.dedup();
+    assert!(
+        !symbols.is_empty(),
+        "no private symbols found in {}",
+        source.display()
+    );
+
+    let mappings: String = symbols
+        .into_iter()
+        .map(|symbol| format!("{symbol} cmux_ghostty_private_{symbol}\n"))
+        .collect();
+    fs::write(&symbol_map, mappings).expect("failed to write Ghostty symbol map");
+
+    // GNU objcopy cannot rewrite this archive because Zig preserves member
+    // paths; LLVM objcopy supports both those paths and --redefine-syms.
+    let objcopy = env::var("OBJCOPY").unwrap_or_else(|_| "llvm-objcopy".into());
+    let status = Command::new(&objcopy)
+        .arg(format!("--redefine-syms={}", symbol_map.display()))
+        .arg(source)
+        .arg(&archive)
+        .status()
+        .unwrap_or_else(|error| panic!("failed to run {objcopy}: {error}"));
+    assert!(
+        status.success(),
+        "{objcopy} failed to namespace libghostty symbols"
+    );
+
+    archive
 }
 
 fn link_static_libxml2() {

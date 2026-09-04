@@ -2,6 +2,14 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.2] - 2026-09-04
+
+### Fixed
+
+- Prevented Ghostty's bundled HarfBuzz, FreeType, and other static-library symbols from overriding GTK's system libraries and crashing the application during startup.
+- Stopped the Homebrew launcher from replacing a working host GTK and graphics stack; Homebrew libraries are now used only when the host cannot resolve the application dependencies.
+- Added release checks that reject binaries exposing the bundled HarfBuzz or FreeType ABI.
+
 ## [0.1.1] - 2026-09-02
 
 ### Fixed
