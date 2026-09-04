@@ -34,9 +34,12 @@ done
 [[ -S "$socket_path" ]] || { echo "socket was not created"; false; }
 
 cmux=("$repo_root/target/debug/cmux" --socket "$socket_path")
+count_children() {
+    ps -eo ppid= | awk -v parent="$app_pid" '$1 == parent { count++ } END { print count + 0 }'
+}
 initial_children=0
 for _ in $(seq 1 100); do
-    initial_children="$(ps --ppid "$app_pid" -o pid= | wc -l)"
+    initial_children="$(count_children)"
     [[ "$initial_children" -ge 1 ]] && break
     sleep 0.1
 done
@@ -56,7 +59,7 @@ print(len(surfaces), active)
 
 before_children="$initial_children"
 for _ in $(seq 1 100); do
-    before_children="$(ps --ppid "$app_pid" -o pid= | wc -l)"
+    before_children="$(count_children)"
     [[ "$before_children" -eq $((initial_children + 2)) ]] && break
     sleep 0.1
 done
@@ -73,7 +76,7 @@ after_count="$(python3 -c 'import json,sys; print(len(json.load(sys.stdin)["surf
 
 after_children="$before_children"
 for _ in $(seq 1 50); do
-    after_children="$(ps --ppid "$app_pid" -o pid= | wc -l)"
+    after_children="$(count_children)"
     [[ "$after_children" -lt "$before_children" ]] && break
     sleep 0.1
 done
