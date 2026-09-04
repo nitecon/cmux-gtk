@@ -2,6 +2,20 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.4] - 2026-09-04
+
+### Added
+
+- Added terminal and browser surface tabs inside the focused workspace pane, matching upstream cmux's workspace and pane hierarchy.
+- Added `Ctrl+T` for a new terminal tab and `Ctrl+Shift+L` for a new browser tab.
+- Persisted terminal tabs, browser tabs, the selected surface, and browser URLs across restarts.
+
+### Fixed
+
+- Initialized a live Ghostty terminal surface when creating a terminal tab.
+- Made the browser URL bar accept keyboard input by limiting browser-page key forwarding to the rendered page.
+- Switched browser launch and navigation to agent-browser's supported public CLI and detected independently installed NVM versions from desktop launches.
+
 ## [0.1.3] - 2026-09-04
 
 ### Added
