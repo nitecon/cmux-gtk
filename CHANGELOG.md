@@ -2,6 +2,14 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.5] - 2026-09-04
+
+### Fixed
+
+- Rendered embedded Ghostty terminals on GTK's application thread so terminal tabs display their shell prompt and accept input.
+- Preserved terminal rendering when split panes reparent and re-realize their `GtkGLArea` widgets.
+- Deferred terminal initialization until GTK provides a non-zero allocation and corrected physical sizing for scaled displays.
+
 ## [0.1.4] - 2026-09-04
 
 ### Added

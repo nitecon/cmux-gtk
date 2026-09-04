@@ -14,15 +14,6 @@ pub enum SurfaceIoMode {
     },
 }
 
-/// Call glGetError() via FFI to check for GL errors after ghostty calls.
-/// Returns 0 if no error, or the GL error code otherwise.
-fn gl_get_error() -> u32 {
-    extern "C" {
-        fn glGetError() -> u32;
-    }
-    unsafe { glGetError() }
-}
-
 extern "C" {
     fn glGetIntegerv(pname: u32, params: *mut i32);
 }
@@ -61,9 +52,110 @@ unsafe extern "C" fn opengl_swap_buffers(_userdata: *mut std::ffi::c_void) {
     // GtkGLArea presents its framebuffer after the render signal returns.
 }
 
+struct SurfaceInit {
+    ghostty_app: ffi::ghostty_app_t,
+    inherited_config: Option<ffi::ghostty_surface_config_s>,
+    working_directory: Option<std::path::PathBuf>,
+    pane_id: u64,
+    io_mode: SurfaceIoMode,
+}
+
+/// Initialize Ghostty only after GTK has assigned a non-zero GLArea size.
+/// GtkNotebook realizes pages before allocating them, and creating Ghostty at
+/// 0x0 loses the shell's startup output before the terminal grid is usable.
+fn initialize_surface(
+    area: &gtk4::GLArea,
+    cell: &Rc<RefCell<Option<ffi::ghostty_surface_t>>>,
+    init: &SurfaceInit,
+    logical_width: i32,
+    logical_height: i32,
+) -> Option<ffi::ghostty_surface_t> {
+    use gtk4::prelude::*;
+    use std::sync::atomic::Ordering;
+
+    if let Some(surface) = *cell.borrow() {
+        return Some(surface);
+    }
+    if logical_width <= 0 || logical_height <= 0 || !area.is_realized() {
+        return None;
+    }
+
+    area.make_current();
+    if let Some(err) = area.error() {
+        eprintln!("cmux: GLArea initialization error: {err}");
+        return None;
+    }
+
+    let scale = area.scale_factor() as f64;
+    let surface = unsafe {
+        let platform = ffi::ghostty_platform_u {
+            opengl: ffi::ghostty_platform_opengl_s {
+                userdata: area.as_ptr() as *mut std::ffi::c_void,
+                make_current: Some(opengl_make_current),
+                clear_current: Some(opengl_clear_current),
+                get_proc_address: Some(opengl_get_proc_address),
+                swap_buffers: Some(opengl_swap_buffers),
+            },
+        };
+        let mut config = init
+            .inherited_config
+            .unwrap_or_else(|| ffi::ghostty_surface_config_new());
+        config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
+        config.platform = platform;
+        config.userdata = std::ptr::null_mut();
+        config.scale_factor = scale;
+
+        let working_directory_c = init
+            .working_directory
+            .as_ref()
+            .and_then(|path| std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok());
+        if let Some(ref cwd) = working_directory_c {
+            config.working_directory = cwd.as_ptr();
+        }
+        if let SurfaceIoMode::Manual { ref io_write_ctx } = init.io_mode {
+            config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
+            config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
+            config.io_write_userdata =
+                std::sync::Arc::into_raw(io_write_ctx.clone()) as *mut std::ffi::c_void;
+        }
+        eprintln!(
+            "cmux: initializing Ghostty surface at {}x{} logical pixels",
+            logical_width, logical_height
+        );
+        let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
+        if surface.is_null() {
+            eprintln!("cmux: FATAL — ghostty_surface_new returned null");
+            std::process::exit(1);
+        }
+        let phys_width = (logical_width as f64 * scale) as u32;
+        let phys_height = (logical_height as f64 * scale) as u32;
+        ffi::ghostty_surface_set_size(surface, phys_width, phys_height);
+        ffi::ghostty_surface_set_content_scale(surface, scale, scale);
+        ffi::ghostty_surface_set_focus(surface, true);
+        surface
+    };
+
+    if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
+        registry.insert(surface as usize, init.pane_id);
+    }
+    *cell.borrow_mut() = Some(surface);
+    area.grab_focus();
+    crate::ghostty::callbacks::SURFACE_PTR.store(surface as usize, Ordering::SeqCst);
+    if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
+        areas.push(crate::ghostty::callbacks::GtkGLAreaPtr(
+            area.as_ptr() as *mut gtk4::ffi::GtkGLArea
+        ));
+    }
+    if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
+        registry.insert(area.as_ptr() as usize, surface as usize);
+    }
+    area.queue_render();
+    Some(surface)
+}
+
 /// Creates and returns a GtkGLArea with a Ghostty terminal surface wired up.
-/// Initializes ghostty_app_t, then defers ghostty_surface_t creation to the
-/// GtkGLArea realize signal — when the GL context is guaranteed to exist.
+/// Initializes ghostty_app_t, then defers ghostty_surface_t creation until the
+/// GtkGLArea is realized and has received a non-zero allocation.
 pub fn create_surface(
     _app: &gtk4::Application,
     ghostty_app: ffi::ghostty_app_t,
@@ -73,10 +165,6 @@ pub fn create_surface(
     io_mode: SurfaceIoMode,
 ) -> (gtk4::GLArea, Rc<RefCell<Option<ffi::ghostty_surface_t>>>) {
     use gtk4::prelude::*;
-    use std::sync::atomic::Ordering;
-
-    use crate::ghostty::callbacks::{self, SURFACE_PTR};
-
     eprintln!(
         "cmux: create_surface called for pane_id={}, inherited_config={}",
         pane_id,
@@ -105,14 +193,21 @@ pub fn create_surface(
     gl_area.set_hexpand(true);
     gl_area.set_vexpand(true);
 
-    // Shared cell for the surface pointer — created in realize (after GL context exists),
-    // then used in render, resize, input, and scale-factor callbacks.
+    // Shared cell for the surface pointer — created once the GL context and a
+    // non-zero allocation exist, then used by the remaining callbacks.
     // Rc<RefCell<...>> is safe here: all callbacks run on the GLib main thread.
     let surface_cell: Rc<RefCell<Option<ffi::ghostty_surface_t>>> = Rc::new(RefCell::new(None));
+    let surface_init = Rc::new(SurfaceInit {
+        ghostty_app,
+        inherited_config,
+        working_directory,
+        pane_id,
+        io_mode,
+    });
 
     // ── GtkGLArea::realize ───────────────────────────────────────────────────
-    // GL context is now valid. Create the surface HERE so ghostty can access
-    // the GL context immediately after creation (fixes segfault in set_content_scale).
+    // The GL context is valid after realize. If GTK has already allocated a
+    // usable size, create the terminal here; otherwise resize does it later.
     //
     // IMPORTANT: GTK may re-realize the widget when reparenting (e.g., moving from
     // GtkStack into GtkPaned during split). We must check if the surface already
@@ -120,7 +215,7 @@ pub fn create_surface(
     let pane_id_for_log = pane_id;
     gl_area.connect_realize({
         let cell = surface_cell.clone();
-        let io_mode = io_mode;
+        let init = surface_init.clone();
         move |area| {
             eprintln!(
                 "cmux: GLArea {:p} realize for pane_id={} — making GL context current",
@@ -153,6 +248,7 @@ pub fn create_surface(
                 let w = area.width();
                 let h = area.height();
                 unsafe {
+                    ffi::ghostty_surface_display_realized(existing_surface);
                     let phys_w = (w as f64 * scale) as u32;
                     let phys_h = (h as f64 * scale) as u32;
                     if phys_w > 0 && phys_h > 0 {
@@ -165,134 +261,14 @@ pub fn create_surface(
                 return;
             }
 
-            eprintln!("cmux: GL context made current, no error");
-            eprintln!(
-                "cmux: GL area size at realize: {}x{}",
-                area.width(),
-                area.height()
-            );
-            eprintln!("cmux: GL scale factor at realize: {}", area.scale_factor());
-
-            // Log GL version and renderer info for diagnostics.
-            if let Some(ctx) = area.context() {
-                let (major, minor) = ctx.version();
-                eprintln!("cmux: GL context version: {major}.{minor}");
-                eprintln!("cmux: GL context is_legacy: {}", ctx.is_legacy());
-            }
-
-            // Create the ghostty surface now that GL context is current.
-            let surface = unsafe {
-                let gl_area_ptr = area.as_ptr() as *mut std::ffi::c_void;
-
-                let platform = ffi::ghostty_platform_u {
-                    opengl: ffi::ghostty_platform_opengl_s {
-                        userdata: gl_area_ptr,
-                        make_current: Some(opengl_make_current),
-                        clear_current: Some(opengl_clear_current),
-                        get_proc_address: Some(opengl_get_proc_address),
-                        swap_buffers: Some(opengl_swap_buffers),
-                    },
-                };
-
-                let mut surface_config = if let Some(ic) = inherited_config {
-                    ic // already owned by value — no dangling pointer
-                } else {
-                    ffi::ghostty_surface_config_new()
-                };
-
-                surface_config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
-                surface_config.platform = platform;
-                surface_config.userdata = std::ptr::null_mut();
-                surface_config.scale_factor = area.scale_factor() as f64;
-
-                // Ghostty copies this during surface creation. Keep the CString alive
-                // through the call so the child shell starts in the workspace directory.
-                let working_directory_c = working_directory.as_ref().and_then(|path| {
-                    std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok()
-                });
-                if let Some(ref cwd) = working_directory_c {
-                    surface_config.working_directory = cwd.as_ptr();
-                }
-
-                // Set manual I/O mode for SSH remote surfaces.
-                if let SurfaceIoMode::Manual { ref io_write_ctx } = io_mode {
-                    surface_config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
-                    surface_config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
-                    // Increment Arc refcount for the raw pointer — the matching
-                    // Arc::from_raw happens in unrealize/cleanup.
-                    let ctx_raw = std::sync::Arc::into_raw(io_write_ctx.clone()) as *mut std::ffi::c_void;
-                    surface_config.io_write_userdata = ctx_raw;
-                }
-
-                eprintln!("cmux: calling ghostty_surface_new");
-                let s = ffi::ghostty_surface_new(ghostty_app, &surface_config);
-                if s.is_null() {
-                    eprintln!("cmux: FATAL — ghostty_surface_new returned null");
-                    std::process::exit(1);
-                }
-                eprintln!("cmux: ghostty_surface_new succeeded: {:p}", s);
-                // Check GL error state after surface creation.
-                let gl_err = gl_get_error();
-                if gl_err != 0 {
-                    eprintln!("cmux: GL error after ghostty_surface_new: 0x{gl_err:x}");
-                } else {
-                    eprintln!("cmux: GL error state after ghostty_surface_new: OK");
-                }
-                s
-            };
-
-            if let Ok(mut registry) = callbacks::SURFACE_REGISTRY.lock() {
-                registry.insert(surface as usize, pane_id);
-            }
-
-            // Set initial size and scale after surface creation.
-            let scale = area.scale_factor() as f64;
             let w = area.width();
             let h = area.height();
-            unsafe {
-                // Per Pitfall 5: convert logical→physical pixels.
-                // Guard against calling set_size(0,0) at realize time — widget has not been
-                // allocated its real size yet. connect_resize will fire with the correct size.
-                let phys_w = (w as f64 * scale) as u32;
-                let phys_h = (h as f64 * scale) as u32;
-                if phys_w > 0 && phys_h > 0 {
-                    ffi::ghostty_surface_set_size(surface, phys_w, phys_h);
-                    eprintln!("cmux: ghostty_surface_set_size({}, {})", phys_w, phys_h);
-                } else {
-                    eprintln!(
-                        "cmux: ghostty_surface_set_size skipped at realize time (size 0x0) — connect_resize will provide real size"
-                    );
-                }
-                ffi::ghostty_surface_set_content_scale(surface, scale, scale);
-                eprintln!("cmux: ghostty_surface_set_content_scale({scale})");
-                ffi::ghostty_surface_set_focus(surface, true);
-                eprintln!("cmux: ghostty_surface_set_focus(true)");
+            if initialize_surface(area, &cell, &init, w, h).is_none() {
+                eprintln!(
+                    "cmux: deferring Ghostty initialization until non-zero resize ({}x{})",
+                    w, h
+                );
             }
-
-            // Store the surface pointer BEFORE grab_focus so that EventControllerFocus
-            // `enter` can call set_focus(true) when the widget receives GTK keyboard focus.
-            // If we store after, the enter handler finds cell=None and is a no-op.
-            *cell.borrow_mut() = Some(surface);
-
-            // Grab GTK keyboard focus so the terminal receives key events immediately
-            // without requiring a mouse click (belt-and-suspenders with switch_to_index).
-            area.grab_focus();
-            // Also store in global for read_clipboard_cb (which has no surface arg).
-            SURFACE_PTR.store(surface as usize, Ordering::SeqCst);
-
-            // Register this GLArea in the multi-surface registry for wakeup_cb
-            if let Ok(mut areas) = callbacks::GL_AREA_REGISTRY.lock() {
-                areas.push(callbacks::GtkGLAreaPtr(
-                    area.as_ptr() as *mut gtk4::ffi::GtkGLArea
-                ));
-            }
-            // Register GLArea → surface mapping for notify::position focus restore
-            if let Ok(mut gl_to_surface) = callbacks::GL_TO_SURFACE.lock() {
-                gl_to_surface.insert(area.as_ptr() as usize, surface as usize);
-            }
-
-            // Request first render.
-            area.queue_render();
         }
     });
 
@@ -306,10 +282,12 @@ pub fn create_surface(
                 area.as_ptr(),
                 pane_id_unrealize,
             );
-            // The generic OpenGL embedding API owns renderer cleanup as part
-            // of surface teardown; GtkGLArea may be realized again after a
-            // reparent without destroying the terminal surface.
-            let _ = &cell_unrealize;
+            area.make_current();
+            if area.error().is_none() {
+                if let Some(surface) = *cell_unrealize.borrow() {
+                    unsafe { ffi::ghostty_surface_display_unrealized(surface) };
+                }
+            }
         });
     }
 
@@ -384,12 +362,18 @@ pub fn create_surface(
     // kills the timer via an async cancel race (see restore_active_pane_focus).
     {
         let cell = surface_cell.clone();
-        gl_area.connect_resize(move |area, logical_w, logical_h| {
+        let init = surface_init.clone();
+        gl_area.connect_resize(move |area, _framebuffer_w, _framebuffer_h| {
             let scale = area.scale_factor();
+            // GtkGLArea's resize signal reports framebuffer pixels while
+            // Widget::width/height are logical pixels. Ghostty expects physical
+            // pixels, so derive them from the widget allocation exactly once.
+            let logical_w = area.width();
+            let logical_h = area.height();
             let phys_w = (logical_w * scale) as u32;
             let phys_h = (logical_h * scale) as u32;
 
-            if let Some(surface) = *cell.borrow() {
+            if let Some(surface) = initialize_surface(area, &cell, &init, logical_w, logical_h) {
                 unsafe {
                     ffi::ghostty_surface_set_size(surface, phys_w, phys_h);
                 }
@@ -432,7 +416,10 @@ pub fn create_surface(
                 // GdkSurface::scale() is GTK 4.12+, so retain compatibility with
                 // Debian 12 by using the integer widget scale factor.
                 let scale = widget.scale_factor() as f64;
-                eprintln!("cmux: scale-factor changed to {} for surface {:p}", scale, surface);
+                eprintln!(
+                    "cmux: scale-factor changed to {} for surface {:p}",
+                    scale, surface
+                );
                 unsafe {
                     ffi::ghostty_surface_set_content_scale(surface, scale, scale);
                     ffi::ghostty_surface_refresh(surface); // trigger redraw at new scale
