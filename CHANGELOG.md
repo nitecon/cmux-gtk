@@ -2,6 +2,19 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [0.1.3] - 2026-09-04
+
+### Added
+
+- Added a Create Workspace wizard with optional naming, direct path entry, and a native folder browser.
+- Bound local workspaces to their chosen directory so initial terminals, new splits, and restored sessions start there.
+- Added `cmux new-workspace --cwd PATH [--name NAME]` and exposed workspace directories through the socket API for automation and verification.
+
+### Changed
+
+- Persisted workspace directory bindings while remaining compatible with existing session files.
+- Validated socket-requested workspace paths off the GTK main thread and rejected missing paths without mutating the UI.
+
 ## [0.1.2] - 2026-09-04
 
 ### Fixed

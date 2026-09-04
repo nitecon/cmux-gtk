@@ -298,6 +298,8 @@ pub struct SplitEngine {
     app: gtk4::Application,
     /// Ghostty app handle needed to create new surfaces.
     ghostty_app: ffi::ghostty_app_t,
+    /// Workspace binding used for every new local terminal pane.
+    working_directory: Option<std::path::PathBuf>,
 }
 
 impl SplitEngine {
@@ -309,6 +311,7 @@ impl SplitEngine {
         initial_gl_area: gtk4::GLArea,
         initial_surface_cell: std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>,
         pane_id: u64,
+        working_directory: Option<std::path::PathBuf>,
     ) -> Self {
         // The initial surface may not be realized yet. SplitEngine stores the cell
         // so it can read the surface pointer after realize. For focus/split operations
@@ -330,6 +333,7 @@ impl SplitEngine {
             next_pane_id: pane_id + 1,
             app,
             ghostty_app,
+            working_directory,
         }
     }
 
@@ -363,9 +367,10 @@ impl SplitEngine {
         ghostty_app: ffi::ghostty_app_t,
         data: &SplitNodeData,
         active_pane_uuid: Option<&str>,
+        working_directory: Option<std::path::PathBuf>,
     ) -> Option<Self> {
         let mut next_pane_id: u64 = 1;
-        let root = Self::node_from_data(&app, ghostty_app, data, &mut next_pane_id, 0)?;
+        let root = Self::node_from_data(&app, ghostty_app, data, &mut next_pane_id, 0, working_directory.as_deref())?;
         // Find active pane by saved UUID, or fall back to first leaf
         let active_id = active_pane_uuid
             .and_then(|uuid_str| root.find_pane_id_by_uuid(uuid_str))
@@ -380,6 +385,7 @@ impl SplitEngine {
             next_pane_id,
             app,
             ghostty_app,
+            working_directory,
         })
     }
 
@@ -389,18 +395,22 @@ impl SplitEngine {
         data: &SplitNodeData,
         next_pane_id: &mut u64,
         depth: u32,
+        working_directory: Option<&std::path::Path>,
     ) -> Option<SplitNode> {
         if depth > 16 {
             eprintln!("cmux: session restore tree depth > 16, falling back (D-14)");
             return None;
         }
         match data {
-            SplitNodeData::Leaf { surface_uuid, .. } => {
+            SplitNodeData::Leaf { surface_uuid, cwd, .. } => {
                 let pane_id = *next_pane_id;
                 *next_pane_id += 1;
+                let pane_directory = working_directory
+                    .map(std::path::Path::to_path_buf)
+                    .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
                 // Create surface — realize callback will create Ghostty surface and wire registries
                 let (gl_area, _surface_cell) =
-                    crate::ghostty::surface::create_surface(app, ghostty_app, None, pane_id, crate::ghostty::surface::SurfaceIoMode::Exec);
+                    crate::ghostty::surface::create_surface(app, ghostty_app, None, pane_directory, pane_id, crate::ghostty::surface::SurfaceIoMode::Exec);
                 // Phase 9: Attach right-click context menu (D-08)
                 attach_terminal_context_menu(&gl_area);
                 // D-06: preserve UUID from session
@@ -415,8 +425,8 @@ impl SplitEngine {
                 })
             }
             SplitNodeData::Split { orientation, ratio, start, end } => {
-                let start_node = Self::node_from_data(app, ghostty_app, start, next_pane_id, depth + 1)?;
-                let end_node = Self::node_from_data(app, ghostty_app, end, next_pane_id, depth + 1)?;
+                let start_node = Self::node_from_data(app, ghostty_app, start, next_pane_id, depth + 1, working_directory)?;
+                let end_node = Self::node_from_data(app, ghostty_app, end, next_pane_id, depth + 1, working_directory)?;
                 let gtk_orientation = match orientation.as_str() {
                     "vertical" => gtk4::Orientation::Vertical,
                     _ => gtk4::Orientation::Horizontal,
@@ -602,6 +612,7 @@ impl SplitEngine {
             &self.app,
             self.ghostty_app,
             Some(inherited_config),
+            self.working_directory.clone(),
             new_pane_id,
             crate::ghostty::surface::SurfaceIoMode::Exec,
         );

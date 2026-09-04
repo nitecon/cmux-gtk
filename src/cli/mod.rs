@@ -67,7 +67,14 @@ pub enum Commands {
 
     // -- Workspace management --
     /// Create a new workspace
-    NewWorkspace,
+    NewWorkspace {
+        /// Display name (defaults to the selected folder name)
+        #[arg(long)]
+        name: Option<String>,
+        /// Folder new terminals in this workspace start in
+        #[arg(long, value_name = "PATH")]
+        cwd: Option<String>,
+    },
     /// Select a workspace by ID
     SelectWorkspace {
         /// Workspace UUID
@@ -579,7 +586,16 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
 
         Commands::Raw { .. } => unreachable!("Raw handled separately"),
 
-        Commands::NewWorkspace => ("workspace.create", json!({})),
+        Commands::NewWorkspace { name, cwd } => {
+            let mut params = serde_json::Map::new();
+            if let Some(name) = name {
+                params.insert("name".into(), json!(name));
+            }
+            if let Some(cwd) = cwd {
+                params.insert("working_directory".into(), json!(cwd));
+            }
+            ("workspace.create", Value::Object(params))
+        }
         Commands::SelectWorkspace { id } => ("workspace.select", json!({"id": id})),
         Commands::CloseWorkspace { id } => ("workspace.close", json!({"id": id})),
         Commands::RenameWorkspace { id, name } => {
@@ -663,5 +679,27 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         }
 
         Commands::Browser(cmd) => browser_command_to_rpc(cmd),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_workspace_cli_sends_name_and_directory() {
+        let cli = Cli::try_parse_from([
+            "cmux",
+            "new-workspace",
+            "--name",
+            "Project Alpha",
+            "--cwd",
+            "/tmp/project-alpha",
+        ])
+        .expect("workspace arguments should parse");
+        let (method, params) = command_to_rpc(&cli.command);
+        assert_eq!(method, "workspace.create");
+        assert_eq!(params["name"], "Project Alpha");
+        assert_eq!(params["working_directory"], "/tmp/project-alpha");
     }
 }

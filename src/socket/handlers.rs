@@ -118,6 +118,7 @@ pub fn handle_socket_command(
                     "index": i,
                     "id": ws.uuid.to_string(),
                     "title": ws.name,
+                    "working_directory": ws.working_directory.as_ref().map(|path| path.to_string_lossy()),
                     "selected": i == s.active_index,
                 })
             }).collect();
@@ -132,6 +133,7 @@ pub fn handle_socket_command(
                     let _ = resp_tx.send(ok(req_id, json!({
                         "uuid": ws.uuid.to_string(),
                         "name": ws.name,
+                        "working_directory": ws.working_directory.as_ref().map(|path| path.to_string_lossy()),
                     })));
                 }
                 None => {
@@ -140,7 +142,7 @@ pub fn handle_socket_command(
             }
         }
 
-        SocketCommand::WorkspaceCreate { req_id, remote_target, resp_tx } => {
+        SocketCommand::WorkspaceCreate { req_id, remote_target, name, working_directory, resp_tx } => {
             if let Some(target) = remote_target {
                 // SSH workspace creation per D-13, D-15
                 // Create per-workspace bridge for SSH I/O routing
@@ -166,14 +168,25 @@ pub fn handle_socket_command(
                 }
                 let _ = resp_tx.send(ok(req_id, json!({"uuid": uuid_str, "remote": true})));
             } else {
-                // Local workspace (existing behavior)
-                let id = state.borrow_mut().create_workspace();
+                let id = if let Some(path) = working_directory {
+                    state.borrow_mut().create_workspace_bound(name.unwrap_or_default(), path)
+                } else {
+                    let id = state.borrow_mut().create_workspace();
+                    if let Some(name) = name.filter(|value| !value.trim().is_empty()) {
+                        state.borrow_mut().rename_active(name);
+                    }
+                    id
+                };
                 let s = state.borrow();
-                let uuid_str = s.workspaces.iter()
-                    .find(|ws| ws.id == id)
-                    .map(|ws| ws.uuid.to_string())
-                    .unwrap_or_default();
-                let _ = resp_tx.send(ok(req_id, json!({"uuid": uuid_str})));
+                let workspace = s.workspaces.iter().find(|ws| ws.id == id);
+                let uuid_str = workspace.map(|ws| ws.uuid.to_string()).unwrap_or_default();
+                let directory = workspace
+                    .and_then(|ws| ws.working_directory.as_ref())
+                    .map(|path| path.to_string_lossy());
+                let _ = resp_tx.send(ok(req_id, json!({
+                    "uuid": uuid_str,
+                    "working_directory": directory,
+                })));
             }
         }
 

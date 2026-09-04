@@ -19,6 +19,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 
 - **GPU-accelerated terminal** — Powered by libghostty with GTK4 GtkGLArea rendering
 - **Workspaces, tabs, and split panes** — Organize parallel agent sessions
+- **Directory-bound workspaces** — Create a workspace with a folder browser; every terminal and split starts in that project directory
 - **Notification system** — Per-pane bell tracking, sidebar indicators, desktop notifications
 - **In-app browser** — CDP-based browser automation with accessibility tree snapshots, element interaction, and JS evaluation via [agent-browser](https://github.com/vercel-labs/agent-browser)
 - **Scriptable CLI** — `cmux` CLI with 34+ subcommands for workspaces, panes, surfaces, and browser control
@@ -124,7 +125,7 @@ cmux browser --help            # browser subcommands
 
 # Terminal management
 cmux list-workspaces           # list all workspaces
-cmux new-workspace             # create workspace
+cmux new-workspace --cwd ~/src/project --name project  # create a directory-bound workspace
 cmux list-surfaces             # list terminal surfaces
 cmux split --direction horizontal  # split current pane
 cmux list-panes                # list all panes
@@ -164,7 +165,7 @@ A `CLAUDE.md` at `/usr/share/cmux/CLAUDE.md` references skill paths so Claude Co
 
 | Shortcut | Action |
 |----------|--------|
-| Ctrl+Shift+T | New workspace |
+| Ctrl+N | Open the Create Workspace wizard |
 | Ctrl+1–8 | Jump to workspace 1–8 |
 | Ctrl+Shift+D | Split right |
 | Ctrl+D | Split down |

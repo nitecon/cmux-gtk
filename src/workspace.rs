@@ -1,4 +1,29 @@
+use std::path::PathBuf;
 use uuid::Uuid;
+
+/// Validate and normalize the user-facing inputs from the workspace wizard.
+pub fn prepare_local_workspace(
+    name: &str,
+    working_directory: &std::path::Path,
+) -> Result<(String, PathBuf), String> {
+    let working_directory = working_directory
+        .canonicalize()
+        .map_err(|error| format!("Cannot open that folder: {error}"))?;
+    if !working_directory.is_dir() {
+        return Err("Choose a folder, not a file.".to_string());
+    }
+    let name = if name.trim().is_empty() {
+        working_directory
+            .file_name()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Workspace")
+            .to_string()
+    } else {
+        name.trim().to_string()
+    };
+    Ok((name, working_directory))
+}
 
 /// Connection state for SSH remote workspaces.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +84,8 @@ pub struct Workspace {
     pub last_notification: Option<std::time::Instant>,
     /// SSH remote target (e.g., "user@host"). None for local workspaces.
     pub remote_target: Option<String>,
+    /// Directory local terminal panes start in. None uses Ghostty's default.
+    pub working_directory: Option<PathBuf>,
     /// Connection state for remote workspaces.
     pub connection_state: ConnectionState,
 }
@@ -77,8 +104,17 @@ impl Workspace {
             has_attention: false,
             last_notification: None,
             remote_target: None,
+            working_directory: None,
             connection_state: ConnectionState::Local,
         }
+    }
+
+    /// Create a local workspace bound to a directory.
+    pub fn new_bound(id: u64, display_number: usize, name: String, working_directory: PathBuf) -> Self {
+        let mut workspace = Self::new(id, display_number);
+        workspace.name = name;
+        workspace.working_directory = Some(working_directory);
+        workspace
     }
 
     /// Rename this workspace to a new display name.
@@ -99,6 +135,7 @@ impl Workspace {
             has_attention: false,
             last_notification: None,
             remote_target: Some(target),
+            working_directory: None,
             connection_state: ConnectionState::Reconnecting(0),
         }
     }
@@ -120,5 +157,25 @@ mod tests {
         let w1 = Workspace::new(1, 1);
         let w2 = Workspace::new(2, 2);
         assert_ne!(w1.uuid, w2.uuid, "Two workspaces must have distinct UUIDs");
+    }
+
+    #[test]
+    fn local_workspace_inputs_bind_an_existing_directory() {
+        let directory = std::env::temp_dir().join(format!("cmux-workspace-binding-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let (name, bound_directory) = prepare_local_workspace("  Project Alpha  ", &directory).unwrap();
+        assert_eq!(name, "Project Alpha");
+        assert_eq!(bound_directory, directory.canonicalize().unwrap());
+        let (default_name, _) = prepare_local_workspace("", &directory).unwrap();
+        assert_eq!(default_name, directory.file_name().unwrap().to_string_lossy());
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn local_workspace_inputs_reject_a_file() {
+        let file = std::env::temp_dir().join(format!("cmux-workspace-binding-file-{}", std::process::id()));
+        std::fs::write(&file, b"not a directory").unwrap();
+        assert_eq!(prepare_local_workspace("Project", &file).unwrap_err(), "Choose a folder, not a file.");
+        let _ = std::fs::remove_file(file);
     }
 }

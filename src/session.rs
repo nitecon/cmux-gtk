@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 pub struct WorkspaceSession {
     pub uuid: String,
     pub name: String,
+    /// Directory all local terminals in this workspace start in.
+    #[serde(default)]
+    pub working_directory: Option<PathBuf>,
     /// UUID of the active pane in this workspace, if any.
     pub active_pane_uuid: Option<String>,
     /// The full pane layout tree for this workspace.
@@ -99,6 +102,7 @@ mod tests {
             workspaces: vec![WorkspaceSession {
                 uuid: "test-uuid-1".to_string(),
                 name: name.to_string(),
+                working_directory: Some(PathBuf::from("/tmp")),
                 active_pane_uuid: None,
                 layout: SplitNodeData::Leaf {
                     pane_id: 1000,
@@ -144,7 +148,15 @@ mod tests {
         assert_eq!(loaded.version, 1);
         assert_eq!(loaded.workspaces.len(), 1);
         assert_eq!(loaded.workspaces[0].name, "MyWorkspace");
+        assert_eq!(loaded.workspaces[0].working_directory, Some(PathBuf::from("/tmp")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_legacy_session_without_working_directory() {
+        let json = r#"{"version":2,"active_index":0,"workspaces":[{"uuid":"test-uuid-1","name":"Legacy","active_pane_uuid":null,"layout":{"type":"Leaf","pane_id":1000,"surface_uuid":"00000000-0000-0000-0000-000000000000","shell":"/bin/sh","cwd":"/tmp"}}]}"#;
+        let parsed: SessionData = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.workspaces[0].working_directory, None);
     }
 
     /// SESS-03: Atomic write -- the .tmp file is gone after a successful rename.

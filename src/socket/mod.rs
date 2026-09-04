@@ -151,10 +151,38 @@ async fn dispatch_line(
 
         "workspace.list" => commands::SocketCommand::WorkspaceList { req_id: req_id.clone(), resp_tx },
         "workspace.current" => commands::SocketCommand::WorkspaceCurrent { req_id: req_id.clone(), resp_tx },
-        "workspace.create" => commands::SocketCommand::WorkspaceCreate {
-            req_id: req_id.clone(),
-            remote_target: params.get("remote_target").and_then(|v| v.as_str()).map(String::from),
-            resp_tx,
+        "workspace.create" => {
+            let remote_target = params.get("remote_target").and_then(|v| v.as_str()).map(String::from);
+            let mut name = params.get("name").and_then(|v| v.as_str()).map(String::from);
+            let working_directory = params
+                .get("working_directory")
+                .or_else(|| params.get("cwd"))
+                .and_then(|v| v.as_str());
+            let working_directory = if remote_target.is_none() {
+                match working_directory {
+                    Some(path) => match crate::workspace::prepare_local_workspace(
+                        name.as_deref().unwrap_or(""), std::path::Path::new(path),
+                    ) {
+                        Ok((prepared_name, path)) => {
+                            name = Some(prepared_name);
+                            Some(path)
+                        }
+                        Err(message) => {
+                            return serde_json::json!({
+                                "id": req_id,
+                                "ok": false,
+                                "error": {"code": "invalid_directory", "message": message}
+                            }).to_string();
+                        }
+                    },
+                    None => None,
+                }
+            } else {
+                None
+            };
+            commands::SocketCommand::WorkspaceCreate {
+                req_id: req_id.clone(), remote_target, name, working_directory, resp_tx,
+            }
         },
         "workspace.select" => commands::SocketCommand::WorkspaceSelect {
             req_id: req_id.clone(),
@@ -329,5 +357,19 @@ mod tests {
             "workspace.next", "workspace.previous", "workspace.last",
         ];
         assert!(!focus_intent_methods.is_empty());
+    }
+
+    #[tokio::test]
+    async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let response = dispatch_line(
+            r#"{"id":7,"method":"workspace.create","params":{"working_directory":"/definitely/not/a/cmux/directory"}}"#,
+            &tx,
+        )
+        .await;
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["ok"], false);
+        assert_eq!(response["error"]["code"], "invalid_directory");
+        assert!(rx.try_recv().is_err(), "invalid request reached GTK dispatch");
     }
 }

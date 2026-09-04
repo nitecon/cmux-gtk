@@ -3,6 +3,7 @@ use crate::split_engine::SplitEngine;
 use crate::workspace::{ConnectionState, Workspace};
 use gtk4::prelude::*;
 use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 pub type AppStateRef = Rc<RefCell<AppState>>;
@@ -84,12 +85,31 @@ impl AppState {
     /// page to the GtkStack. The actual GLArea/split root is added by the caller (Plan 04).
     /// Returns the new workspace id.
     pub fn create_workspace(&mut self) -> u64 {
+        self.create_local_workspace(None, None)
+    }
+
+    /// Create a local workspace bound to an existing directory.
+    pub fn create_workspace_in(&mut self, name: String, working_directory: &Path) -> Result<u64, String> {
+        let (name, working_directory) =
+            crate::workspace::prepare_local_workspace(&name, working_directory)?;
+        Ok(self.create_workspace_bound(name, working_directory))
+    }
+
+    /// Create a workspace from inputs already validated off the GTK main thread.
+    pub fn create_workspace_bound(&mut self, name: String, working_directory: PathBuf) -> u64 {
+        self.create_local_workspace(Some(name), Some(working_directory))
+    }
+
+    fn create_local_workspace(&mut self, name: Option<String>, working_directory: Option<PathBuf>) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         let display_number = self.next_display_number;
         self.next_display_number += 1;
 
-        let mut workspace = Workspace::new(id, display_number);
+        let mut workspace = match (name, working_directory) {
+            (Some(name), Some(directory)) => Workspace::new_bound(id, display_number, name, directory),
+            _ => Workspace::new(id, display_number),
+        };
         let name = workspace.name.clone();
 
         // Phase 9: Use shared row builder for consistent layout including close button
@@ -100,6 +120,9 @@ impl AppState {
         unsafe {
             row.set_data("workspace-id", id);
         }
+        if let Some(directory) = workspace.working_directory.as_ref() {
+            row.set_tooltip_text(Some(&directory.to_string_lossy()));
+        }
         self.sidebar_list.append(&row);
 
         // Create surface and split engine
@@ -108,14 +131,17 @@ impl AppState {
             "cmux: create_workspace calling create_surface for workspace_id={}, pane_id={}",
             id, pane_id
         );
-        let (gl_area, surface_cell) =
-            crate::ghostty::surface::create_surface(&self.gtk_app, self.ghostty_app, None, pane_id, crate::ghostty::surface::SurfaceIoMode::Exec);
+        let (gl_area, surface_cell) = crate::ghostty::surface::create_surface(
+            &self.gtk_app, self.ghostty_app, None, workspace.working_directory.clone(), pane_id,
+            crate::ghostty::surface::SurfaceIoMode::Exec,
+        );
         let engine = SplitEngine::new(
             self.gtk_app.clone(),
             self.ghostty_app,
             gl_area.clone(),
             surface_cell,
             pane_id,
+            workspace.working_directory.clone(),
         );
 
         // Add to stack
@@ -145,6 +171,7 @@ impl AppState {
 
         let mut workspace = Workspace::new(id, display_number);
         workspace.name = ws.name.clone();
+        workspace.working_directory = ws.working_directory.clone();
 
         // Phase 9: Use shared row builder for consistent layout including close button
         let hbox = crate::sidebar::rebuild_sidebar_row_content(&workspace.name);
@@ -152,6 +179,9 @@ impl AppState {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&hbox));
         unsafe { row.set_data("workspace-id", id); }
+        if let Some(directory) = workspace.working_directory.as_ref() {
+            row.set_tooltip_text(Some(&directory.to_string_lossy()));
+        }
         self.sidebar_list.append(&row);
 
         // Build split tree from session data (D-05)
@@ -160,6 +190,7 @@ impl AppState {
             self.ghostty_app,
             &ws.layout,
             ws.active_pane_uuid.as_deref(),
+            ws.working_directory.clone(),
         )?;
 
         // Add to stack
@@ -236,6 +267,7 @@ impl AppState {
             &self.gtk_app,
             self.ghostty_app,
             None,
+            None,
             pane_id,
             crate::ghostty::surface::SurfaceIoMode::Manual { io_write_ctx: io_ctx.clone() },
         );
@@ -245,6 +277,7 @@ impl AppState {
             gl_area,
             surface_cell,
             pane_id,
+            None,
         );
 
         let page_name = workspace.stack_page_name.clone();
@@ -538,6 +571,7 @@ impl AppState {
                         crate::session::WorkspaceSession {
                             uuid: ws.uuid.to_string(),
                             name: ws.name.clone(),
+                            working_directory: ws.working_directory.clone(),
                             active_pane_uuid,
                             layout,
                         }

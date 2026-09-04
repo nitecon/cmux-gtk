@@ -5,6 +5,7 @@ use std::ffi::CString;
 
 mod ghostty;
 mod workspace;
+mod workspace_dialog;
 mod split_engine;
 mod app_state;
 mod sidebar;

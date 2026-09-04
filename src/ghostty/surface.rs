@@ -68,6 +68,7 @@ pub fn create_surface(
     _app: &gtk4::Application,
     ghostty_app: ffi::ghostty_app_t,
     inherited_config: Option<ffi::ghostty_surface_config_s>,
+    working_directory: Option<std::path::PathBuf>,
     pane_id: u64,
     io_mode: SurfaceIoMode,
 ) -> (gtk4::GLArea, Rc<RefCell<Option<ffi::ghostty_surface_t>>>) {
@@ -203,6 +204,15 @@ pub fn create_surface(
                 surface_config.platform = platform;
                 surface_config.userdata = std::ptr::null_mut();
                 surface_config.scale_factor = area.scale_factor() as f64;
+
+                // Ghostty copies this during surface creation. Keep the CString alive
+                // through the call so the child shell starts in the workspace directory.
+                let working_directory_c = working_directory.as_ref().and_then(|path| {
+                    std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok()
+                });
+                if let Some(ref cwd) = working_directory_c {
+                    surface_config.working_directory = cwd.as_ptr();
+                }
 
                 // Set manual I/O mode for SSH remote surfaces.
                 if let SurfaceIoMode::Manual { ref io_write_ctx } = io_mode {
