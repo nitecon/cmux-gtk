@@ -18,7 +18,7 @@ def run_daemon():
     socket_path = root / "cmux.sock"
     socket_path.unlink(missing_ok=True)
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(socket_path)
+    server.bind(str(socket_path))
     server.listen()
     (root / "cmux.stream").write_text("9\n", encoding="utf-8")
     (root / "mock.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
