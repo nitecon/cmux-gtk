@@ -47,6 +47,12 @@ done
 [[ -S "$socket_path" ]] || { echo "socket was not created"; false; }
 
 cmux=("$repo_root/target/debug/cmux" --socket "$socket_path")
+for _ in $(seq 1 100); do
+    grep -q "browser tab wiring complete uuid=20000000-0000-4000-8000-000000000002" "$diagnostic_log" && break
+    kill -0 "$app_pid"
+    sleep 0.1
+done
+grep -q "browser tab wiring complete uuid=20000000-0000-4000-8000-000000000002" "$diagnostic_log"
 "${cmux[@]}" close-surface 30000000-0000-4000-8000-000000000003
 "${cmux[@]}" ping >/dev/null
 

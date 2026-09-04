@@ -34,7 +34,7 @@ def ensure_daemon():
     path = socket_dir() / "cmux.sock"
     try:
         probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        probe.connect(path)
+        probe.connect(str(path))
         probe.close()
         return
     except OSError:

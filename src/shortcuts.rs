@@ -320,6 +320,7 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
 }
 
 fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
+    let surface_uuid = widgets.uuid;
     let picture = widgets.picture.clone();
     let url_entry = widgets.url_entry.clone();
     let picture_ref = picture.clone();
@@ -663,6 +664,7 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         }
     });
 
+    crate::diagnostics::event(format_args!("browser tab wiring complete uuid={surface_uuid}"));
     state.borrow().trigger_session_save();
     glib::idle_add_local_once(move || {
         url_entry.grab_focus();
