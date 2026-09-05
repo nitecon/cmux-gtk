@@ -18,12 +18,6 @@ pub struct WriteRequest {
     pub resize: Option<(u16, u16)>,
 }
 
-/// Output data from remote shell to be dispatched to GTK main thread.
-pub struct OutputEvent {
-    pub pane_id: u64,
-    pub data: Vec<u8>,
-}
-
 /// Manages the mapping between local panes and remote proxy streams.
 pub struct SshBridge {
     /// Maps pane_id -> stream state
@@ -39,16 +33,19 @@ pub struct SshBridge {
     write_rx: Mutex<Option<mpsc::UnboundedReceiver<WriteRequest>>>,
     /// Atomic counter for JSON-RPC request IDs
     pub next_rpc_id: Arc<AtomicU64>,
-    /// Channel for output events to GTK main thread
-    pub output_tx: mpsc::UnboundedSender<OutputEvent>,
+}
+
+impl Default for SshBridge {
+    /// Create an empty bridge with a fresh outbound channel.
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SshBridge {
-    pub fn new(
-        write_tx: mpsc::UnboundedSender<WriteRequest>,
-        write_rx: mpsc::UnboundedReceiver<WriteRequest>,
-        output_tx: mpsc::UnboundedSender<OutputEvent>,
-    ) -> Self {
+    /// Create a workspace-owned bridge and its initial outbound request channel.
+    pub fn new() -> Self {
+        let (write_tx, write_rx) = mpsc::unbounded_channel();
         Self {
             streams: Arc::new(Mutex::new(HashMap::new())),
             contexts: Mutex::new(HashMap::new()),
@@ -58,10 +55,10 @@ impl SshBridge {
             write_tx: Arc::new(Mutex::new(write_tx)),
             write_rx: Mutex::new(Some(write_rx)),
             next_rpc_id: Arc::new(AtomicU64::new(10)), // Start after handshake IDs
-            output_tx,
         }
     }
 
+    /// Create a distinct remote surface identity and register its lifetime with this bridge.
     pub fn create_context(&self, ssh_tx: crate::ssh::SshEventTx) -> Arc<IoWriteContext> {
         static NEXT_REMOTE_ID: AtomicU64 = AtomicU64::new(1 << 40);
         let id = NEXT_REMOTE_ID.fetch_add(1, Ordering::Relaxed);
@@ -78,13 +75,20 @@ impl SshBridge {
         ctx
     }
 
+    /// Remove routing state and request closure of the associated remote PTY when present.
     pub fn remove_context(&self, id: u64) {
         self.contexts.lock().unwrap().remove(&id);
         if let Some(stream) = self.streams.lock().unwrap().remove(&id) {
-            self.stream_to_pane.lock().unwrap().remove(&stream.stream_id);
+            self.stream_to_pane
+                .lock()
+                .unwrap()
+                .remove(&stream.stream_id);
             if !stream.stream_id.is_empty() {
                 let _ = self.write_tx.lock().unwrap().send(WriteRequest {
-                    stream_id: stream.stream_id, data_base64: String::new(), close: true, resize: None,
+                    stream_id: stream.stream_id,
+                    data_base64: String::new(),
+                    close: true,
+                    resize: None,
                 });
             }
         }
@@ -122,11 +126,6 @@ impl SshBridge {
         }
     }
 
-    /// Clone the current write sender (for IoWriteContext creation).
-    pub fn clone_write_tx(&self) -> mpsc::UnboundedSender<WriteRequest> {
-        self.write_tx.lock().unwrap().clone()
-    }
-
     /// Register a new pane with its stream_id after proxy.open succeeds.
     pub fn register_pane(&self, pane_id: u64, stream_id: String) {
         if let Ok(mut streams) = self.streams.lock() {
@@ -148,10 +147,13 @@ impl SshBridge {
     /// and open a remote stream for it after SSH handshake.
     pub fn register_pane_placeholder(&self, pane_id: u64) {
         if let Ok(mut streams) = self.streams.lock() {
-            streams.insert(pane_id, PaneStream {
-                stream_id: String::new(),
-                subscribed: false,
-            });
+            streams.insert(
+                pane_id,
+                PaneStream {
+                    stream_id: String::new(),
+                    subscribed: false,
+                },
+            );
         }
         self.changed.notify_one();
     }
@@ -240,11 +242,16 @@ impl IoWriteContext {
     pub fn resize(&self, columns: u16, rows: u16) {
         let size = (columns.max(1), rows.max(1));
         let mut previous = self.size.lock().unwrap();
-        if *previous == size { return; }
+        if *previous == size {
+            return;
+        }
         *previous = size;
         if let Some(stream_id) = self.stream_id.lock().unwrap().clone() {
             let _ = self.write_tx.lock().unwrap().send(WriteRequest {
-                stream_id, data_base64: String::new(), close: false, resize: Some(size),
+                stream_id,
+                data_base64: String::new(),
+                close: false,
+                resize: Some(size),
             });
         }
     }
@@ -256,9 +263,7 @@ mod lifecycle_tests {
 
     #[test]
     fn remote_contexts_keep_separate_streams_and_use_reconnected_sender() {
-        let (write_tx, write_rx) = mpsc::unbounded_channel();
-        let (output_tx, _) = mpsc::unbounded_channel();
-        let bridge = SshBridge::new(write_tx, write_rx, output_tx);
+        let bridge = SshBridge::new();
         let (events, _) = mpsc::channel(16);
         let first = bridge.create_context(events.clone());
         let second = bridge.create_context(events);
@@ -271,17 +276,30 @@ mod lifecycle_tests {
         let mut reconnected = bridge.take_or_recreate_write_rx();
         let payload = b"typed after reconnect";
         unsafe {
-            ssh_io_write_cb(Arc::as_ptr(&second) as *mut _, payload.as_ptr().cast(), payload.len());
+            ssh_io_write_cb(
+                Arc::as_ptr(&second) as *mut _,
+                payload.as_ptr().cast(),
+                payload.len(),
+            );
         }
         let write = reconnected.try_recv().unwrap();
         assert_eq!(write.stream_id, "second-stream");
-        assert_eq!(base64::engine::general_purpose::STANDARD.decode(write.data_base64).unwrap(), payload);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(write.data_base64)
+                .unwrap(),
+            payload
+        );
         bridge.remove_context(first.pane_id);
         let close = reconnected.try_recv().unwrap();
         assert!(close.close);
         assert_eq!(close.stream_id, "first-stream");
         assert!(!bridge.contexts.lock().unwrap().contains_key(&first.pane_id));
         assert!(!bridge.streams.lock().unwrap().contains_key(&first.pane_id));
-        assert!(bridge.contexts.lock().unwrap().contains_key(&second.pane_id));
+        assert!(bridge
+            .contexts
+            .lock()
+            .unwrap()
+            .contains_key(&second.pane_id));
     }
 }

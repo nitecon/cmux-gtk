@@ -183,9 +183,7 @@ impl AppState {
 
         workspace.remote_target = ws.remote_target.clone();
         let remote_bridge = ws.remote_target.as_ref().map(|_| {
-            let (write_tx, write_rx) = tokio::sync::mpsc::unbounded_channel();
-            let (output_tx, _) = tokio::sync::mpsc::unbounded_channel();
-            let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new(write_tx, write_rx, output_tx));
+            let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
             *bridge.directory.lock().unwrap() = ws.remote_directory.clone();
             workspace.connection_state = ConnectionState::Reconnecting(0);
             bridge
@@ -516,7 +514,7 @@ impl AppState {
                         .unwrap_or(true);
                     if should_notify {
                         self.workspaces[idx].last_notification = Some(std::time::Instant::now());
-                        send_bell_notification(&self.gtk_app, &self.workspaces[idx].name, idx);
+                        cmux_platform::notification::terminal_bell(&self.workspaces[idx].name);
                     }
                 }
                 break;
@@ -606,35 +604,4 @@ impl AppState {
             notify.notify_one();
         }
     }
-}
-
-/// Send a desktop notification for a bell in the given workspace.
-/// Uses `notify-send` subprocess to send notifications via org.freedesktop.Notifications.
-///
-/// We use a subprocess instead of notify-rust (zbus D-Bus client) because GNOME Shell
-/// destroys notifications when the D-Bus sender name vanishes. With notify-rust in a
-/// spawned thread, the zbus connection drops when the thread exits, causing GNOME Shell's
-/// FdoNotificationDaemonSource._onNameVanished() to destroy the notification immediately.
-/// `notify-send` avoids this because it's a separate process whose D-Bus lifetime is
-/// independent of cmux.
-fn send_bell_notification(_app: &gtk4::Application, workspace_name: &str, _workspace_index: usize) {
-    let body = format!("{} - Terminal bell", workspace_name);
-    std::thread::spawn(move || {
-        let result = std::process::Command::new("notify-send")
-            .arg("--app-name=cmux")
-            .arg("--icon=utilities-terminal")
-            .arg("--expire-time=5000")
-            .arg("Terminal Bell")
-            .arg(&body)
-            .status();
-        match result {
-            Ok(status) if !status.success() => {
-                eprintln!("cmux: notify-send exited with {status}");
-            }
-            Err(e) => {
-                eprintln!("cmux: failed to run notify-send: {e}");
-            }
-            _ => {}
-        }
-    });
 }

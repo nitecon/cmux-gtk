@@ -4,7 +4,7 @@ Status: required implementation scope for the active refactor. Existing diagnost
 
 Implemented first stage: `cmux diagnostics --json` returns procfs resource samples and writer health. `cmux --verbose ping` prints a trace UUID and client round-trip time; JSONL records at the normal diagnostic path correlate that UUID with GTK queue wait, dispatch duration and response outcome. The GTK dispatch event means the handler returned, not necessarily that an asynchronous browser operation completed. Completion is separately recorded when the response arrives. SSH/browser internal propagation remains pending.
 
-The diagnostic worker has 128 queue slots, a 64 KiB record limit, and two files of up to 8 MiB for newly written logs (active file plus `.1`). Queue overflow drops records and increments the snapshot counter. Five-second resource sampling runs off GTK. Existing unstructured stderr output is still being audited; this change does not claim all output is structured or bounded. Retention of oversized files inherited from older versions still needs hardening.
+The diagnostic worker has 128 queue slots, a 64 KiB record limit, and two files of up to 8 MiB for newly written logs (active file plus `.1`). Queue overflow drops records and increments the snapshot counter. Five-second resource sampling runs off GTK. Startup also trims oversized logs inherited from earlier versions, retaining complete trailing records within the same cap. Existing unstructured stderr output is still being audited; this change does not claim all output is structured or bounded.
 
 ## Operation correlation
 
@@ -19,6 +19,8 @@ Measure resident memory, threads, descriptors, live terminals, remote PTYs, brow
 Provide a discoverable CLI diagnostic snapshot and a repeatable collection workflow for issue reports. Exclude terminal content, clipboard contents, secrets and full environment dumps. Configuration controls belong in persisted application settings with explicit overrides where needed.
 
 ## Benchmark evidence
+
+The initial executable benchmark is `scripts/benchmark-cmux.py`. CI builds optimized binaries, launches an isolated application through the diagnostics fixture, warms ten CLI calls and measures 100 sequential pings. The revision-named artifact contains every latency sample, median/p95/p99, throughput, process resources before/after, GTK version, requested display backend and host metadata. No arbitrary latency gate is applied. This measures CLI startup plus transport/GTK response; sustained rendering, workspace churn and SSH/browser benchmark scenarios remain to be added.
 
 Run repeatable optimized workloads in CI for startup, command round trips, workspace/split churn, sustained redraw and representative SSH/browser operations. Record revision, build profile, hardware/runner, GTK/backend, workload, warmup and iteration counts. Report throughput, duration percentiles and memory before/after or slope. Preserve raw machine-readable results as artifacts so regressions can be compared across revisions.
 

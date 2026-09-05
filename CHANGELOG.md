@@ -7,6 +7,7 @@ All notable changes to cmux GTK are documented here.
 ### Changed
 
 - Add structured diagnostic snapshots, process resource sampling, bounded log delivery and CLI/GTK request correlation.
+- Add an optimized CLI-to-GTK benchmark with revision-tagged CI artifacts; isolate installation ownership and notifications in the Linux library.
 - Document the architecture, component boundaries, language standards and observability requirements for the ongoing refactor.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.

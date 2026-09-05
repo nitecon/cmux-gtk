@@ -24,13 +24,7 @@ struct GitHubAsset {
     browser_download_url: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InstallMethod {
-    SelfManaged,
-    Homebrew,
-    SystemPackage,
-    AppImage,
-}
+use cmux_platform::installation::{method as install_method, InstallMethod};
 
 /// Run a silent, rate-limited update check for manually installed binaries.
 pub fn spawn_auto_update() {
@@ -74,6 +68,8 @@ pub fn manual_update() -> Result<()> {
     }
 }
 
+/// Check the latest release and replace a direct installation when newer.
+/// Performs blocking network and filesystem I/O; callers own worker placement.
 fn update_if_available(verbose: bool) -> Result<()> {
     let current = Version::parse(CURRENT_VERSION.trim_start_matches('v'))
         .context("invalid compiled cmux version")?;
@@ -83,7 +79,9 @@ fn update_if_available(verbose: bool) -> Result<()> {
 
     let client = http_client()?;
     let release = client
-        .get(format!("https://api.github.com/repos/{GITHUB_REPO}/releases/latest"))
+        .get(format!(
+            "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        ))
         .send()
         .context("GitHub release request failed")?
         .error_for_status()
@@ -137,6 +135,7 @@ fn update_if_available(verbose: bool) -> Result<()> {
     Ok(())
 }
 
+/// Validate release bytes against the SHA-256 checksum before extracting them.
 fn verify_checksum(archive: &[u8], checksum_file: &str) -> Result<()> {
     let expected = checksum_file
         .split_whitespace()
@@ -152,6 +151,7 @@ fn verify_checksum(archive: &[u8], checksum_file: &str) -> Result<()> {
     Ok(())
 }
 
+/// Construct the updater HTTP client with bounded connection and request deadlines.
 fn http_client() -> Result<reqwest::blocking::Client> {
     reqwest::blocking::Client::builder()
         .user_agent("cmux-gtk-updater")
@@ -161,6 +161,7 @@ fn http_client() -> Result<reqwest::blocking::Client> {
         .context("failed to create update client")
 }
 
+/// Map the current CPU architecture to release asset naming or return an unsupported error.
 fn release_arch() -> Result<&'static str> {
     match std::env::consts::ARCH {
         "x86_64" => Ok("x86_64"),
@@ -169,6 +170,8 @@ fn release_arch() -> Result<&'static str> {
     }
 }
 
+/// Stage both executables, validate them, then replace companions before the CLI.
+/// Cleans staging after success or failure; individual renames are atomic, the pair is not.
 fn install_archive(bytes: &[u8]) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -183,10 +186,7 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let staging_dir = install_dir.join(format!(
-        ".cmux-update-{}-{nonce}",
-        std::process::id()
-    ));
+    let staging_dir = install_dir.join(format!(".cmux-update-{}-{nonce}", std::process::id()));
     std::fs::create_dir(&staging_dir).with_context(|| {
         format!(
             "cannot stage an update in {}; move cmux to a user-writable directory such as ~/.local/bin",
@@ -201,7 +201,11 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
         for entry in archive.entries().context("invalid release archive")? {
             let mut entry = entry.context("invalid release archive entry")?;
             let path = entry.path().context("invalid release archive path")?;
-            let Some(name) = path.file_name().and_then(|name| name.to_str()).map(str::to_owned) else {
+            let Some(name) = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+            else {
                 continue;
             };
             if !BINARY_NAMES.contains(&name.as_str()) {
@@ -237,6 +241,7 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
     result
 }
 
+/// Run the staged executable version preflight and reject incompatible binaries.
 fn validate_staged_binary(name: &str, path: &Path) -> Result<()> {
     let output = std::process::Command::new(path)
         .arg("--version")
@@ -261,43 +266,14 @@ fn validate_staged_binary(name: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn install_method() -> InstallMethod {
-    if std::env::var_os("APPIMAGE").is_some() {
-        return InstallMethod::AppImage;
-    }
-    let Ok(exe) = std::env::current_exe().and_then(|path| path.canonicalize()) else {
-        return InstallMethod::SelfManaged;
-    };
-    let rendered = exe.to_string_lossy();
-    if rendered.contains("/.linuxbrew/")
-        || rendered.contains("/homebrew/")
-        || rendered.contains("/Cellar/")
-    {
-        InstallMethod::Homebrew
-    } else if exe.starts_with("/usr/bin")
-        || exe.starts_with("/usr/lib")
-        || exe.starts_with("/usr/lib64")
-    {
-        InstallMethod::SystemPackage
-    } else if rendered.contains("/.mount_") {
-        InstallMethod::AppImage
-    } else {
-        InstallMethod::SelfManaged
-    }
-}
-
+/// Create the shared update-cache directory and return its last-check marker path.
 fn marker_path() -> Result<PathBuf> {
-    let cache = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache"))
-        })
-        .context("cannot locate the update cache directory")?
-        .join("cmux");
+    let cache = cmux_platform::paths::cache_dir();
     std::fs::create_dir_all(&cache)?;
     Ok(cache.join("last-update-check"))
 }
 
+/// Allow an update check when the marker is absent, unreadable or older than the interval.
 fn should_check(marker: &Path) -> bool {
     marker
         .metadata()
@@ -306,6 +282,7 @@ fn should_check(marker: &Path) -> bool {
         .unwrap_or(true)
 }
 
+/// Record a completed update check by replacing its timestamp marker.
 fn touch_marker(marker: &Path) {
     let _ = std::fs::write(marker, "");
 }

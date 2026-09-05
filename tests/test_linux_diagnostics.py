@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -31,11 +32,12 @@ def main():
             path.mkdir(mode=0o700)
             env[f"XDG_{kind}"] = str(path)
         socket = root / "runtime_dir/cmux/cmux.sock"
+        binary_dir = Path(os.environ.get("CMUX_BIN_DIR", "target/debug"))
         with (root / "app.log").open("w+") as log:
-            app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
+            app = subprocess.Popen([str(binary_dir / "cmux-app")], env=env, stdout=log, stderr=log)
             try:
                 wait_for(socket.exists)
-                cli = ["target/debug/cmux", "--socket", str(socket), "--json"]
+                cli = [str(binary_dir / "cmux"), "--socket", str(socket), "--json"]
                 result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
                                         capture_output=True, check=True, timeout=10)
                 snapshot = json.loads(result.stdout)
@@ -65,6 +67,11 @@ def main():
                         return True
 
                     wait_for(complete)
+                if output := os.environ.get("CMUX_BENCHMARK_OUT"):
+                    subprocess.run([sys.executable, "scripts/benchmark-cmux.py",
+                                    "--binary", str(binary_dir / "cmux"),
+                                    "--socket", str(socket), "--output", output],
+                                   env=env, check=True, timeout=180)
                 print("diagnostic resources and successful/failed CLI-to-GTK traces verified")
             finally:
                 app.terminate()

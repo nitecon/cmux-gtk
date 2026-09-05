@@ -106,6 +106,9 @@ pub fn snapshot() -> serde_json::Value {
     let writer = WRITER.get();
     serde_json::json!({
         "schema": 1, "version": env!("CMUX_VERSION"), "pid": std::process::id(),
+        "build_profile": if cfg!(debug_assertions) { "debug" } else { "release" },
+        "gtk_version": format!("{}.{}.{}", gtk4::major_version(), gtk4::minor_version(), gtk4::micro_version()),
+        "requested_backend": std::env::var("GDK_BACKEND").unwrap_or_else(|_| "auto".into()),
         "uptime_ms": STARTED.get().map(|started| started.elapsed().as_millis()),
         "resources": resources,
         "logging": {

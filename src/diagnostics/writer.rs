@@ -1,7 +1,7 @@
 //! Bounded diagnostic delivery and size-limited local log retention.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{mpsc, Arc};
@@ -91,6 +91,8 @@ impl RotatingFile {
         {
             fs::create_dir_all(parent)?;
         }
+        retain_tail(path, limit)?;
+        retain_tail(&backup_path(path), limit)?;
         let file = OpenOptions::new().create(true).append(true).open(path)?;
         let bytes = file.metadata()?.len();
         Ok(Self {
@@ -111,9 +113,7 @@ impl RotatingFile {
         }
         if self.bytes.saturating_add(record.len() as u64) > self.limit {
             self.file.take();
-            let mut backup = self.path.as_os_str().to_os_string();
-            backup.push(".1");
-            fs::rename(&self.path, PathBuf::from(backup))?;
+            fs::rename(&self.path, backup_path(&self.path))?;
             self.bytes = 0;
         }
         if self.file.is_none() {
@@ -133,9 +133,62 @@ impl RotatingFile {
     }
 }
 
+/// Derive the single backup path without assuming the filename is Unicode.
+fn backup_path(path: &Path) -> PathBuf {
+    let mut backup = path.as_os_str().to_os_string();
+    backup.push(".1");
+    PathBuf::from(backup)
+}
+
+/// Keep complete trailing records when a previous version left an oversized log.
+/// Reads at most the configured cap; an interrupted rewrite may lose old records.
+fn retain_tail(path: &Path, limit: u64) -> io::Result<()> {
+    let mut file = match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let length = file.metadata()?.len();
+    if length <= limit {
+        return Ok(());
+    }
+    file.seek(SeekFrom::Start(length - limit))?;
+    let mut tail = Vec::new();
+    Read::by_ref(&mut file).take(limit).read_to_end(&mut tail)?;
+    let start = tail
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(tail.len(), |index| index + 1);
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(&tail[start..])?;
+    file.set_len((tail.len() - start) as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Apply retention to oversized files inherited from a prior application version.
+    #[test]
+    fn trims_inherited_logs_to_complete_trailing_records() {
+        let directory = std::env::temp_dir().join(format!("cmux-old-log-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("events.jsonl");
+        for file in [&path, &backup_path(&path)] {
+            fs::write(file, b"{\"old\":true}\n".repeat(20)).unwrap();
+        }
+        let (_sender, guard) = start(&path, 4, 32).unwrap();
+        drop(guard);
+        for file in [&path, &backup_path(&path)] {
+            let data = fs::read_to_string(file).unwrap();
+            assert!(!data.is_empty());
+            assert!(data.len() <= 32);
+            for line in data.lines() {
+                assert!(serde_json::from_str::<serde_json::Value>(line).is_ok());
+            }
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     /// Check rotation and guard draining through the production worker.
     #[test]

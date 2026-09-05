@@ -117,9 +117,7 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
 
 /// Create an SSH workspace using the same pattern as the socket handler.
 fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory: Option<String>) {
-    let (write_tx, write_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (output_tx, _output_rx) = tokio::sync::mpsc::unbounded_channel();
-    let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new(write_tx, write_rx, output_tx));
+    let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
     *bridge.directory.lock().unwrap() = directory.clone();
     let id = state.borrow_mut().create_remote_workspace(target.clone(), &bridge);
     {
