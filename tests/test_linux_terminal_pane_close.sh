@@ -11,6 +11,8 @@ chmod 700 "$runtime_dir"
 socket_path="$runtime_dir/cmux/cmux.sock"
 
 app_pid=""
+# On fixture exit, terminate/reap the owned app child and remove the isolated run directory.
+# Uses app_pid/run_root globals; ignores child exit status. The wait has no deadline.
 cleanup() {
     if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
         kill "$app_pid"
@@ -34,6 +36,8 @@ done
 [[ -S "$socket_path" ]] || { echo "socket was not created"; false; }
 
 cmux=("$repo_root/target/debug/cmux" --socket "$socket_path")
+# Print the number of direct children of app_pid from the process table.
+# Under pipefail, process-listing errors fail the fixture instead of becoming a zero count.
 count_children() {
     ps -eo ppid= | awk -v parent="$app_pid" '$1 == parent { count++ } END { print count + 0 }'
 }

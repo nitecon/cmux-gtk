@@ -18,6 +18,8 @@ chmod +x "$mock_browser"
 socket_path="$runtime_dir/cmux/cmux.sock"
 
 app_pid=""
+# On fixture exit, terminate/reap the owned app, signal the detached mock daemon, then remove files.
+# Uses app_pid/browser_dir/run_root globals; the app wait is unbounded and the mock is not our child.
 cleanup() {
     if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
         kill "$app_pid"
