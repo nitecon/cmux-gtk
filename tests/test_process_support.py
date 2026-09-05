@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise bounded fixture cleanup with real child processes in CI."""
+from concurrent.futures import ThreadPoolExecutor
 import os
 import select
 import signal
@@ -8,7 +9,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from process_support import linux_process_belongs_to, stop_process, wait_until
+from process_support import linux_child_pids, linux_process_belongs_to, stop_process, wait_until
 
 
 class ProcessCleanup(unittest.TestCase):
@@ -41,6 +42,17 @@ class ProcessCleanup(unittest.TestCase):
 
 class LinuxProcessOwnership(unittest.TestCase):
     """Verify root matching and ancestry against real live processes in Linux CI."""
+
+    def test_worker_spawned_child(self):
+        """Process snapshots include children spawned by a live worker, then lose reaped children."""
+        with ThreadPoolExecutor(max_workers=1) as worker:
+            child = worker.submit(subprocess.Popen,
+                [sys.executable, "-c", "import time; time.sleep(60)"]).result(timeout=5)
+            try:
+                self.assertIn(str(child.pid), linux_child_pids(os.getpid()))
+            finally:
+                stop_process(child)
+            self.assertNotIn(str(child.pid), linux_child_pids(os.getpid()))
 
     def test_child_ancestry(self):
         """A launched child belongs to its parent tree, but not an unrelated root."""

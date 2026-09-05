@@ -75,3 +75,18 @@ def linux_process_belongs_to(pid, roots):
             return False
         pid = parent
     return False
+
+
+def linux_child_pids(pid):
+    """Snapshot direct child PID strings across every spawning thread on Linux.
+
+    The snapshot is not atomic. Ignore threads that exit during enumeration;
+    propagate other read errors so permission failures cannot look like cleanup.
+    """
+    result = set()
+    for path in Path(f"/proc/{pid}/task").glob("*/children"):
+        try:
+            result.update(path.read_text().split())
+        except FileNotFoundError:
+            pass
+    return result

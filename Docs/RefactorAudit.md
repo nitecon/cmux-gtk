@@ -584,3 +584,16 @@ This checks eventual release and rejects persistent callback cycles; it does not
 claim that no transient GTK reference exists immediately after detachment.
 Local Rust test-target compilation, Python syntax parsing and diff checks passed.
 No local tests ran; corrected runtime results remain pending.
+
+
+### Shared Linux child-process snapshots
+
+`tests/process_support.py::linux_child_pids` now owns the per-thread `/proc`
+traversal shared by the application lifecycle and memory churn fixtures. It
+returns PID strings, tolerates thread disappearance, and propagates other file
+read errors. The snapshot remains observational rather than atomic. A CI helper
+case launches a real child from a worker thread, verifies discovery and checks
+its absence after explicit termination/reaping. This guards against accidentally
+switching back to the main thread's children file and missing Ghostty's IO-thread
+children. Python syntax parsing and diff checks passed; runtime verification is
+left to GitHub Actions.

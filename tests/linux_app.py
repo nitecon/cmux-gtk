@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from process_support import stop_process, wait_until
+from process_support import linux_child_pids, stop_process, wait_until
 
 
 @dataclass
@@ -29,13 +29,7 @@ class Application:
 
     def children(self):
         """Collect direct child PIDs across all spawning threads, tolerating concurrent thread exits."""
-        result = set()
-        for path in Path(f"/proc/{self.process.pid}/task").glob("*/children"):
-            try:
-                result.update(path.read_text().split())
-            except FileNotFoundError:
-                pass
-        return result
+        return linux_child_pids(self.process.pid)
 
     def wait_for(self, predicate, description, timeout=10):
         """Poll an observable condition with an elapsed-time limit; fail promptly if cmux exits."""

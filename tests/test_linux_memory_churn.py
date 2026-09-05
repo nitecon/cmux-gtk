@@ -7,7 +7,7 @@ from pathlib import Path
 import shlex
 import subprocess
 from functools import partial
-from process_support import linux_process_belongs_to, stop_process, wait_until
+from process_support import linux_child_pids, linux_process_belongs_to, stop_process, wait_until
 import tempfile
 import time
 
@@ -42,15 +42,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
 
     def children():
         """Collect child identities across spawning threads, tolerating thread exit races."""
-        # Linux exposes children per spawning thread, and Ghostty spawns from
-        # its IO thread rather than the GTK thread.
-        result = set()
-        for path in Path(f"/proc/{app.pid}/task").glob("*/children"):
-            try:
-                result.update(path.read_text().split())
-            except FileNotFoundError:
-                pass  # A worker may exit between enumeration and the read.
-        return result
+        return linux_child_pids(app.pid)
 
     report = {
         "schema": 1, "revision": os.environ.get("GITHUB_SHA"),
