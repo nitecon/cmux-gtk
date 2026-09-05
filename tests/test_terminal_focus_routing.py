@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Regression test: terminal focus must track the visible/focused surface across split operations.
+Legacy debug-API scenario for focus and input routing during split churn.
 
-Why: we've seen cases where the focused surface highlights correctly, but AppKit first responder
-remains on another (often detached) terminal view. Users then type but nothing appears (input is
-routed elsewhere).
-
-This test validates:
-  1) The focused terminal is actually first responder (`is_terminal_focused`).
-  2) Text insertion via debug socket (`simulate_type`) lands in the expected terminal by writing
-     $CMUX_SURFACE_ID to a temp file.
+Requires is_terminal_focused, simulate_type and simulate_shortcut from the
+upstream debug contract; this is not evidence of current GTK keyboard routing.
+The marker verifies the receiving shell's CMUX_SURFACE_ID, not rendered pixels.
+Both protocol suites share this file but import their own adjacent cmux client.
+The scenario leaves its workspace and fixed /tmp marker behind and must not run
+concurrently. Migrate it to the isolated Linux harness before enabling it in CI.
 """
 
 import os
@@ -26,6 +24,7 @@ FOCUS_FILE = Path("/tmp/cmux_focus_routing.txt")
 
 
 def _focused_surface_id(c: cmux) -> str:
+    """Return the first selected surface UUID or fail when none is reported."""
     surfaces = c.list_surfaces()
     for _, sid, focused in surfaces:
         if focused:
@@ -34,6 +33,10 @@ def _focused_surface_id(c: cmux) -> str:
 
 
 def _wait_for_file_content(path: Path, timeout_s: float = 3.0) -> str:
+    """Poll for nonempty stripped marker text, retrying transient read failures.
+
+    The wall-clock budget does not preempt an individual filesystem operation.
+    """
     start = time.time()
     while time.time() - start < timeout_s:
         if path.exists():
@@ -48,6 +51,10 @@ def _wait_for_file_content(path: Path, timeout_s: float = 3.0) -> str:
 
 
 def _wait_for_terminal_focus(c: cmux, panel_id: str, timeout_s: float = 6.0) -> None:
+    """Poll legacy native-focus state; propagate RPC failures or time out.
+
+    The wall-clock budget does not bound an individual client request.
+    """
     start = time.time()
     while time.time() - start < timeout_s:
         if c.is_terminal_focused(panel_id):
@@ -58,7 +65,10 @@ def _wait_for_terminal_focus(c: cmux, panel_id: str, timeout_s: float = 6.0) -> 
 
 def _focus_and_wait(c: cmux, panel_id: str, *, total_timeout_s: float = 8.0) -> None:
     """
-    Focus can be racy under split/tree churn. Re-issue focus a few times before failing.
+    Activate and focus a surface up to four times, tolerating transient errors.
+
+    Activation errors are ignored; the final focus error is included on failure.
+    Nested polling and client calls may exceed the outer wall-clock budget.
     """
     deadline = time.time() + total_timeout_s
     last_err = None
@@ -87,6 +97,11 @@ def _focus_and_wait(c: cmux, panel_id: str, *, total_timeout_s: float = 8.0) -> 
 
 
 def _assert_routed_to_surface(c: cmux, expected_surface_id: str, panel_id: str) -> None:
+    """Retry focused debug input until a shell marker matches the expected UUID.
+
+    Each attempt requests focus and removes the shared marker best-effort; a
+    focus failure propagates immediately. This does not test physical GTK keys.
+    """
     last_actual = "<empty>"
     for attempt in range(4):
         _focus_and_wait(c, panel_id, total_timeout_s=4.0)
@@ -114,12 +129,17 @@ def _assert_routed_to_surface(c: cmux, expected_surface_id: str, panel_id: str) 
 
 
 def main() -> int:
+    """Create tabs and churn splits against a running legacy debug server.
+
+    Fail on misrouted shell input; the client connection closes on exit, but
+    workspace and marker cleanup remain the caller's responsibility.
+    """
     with cmux(SOCKET_PATH) as c:
-        # Isolate from any user workspace state.
+        # Create a separate workspace in the existing application.
         c.new_workspace()
         time.sleep(0.2)
         # Focus-sensitive assertions require the main window to be key.
-        # When launched via SSH, `open` does not always activate the app.
+        # Remote invocation may leave the application inactive.
         c.activate_app()
         time.sleep(0.2)
 
@@ -133,7 +153,7 @@ def main() -> int:
             raise cmuxError("Expected at least one surface after new_workspace")
         left_id = surfaces[0][1]
 
-        # Create a split to the right (this may trigger bonsplit reparenting/structural updates).
+        # Create a split to exercise view reparenting and layout updates.
         right_id = c.new_split("right")
         if not right_id:
             # Should not happen with current server, but keep a fallback for older behavior.
