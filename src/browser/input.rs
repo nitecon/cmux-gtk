@@ -49,9 +49,32 @@ fn contained_point(
     Some((x as i64, y as i64))
 }
 
+/// Build a browser key press or release with shared key/code and modifier translation.
+/// Only presses of a single Unicode character carry text; Control combinations and
+/// named keys carry no text. Return None when GDK cannot supply a supported key.
+pub(super) fn keyboard_event(
+    keyval: gtk4::gdk::Key,
+    mods: gtk4::gdk::ModifierType,
+    pressed: bool,
+) -> Option<serde_json::Value> {
+    let (key, code) = gdk_keyval_to_cdp(keyval);
+    if key.is_empty() {
+        return None;
+    }
+    let mut params = serde_json::json!({
+        "type": if pressed { "keyDown" } else { "keyUp" },
+        "key": key, "code": code, "modifiers": cdp_modifiers(mods),
+    });
+    if pressed && key.chars().count() == 1 && !mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK)
+    {
+        params["text"] = key.into();
+    }
+    Some(params)
+}
+
 /// Map GDK keyval to (CDP key name, CDP code name).
 /// Returns empty strings for unmapped keys.
-pub(super) fn gdk_keyval_to_cdp(keyval: gtk4::gdk::Key) -> (String, String) {
+fn gdk_keyval_to_cdp(keyval: gtk4::gdk::Key) -> (String, String) {
     use gtk4::gdk::Key;
     match keyval {
         Key::Return | Key::KP_Enter => ("Enter".into(), "Enter".into()),
@@ -101,7 +124,7 @@ pub(super) fn gdk_keyval_to_cdp(keyval: gtk4::gdk::Key) -> (String, String) {
 
 /// Convert GDK modifier flags to CDP modifier bitmask.
 /// CDP: Alt=1, Ctrl=2, Meta=4, Shift=8
-pub(super) fn cdp_modifiers(mods: gtk4::gdk::ModifierType) -> i32 {
+fn cdp_modifiers(mods: gtk4::gdk::ModifierType) -> i32 {
     let mut m = 0;
     if mods.contains(gtk4::gdk::ModifierType::ALT_MASK) {
         m |= 1;
@@ -118,6 +141,36 @@ pub(super) fn cdp_modifiers(mods: gtk4::gdk::ModifierType) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// UTF-8 text survives presses, while releases, named keys and Control shortcuts omit text.
+    #[test]
+    fn keyboard_events_preserve_unicode_and_key_semantics() {
+        use gtk4::gdk::{Key, ModifierType as Mods};
+        let press = keyboard_event(Key::eacute, Mods::empty(), true).unwrap();
+        assert_eq!(press["key"], "é");
+        assert_eq!(press["text"], "é");
+        assert_eq!(press["type"], "keyDown");
+        let release = keyboard_event(Key::eacute, Mods::empty(), false).unwrap();
+        assert_eq!(release["type"], "keyUp");
+        assert_eq!(release["key"], press["key"]);
+        assert!(release.get("text").is_none());
+        let shortcut = keyboard_event(
+            Key::a,
+            Mods::CONTROL_MASK | Mods::ALT_MASK | Mods::SHIFT_MASK,
+            true,
+        )
+        .unwrap();
+        assert_eq!(shortcut["code"], "KeyA");
+        assert_eq!(shortcut["modifiers"], 11);
+        assert!(shortcut.get("text").is_none());
+        let arrow = keyboard_event(Key::Left, Mods::empty(), true).unwrap();
+        assert_eq!(arrow["key"], "ArrowLeft");
+        assert!(arrow.get("text").is_none());
+        assert_eq!(
+            keyboard_event(Key::space, Mods::empty(), true).unwrap()["text"],
+            " "
+        );
+    }
 
     /// Wide and tall previews map image pixels consistently while their padding receives no input.
     #[test]

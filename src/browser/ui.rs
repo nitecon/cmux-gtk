@@ -4,7 +4,7 @@
 //! stream modules own worker I/O; remaining synchronous callbacks are tracked in
 //! the architecture refactor audit.
 
-use super::input::{cdp_modifiers, gdk_keyval_to_cdp, picture_point, viewport_size};
+use super::input::{keyboard_event, picture_point, viewport_size};
 use crate::app_state::AppState;
 use gtk4::prelude::*;
 use std::cell::RefCell;
@@ -315,27 +315,9 @@ pub(crate) fn wire_browser_tab(
                 Some(bm) => bm,
                 None => return gtk4::glib::Propagation::Proceed,
             };
-            let (key_str, code_str) = gdk_keyval_to_cdp(keyval);
-            if key_str.is_empty() {
+            let Some(params) = keyboard_event(keyval, mods, true) else {
                 return gtk4::glib::Propagation::Proceed;
-            }
-            let text =
-                if key_str.len() == 1 && !mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
-                    key_str.clone()
-                } else {
-                    String::new()
-                };
-            let modifiers = cdp_modifiers(mods);
-            let mut params = serde_json::json!({
-                "type": "keyDown", "key": key_str, "code": code_str,
-                "modifiers": modifiers
-            });
-            if !text.is_empty() {
-                params
-                    .as_object_mut()
-                    .unwrap()
-                    .insert("text".to_string(), serde_json::json!(text));
-            }
+            };
             let _ = bm.send_command("input_keyboard", params);
             gtk4::glib::Propagation::Stop
         });
@@ -346,16 +328,8 @@ pub(crate) fn wire_browser_tab(
             };
             let s = state_for_keyup.borrow();
             if let Some(ref bm) = s.browser_manager {
-                let (key_str, code_str) = gdk_keyval_to_cdp(keyval);
-                if !key_str.is_empty() {
-                    let modifiers = cdp_modifiers(mods);
-                    let _ = bm.send_command(
-                        "input_keyboard",
-                        serde_json::json!({
-                            "type": "keyUp", "key": key_str, "code": code_str,
-                            "modifiers": modifiers
-                        }),
-                    );
+                if let Some(params) = keyboard_event(keyval, mods, false) {
+                    let _ = bm.send_command("input_keyboard", params);
                 }
             }
         });
