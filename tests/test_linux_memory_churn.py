@@ -36,7 +36,15 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         return int(next(line.split()[1] for line in status.splitlines() if line.startswith("VmRSS:")))
 
     def children():
-        return set(Path(f"/proc/{app.pid}/task/{app.pid}/children").read_text().split())
+        # Linux exposes children per spawning thread, and Ghostty spawns from
+        # its IO thread rather than the GTK thread.
+        result = set()
+        for path in Path(f"/proc/{app.pid}/task").glob("*/children"):
+            try:
+                result.update(path.read_text().split())
+            except FileNotFoundError:
+                pass  # A worker may exit between enumeration and the read.
+        return result
 
     try:
         eventually(socket.exists)
