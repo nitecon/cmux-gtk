@@ -124,6 +124,7 @@ pub fn snapshot() -> serde_json::Value {
         "uptime_ms": STARTED.get().map(|started| started.elapsed().as_millis()),
         "resources": resources,
         "gtk_event_loop": event_loop::snapshot(),
+        "browser_preview": crate::browser::metrics::snapshot(),
         "terminals": {"registered": crate::ghostty::registry::live_count()},
         "rpc": {
             "in_flight": RPC_IN_FLIGHT.load(Ordering::Relaxed),

@@ -2,6 +2,7 @@ use base64::Engine as _;
 use futures_util::StreamExt;
 use gtk4::prelude::*;
 use serde_json::Value;
+pub(crate) mod metrics;
 mod transport;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -232,6 +233,7 @@ impl BrowserManager {
 
         // Spawn tokio task: WebSocket client that reads frames
         let stream_task = runtime.spawn(async move {
+            let _stream_metrics = metrics::Stream::begin();
             let ws_result = tokio_tungstenite::connect_async(&url).await;
             let (ws_stream, _) = match ws_result {
                 Ok(conn) => conn,
@@ -256,12 +258,15 @@ impl BrowserManager {
                                 if let Ok(jpeg_bytes) =
                                     base64::engine::general_purpose::STANDARD.decode(data_b64)
                                 {
+                                    metrics::received(jpeg_bytes.len());
                                     if frame_tx
                                         .send(Some(glib::Bytes::from_owned(jpeg_bytes)))
                                         .is_err()
                                     {
                                         break;
                                     }
+                                } else {
+                                    metrics::invalid_base64();
                                 }
                             }
                         }
@@ -285,6 +290,7 @@ impl BrowserManager {
                 match gtk4::gdk::Texture::from_bytes(&bytes) {
                     Ok(texture) => {
                         picture_clone.set_paintable(Some(&texture));
+                        metrics::texture(true);
                         // Hide the "No browser preview" overlay label on first frame
                         if first_frame {
                             first_frame = false;
@@ -305,7 +311,7 @@ impl BrowserManager {
                             }
                         }
                     }
-                    Err(_) => {}
+                    Err(_) => metrics::texture(false),
                 }
             }
         });
