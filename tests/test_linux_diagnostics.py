@@ -44,6 +44,8 @@ def main():
                 assert snapshot["pid"] == app.pid
                 assert snapshot["resources"]["rss_kib"] > 0
                 assert snapshot["resources"]["threads"] > 0
+                assert snapshot["resources"]["cpu_user_us"] >= 0
+                assert snapshot["resources"]["cpu_system_us"] >= 0
                 assert snapshot["logging"]["active"]
 
                 def heartbeat_ready():
@@ -51,6 +53,8 @@ def main():
                     result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
                                             capture_output=True, check=True, timeout=10)
                     latest = json.loads(result.stdout)
+                    assert latest["resources"]["cpu_user_us"] >= snapshot["resources"]["cpu_user_us"]
+                    assert latest["resources"]["cpu_system_us"] >= snapshot["resources"]["cpu_system_us"]
                     heartbeat = latest["gtk_event_loop"]
                     if not heartbeat["sampled"]:
                         return False

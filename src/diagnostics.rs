@@ -110,6 +110,7 @@ pub fn record(event: &str, fields: serde_json::Value) {
 pub fn snapshot() -> serde_json::Value {
     let resources = match cmux_platform::process::resources() {
         Ok(sample) => serde_json::json!({
+            "cpu_user_us": sample.cpu_user_us, "cpu_system_us": sample.cpu_system_us,
             "rss_kib": sample.rss_kib, "peak_rss_kib": sample.peak_rss_kib,
             "threads": sample.threads, "file_descriptors": sample.file_descriptors,
         }),
