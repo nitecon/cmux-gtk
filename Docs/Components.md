@@ -8,7 +8,7 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Workspace model | Workspace identity, launch settings, order and attention | `src/workspace.rs`, `src/app_state.rs` |
 | Pane tree | Splits, sibling tabs, selection and surface lifecycle | `src/split_engine.rs` |
 | Terminal adapter | Ghostty configuration, input, clipboard and rendering through its C ABI; surface registry owns routing and last-known directories through teardown | `src/ghostty` |
-| Browser adapter | Optional browser daemon, commands, previews and navigation | `src/browser.rs`, `src/browser/transport.rs` |
+| Browser adapter | Optional browser daemon, commands, previews and navigation | `src/browser.rs`, `src/browser/{discovery,transport,metrics}.rs` |
 | Command interface | Shared CLI argument schema, protocol validation and dispatch; completion generation imports the schema alone | `src/cli/args.rs`, `src/cli`, `src/socket` |
 | Diagnostics | Bounded structured logs, request correlation, resource snapshots, collection and optimized benchmarks | `src/diagnostics`, `src/diagnostics.rs`, `scripts/collect-cmux-diagnostics.py`, `scripts/benchmark-cmux.py` |
 | Session/configuration | Serializable state, compatibility, atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
