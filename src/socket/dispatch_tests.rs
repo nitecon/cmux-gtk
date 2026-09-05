@@ -1,6 +1,6 @@
 //! Executable request validation, correlation and queue-admission scenarios.
 use super::*;
-use crate::socket::{socket_path, COMMAND_CAPACITY};
+use crate::socket::COMMAND_CAPACITY;
 
 /// Non-object parameters cannot erase explicit targets and activate command defaults.
 #[tokio::test]
@@ -175,17 +175,6 @@ async fn closed_queue_reports_handler_loss() {
     let response: serde_json::Value = serde_json::from_str(&response).unwrap();
     assert_eq!(response["id"], 11);
     assert_eq!(response["error"]["code"], "internal_error");
-}
-
-/// SOCK-01: Socket path must be under XDG_RUNTIME_DIR/cmux/.
-#[test]
-fn test_socket_path_creation() {
-    unsafe { std::env::set_var("XDG_RUNTIME_DIR", "/tmp/test-xdg") };
-    let path = socket_path();
-    assert_eq!(
-        path,
-        std::path::PathBuf::from("/tmp/test-xdg/cmux/cmux.sock")
-    );
 }
 
 /// Reject an invalid directory through the real dispatcher before any command reaches GTK.

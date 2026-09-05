@@ -6,20 +6,9 @@ import os
 from pathlib import Path
 import re
 import subprocess
-from process_support import stop_process
+from process_support import stop_process, wait_until
 import sys
 import tempfile
-import time
-
-
-def wait_for(check, timeout=15):
-    """Wait for observable asynchronous state, failing within a bounded deadline."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if check():
-            return
-        time.sleep(0.1)
-    raise AssertionError("diagnostic state did not converge")
 
 
 def main():
@@ -37,7 +26,7 @@ def main():
         with (root / "app.log").open("w+") as log:
             app = subprocess.Popen([str(binary_dir / "cmux-app")], env=env, stdout=log, stderr=log)
             try:
-                wait_for(socket.exists)
+                wait_until(socket.exists, "diagnostic application socket", timeout=15)
                 cli = [str(binary_dir / "cmux"), "--socket", str(socket), "--json"]
                 result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
                                         capture_output=True, check=True, timeout=10)
@@ -69,7 +58,7 @@ def main():
                     assert heartbeat["sample_age_ms"] >= 0
                     return True
 
-                wait_for(heartbeat_ready)
+                wait_until(heartbeat_ready, "GTK heartbeat and registered terminal", timeout=15)
                 for command in ("ping", "raw"):
                     arguments = [command] if command == "ping" else ["raw", "unsupported_method"]
                     result = subprocess.run(cli + ["--verbose"] + arguments, env=env,
@@ -91,7 +80,7 @@ def main():
                         assert events["rpc.gtk.start"]["queue_wait_us"] >= 0
                         return True
 
-                    wait_for(complete)
+                    wait_until(complete, "correlated request completion", timeout=15)
                 result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
                                         capture_output=True, check=True, timeout=10)
                 counters = json.loads(result.stdout)["rpc"]
@@ -120,7 +109,7 @@ def main():
                     assert latest["duration_us"] >= latest["serialization_us"]
                     return True
 
-                wait_for(saved_session)
+                wait_until(saved_session, "session persistence diagnostic", timeout=15)
                 report_path = root / "diagnostic-report.json"
                 subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
                                 "--binary", str(binary_dir / "cmux"), "--socket", str(socket),

@@ -864,3 +864,7 @@ Moved success/error response construction from GTK handlers into a small socket-
 ### Socket responsibility separation (2026-09-05)
 
 Separated worker-side dispatch and its executable tests from listener/connection lifecycle code. The public server startup signature no longer accepts an unused AppStateRef; the transport owns no application-model reference and crosses the existing bounded command bridge for GTK work. Existing behavior, framing, correlation and validation tests are preserved under the dispatch module. All-target compilation, formatting and whitespace checks pass; runtime validation remains CI-only. Blocking connect, accepted-request cancellation and remaining serialization/resource boundaries still require completion.
+
+### Parallel-safe fixture cleanup (2026-09-05)
+
+Removed the dispatcher socket-path test that unsafely changed process-wide XDG_RUNTIME_DIR without restoration during parallel Rust tests. Socket placement is exercised by the isolated Linux application fixtures, which pass XDG paths only in child environments and wait for the real socket at the expected location; no new metadata assertion replaces that behavior coverage. The diagnostics fixture now uses shared monotonic wait_until instead of a duplicated polling loop, preserving its 15-second budget and adding condition-specific timeout messages. All-target compilation, formatting and Python AST parsing pass; no local tests ran.
