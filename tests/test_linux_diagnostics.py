@@ -37,6 +37,7 @@ def main():
                 assert snapshot["resources"]["cpu_user_us"] >= 0
                 assert snapshot["resources"]["cpu_system_us"] >= 0
                 assert snapshot["logging"]["active"]
+                assert snapshot["libgl_software_override"] is True
                 connections = snapshot["socket_connections"]
                 assert 1 <= connections["active"] <= connections["capacity"]
                 assert connections["rejected"] >= 0

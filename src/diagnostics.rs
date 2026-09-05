@@ -122,6 +122,11 @@ pub fn snapshot() -> serde_json::Value {
         "build_profile": if cfg!(debug_assertions) { "debug" } else { "release" },
         "gtk_version": format!("{}.{}.{}", gtk4::major_version(), gtk4::minor_version(), gtk4::micro_version()),
         "requested_backend": std::env::var("GDK_BACKEND").unwrap_or_else(|_| "auto".into()),
+        // Record only the recognized numeric override, never arbitrary environment content.
+        // Absence/other spellings are unknown; this does not identify the active renderer.
+        "libgl_software_override": match std::env::var("LIBGL_ALWAYS_SOFTWARE").as_deref() {
+            Ok("1") => Some(true), Ok("0") => Some(false), _ => None,
+        },
         "uptime_ms": STARTED.get().map(|started| started.elapsed().as_millis()),
         "resources": resources,
         "gtk_event_loop": event_loop::snapshot(),

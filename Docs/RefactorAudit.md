@@ -876,3 +876,7 @@ Refreshed unique-source inventory and current CI evidence rather than relying on
 ### Shared input probes and manual signal ownership (2026-09-05)
 
 Consolidated byte-identical manual control-key and initial-rendering suites through relative v2 links. The manual EOF probe counts lines instead of retaining all entered content, and its SIGINT handler only records receipt; printing occurs after control returns to the polling loop, avoiding buffered-output reentrancy. Documented the remaining helper/nested function contracts and the legacy presentation-counter/type-simulation requirements. Current Linux input and churn tests are not claimed as compositor-presentation equivalence. Static parsing and whitespace checks pass; interactive and executable tests were not run locally.
+
+### Rendering override comparison metadata (2026-09-05)
+
+Diagnostics now expose a nullable boolean for the application's numeric LIBGL_ALWAYS_SOFTWARE override, excluding arbitrary environment content. Existing benchmark snapshots retain it automatically. Comparison checks its type, within-run stability and cross-report match, preserving unknown semantics for older reports. This is launch-setting metadata, not proof of actual renderer identity. Added comparison cases and a live diagnostics assertion for the isolated software-rendered fixture. All-target compilation and static Python/formatting checks pass; tests remain CI-only. CPU model and actual renderer identity remain unimplemented metadata.

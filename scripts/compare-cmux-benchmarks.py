@@ -70,6 +70,13 @@ def comparison_settings(report):
         raise ValueError("host metadata is incomplete")
     if not isinstance(report["includes"], str) or not report["includes"].strip():
         raise ValueError("workload description is missing")
+    software = before.get("libgl_software_override")
+    if software is not None and type(software) is not bool:
+        raise ValueError("software rendering override must be boolean or unknown")
+    final_software = after.get("libgl_software_override")
+    if (final_software is not None and type(final_software) is not bool) or final_software != software:
+        raise ValueError("software rendering override changed during benchmark")
+    settings["libgl_software_override"] = software
     settings.update(host=host, iterations=report["iterations"], warmup=report["warmup"],
                     terminals=terminals, includes=report["includes"])
     return settings

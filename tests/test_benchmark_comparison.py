@@ -49,6 +49,19 @@ class Comparison(unittest.TestCase):
             with self.assertRaises(ValueError):
                 COMPARISON.compare_reports(self.baseline, candidate)
 
+    def test_rendering_override_compatibility(self):
+        """Recorded rendering requests must agree; old unknown metadata is not assumed equivalent."""
+        candidate = copy.deepcopy(self.baseline)
+        for snapshot in (candidate["before"], candidate["after"]):
+            snapshot["libgl_software_override"] = True
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(self.baseline, candidate)
+        result = COMPARISON.compare_reports(candidate, candidate)
+        self.assertIs(result["matched_settings"]["libgl_software_override"], True)
+        candidate["after"]["libgl_software_override"] = 1
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(candidate, candidate)
+
     def test_matching_invalid_metadata_is_rejected(self):
         """Identically corrupted reports must not pass just because their settings match."""
         mutations = [

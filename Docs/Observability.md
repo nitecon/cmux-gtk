@@ -109,8 +109,11 @@ and matches recorded host, build, GTK, backend, terminal count, iterations and
 warmup settings. It recomputes median/p95/p99 from samples and prints JSON values,
 deltas and percentages. Positive changes are slower. It does not infer statistical
 significance or impose a regression threshold. Matching metadata cannot establish
-identical hardware; CPU model and software-rendering identity are not recorded by
-the current ping producer. Memory-churn comparison remains a separate unfinished
+identical hardware; CPU model and actual renderer identity are not recorded. New diagnostic snapshots
+include libgl_software_override: true for LIBGL_ALWAYS_SOFTWARE=1, false for 0,
+and null for absent or unrecognized values. This records the application override,
+not renderer selection. Comparison requires matching before/after and cross-report
+values; older reports with unknown values cannot match a recorded override. Memory-churn comparison remains a separate unfinished
 workload; this command rejects that report type.
 
 Benchmark comparison also requires valid host/workload metadata, integer counts and a positive application PID, plus stable runtime settings and terminal counts between each run's before/after snapshots. Identically malformed reports are rejected. Unrepresentable numeric results produce a command error with no partial JSON output.
