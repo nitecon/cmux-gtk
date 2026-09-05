@@ -14,9 +14,6 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
 
-/// Session name for the agent-browser daemon (one daemon per cmux instance).
-const SESSION_NAME: &str = "cmux";
-
 /// Preview pane state tracked by BrowserManager.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PreviewState {
@@ -35,10 +32,12 @@ pub struct BrowserManager {
 }
 
 impl BrowserManager {
-    /// Create an idle manager; defer executable discovery and daemon startup until needed.
+    /// Create an idle manager with a private daemon identity for its lifetime.
+    /// Defer executable discovery and daemon startup until needed; separate managers
+    /// cannot navigate or shut down each other through a shared session name.
     pub fn new() -> Self {
         BrowserManager {
-            session_name: SESSION_NAME.to_string(),
+            session_name: format!("cmux-{}", Uuid::new_v4().simple()),
             binary_path: None,
             stream_task: None,
             preview_state: PreviewState::Empty,
@@ -215,15 +214,10 @@ impl BrowserManager {
         request
     }
 
-    /// Read the stream port from the port file.
+    /// Read the bounded stream-port advertisement for this manager's daemon.
     pub fn read_stream_port(&self) -> Result<u16, String> {
-        let path = self.stream_port_path();
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read stream port file {}: {}", path.display(), e))?;
-        content
-            .trim()
-            .parse::<u16>()
-            .map_err(|e| format!("Failed to parse stream port '{}': {}", content.trim(), e))
+        read_stream_port_file(&self.stream_port_path())
+            .map_err(|error| format!("Failed to read browser stream port: {error}"))
     }
 
     /// Cancel and release the frame reader; repeated calls are harmless.
@@ -358,5 +352,76 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
         devtools_btn,
         pane_id: next_pane_id,
         uuid,
+    }
+}
+
+/// Read at most 64 bytes of daemon metadata and require a nonzero TCP port.
+/// Performs blocking file I/O; invalid contents are excluded from errors.
+fn read_stream_port_file(path: &std::path::Path) -> std::io::Result<u16> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(65)
+        .read_to_end(&mut bytes)?;
+    let invalid = || {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "invalid browser stream port",
+        )
+    };
+    if bytes.len() > 64 {
+        return Err(invalid());
+    }
+    std::str::from_utf8(&bytes)
+        .ok()
+        .and_then(|text| text.trim().parse::<u16>().ok())
+        .filter(|port| *port != 0)
+        .ok_or_else(invalid)
+}
+
+#[cfg(test)]
+mod manager_tests {
+    use super::*;
+
+    /// Independent managers resolve different command and stream endpoints without starting daemons.
+    #[test]
+    fn manager_sessions_are_isolated() {
+        let first = BrowserManager::new();
+        let second = BrowserManager::new();
+        assert_ne!(first.daemon_socket_path(), second.daemon_socket_path());
+        assert_ne!(first.stream_port_path(), second.stream_port_path());
+        assert_eq!(
+            first.daemon_socket_path().file_stem(),
+            first.stream_port_path().file_stem()
+        );
+    }
+
+    /// Real port files accept valid advertisements and reject oversized or unusable ports.
+    #[test]
+    fn stream_port_files_are_bounded() {
+        let path = std::env::temp_dir().join(format!("cmux-port-{}", Uuid::new_v4()));
+        for valid in [b"1".as_slice(), b"65535\n"] {
+            std::fs::write(&path, valid).unwrap();
+            assert!(read_stream_port_file(&path).is_ok());
+        }
+        for invalid in [
+            b"0".as_slice(),
+            b"65536",
+            b"",
+            b"invalid",
+            &[255],
+            &[b'1'; 65],
+        ] {
+            std::fs::write(&path, invalid).unwrap();
+            assert_eq!(
+                read_stream_port_file(&path).unwrap_err().kind(),
+                std::io::ErrorKind::InvalidData
+            );
+        }
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(
+            read_stream_port_file(&path).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
     }
 }

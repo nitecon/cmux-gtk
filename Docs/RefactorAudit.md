@@ -292,3 +292,7 @@ DEB/RPM builders and the version-bump script now use the documented package_vers
 ### Retire legacy icon identifiers
 
 Renamed the three tracked icon source files from com.cmux_lx.terminal.png to io.cmux.App.png without changing their bytes. Updated generation, DEB/RPM builders, source validation and release archive assembly together; installed icon paths remain io.cmux.App.png. AppStream developer ID now follows the listed nitecon maintainer as io.github.nitecon. Owned packaging and workflow sources no longer reference the old identifier. Shell syntax and diff checks passed; package validation remains in the release workflow.
+
+### Browser daemon ownership and metadata bounds
+
+BrowserManager now generates a private session identity instead of every application instance using the shared cmux daemon. Command sockets, stream advertisements, public CLI calls and shutdown derive from that same identity. This prevents cross-instance navigation/closure, but does not implement crashed-daemon discovery or cleanup. Stream-port file reads retain at most 65 bytes and reject advertisements above 64 bytes, invalid UTF-8, zero and out-of-range ports without echoing file contents. Added endpoint-isolation and real-file boundary/error tests for CI. All-target Cargo check passed. Synchronous startup, public CLI output collection and GTK navigation remain unfinished refactor work.
