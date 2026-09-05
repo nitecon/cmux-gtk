@@ -24,6 +24,41 @@ type notifyingBuffer struct {
 	notify chan struct{}
 }
 
+type failedOutput struct{}
+
+// Write models an SSH output stream whose consumer has disconnected.
+func (failedOutput) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+// TestStreamPumpStopsOnOutputFailure checks that failed delivery retires the stream and reader.
+func TestStreamPumpStopsOnOutputFailure(t *testing.T) {
+	reader, producer := net.Pipe()
+	defer producer.Close()
+	server := &rpcServer{
+		streams:     map[string]*streamState{"stream": {conn: reader}},
+		frameWriter: &stdioFrameWriter{writer: bufio.NewWriter(failedOutput{})},
+	}
+	defer server.closeAll()
+	done := make(chan struct{})
+	go func() {
+		server.streamPump("stream", reader)
+		close(done)
+	}()
+	if _, err := producer.Write([]byte("terminal output")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stream reader continued after its output failed")
+	}
+	if _, exists := server.getStream("stream"); exists {
+		t.Fatal("failed output retained its stream registration")
+	}
+	if _, err := producer.Write([]byte("later output")); err == nil {
+		t.Fatal("failed output did not close the producer connection")
+	}
+}
+
 func newNotifyingBuffer() *notifyingBuffer {
 	return &notifyingBuffer{notify: make(chan struct{}, 1)}
 }

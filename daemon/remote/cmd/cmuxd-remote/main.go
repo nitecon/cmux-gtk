@@ -12,16 +12,12 @@ import (
 	"math"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
-
-	"github.com/creack/pty"
 )
 
 var version = "dev"
@@ -84,38 +80,9 @@ type sessionState struct {
 	lastKnownRows int
 }
 
-// ptyConn wraps a PTY master fd to implement net.Conn for reuse with streamState.
-type ptyConn struct {
-	ptmx *os.File
-	cmd  *exec.Cmd
-}
-
-func (p *ptyConn) Read(b []byte) (int, error)  { return p.ptmx.Read(b) }
-func (p *ptyConn) Write(b []byte) (int, error) { return p.ptmx.Write(b) }
-func (p *ptyConn) Close() error {
-	_ = p.ptmx.Close()
-	if p.cmd != nil && p.cmd.Process != nil {
-		_ = p.cmd.Process.Signal(syscall.SIGTERM)
-		_ = p.cmd.Wait()
-	}
-	return nil
-}
-func (p *ptyConn) LocalAddr() net.Addr                { return nil }
-func (p *ptyConn) RemoteAddr() net.Addr               { return nil }
-func (p *ptyConn) SetDeadline(t time.Time) error      { return nil }
-func (p *ptyConn) SetReadDeadline(t time.Time) error  { return nil }
-func (p *ptyConn) SetWriteDeadline(t time.Time) error { return nil }
-
-// resize changes the PTY window size.
-func (p *ptyConn) resize(cols, rows int) error {
-	return pty.Setsize(p.ptmx, &pty.Winsize{
-		Cols: uint16(cols),
-		Rows: uint16(rows),
-	})
-}
-
 const maxRPCFrameBytes = 4 * 1024 * 1024
 
+// main selects the daemon or relay CLI entry point and returns its process exit status.
 func main() {
 	if shouldRunCLIForInvocation(os.Args[0], os.Args[1:]) {
 		os.Exit(runCLI(os.Args[1:]))
@@ -123,6 +90,7 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
+// shouldRunCLIForInvocation recognizes the cmux shim while preserving explicit daemon entry commands.
 func shouldRunCLIForInvocation(argv0 string, args []string) bool {
 	base := filepath.Base(argv0)
 	if base == "cmux" {
@@ -134,6 +102,7 @@ func shouldRunCLIForInvocation(argv0 string, args []string) bool {
 	return !isDaemonEntryCommand(args[0])
 }
 
+// isDaemonEntryCommand distinguishes daemon lifecycle commands from forwarded CLI operations.
 func isDaemonEntryCommand(arg string) bool {
 	switch arg {
 	case "version", "serve", "cli":
@@ -143,6 +112,7 @@ func isDaemonEntryCommand(arg string) bool {
 	}
 }
 
+// run dispatches daemon entry commands with injectable streams and conventional usage/error exit codes.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		usage(stderr)
@@ -177,6 +147,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 }
 
+// usage writes daemon invocation help to the supplied stream.
 func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "Usage:")
 	_, _ = fmt.Fprintln(w, "  cmuxd-remote version")
@@ -184,6 +155,7 @@ func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "  cmuxd-remote cli <command> [args...]")
 }
 
+// runStdioServer serves bounded JSON request frames and retires all streams when input or output closes.
 func runStdioServer(stdin io.Reader, stdout io.Writer) error {
 	writer := &stdioFrameWriter{
 		writer: bufio.NewWriter(stdout),
@@ -247,6 +219,7 @@ func runStdioServer(stdin io.Reader, stdout io.Writer) error {
 	}
 }
 
+// setTCPNoDelay disables Nagle buffering on TCP streams while leaving other transports unchanged.
 func setTCPNoDelay(conn net.Conn) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -255,6 +228,7 @@ func setTCPNoDelay(conn net.Conn) {
 	_ = tcpConn.SetNoDelay(true)
 }
 
+// readRPCFrame bounds one newline-delimited request, drains oversized frames and accepts a final unterminated frame.
 func readRPCFrame(reader *bufio.Reader, maxBytes int) ([]byte, bool, error) {
 	frame := make([]byte, 0, 1024)
 	for {
@@ -287,6 +261,7 @@ func readRPCFrame(reader *bufio.Reader, maxBytes int) ([]byte, bool, error) {
 	}
 }
 
+// discardUntilNewline resynchronizes framing after overflow without retaining discarded bytes.
 func discardUntilNewline(reader *bufio.Reader) error {
 	for {
 		_, err := reader.ReadSlice('\n')
@@ -300,14 +275,17 @@ func discardUntilNewline(reader *bufio.Reader) error {
 	}
 }
 
+// writeResponse sends a response through the shared serialized output path.
 func (w *stdioFrameWriter) writeResponse(resp rpcResponse) error {
 	return w.writeJSONFrame(resp)
 }
 
+// writeEvent sends a stream event without interleaving its bytes with other writers.
 func (w *stdioFrameWriter) writeEvent(event rpcEvent) error {
 	return w.writeJSONFrame(event)
 }
 
+// writeJSONFrame encodes before locking, then writes and flushes one indivisible JSONL frame.
 func (w *stdioFrameWriter) writeJSONFrame(payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -324,6 +302,7 @@ func (w *stdioFrameWriter) writeJSONFrame(payload any) error {
 	return w.writer.Flush()
 }
 
+// handleRequest validates method presence and dispatches the advertised proxy/session operations.
 func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 	if req.Method == "" {
 		return rpcResponse{
@@ -460,6 +439,7 @@ func (s *rpcServer) handleProxyOpen(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleProxyClose validates the stream identity and closes it idempotently through shared ownership.
 func (s *rpcServer) handleProxyClose(req rpcRequest) rpcResponse {
 	streamID, ok := getStringParam(req.Params, "stream_id")
 	if !ok || streamID == "" {
@@ -473,24 +453,7 @@ func (s *rpcServer) handleProxyClose(req rpcRequest) rpcResponse {
 		}
 	}
 
-	s.mu.Lock()
-	state, exists := s.streams[streamID]
-	if exists {
-		delete(s.streams, streamID)
-	}
-	s.mu.Unlock()
-
-	if !exists {
-		return rpcResponse{
-			ID: req.ID,
-			OK: true,
-			Result: map[string]any{
-				"closed": true,
-			},
-		}
-	}
-
-	_ = state.conn.Close()
+	s.dropStream(streamID)
 	return rpcResponse{
 		ID: req.ID,
 		OK: true,
@@ -648,6 +611,7 @@ func (s *rpcServer) handleProxyStreamSubscribe(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleSessionSpawn resolves launch defaults, starts a PTY and registers its connection for stream I/O.
 func (s *rpcServer) handleSessionSpawn(req rpcRequest) rpcResponse {
 	// Get optional cols/rows (default 80x24)
 	cols := 80
@@ -665,16 +629,8 @@ func (s *rpcServer) handleSessionSpawn(req rpcRequest) rpcResponse {
 		shell = "/bin/sh"
 	}
 
-	// Start a PTY with the shell
-	cmd := exec.Command(shell, "-l")
-	if cwd, ok := getStringParam(req.Params, "cwd"); ok && cwd != "" {
-		cmd.Dir = cwd
-	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
-		Cols: uint16(cols),
-		Rows: uint16(rows),
-	})
+	directory, _ := getStringParam(req.Params, "cwd")
+	conn, err := startPTY(shell, directory, cols, rows)
 	if err != nil {
 		return rpcResponse{
 			ID: req.ID,
@@ -690,7 +646,7 @@ func (s *rpcServer) handleSessionSpawn(req rpcRequest) rpcResponse {
 	s.mu.Lock()
 	streamID := fmt.Sprintf("s-%d", s.nextStreamID)
 	s.nextStreamID++
-	s.streams[streamID] = &streamState{conn: &ptyConn{ptmx: ptmx, cmd: cmd}}
+	s.streams[streamID] = &streamState{conn: conn}
 	s.mu.Unlock()
 
 	return rpcResponse{
@@ -705,6 +661,7 @@ func (s *rpcServer) handleSessionSpawn(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleStreamResize validates positive dimensions and resizes an existing PTY stream when applicable.
 func (s *rpcServer) handleStreamResize(req rpcRequest) rpcResponse {
 	streamID, ok := getStringParam(req.Params, "stream_id")
 	if !ok || streamID == "" {
@@ -1095,6 +1052,7 @@ func sessionSnapshot(sessionID string, session *sessionState) map[string]any {
 	}
 }
 
+// getStream borrows a stream registration under the server lock; the connection may be closed concurrently.
 func (s *rpcServer) getStream(streamID string) (*streamState, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1102,6 +1060,7 @@ func (s *rpcServer) getStream(streamID string) (*streamState, bool) {
 	return state, ok
 }
 
+// dropStream removes ownership under lock and closes the connection once outside the server lock.
 func (s *rpcServer) dropStream(streamID string) {
 	s.mu.Lock()
 	state, ok := s.streams[streamID]
@@ -1114,6 +1073,7 @@ func (s *rpcServer) dropStream(streamID string) {
 	}
 }
 
+// closeAll drains stream/session registrations and releases native connections without holding the registry lock.
 func (s *rpcServer) closeAll() {
 	s.mu.Lock()
 	streams := make([]net.Conn, 0, len(s.streams))
@@ -1130,6 +1090,7 @@ func (s *rpcServer) closeAll() {
 	}
 }
 
+// streamPump forwards encoded output until EOF, read failure or failed delivery, then retires its stream.
 func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -1145,13 +1106,16 @@ func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
 	buffer := make([]byte, 32768)
 	for {
 		n, readErr := conn.Read(buffer)
-		data := append([]byte(nil), buffer[:max(0, n)]...)
+		data := buffer[:max(0, n)]
 		if len(data) > 0 {
-			_ = s.frameWriter.writeEvent(rpcEvent{
+			if err := s.frameWriter.writeEvent(rpcEvent{
 				Event:      "proxy.stream.data",
 				StreamID:   streamID,
 				DataBase64: base64.StdEncoding.EncodeToString(data),
-			})
+			}); err != nil {
+				s.dropStream(streamID)
+				return
+			}
 		}
 
 		if readErr == nil {
@@ -1186,6 +1150,7 @@ func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
 	}
 }
 
+// getStringParam accepts only present non-null string parameters.
 func getStringParam(params map[string]any, key string) (string, bool) {
 	if params == nil {
 		return "", false
@@ -1198,6 +1163,7 @@ func getStringParam(params map[string]any, key string) (string, bool) {
 	return value, ok
 }
 
+// getIntParam converts supported numeric representations and rejects fractional floating-point values.
 func getIntParam(params map[string]any, key string) (int, bool) {
 	if params == nil {
 		return 0, false
