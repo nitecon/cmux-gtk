@@ -34,7 +34,6 @@ from pathlib import Path
 import select
 import os
 import time
-import errno
 import json
 import base64
 import re
@@ -43,6 +42,7 @@ from typing import Optional, List, Tuple, Union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from cmux_socket_discovery import default_socket_path as _default_socket_path
+from cmux_socket_transport import connect_socket
 
 class cmuxError(Exception):
     """Exception raised for cmux errors"""
@@ -95,52 +95,35 @@ class cmux:
         return _default_bundle_id()
 
     def __init__(self, socket_path: str = None):
+        """Resolve discovery at construction time and initialize disconnected protocol state."""
         # Resolve at init time so imports don't "lock in" a stale path.
         self.socket_path = socket_path or _default_socket_path()
         self._socket: Optional[socket.socket] = None
         self._recv_buffer: str = ""
 
     def connect(self) -> None:
-        """Connect to the cmux socket"""
+        """Connect within a bounded startup budget, retaining one owned socket."""
         if self._socket is not None:
             return
-
-        start = time.time()
-        while not os.path.exists(self.socket_path):
-            if time.time() - start >= 2.0:
-                raise cmuxError(
-                    f"Socket not found at {self.socket_path}. "
-                    "Is cmux running?"
-                )
-            time.sleep(0.1)
-
-        last_error: Optional[socket.error] = None
-        while True:
-            self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                self._socket.connect(self.socket_path)
-                self._socket.settimeout(5.0)
-                return
-            except socket.error as e:
-                last_error = e
-                self._socket.close()
-                self._socket = None
-                if e.errno in (errno.ECONNREFUSED, errno.ENOENT) and time.time() - start < 2.0:
-                    time.sleep(0.1)
-                    continue
-                raise cmuxError(f"Failed to connect: {e}")
+        try:
+            self._socket = connect_socket(self.socket_path, 2.0, 5.0)
+        except OSError as error:
+            raise cmuxError(f"Failed to connect: {error}") from error
 
     def close(self) -> None:
-        """Close the connection"""
-        if self._socket is not None:
-            self._socket.close()
-            self._socket = None
+        """Release the connection and discard any response buffered from that server."""
+        connection, self._socket = self._socket, None
+        self._recv_buffer = ""
+        if connection is not None:
+            connection.close()
 
     def __enter__(self):
+        """Connect on entering a client context."""
         self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Always close the client while preserving an exception from its context."""
         self.close()
         return False
 
