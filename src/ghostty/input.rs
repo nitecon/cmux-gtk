@@ -24,10 +24,20 @@ pub fn map_mods(state: gtk4::gdk::ModifierType) -> ffi::ghostty_input_mods_e {
 mod tests {
     use super::*;
 
+    /// Modifier combinations preserve exact native flags without unrelated bits.
     #[test]
     fn test_map_mods() {
         use gtk4::gdk::ModifierType;
 
+        assert_eq!(map_mods(ModifierType::empty()), 0);
+        assert_eq!(
+            map_mods(ModifierType::ALT_MASK),
+            ffi::ghostty_input_mods_e_GHOSTTY_MODS_ALT
+        );
+        assert_eq!(
+            map_mods(ModifierType::SUPER_MASK),
+            ffi::ghostty_input_mods_e_GHOSTTY_MODS_SUPER
+        );
         // Test shift
         let shift = map_mods(ModifierType::SHIFT_MASK);
         assert_eq!(shift, ffi::ghostty_input_mods_e_GHOSTTY_MODS_SHIFT);

@@ -40,24 +40,16 @@ pub fn session_path() -> PathBuf {
 }
 
 /// Save session data atomically.
-/// Writes to session.json.tmp first, then rename()s to session.json.
-/// rename() is atomic on Linux (same filesystem). kill -9 mid-write leaves .tmp only.
+/// Stages a private sibling file before replacement; readers see complete snapshots.
+/// Atomic visibility does not imply power-loss durability or a shutdown flush.
 pub fn save_session_atomic(data: &SessionData) -> std::io::Result<()> {
     save_session_to(data, &session_path())
 }
 
 /// Internal: save to a specific path (used in tests with temp paths).
 pub fn save_session_to(data: &SessionData, path: &Path) -> std::io::Result<()> {
-    // Ensure parent directory exists.
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let tmp_path = path.with_extension("json.tmp");
-    let json = serde_json::to_string_pretty(data)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    std::fs::write(&tmp_path, json.as_bytes())?;
-    std::fs::rename(&tmp_path, path)?;
-    Ok(())
+    let json = serde_json::to_vec_pretty(data).map_err(std::io::Error::other)?;
+    cmux_platform::filesystem::atomic_write(path, &json)
 }
 
 /// Load session from disk. Returns None if the file is missing, empty, or invalid JSON.
@@ -82,7 +74,10 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
     match serde_json::from_str::<SessionData>(&content) {
         Ok(data) => {
             if data.version != 1 && data.version != 2 && data.version != 3 {
-                eprintln!("cmux: session version {} not supported, ignoring", data.version);
+                eprintln!(
+                    "cmux: session version {} not supported, ignoring",
+                    data.version
+                );
                 return None;
             }
             Some(data)
@@ -99,6 +94,7 @@ mod tests {
     use super::*;
     use crate::split_engine::SplitNodeData;
 
+    /// Construct a minimal serializable workspace for persistence scenarios.
     fn dummy_session(name: &str) -> SessionData {
         SessionData {
             version: 1,
@@ -133,11 +129,14 @@ mod tests {
         let result = save_session_to(&data, &path);
         assert!(result.is_ok(), "save_session_to failed: {:?}", result);
         // The file must exist on disk -- not just Ok(()), but actually written.
-        assert!(path.exists(), "session.json not created on disk after save_session_to");
+        assert!(
+            path.exists(),
+            "session.json not created on disk after save_session_to"
+        );
         // The content must be valid JSON with the correct workspace name.
         let content = std::fs::read_to_string(&path).expect("could not read session.json");
-        let parsed: SessionData = serde_json::from_str(&content)
-            .expect("session.json is not valid JSON");
+        let parsed: SessionData =
+            serde_json::from_str(&content).expect("session.json is not valid JSON");
         assert_eq!(parsed.workspaces[0].name, "TestWorkspace");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -156,10 +155,14 @@ mod tests {
         assert_eq!(loaded.version, 1);
         assert_eq!(loaded.workspaces.len(), 1);
         assert_eq!(loaded.workspaces[0].name, "MyWorkspace");
-        assert_eq!(loaded.workspaces[0].working_directory, Some(PathBuf::from("/tmp")));
+        assert_eq!(
+            loaded.workspaces[0].working_directory,
+            Some(PathBuf::from("/tmp"))
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Older session records remain readable without a workspace launch directory.
     #[test]
     fn test_legacy_session_without_working_directory() {
         let json = r#"{"version":2,"active_index":0,"workspaces":[{"uuid":"test-uuid-1","name":"Legacy","active_pane_uuid":null,"layout":{"type":"Leaf","pane_id":1000,"surface_uuid":"00000000-0000-0000-0000-000000000000","shell":"/bin/sh","cwd":"/tmp"}}]}"#;
@@ -173,14 +176,21 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("cmux-test-atomic-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("session.json");
-        let tmp_path = path.with_extension("json.tmp");
 
         let data = dummy_session("AtomicTest");
         save_session_to(&data, &path).unwrap();
 
         // After successful save: session.json exists, .tmp must be gone (renamed).
         assert!(path.exists(), "session.json must exist after save");
-        assert!(!tmp_path.exists(), "session.json.tmp must be gone after successful rename");
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            1,
+            "temporary files must be removed"
+        );
+        assert_eq!(
+            load_session_from(&path).unwrap().workspaces[0].name,
+            "AtomicTest"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -189,6 +199,9 @@ mod tests {
     fn test_graceful_fallback() {
         let path = std::path::PathBuf::from("/tmp/cmux-nonexistent-session-xyz.json");
         let result = load_session_from(&path);
-        assert!(result.is_none(), "load_session_from must return None for missing file");
+        assert!(
+            result.is_none(),
+            "load_session_from must return None for missing file"
+        );
     }
 }

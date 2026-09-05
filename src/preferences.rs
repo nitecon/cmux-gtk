@@ -6,43 +6,46 @@ struct Preferences {
     font_size: f32,
 }
 
+/// Locate terminal preferences beside the application configuration.
 fn path() -> PathBuf {
     crate::config::config_path().with_file_name("preferences.json")
 }
 
+/// Accept finite font sizes within the supported point-size range.
 fn valid(size: f32) -> bool {
     size.is_finite() && (6.0..=72.0).contains(&size)
 }
 
+/// Load a valid stored font size, ignoring missing or malformed preferences.
 fn read_size(path: &Path) -> Option<f32> {
     let prefs: Preferences = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
     valid(prefs.font_size).then_some(prefs.font_size)
 }
 
+/// Return the optional user-selected terminal size without changing native configuration.
 pub fn saved_font_size() -> Option<f32> {
     read_size(&path())
 }
 
+/// Validate and atomically persist the font size, returning user-readable errors.
 fn save_size(path: &Path, size: f32) -> Result<(), String> {
     if !valid(size) {
         return Err("Font size must be between 6 and 72 points.".into());
     }
     let contents = serde_json::to_vec_pretty(&Preferences { font_size: size })
         .map_err(|error| error.to_string())?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let temporary = path.with_extension("json.tmp");
-    std::fs::write(&temporary, contents).map_err(|error| error.to_string())?;
-    std::fs::rename(temporary, path).map_err(|error| error.to_string())
+    cmux_platform::filesystem::atomic_write(path, &contents).map_err(|error| error.to_string())
 }
 
+/// Snapshot registered native terminal handles for use on the GTK thread.
 fn surfaces() -> Vec<usize> {
-    crate::ghostty::callbacks::GL_TO_SURFACE.lock()
+    crate::ghostty::callbacks::GL_TO_SURFACE
+        .lock()
         .map(|registry| registry.values().copied().collect())
         .unwrap_or_default()
 }
 
+/// Display the font-size editor and apply successful changes to live terminal surfaces.
 pub fn show(parent: &gtk4::ApplicationWindow) {
     let dialog = gtk4::Dialog::builder()
         .title("Preferences")
@@ -64,14 +67,20 @@ pub fn show(parent: &gtk4::ApplicationWindow) {
     label.set_xalign(0.0);
     let size = gtk4::SpinButton::with_range(6.0, 72.0, 0.5);
     size.set_digits(1);
-    let current = saved_font_size().or_else(|| surfaces().first().map(|surface| unsafe {
-        crate::ghostty::ffi::ghostty_surface_font_size(*surface as _)
-    })).unwrap_or(12.0);
+    let current = saved_font_size()
+        .or_else(|| {
+            surfaces().first().map(|surface| unsafe {
+                crate::ghostty::ffi::ghostty_surface_font_size(*surface as _)
+            })
+        })
+        .unwrap_or(12.0);
     size.set_value(current as f64);
     row.append(&label);
     row.append(&size);
     content.append(&row);
-    let help = gtk4::Label::new(Some("Applies to all terminal tabs, including new tabs.\nSaved for future launches."));
+    let help = gtk4::Label::new(Some(
+        "Applies to all terminal tabs, including new tabs.\nSaved for future launches.",
+    ));
     help.set_xalign(0.0);
     help.set_wrap(true);
     content.append(&help);
@@ -94,14 +103,20 @@ pub fn show(parent: &gtk4::ApplicationWindow) {
         for surface in surfaces() {
             let applied = unsafe {
                 crate::ghostty::ffi::ghostty_surface_binding_action(
-                    surface as _, action.as_ptr().cast(), action.len(),
+                    surface as _,
+                    action.as_ptr().cast(),
+                    action.len(),
                 )
             };
             failed |= !applied;
         }
-        crate::diagnostics::event(format_args!("terminal font size saved points={value} live_apply_failed={failed}"));
+        crate::diagnostics::event(format_args!(
+            "terminal font size saved points={value} live_apply_failed={failed}"
+        ));
         if failed {
-            error_label.set_text("Saved. Some terminals could not update; reopen those tabs to apply the size.");
+            error_label.set_text(
+                "Saved. Some terminals could not update; reopen those tabs to apply the size.",
+            );
         } else {
             dialog.close();
         }
@@ -114,6 +129,7 @@ mod tests {
     use super::*;
 
     #[test]
+    /// Verify stored sizes round-trip and unsupported values are rejected.
     fn font_size_roundtrip_and_invalid_values() {
         let dir = std::env::temp_dir().join(format!("cmux-font-{}", uuid::Uuid::new_v4()));
         let path = dir.join("preferences.json");

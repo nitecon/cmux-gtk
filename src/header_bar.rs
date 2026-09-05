@@ -1,63 +1,62 @@
+//! GTK header controls backed by the same window actions as menus and shortcuts.
+
 use gtk4::prelude::*;
 
-/// Build the header bar per D-04, D-05, D-06.
-/// Returns None if config style is "none".
+/// Build workspace and pane controls on the GTK thread, unless the header is hidden.
 pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBar> {
     if config.ui.header_bar.style == "none" {
         return None;
     }
-
     let header = gtk4::HeaderBar::new();
     header.add_css_class("cmux-headerbar");
-
-    // Left side: workspace actions (D-06)
-
-    // [+] New Workspace (D-05)
-    let new_ws_btn = gtk4::Button::from_icon_name("tab-new-symbolic");
-    new_ws_btn.set_tooltip_text(Some("New Workspace (Ctrl+N)"));
-    new_ws_btn.set_action_name(Some("win.new-workspace"));
-    new_ws_btn.add_css_class("headerbar-btn");
-    header.pack_start(&new_ws_btn);
-
-    // [Browser] New browser tab in the focused pane (D-05, D-07)
-    let browser_btn = gtk4::Button::from_icon_name("web-browser-symbolic");
-    browser_btn.set_tooltip_text(Some("New Tab (Browser) (Ctrl+Shift+L)"));
-    browser_btn.set_action_name(Some("win.new-browser-tab"));
-    browser_btn.add_css_class("headerbar-btn");
-    header.pack_start(&browser_btn);
-
-    // Right side: pane/view actions (D-06)
-    // Note: pack_end adds right-to-left, so order is reversed from visual
-
-    // Hamburger menu (D-11) — rightmost, so pack_end first
-    let menu_model = crate::menus::build_hamburger_menu();
-    let menu_btn = gtk4::MenuButton::new();
-    menu_btn.set_icon_name("open-menu-symbolic");
-    menu_btn.set_tooltip_text(Some("Menu"));
-    menu_btn.set_menu_model(Some(&menu_model));
-    menu_btn.add_css_class("headerbar-btn");
-    header.pack_end(&menu_btn);
-
-    // Toggle Sidebar (D-05) — second from right
-    let sidebar_btn = gtk4::Button::from_icon_name("sidebar-show-symbolic");
-    sidebar_btn.set_tooltip_text(Some("Toggle Sidebar (Ctrl+B)"));
-    sidebar_btn.set_action_name(Some("win.toggle-sidebar"));
-    sidebar_btn.add_css_class("headerbar-btn");
-    header.pack_end(&sidebar_btn);
-
-    // Split Vertical / Split Down (D-05)
-    let split_v_btn = gtk4::Button::from_icon_name("object-flip-vertical-symbolic");
-    split_v_btn.set_tooltip_text(Some("Split Down (Ctrl+Shift+D)"));
-    split_v_btn.set_action_name(Some("win.split-down"));
-    split_v_btn.add_css_class("headerbar-btn");
-    header.pack_end(&split_v_btn);
-
-    // Split Horizontal / Split Right (D-05)
-    let split_h_btn = gtk4::Button::from_icon_name("view-dual-symbolic");
-    split_h_btn.set_tooltip_text(Some("Split Right (Ctrl+D)"));
-    split_h_btn.set_action_name(Some("win.split-right"));
-    split_h_btn.add_css_class("headerbar-btn");
-    header.pack_end(&split_h_btn);
-
+    for (icon, tooltip, action) in [
+        (
+            "tab-new-symbolic",
+            "New Workspace (Ctrl+N)",
+            "win.new-workspace",
+        ),
+        (
+            "web-browser-symbolic",
+            "New Tab (Browser) (Ctrl+Shift+L)",
+            "win.new-browser-tab",
+        ),
+    ] {
+        header.pack_start(&action_button(icon, tooltip, action));
+    }
+    let menu = gtk4::MenuButton::new();
+    menu.set_icon_name("open-menu-symbolic");
+    menu.set_tooltip_text(Some("Menu"));
+    menu.set_menu_model(Some(&crate::menus::build_hamburger_menu()));
+    menu.add_css_class("headerbar-btn");
+    // GTK packs end children from right to left, starting with the menu.
+    header.pack_end(&menu);
+    for (icon, tooltip, action) in [
+        (
+            "sidebar-show-symbolic",
+            "Toggle Sidebar (Ctrl+B)",
+            "win.toggle-sidebar",
+        ),
+        (
+            "object-flip-vertical-symbolic",
+            "Split Down (Ctrl+Shift+D)",
+            "win.split-down",
+        ),
+        (
+            "view-dual-symbolic",
+            "Split Right (Ctrl+D)",
+            "win.split-right",
+        ),
+    ] {
+        header.pack_end(&action_button(icon, tooltip, action));
+    }
     Some(header)
+}
+
+/// Create a consistently styled header button bound to an existing GIO action.
+fn action_button(icon: &str, tooltip: &str, action: &str) -> gtk4::Button {
+    let button = gtk4::Button::from_icon_name(icon);
+    button.set_tooltip_text(Some(tooltip));
+    button.set_action_name(Some(action));
+    button.add_css_class("headerbar-btn");
+    button
 }

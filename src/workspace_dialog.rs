@@ -73,7 +73,9 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
     let script_entry = gtk4::Entry::new();
     script_entry.set_placeholder_text(Some("/path/to/start-workspace.sh"));
     content.append(&script_entry);
-    let script_help = gtk4::Label::new(Some("Runs in each terminal, including after restart. Leave empty for a regular shell."));
+    let script_help = gtk4::Label::new(Some(
+        "Runs in each terminal, including after restart. Leave empty for a regular shell.",
+    ));
     script_help.set_wrap(true);
     script_help.set_xalign(0.0);
     script_help.add_css_class("dim-label");
@@ -100,7 +102,9 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
         let name_entry = name_entry.clone();
         let dialog = dialog.downgrade();
         move |_| {
-            let Some(dialog) = dialog.upgrade() else { return; };
+            let Some(dialog) = dialog.upgrade() else {
+                return;
+            };
             let chooser = gtk4::FileChooserNative::builder()
                 .title("Choose Workspace Folder")
                 .action(gtk4::FileChooserAction::SelectFolder)
@@ -152,9 +156,15 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
             let path = std::path::PathBuf::from(path_entry.text().as_str());
             let script = script_entry.text();
             let result = if script.trim().is_empty() {
-                state.borrow_mut().create_workspace_in(name_entry.text().to_string(), &path)
+                state
+                    .borrow_mut()
+                    .create_workspace_in(name_entry.text().to_string(), &path)
             } else {
-                state.borrow_mut().create_script_workspace(name_entry.text().to_string(), &path, std::path::Path::new(script.as_str()))
+                state.borrow_mut().create_script_workspace(
+                    name_entry.text().to_string(),
+                    &path,
+                    std::path::Path::new(script.as_str()),
+                )
             };
             match result {
                 Ok(_) => {
@@ -174,6 +184,7 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
     browse_button.grab_focus();
 }
 
+/// Validate the selected folder and keep the create action disabled until it is usable.
 fn update_path_validation(
     path_entry: &gtk4::Entry,
     create_button: &gtk4::Widget,

@@ -19,7 +19,8 @@ pub fn parse_ssh_config_hosts(content: &str) -> Vec<String> {
     let mut hosts = Vec::new();
     for line in content.lines() {
         let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("Host ")
+        if let Some(rest) = trimmed
+            .strip_prefix("Host ")
             .or_else(|| trimmed.strip_prefix("Host\t"))
         {
             for host in rest.split_whitespace() {
@@ -60,13 +61,6 @@ pub fn save_host(target: &str) {
     file.hosts.push(target.to_string());
 
     let path = ssh_hosts_path();
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            eprintln!("cmux: failed to create config dir: {e}");
-            return;
-        }
-    }
-
     let content = match toml::to_string_pretty(&file) {
         Ok(s) => s,
         Err(e) => {
@@ -75,14 +69,8 @@ pub fn save_host(target: &str) {
         }
     };
 
-    // Atomic write: write to .tmp then rename
-    let tmp_path = path.with_extension("toml.tmp");
-    if let Err(e) = std::fs::write(&tmp_path, &content) {
-        eprintln!("cmux: failed to write ssh_hosts tmp: {e}");
-        return;
-    }
-    if let Err(e) = std::fs::rename(&tmp_path, &path) {
-        eprintln!("cmux: failed to rename ssh_hosts tmp: {e}");
+    if let Err(error) = cmux_platform::filesystem::atomic_write(&path, content.as_bytes()) {
+        eprintln!("cmux: failed to save SSH hosts: {error}");
     }
 }
 
@@ -161,12 +149,18 @@ mod tests {
 
     #[test]
     fn test_workspace_name_user_at_host() {
-        assert_eq!(workspace_name_from_target("user@host.example.com"), "host.example.com");
+        assert_eq!(
+            workspace_name_from_target("user@host.example.com"),
+            "host.example.com"
+        );
     }
 
     #[test]
     fn test_workspace_name_host_only() {
-        assert_eq!(workspace_name_from_target("host.example.com"), "host.example.com");
+        assert_eq!(
+            workspace_name_from_target("host.example.com"),
+            "host.example.com"
+        );
     }
 
     #[test]

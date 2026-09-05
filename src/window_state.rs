@@ -11,16 +11,23 @@ struct WindowState {
 }
 
 impl Default for WindowState {
+    /// Use a normal 800×600 window when no valid saved geometry exists.
     fn default() -> Self {
-        Self { width: 800, height: 600, maximized: false, position: None }
+        Self {
+            width: 800,
+            height: 600,
+            maximized: false,
+            position: None,
+        }
     }
 }
 
-
+/// Locate persisted geometry beside the workspace session.
 fn path() -> PathBuf {
     crate::session::session_path().with_file_name("window-state.json")
 }
 
+/// Decode geometry with defaults and clamp invalid dimensions to usable bounds.
 fn read(contents: &str) -> WindowState {
     let mut state: WindowState = serde_json::from_str(contents).unwrap_or_default();
     state.width = state.width.clamp(320, 16384);
@@ -28,8 +35,11 @@ fn read(contents: &str) -> WindowState {
     state
 }
 
+/// Persist changed normal geometry on the GTK thread, retaining prior placement while maximized.
 fn capture(window: &gtk4::ApplicationWindow, previous: &Rc<RefCell<WindowState>>) {
-    if !window.is_mapped() { return; }
+    if !window.is_mapped() {
+        return;
+    }
     let mut state = previous.borrow().clone();
     state.maximized = window.is_maximized();
     if !state.maximized && !window.is_fullscreen() {
@@ -45,13 +55,11 @@ fn capture(window: &gtk4::ApplicationWindow, previous: &Rc<RefCell<WindowState>>
             }
         }
     }
-    if state == *previous.borrow() { return; }
+    if state == *previous.borrow() {
+        return;
+    }
     let save = || -> Result<(), Box<dyn std::error::Error>> {
-        let path = path();
-        std::fs::create_dir_all(path.parent().unwrap())?;
-        let temporary = path.with_extension("json.tmp");
-        std::fs::write(&temporary, serde_json::to_vec_pretty(&state)?)?;
-        std::fs::rename(temporary, path)?;
+        cmux_platform::filesystem::atomic_write(&path(), &serde_json::to_vec_pretty(&state)?)?;
         Ok(())
     };
     match save() {
@@ -60,22 +68,29 @@ fn capture(window: &gtk4::ApplicationWindow, previous: &Rc<RefCell<WindowState>>
     }
 }
 
+/// Restore saved geometry and register weak periodic and close-time capture callbacks.
 pub fn install(window: &gtk4::ApplicationWindow) {
     let saved = read(&std::fs::read_to_string(path()).unwrap_or_default());
     window.set_default_size(saved.width, saved.height);
-    if saved.maximized { window.maximize(); }
+    if saved.maximized {
+        window.maximize();
+    }
     if let Some((x, y)) = saved.position {
         window.connect_realize(move |window| {
-            let Some(surface) = window.surface() else { return };
+            let Some(surface) = window.surface() else {
+                return;
+            };
             // Ignore stale coordinates if the monitor layout has changed.
             let monitors = gtk4::prelude::WidgetExt::display(window).monitors();
             let visible = (0..monitors.n_items()).any(|i| {
-                monitors.item(i).and_downcast::<gtk4::gdk::Monitor>()
+                monitors
+                    .item(i)
+                    .and_downcast::<gtk4::gdk::Monitor>()
                     .map(|monitor| {
                         let r = monitor.geometry();
-                        x >= r.x() && x < r.x() + r.width()
-                            && y >= r.y() && y < r.y() + r.height()
-                    }).unwrap_or(false)
+                        x >= r.x() && x < r.x() + r.width() && y >= r.y() && y < r.y() + r.height()
+                    })
+                    .unwrap_or(false)
             });
             if visible {
                 cmux_platform::window::restore_position(&surface, x, y);
@@ -92,7 +107,9 @@ pub fn install(window: &gtk4::ApplicationWindow) {
     });
     let weak = window.downgrade();
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        let Some(window) = weak.upgrade() else { return glib::ControlFlow::Break };
+        let Some(window) = weak.upgrade() else {
+            return glib::ControlFlow::Break;
+        };
         capture(&window, &previous);
         glib::ControlFlow::Continue
     });
@@ -102,8 +119,14 @@ pub fn install(window: &gtk4::ApplicationWindow) {
 mod tests {
     use super::*;
     #[test]
+    /// Verify saved geometry round-trips and malformed dimensions use safe bounds.
     fn roundtrip_and_invalid_geometry() {
-        let state = WindowState { width: 1200, height: 900, maximized: true, position: Some((-900, 80)) };
+        let state = WindowState {
+            width: 1200,
+            height: 900,
+            maximized: true,
+            position: Some((-900, 80)),
+        };
         assert_eq!(read(&serde_json::to_string(&state).unwrap()), state);
         assert_eq!(read("invalid"), WindowState::default());
         let clamped = read(r#"{"width":-1,"height":999999}"#);

@@ -3,6 +3,3 @@ pub mod ffi;
 pub mod input;
 pub mod surface;
 pub mod gtk_environment;
-
-#[cfg(test)]
-mod input_tests;
