@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Automated tests for Ctrl+C and Ctrl+D using the cmux socket interface.
+Shared upstream Ctrl+C and Ctrl+D scenarios using the cmux socket interface.
+Requires legacy send/control-key APIs and upstream resource-layout assumptions;
+this suite is not evidence that the Linux port implements those contracts.
 
 Usage:
     python3 test_ctrl_socket.py
@@ -16,7 +18,7 @@ import time
 import tempfile
 from pathlib import Path
 
-# Add the directory containing cmux.py to the path
+# Keep the invoked directory lexical so the v2 symlink selects its own client.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError
@@ -24,15 +26,18 @@ from cmux import cmux, cmuxError
 
 class TestResult:
     def __init__(self, name: str):
+        """Create a failed-by-default scenario result with a descriptive name."""
         self.name = name
         self.passed = False
         self.message = ""
 
     def success(self, msg: str = ""):
+        """Mark the scenario passed and retain its optional explanation."""
         self.passed = True
         self.message = msg
 
     def failure(self, msg: str):
+        """Retain a failure explanation; the scenario starts in the failed state."""
         self.passed = False
         self.message = msg
 
@@ -271,7 +276,7 @@ def test_environment_paths(client: cmux) -> TestResult:
 
 
 def run_tests():
-    """Run all tests"""
+    """Run legacy socket input/environment probes and summarize failures against a running app."""
     print("=" * 60)
     print("cmux Ctrl+C/D Automated Tests")
     print("=" * 60)
