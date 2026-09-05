@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from process_support import stop_process
 
 
 def eventually(check):
@@ -104,8 +105,7 @@ Subsystem sftp internal-sftp
 
     def stop():
         """Terminate the owned GTK process and require its exit within ten seconds."""
-        app.terminate()
-        app.wait(timeout=10)
+        assert not stop_process(app), "application required forced shutdown"
 
     def session():
         """Read the current persisted session for workspace and launch-state assertions."""
@@ -170,11 +170,14 @@ Subsystem sftp internal-sftp
                 print(name, path.read_text()[-16000:])
         raise
     finally:
-        if app and app.poll() is None:
-            stop()
-        pidfile = root / "sshd.pid"
-        if pidfile.exists():
-            subprocess.run(["sudo", "kill", pidfile.read_text().strip()], check=False)
-        sshd.wait(timeout=10)
-        app_log.close()
-        ssh_log.close()
+        try:
+            stop_process(app)
+        finally:
+            try:
+                pidfile = root / "sshd.pid"
+                if pidfile.exists():
+                    subprocess.run(["sudo", "kill", pidfile.read_text().strip()], check=False, timeout=10)
+                sshd.wait(timeout=10)
+            finally:
+                app_log.close()
+                ssh_log.close()

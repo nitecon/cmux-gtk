@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
+from process_support import stop_process
 
 
 def eventually(check):
@@ -89,9 +90,10 @@ with tempfile.TemporaryDirectory(prefix="cmux-window-") as directory:
         print(log.read())
         raise
     finally:
-        if app and app.poll() is None:
-            app.terminate()
-            app.wait(timeout=10)
-        wm.terminate()
-        wm.wait(timeout=10)
-        log.close()
+        try:
+            stop_process(app)
+        finally:
+            try:
+                stop_process(wm)
+            finally:
+                log.close()
