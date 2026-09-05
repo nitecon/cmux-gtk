@@ -1,0 +1,1 @@
+../tests/legacy_terminal_support.py
