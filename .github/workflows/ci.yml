@@ -132,6 +132,8 @@ jobs:
       - name: Test per-terminal working directory reports
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_surface_directories.py
 
+      - name: Test workspace close selection
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_close_workspace_selection.py
       - name: Test workspace widget cleanup
         if: ${{ !cancelled() && steps.debug_build.outcome == 'success' }}
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app workspace_controls_release_closed_widget_trees -- --ignored --test-threads=1

@@ -378,10 +378,11 @@ impl AppState {
             self.stack.remove(&child);
         }
 
-        // Adjust active_index: if we removed before or at active, clamp.
+        // Preserve the selected identity when removing before it; when closing
+        // the selected row, keep its slot and fall back only at the end.
         if self.active_index >= self.workspaces.len() {
             self.active_index = self.workspaces.len() - 1;
-        } else if index <= self.active_index && self.active_index > 0 {
+        } else if index < self.active_index && self.active_index > 0 {
             self.active_index -= 1;
         }
 
