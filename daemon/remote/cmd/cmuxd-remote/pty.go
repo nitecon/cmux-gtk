@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -9,6 +10,16 @@ import (
 
 	"github.com/creack/pty"
 )
+
+const ptyTerminationGrace = 500 * time.Millisecond
+
+// ptyWindowSize rejects dimensions that cannot be represented by the native PTY ABI.
+func ptyWindowSize(cols, rows int) (*pty.Winsize, error) {
+	if cols < 1 || rows < 1 || cols > 65535 || rows > 65535 {
+		return nil, errors.New("PTY dimensions must be between 1 and 65535")
+	}
+	return &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}, nil
+}
 
 // ptyConn adapts a Unix PTY to stream transport. The stream registry owns its
 // single Close call, which also terminates and reaps the child shell.
@@ -20,10 +31,14 @@ type ptyConn struct {
 // startPTY launches a login shell with the requested directory and initial grid.
 // The caller must register the returned connection or close it on failure.
 func startPTY(shell, directory string, cols, rows int) (*ptyConn, error) {
+	size, err := ptyWindowSize(cols, rows)
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = directory
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+	ptmx, err := pty.StartWithSize(cmd, size)
 	if err != nil {
 		return nil, err
 	}
@@ -36,13 +51,25 @@ func (p *ptyConn) Read(b []byte) (int, error) { return p.ptmx.Read(b) }
 // Write delivers input to the child terminal.
 func (p *ptyConn) Write(b []byte) (int, error) { return p.ptmx.Write(b) }
 
-// Close releases the PTY and reaps the shell after requesting termination.
+// Close releases the PTY, allows a short termination grace period, then kills and reaps a stubborn shell.
 // Call exactly once through stream ownership; child exit errors are best-effort.
 func (p *ptyConn) Close() error {
 	_ = p.ptmx.Close()
 	if p.cmd != nil && p.cmd.Process != nil {
 		_ = p.cmd.Process.Signal(syscall.SIGTERM)
-		_ = p.cmd.Wait()
+		done := make(chan struct{})
+		go func() {
+			_ = p.cmd.Wait()
+			close(done)
+		}()
+		timer := time.NewTimer(ptyTerminationGrace)
+		defer timer.Stop()
+		select {
+		case <-done:
+		case <-timer.C:
+			_ = p.cmd.Process.Kill()
+			<-done
+		}
 	}
 	return nil
 }
@@ -64,5 +91,9 @@ func (p *ptyConn) SetWriteDeadline(time.Time) error { return nil }
 
 // resize applies the grid dimensions to the PTY through its native window-size ioctl.
 func (p *ptyConn) resize(cols, rows int) error {
-	return pty.Setsize(p.ptmx, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+	size, err := ptyWindowSize(cols, rows)
+	if err != nil {
+		return err
+	}
+	return pty.Setsize(p.ptmx, size)
 }
