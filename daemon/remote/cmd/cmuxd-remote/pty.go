@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/creack/pty"
 )
@@ -42,7 +44,15 @@ func startPTY(shell, directory string, cols, rows int) (*ptyConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ptyConn{ptmx: ptmx, cmd: cmd}, nil
+	conn := &ptyConn{ptmx: ptmx, cmd: cmd}
+	pollable, err := pollablePTY(ptmx)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("prepare PTY polling: %w", err)
+	}
+	_ = ptmx.Close()
+	conn.ptmx = pollable
+	return conn, nil
 }
 
 // Read receives terminal output from the PTY master.
@@ -80,14 +90,16 @@ func (p *ptyConn) LocalAddr() net.Addr { return nil }
 // RemoteAddr returns nil because the peer is a child process rather than a socket.
 func (p *ptyConn) RemoteAddr() net.Addr { return nil }
 
-// SetDeadline preserves the stream adapter's no-op deadline behavior for PTYs.
-func (p *ptyConn) SetDeadline(time.Time) error { return nil }
+// SetDeadline updates pending and future PTY reads and writes; zero clears the deadline.
+func (p *ptyConn) SetDeadline(deadline time.Time) error { return p.ptmx.SetDeadline(deadline) }
 
-// SetReadDeadline accepts the transport interface without changing PTY reads.
-func (p *ptyConn) SetReadDeadline(time.Time) error { return nil }
+// SetReadDeadline bounds pending and future terminal output reads.
+func (p *ptyConn) SetReadDeadline(deadline time.Time) error { return p.ptmx.SetReadDeadline(deadline) }
 
-// SetWriteDeadline accepts the transport interface without changing PTY writes.
-func (p *ptyConn) SetWriteDeadline(time.Time) error { return nil }
+// SetWriteDeadline bounds input writes when the child stops consuming terminal data.
+func (p *ptyConn) SetWriteDeadline(deadline time.Time) error {
+	return p.ptmx.SetWriteDeadline(deadline)
+}
 
 // resize applies the grid dimensions to the PTY through its native window-size ioctl.
 func (p *ptyConn) resize(cols, rows int) error {
@@ -95,5 +107,49 @@ func (p *ptyConn) resize(cols, rows int) error {
 	if err != nil {
 		return err
 	}
-	return pty.Setsize(p.ptmx, size)
+	raw, err := p.ptmx.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var ioctlErr syscall.Errno
+	// Control retains descriptor ownership and avoids Fd switching the file to blocking I/O.
+	err = raw.Control(func(fd uintptr) {
+		_, _, ioctlErr = syscall.Syscall(syscall.SYS_IOCTL, fd, syscall.TIOCSWINSZ, uintptr(unsafe.Pointer(size)))
+	})
+	if err != nil {
+		return err
+	}
+	if ioctlErr != 0 {
+		return ioctlErr
+	}
+	return nil
+}
+
+// pollablePTY duplicates the master into a nonblocking os.File registered with Go's I/O poller.
+// The caller retains the original file and must close it after a successful transfer.
+func pollablePTY(master *os.File) (*os.File, error) {
+	// Protect the brief dup/close-on-exec interval from concurrent child launches.
+	syscall.ForkLock.RLock()
+	fd, err := syscall.Dup(int(master.Fd()))
+	if err == nil {
+		syscall.CloseOnExec(fd)
+	}
+	syscall.ForkLock.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		_ = syscall.Close(fd)
+		return nil, err
+	}
+	file := os.NewFile(uintptr(fd), master.Name())
+	if file == nil {
+		_ = syscall.Close(fd)
+		return nil, errors.New("invalid duplicated PTY descriptor")
+	}
+	if err := file.SetDeadline(time.Time{}); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
 }
