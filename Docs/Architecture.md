@@ -42,7 +42,7 @@ GTK objects and model mutations stay on the GTK main thread. Parse, validate, de
 
 Each browser manager owns a unique daemon session; CLI commands, preview metadata and shutdown use that same identity. Browser state from a crashed manager is not adopted automatically.
 
-The browser adapter separates discovery, command transport, frame envelopes, pixel decoding, stream delivery, pointer motion and metrics. JPEG/PNG decoding uses the Rust `image` crate with only those codec features enabled; bounded blocking workers produce shared RGBA bytes for GTK memory textures. Latest-frame channels coalesce preview input. Generic browser RPCs use bounded asynchronous exchanges, but daemon startup and several UI command paths still perform synchronous work and remain refactor targets.
+The browser adapter separates discovery, command transport, frame envelopes, pixel decoding, stream delivery, pointer motion and metrics. JPEG/PNG decoding uses the Rust `image` crate with only those codec features enabled; bounded blocking workers produce shared RGBA bytes for GTK memory textures. Latest-frame channels coalesce preview input. Generic browser RPCs use bounded asynchronous exchanges. History navigation uses bounded asynchronous public-CLI subprocesses with widget-driven cancellation; daemon startup and other UI command paths still perform synchronous work and remain refactor targets.
 
 Focus is observable protocol behavior. Only operations documented to focus or select may move focus. Persist workspace order and launch settings consistently across CLI and UI operations. Session restore rebuilds app-owned state; it does not checkpoint arbitrary processes. Session resume enhancements remain a separate deferred task.
 

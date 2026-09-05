@@ -811,28 +811,51 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
     }
 }
 
-/// Run a browser history command, refresh the address entry and schedule its saved URL.
-/// Currently performs synchronous CLI I/O on GTK; browser transport extraction must move it off-thread.
+/// Run history navigation on Tokio and update its surviving address widget on GTK.
+/// Widget destruction cancels the child operation; no AppState borrow crosses an await.
 fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
-    let current_url = {
-        let mut s = state.borrow_mut();
-        let Some(browser) = s.browser_manager.as_mut() else {
+    let mut task = {
+        let s = state.borrow();
+        let (Some(browser), Some(runtime)) =
+            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
+        else {
             return;
         };
-        if let Err(error) = browser.run_cli(&[command]) {
-            eprintln!("cmux: browser {command} failed: {error}");
-            return;
-        }
-        browser.run_cli(&["get", "url"]).ok().and_then(|data| {
-            data.get("url")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        })
+        runtime.spawn(browser.navigate_async(command.to_owned()))
     };
-    if let Some(url) = current_url {
-        entry.set_text(&url);
-        state.borrow().trigger_session_save();
-    }
+    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
+    let destruction = entry.add_weak_ref_notify_local(move || {
+        let _ = destroyed_tx.send(());
+    });
+    let original_url = entry.text();
+    let entry = entry.downgrade();
+    let state = Rc::downgrade(state);
+    glib::MainContext::default().spawn_local(async move {
+        let result = tokio::select! {
+            _ = &mut destroyed_rx => {
+                task.abort();
+                let _ = task.await;
+                destruction.disconnect();
+                return;
+            }
+            result = &mut task => result,
+        };
+        destruction.disconnect();
+        match result {
+            Ok(Ok(Some(url))) => {
+                if let (Some(entry), Some(state)) = (entry.upgrade(), state.upgrade()) {
+                    if !entry.is_mapped() || entry.text() != original_url {
+                        return;
+                    }
+                    entry.set_text(&url);
+                    state.borrow().trigger_session_save();
+                }
+            }
+            Ok(Ok(None)) => {}
+            Ok(Err(error)) => eprintln!("cmux: browser navigation failed: {error}"),
+            Err(error) => eprintln!("cmux: browser navigation task failed: {error}"),
+        }
+    });
 }
 
 /// Map GDK keyval to (CDP key name, CDP code name).

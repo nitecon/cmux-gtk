@@ -1,5 +1,6 @@
 use gtk4::prelude::*;
 use serde_json::Value;
+mod cli;
 mod discovery;
 mod frames;
 pub(crate) mod metrics;
@@ -25,6 +26,7 @@ pub enum PreviewState {
 /// Own daemon discovery and the preview stream task for this application session.
 pub struct BrowserManager {
     session_name: String,
+    navigation_gate: std::sync::Arc<tokio::sync::Semaphore>,
     binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
 
@@ -38,6 +40,7 @@ impl BrowserManager {
     pub fn new() -> Self {
         BrowserManager {
             session_name: format!("cmux-{}", Uuid::new_v4().simple()),
+            navigation_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
             binary_path: None,
             stream_task: None,
             preview_state: PreviewState::Empty,
@@ -157,22 +160,27 @@ impl BrowserManager {
             .args(args)
             .output()
             .map_err(|e| format!("Failed to run agent-browser: {e}"))?;
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let payload: Value = serde_json::from_str(stdout.trim()).map_err(|e| {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            format!(
-                "agent-browser returned invalid JSON ({e}): {}",
-                stderr.trim()
-            )
-        })?;
-        if !output.status.success() || payload.get("success") == Some(&Value::Bool(false)) {
-            let message = payload
-                .get("error")
-                .and_then(Value::as_str)
-                .unwrap_or("agent-browser command failed");
-            return Err(message.to_string());
+        cli::decode_output(output)
+    }
+
+    /// Prepare history navigation and URL refresh for worker execution after daemon startup.
+    /// Admit one history operation per manager; reject overlaps without retaining a queue.
+    pub fn navigate_async(
+        &self,
+        command: String,
+    ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
+        let binary = self.binary_path.clone();
+        let session = self.session_name.clone();
+        let permit = self.navigation_gate.clone().try_acquire_owned();
+        async move {
+            let _permit =
+                permit.map_err(|_| "Browser navigation already in progress".to_string())?;
+            let binary =
+                binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
+            cli::run(&binary, &session, &[&command]).await?;
+            let data = cli::run(&binary, &session, &["get", "url"]).await?;
+            Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
         }
-        Ok(payload.get("data").cloned().unwrap_or(payload))
     }
 
     /// Send a newline-delimited JSON command to the daemon socket.
