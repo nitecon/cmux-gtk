@@ -149,6 +149,15 @@ async fn handle_connection(
     }
 }
 
+/// Decode a nullable optional target without silently turning malformed IDs into active-pane fallback.
+fn optional_target(params: &serde_json::Value) -> Result<Option<String>, &'static str> {
+    match params.get("id") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(id)) => Ok(Some(id.clone())),
+        _ => Err("id must be a string or null"),
+    }
+}
+
 /// Parse a JSON-RPC line and dispatch to the appropriate SocketCommand.
 /// Consumes raw input and releases unused JSON fields before awaiting execution.
 /// Returns the JSON response string (without trailing newline).
@@ -208,6 +217,30 @@ async fn dispatch_line(
             }
         };
     }
+
+    let target = if matches!(
+        method.as_str(),
+        "surface.split"
+            | "surface.send_text"
+            | "surface.send_key"
+            | "surface.read_text"
+            | "surface.health"
+            | "surface.refresh"
+            | "pane.focus"
+    ) {
+        match optional_target(&params) {
+            Ok(target) => target,
+            Err(message) => {
+                return serde_json::json!({
+                    "id": req_id, "ok": false,
+                    "error": {"code": "invalid_params", "message": message}
+                })
+                .to_string()
+            }
+        }
+    } else {
+        None
+    };
 
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
@@ -361,7 +394,7 @@ async fn dispatch_line(
             };
             commands::SocketCommand::SurfaceSplit {
                 req_id: req_id.clone(),
-                id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+                id: target,
                 direction,
                 resp_tx,
             }
@@ -386,7 +419,7 @@ async fn dispatch_line(
         },
         "surface.send_text" => commands::SocketCommand::SurfaceSendText {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             text: params
                 .get("text")
                 .and_then(|v| v.as_str())
@@ -396,7 +429,7 @@ async fn dispatch_line(
         },
         "surface.send_key" => commands::SocketCommand::SurfaceSendKey {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             key: params
                 .get("key")
                 .and_then(|v| v.as_str())
@@ -406,17 +439,17 @@ async fn dispatch_line(
         },
         "surface.read_text" => commands::SocketCommand::SurfaceReadText {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             resp_tx,
         },
         "surface.health" => commands::SocketCommand::SurfaceHealth {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             resp_tx,
         },
         "surface.refresh" => commands::SocketCommand::SurfaceRefresh {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             resp_tx,
         },
 
@@ -426,7 +459,7 @@ async fn dispatch_line(
         },
         "pane.focus" => commands::SocketCommand::PaneFocus {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+            id: target,
             resp_tx,
         },
         "pane.last" => commands::SocketCommand::PaneLast {
@@ -570,6 +603,36 @@ async fn dispatch_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Malformed explicit targets never become implicit active-terminal operations.
+    #[tokio::test]
+    async fn invalid_optional_targets_never_reach_gtk() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+        for method in [
+            "surface.split",
+            "surface.send_text",
+            "surface.send_key",
+            "surface.read_text",
+            "surface.health",
+            "surface.refresh",
+            "pane.focus",
+        ] {
+            for id in [
+                serde_json::json!(0),
+                serde_json::json!(false),
+                serde_json::json!([]),
+                serde_json::json!({}),
+            ] {
+                let request = serde_json::json!({"id": 14, "method": method,
+                    "params": {"id": id, "text": "echo wrong-target", "key": "x"}});
+                let response = dispatch_line(request.to_string(), &tx).await;
+                let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+                assert_eq!(response["id"], 14);
+                assert_eq!(response["error"]["code"], "invalid_params", "{method}");
+                assert!(rx.try_recv().is_err());
+            }
+        }
+    }
 
     /// Missing or malformed reorder positions cannot silently move a workspace to index zero.
     #[tokio::test]

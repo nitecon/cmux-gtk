@@ -848,3 +848,7 @@ Inspected the v1/v2 tab-dragging differences rather than replacing one suite wit
 ### Reorder parameter boundary (2026-09-05)
 
 Workspace reorder no longer turns missing, negative, fractional, boolean or string positions into index zero. The dispatcher requires a nonnegative integer and checked conversion to usize before GTK admission. Existing positive out-of-list clamping and no-op success semantics are preserved and documented. Added real-dispatch invalid-input tests and a Linux CLI reorder-out-and-back scenario checking exact order and selected UUID preservation. All-target compilation, formatting and Python syntax checks pass; runtime execution remains CI-only.
+
+### Optional target validation (2026-09-05)
+
+Centralized nullable target parsing across seven socket commands. Numeric, boolean, array and object IDs previously disappeared through as_str/map and could route an explicitly targeted input/split to the active terminal. They now return invalid_params before GTK admission. Omitted/null targets keep their prior command-specific defaults; valid string targets retain exact lookup semantics. Added dispatcher coverage across all seven commands and four malformed value classes. All-target compilation, formatting and whitespace checks pass; executable tests remain CI-only. Other malformed request-envelope fields still require review.
