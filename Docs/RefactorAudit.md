@@ -85,3 +85,14 @@ Removed the unused root `cmux-Bridging-Header.h` and copied `ghostty.h`. Referen
 The maintained Python prompt probe now documents its functions, shares the existing Linux-aware client socket discovery and uses monotonic readiness timers. Cleanup starts immediately after workspace creation, covering selection/readiness failures that previously leaked the temporary workspace. Invalid counts and nonfinite timing arguments are rejected before creating a workspace. Added a CI-only behavioral scenario for selection failure, cleanup and original-workspace restoration; local validation was syntax compilation only. Larger Python client/test and shell audits remain pending.
 
 Documented the named shell functions in maintained setup, release-version, remote-asset and browser-resolution scripts. Fixed an unquoted repo-local Zig executable invocation so toolchain reuse also works when the checkout path contains spaces. Bash syntax validation passes without executing setup or release actions. CI remote-daemon tests at e89d88cb passed, covering the accumulated response bounds, numeric and timeout validation, pollable PTY deadlines and stream ownership changes; that run's Linux job is still active.
+
+Removed `tests_v2/test_update_timing.py`: it only parsed timing constants from the absent `Sources/Update/UpdateTiming.swift`, had no callers, and exercised no Linux behavior. Remaining AppleScript-dependent runtime candidates must be adapted or retired only after checking their Linux behavior and replacement coverage:
+
+| Candidate | Required follow-up |
+| --- | --- |
+| `tests_v2/test_ctrl_enter_keybind.py` | Replace macOS activation/keystrokes and user-config dependence with an isolated GTK keybinding scenario. |
+| `tests/test_cmd_option_t_close_other_tabs_in_pane.py` | Check Linux shortcut/confirmation support before mapping its real-keyboard scenario. |
+| `tests{,_v2}/test_cpu_notifications.py` | Retain CPU/resource intent; replace AppleScript activation and use bounded diagnostic samples. |
+| `tests/test_session_restore_unfocused_workspace_{relaunch,multi_window}_cycle.py` | Audit current metadata restoration coverage separately from the deferred session-resume feature. |
+
+The browser-panel stability tests mention AppleScript only to state that it is unnecessary; that keyword does not justify removal. These remaining scenarios are not claimed as Linux coverage merely because they remain tracked.
