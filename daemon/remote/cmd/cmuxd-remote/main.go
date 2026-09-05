@@ -667,6 +667,9 @@ func (s *rpcServer) handleSessionSpawn(req rpcRequest) rpcResponse {
 
 	// Start a PTY with the shell
 	cmd := exec.Command(shell, "-l")
+	if cwd, ok := getStringParam(req.Params, "cwd"); ok && cwd != "" {
+		cmd.Dir = cwd
+	}
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(cols),

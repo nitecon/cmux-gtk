@@ -24,7 +24,7 @@ pub struct BrowserManager {
     session_name: String,
     binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
-    pub frame_tx: Option<tokio::sync::mpsc::UnboundedSender<Vec<u8>>>,
+
     pub preview_state: PreviewState,
 }
 
@@ -34,7 +34,6 @@ impl BrowserManager {
             session_name: SESSION_NAME.to_string(),
             binary_path: None,
             stream_task: None,
-            frame_tx: None,
             preview_state: PreviewState::Empty,
         }
     }
@@ -233,9 +232,9 @@ impl BrowserManager {
         let port = self.read_stream_port()?;
         let url = format!("ws://127.0.0.1:{}", port);
 
-        // Create mpsc channel for frame delivery (tokio -> GTK)
-        let (frame_tx, mut frame_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
-        self.frame_tx = Some(frame_tx.clone());
+        // Only the latest frame matters; a slow GTK loop must not accumulate JPEGs.
+        if let Some(task) = self.stream_task.take() { task.abort(); }
+        let (frame_tx, mut frame_rx) = tokio::sync::watch::channel(None::<Vec<u8>>);
 
         // Spawn tokio task: WebSocket client that reads frames
         let stream_task = runtime.spawn(async move {
@@ -261,7 +260,7 @@ impl BrowserManager {
                         if frame.get("type").and_then(|t| t.as_str()) == Some("frame") {
                             if let Some(data_b64) = frame.get("data").and_then(|d| d.as_str()) {
                                 if let Ok(jpeg_bytes) = base64::engine::general_purpose::STANDARD.decode(data_b64) {
-                                    let _ = frame_tx.send(jpeg_bytes);
+                                    if frame_tx.send(Some(jpeg_bytes)).is_err() { break; }
                                 }
                             }
                         }
@@ -272,11 +271,13 @@ impl BrowserManager {
         self.stream_task = Some(stream_task);
 
         // Spawn GTK-side receiver: poll mpsc and update Picture widget
-        let picture_clone = picture.clone();
+        let picture_weak = picture.downgrade();
         glib::MainContext::default().spawn_local(async move {
             let mut first_frame = true;
-            while let Some(jpeg_bytes) = frame_rx.recv().await {
-                let bytes = glib::Bytes::from(&jpeg_bytes);
+            while frame_rx.changed().await.is_ok() {
+                let Some(picture_clone) = picture_weak.upgrade() else { break; };
+                let Some(jpeg_bytes) = frame_rx.borrow_and_update().clone() else { continue; };
+                let bytes = glib::Bytes::from_owned(jpeg_bytes);
                 match gtk4::gdk::Texture::from_bytes(&bytes) {
                     Ok(texture) => {
                         picture_clone.set_paintable(Some(&texture));
@@ -453,11 +454,12 @@ pub fn update_preview_overlay(overlay: &gtk4::Overlay, state: &PreviewState) {
 pub fn spawn_motion_forwarder(
     runtime: &tokio::runtime::Handle,
     daemon_socket_path: std::path::PathBuf,
-) -> tokio::sync::mpsc::UnboundedSender<(i64, i64)> {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(i64, i64)>();
+) -> tokio::sync::watch::Sender<(i64, i64)> {
+    let (tx, mut rx) = tokio::sync::watch::channel((0i64, 0i64));
     runtime.spawn(async move {
         let mut last_sent = std::time::Instant::now();
-        while let Some((x, y)) = rx.recv().await {
+        while rx.changed().await.is_ok() {
+            let (x, y) = *rx.borrow_and_update();
             let now = std::time::Instant::now();
             if now.duration_since(last_sent) < std::time::Duration::from_millis(60) {
                 continue;
@@ -467,6 +469,7 @@ pub fn spawn_motion_forwarder(
             let _ = tokio::task::spawn_blocking(move || {
                 use std::io::Write;
                 if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&path) {
+                    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(1)));
                     let req = serde_json::json!({
                         "id": "motion",
                         "action": "input_mouse",

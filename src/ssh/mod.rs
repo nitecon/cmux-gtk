@@ -26,6 +26,6 @@ pub enum SshEvent {
 }
 
 /// Sender for SSH events (cloned into tokio tasks).
-pub type SshEventTx = mpsc::UnboundedSender<SshEvent>;
+pub type SshEventTx = mpsc::Sender<SshEvent>;
 /// Receiver for SSH events on the GTK main thread.
-pub type SshEventRx = mpsc::UnboundedReceiver<SshEvent>;
+pub type SshEventRx = mpsc::Receiver<SshEvent>;

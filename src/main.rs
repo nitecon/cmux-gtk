@@ -163,7 +163,7 @@ fn main() {
 
     // Session save infrastructure: Notify for debounce, channel for session snapshots.
     let save_notify = std::sync::Arc::new(tokio::sync::Notify::new());
-    let (session_tx, session_rx) = tokio::sync::mpsc::unbounded_channel::<crate::session::SessionData>();
+    let (session_tx, session_rx) = tokio::sync::watch::channel(None::<crate::session::SessionData>);
 
     // Spawn debounce task in tokio. Waits for notify, debounces 500ms, then writes
     // the latest session snapshot to disk atomically (SESS-01, SESS-03).
@@ -175,11 +175,7 @@ fn main() {
                 notify.notified().await;
                 // Debounce: 500ms window -- drain extra notifications that arrive.
                 tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                // Drain all queued snapshots, keep only the latest.
-                let mut latest = None;
-                while let Ok(data) = session_rx.try_recv() {
-                    latest = Some(data);
-                }
+                let latest = session_rx.borrow_and_update().clone();
                 if let Some(session) = latest {
                     if let Err(e) = crate::session::save_session_atomic(&session) {
                         eprintln!("cmux: session save failed: {e}");
@@ -223,7 +219,7 @@ fn build_ui(
     cmd_tx: tokio::sync::mpsc::UnboundedSender<crate::socket::commands::SocketCommand>,
     mut cmd_rx: tokio::sync::mpsc::UnboundedReceiver<crate::socket::commands::SocketCommand>,
     save_notify: std::sync::Arc<tokio::sync::Notify>,
-    session_tx: tokio::sync::mpsc::UnboundedSender<crate::session::SessionData>,
+    session_tx: tokio::sync::watch::Sender<Option<crate::session::SessionData>>,
     saved_session: Option<crate::session::SessionData>,
     shortcut_map: crate::config::ShortcutMap,
     config: &crate::config::Config,
@@ -312,7 +308,7 @@ fn build_ui(
     crate::sidebar::wire_sidebar_clicks(&sidebar_list, state.clone());
 
     // Set save_notify, session_tx, and SSH event channel on AppState.
-    let (ssh_event_tx, mut ssh_event_rx) = tokio::sync::mpsc::unbounded_channel::<crate::ssh::SshEvent>();
+    let (ssh_event_tx, mut ssh_event_rx) = tokio::sync::mpsc::channel::<crate::ssh::SshEvent>(256);
     {
         let mut s = state.borrow_mut();
         s.save_notify = Some(save_notify);
@@ -436,10 +432,11 @@ fn build_ui(
                     }
                     crate::ssh::SshEvent::RemoteOutput { pane_id, data } => {
                         // Dispatch remote output to the Ghostty surface via process_output.
-                        if let Ok(registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                            let surface_ptr = registry.iter()
-                                .find(|(_, &pid)| pid == pane_id)
-                                .map(|(&sptr, _)| sptr as crate::ghostty::ffi::ghostty_surface_t);
+                        {
+                            let surface_ptr = remote_context(&state, pane_id).and_then(|ctx| {
+                                let ptr = ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
+                                (ptr != 0).then_some(ptr as crate::ghostty::ffi::ghostty_surface_t)
+                            });
                             if let Some(surface) = surface_ptr {
                                 unsafe {
                                     crate::ghostty::ffi::ghostty_surface_process_output(
@@ -464,10 +461,11 @@ fn build_ui(
                     }
                     crate::ssh::SshEvent::RemoteEof { pane_id } => {
                         // D-08: write exit message to surface, keep pane open for user to close
-                        if let Ok(registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                            let surface_ptr = registry.iter()
-                                .find(|(_, &pid)| pid == pane_id)
-                                .map(|(&sptr, _)| sptr as crate::ghostty::ffi::ghostty_surface_t);
+                        {
+                            let surface_ptr = remote_context(&state, pane_id).and_then(|ctx| {
+                                let ptr = ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
+                                (ptr != 0).then_some(ptr as crate::ghostty::ffi::ghostty_surface_t)
+                            });
                             if let Some(surface) = surface_ptr {
                                 let msg = b"\r\n\x1b[90m[Remote shell exited. Press any key to close]\x1b[0m\r\n";
                                 unsafe {
@@ -480,7 +478,7 @@ fn build_ui(
                             }
                         }
                         // Clear stream_id and set eof flag so next keypress triggers close
-                        if let Some(ctx) = state.borrow().remote_pane_contexts.get(&pane_id) {
+                        if let Some(ctx) = remote_context(&state, pane_id) {
                             if let Ok(mut sid) = ctx.stream_id.lock() {
                                 *sid = None;
                             }
@@ -488,17 +486,29 @@ fn build_ui(
                         }
                     }
                     crate::ssh::SshEvent::ClosePaneRequest { pane_id } => {
-                        // Find the workspace containing this pane and close it
-                        let ws_index = state.borrow().workspaces.iter().position(|ws| {
-                            ws.id * 1000 == pane_id
+                        let surface = remote_context(&state, pane_id).map(|ctx| ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire));
+                        let target = surface.and_then(|ptr| {
+                            let s = state.borrow();
+                            s.split_engines.iter().enumerate().find_map(|(index, engine)| {
+                                engine.all_panes().into_iter().find_map(|(uuid, _, _)| {
+                                    (engine.find_surface_by_uuid(&uuid.to_string()).map(|s| s as usize) == Some(ptr)).then_some((index, uuid))
+                                })
+                            })
                         });
-                        if let Some(idx) = ws_index {
-                            state.borrow_mut().close_workspace(idx);
+                        if let Some((index, uuid)) = target {
+                            let mut s = state.borrow_mut();
+                            match s.split_engines[index].close_surface_tab(uuid) {
+                                crate::split_engine::CloseSurfaceResult::LastSurfaceInPane => {
+                                    if s.split_engines[index].close_active().is_none() { s.close_workspace(index); }
+                                }
+                                _ => {}
+                            }
+                            s.trigger_session_save();
                         }
                     }
                     crate::ssh::SshEvent::StreamOpened { pane_id, stream_id } => {
                         // Set the stream_id on the IoWriteContext so keystrokes start flowing
-                        if let Some(ctx) = state.borrow().remote_pane_contexts.get(&pane_id) {
+                        if let Some(ctx) = remote_context(&state, pane_id) {
                             if let Ok(mut sid) = ctx.stream_id.lock() {
                                 *sid = Some(stream_id);
                             }
@@ -571,4 +581,8 @@ fn build_ui(
             crate::shortcuts::restore_browser_tabs(&state_for_browser_restore);
         });
     }
+}
+
+fn remote_context(state: &crate::app_state::AppStateRef, id: u64) -> Option<std::sync::Arc<crate::ssh::bridge::IoWriteContext>> {
+    state.borrow().workspace_bridges.values().find_map(|bridge| bridge.contexts.lock().ok()?.get(&id).cloned())
 }

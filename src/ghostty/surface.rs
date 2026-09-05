@@ -9,7 +9,13 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub enum SurfaceIoMode {
     Exec,
+    Command(String),
+    Remote {
+        bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
+        ssh_tx: crate::ssh::SshEventTx,
+    },
     Manual {
+        bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
         io_write_ctx: std::sync::Arc<crate::ssh::bridge::IoWriteContext>,
     },
 }
@@ -96,7 +102,7 @@ fn initialize_surface(
             .unwrap_or_else(|| ffi::ghostty_surface_config_new());
         config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
         config.platform = platform;
-        config.userdata = std::ptr::null_mut();
+        config.userdata = area.as_ptr() as *mut std::ffi::c_void;
         config.scale_factor = scale;
 
         let working_directory_c = init
@@ -106,11 +112,16 @@ fn initialize_surface(
         if let Some(ref cwd) = working_directory_c {
             config.working_directory = cwd.as_ptr();
         }
-        if let SurfaceIoMode::Manual { ref io_write_ctx } = init.io_mode {
+        let command_c = match &init.io_mode {
+            SurfaceIoMode::Command(command) => std::ffi::CString::new(command.as_str()).ok(),
+            _ => None,
+        };
+        if let Some(command) = &command_c { config.command = command.as_ptr(); }
+        if let SurfaceIoMode::Manual { ref io_write_ctx, .. } = init.io_mode {
             config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
             config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
             config.io_write_userdata =
-                std::sync::Arc::into_raw(io_write_ctx.clone()) as *mut std::ffi::c_void;
+                std::sync::Arc::as_ptr(io_write_ctx) as *mut std::ffi::c_void;
         }
         eprintln!(
             "cmux: initializing Ghostty surface at {}x{} logical pixels",
@@ -145,6 +156,13 @@ fn initialize_surface(
     }
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);
+    }
+    if let SurfaceIoMode::Manual { bridge, io_write_ctx } = &init.io_mode {
+        io_write_ctx.surface_ptr.store(surface as usize, Ordering::Release);
+        let size = unsafe { ffi::ghostty_surface_size(surface) };
+        io_write_ctx.resize(size.columns, size.rows);
+        unsafe { area.set_data("cmux-remote-context", (bridge.clone(), io_write_ctx.clone())); }
+        bridge.register_pane_placeholder(io_write_ctx.pane_id);
     }
     area.queue_render();
     Some(surface)
@@ -194,6 +212,14 @@ pub fn create_surface(
     // non-zero allocation exist, then used by the remaining callbacks.
     // Rc<RefCell<...>> is safe here: all callbacks run on the GLib main thread.
     let surface_cell: Rc<RefCell<Option<ffi::ghostty_surface_t>>> = Rc::new(RefCell::new(None));
+    unsafe { gl_area.set_data("cmux-surface-cell", surface_cell.clone()); }
+    let io_mode = match io_mode {
+        SurfaceIoMode::Remote { bridge, ssh_tx } => {
+            let io_write_ctx = bridge.create_context(ssh_tx);
+            SurfaceIoMode::Manual { bridge, io_write_ctx }
+        }
+        other => other,
+    };
     let surface_init = Rc::new(SurfaceInit {
         ghostty_app,
         inherited_config,
@@ -344,6 +370,10 @@ pub fn create_surface(
             if let Some(surface) = initialize_surface(area, &cell, &init, logical_w, logical_h) {
                 unsafe {
                     ffi::ghostty_surface_set_size(surface, phys_w, phys_h);
+                    if let SurfaceIoMode::Manual { io_write_ctx, .. } = &init.io_mode {
+                        let size = ffi::ghostty_surface_size(surface);
+                        io_write_ctx.resize(size.columns, size.rows);
+                    }
                 }
             }
 
@@ -410,6 +440,22 @@ pub fn create_surface(
                 None => return gtk4::glib::Propagation::Proceed,
             };
 
+            // Handle Linux clipboard shortcuts at the terminal, leaving entries alone.
+            let modifiers = state & (gtk4::gdk::ModifierType::CONTROL_MASK
+                | gtk4::gdk::ModifierType::SHIFT_MASK | gtk4::gdk::ModifierType::ALT_MASK
+                | gtk4::gdk::ModifierType::SUPER_MASK);
+            if modifiers == (gtk4::gdk::ModifierType::CONTROL_MASK | gtk4::gdk::ModifierType::SHIFT_MASK) {
+                let action: Option<&[u8]> = match keyval.to_lower() {
+                    gtk4::gdk::Key::c => Some(b"copy_to_clipboard"),
+                    gtk4::gdk::Key::v => Some(b"paste_from_clipboard"),
+                    _ => None,
+                };
+                if let Some(action) = action {
+                    unsafe { ffi::ghostty_surface_binding_action(surface, action.as_ptr().cast(), action.len()); }
+                    return gtk4::glib::Propagation::Stop;
+                }
+            }
+
             // text field: UTF-8 from the keyval (what the key produces with modifiers applied).
             // Must be a C string. Use a stack-allocated buffer to avoid heap allocation.
             let unicode = keyval.to_unicode();
@@ -469,8 +515,9 @@ pub fn create_surface(
     click_gesture.set_button(0); // 0 = listen to all mouse buttons
     click_gesture.connect_pressed({
         let cell = surface_cell.clone();
-        let area = gl_area.clone();
+        let area = gl_area.downgrade();
         move |gesture, _n_press, _x, _y| {
+            let Some(area) = area.upgrade() else { return; };
             let _ = area.activate_action(
                 "win.focus-pane",
                 Some(&pane_id.to_variant()),
@@ -549,7 +596,7 @@ pub fn create_surface(
     let focus_controller = gtk4::EventControllerFocus::new();
     focus_controller.connect_enter({
         let cell = surface_cell.clone();
-        let gl_area_for_focus = gl_area.clone();
+        let gl_area_for_focus = gl_area.downgrade();
         move |_ctrl| {
             crate::diagnostics::event(format_args!("terminal focus entered pane={pane_id}"));
             if let Some(surface) = *cell.borrow() {
@@ -562,7 +609,7 @@ pub fn create_surface(
                     // before the message is processed show the stale (invisible) cursor.
                     ffi::ghostty_surface_refresh(surface);
                 }
-                gl_area_for_focus.queue_render();
+                if let Some(area) = gl_area_for_focus.upgrade() { area.queue_render(); }
             }
         }
     });
@@ -615,18 +662,13 @@ pub fn create_surface(
 // ── Clipboard callbacks ──────────────────────────────────────────────────────
 
 pub(crate) unsafe extern "C" fn read_clipboard_cb(
-    _userdata: *mut std::ffi::c_void,
+    userdata: *mut std::ffi::c_void,
     clipboard_type: crate::ghostty::ffi::ghostty_clipboard_e,
     request: *mut std::ffi::c_void,
 ) -> bool {
     use gtk4::prelude::*;
-    use std::sync::atomic::Ordering;
-
-    let surface_ptr = crate::ghostty::callbacks::SURFACE_PTR.load(Ordering::SeqCst);
-    if surface_ptr == 0 {
-        return false;
-    }
-    let surface = surface_ptr as ffi::ghostty_surface_t;
+    let area_key = userdata as usize;
+    let Some(surface_ptr) = clipboard_surface(area_key) else { return false; };
 
     let display = match gtk4::gdk::Display::default() {
         Some(d) => d,
@@ -638,40 +680,37 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
         display.clipboard()
     };
 
-    // Read clipboard text synchronously using GLib event loop.
-    // gtk4::glib::MainContext::block_on runs the async future on the current (main) thread.
-    // This is safe here because read_clipboard_cb is called from the GLib main thread.
-    let text_result = glib::MainContext::default().block_on(clipboard.read_text_future());
-
-    let c_text = match text_result {
-        Ok(Some(ref s)) => match std::ffi::CString::new(s.as_str()) {
-            Ok(text) => text,
-            Err(_) => return false,
-        },
-        _ => return false,
-    };
-
-    unsafe {
-        ffi::ghostty_surface_complete_clipboard_request(surface, c_text.as_ptr(), request, true);
-    }
+    glib::MainContext::default().spawn_local(async move {
+        let result = clipboard.read_text_future().await;
+        // The requesting pane may have closed while the clipboard owner replied.
+        if clipboard_surface(area_key) != Some(surface_ptr) { return; }
+        let text = result.ok().flatten().map(|s| s.to_string()).unwrap_or_default();
+        let text = std::ffi::CString::new(text.replace('\0', "")).unwrap();
+        unsafe {
+            ffi::ghostty_surface_complete_clipboard_request(
+                surface_ptr as ffi::ghostty_surface_t, text.as_ptr(), request, true,
+            );
+        }
+    });
     true
 }
 
+fn clipboard_surface(area_key: usize) -> Option<usize> {
+    crate::ghostty::callbacks::GL_TO_SURFACE.lock().ok()?.get(&area_key).copied()
+}
+
 pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(
-    _userdata: *mut std::ffi::c_void,
+    userdata: *mut std::ffi::c_void,
     value: *const std::os::raw::c_char,
-    surface_ptr: *mut std::ffi::c_void,
+    request: *mut std::ffi::c_void,
     _request_type: crate::ghostty::ffi::ghostty_clipboard_request_e,
 ) {
-    // Phase 1: auto-confirm all clipboard reads without a dialog (per D-09).
-    // surface_ptr (arg3) is the ghostty_surface_t — passed back to complete_clipboard_request.
-    // _request_type is informational only; we always confirm.
-    // complete_clipboard_request's 3rd arg (*mut c_void) is NULL for non-request-based calls.
+    let Some(surface_ptr) = clipboard_surface(userdata as usize) else { return; };
     unsafe {
         crate::ghostty::ffi::ghostty_surface_complete_clipboard_request(
             surface_ptr as crate::ghostty::ffi::ghostty_surface_t,
             value,
-            std::ptr::null_mut(), // no pending request object in confirm path
+            request,
             true,
         );
     }

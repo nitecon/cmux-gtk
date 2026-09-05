@@ -88,6 +88,9 @@ pub struct Workspace {
     pub working_directory: Option<PathBuf>,
     /// Connection state for remote workspaces.
     pub connection_state: ConnectionState,
+    pub color: Option<String>,
+    pub startup_script: Option<PathBuf>,
+    pub remote_directory: Option<String>,
 }
 
 impl Workspace {
@@ -103,6 +106,9 @@ impl Workspace {
             uuid: Uuid::new_v4(),
             has_attention: false,
             last_notification: None,
+            color: None,
+            startup_script: None,
+            remote_directory: None,
             remote_target: None,
             working_directory: None,
             connection_state: ConnectionState::Local,
@@ -115,6 +121,24 @@ impl Workspace {
         workspace.name = name;
         workspace.working_directory = Some(working_directory);
         workspace
+    }
+
+    pub fn location(&self) -> String {
+        if let Some(target) = &self.remote_target {
+            format!("ssh://{}{}", target, self.remote_directory.as_deref().unwrap_or(""))
+        } else if let Some(script) = &self.startup_script {
+            format!("script: {}", script.display())
+        } else {
+            self.working_directory.as_ref().map(|p| p.display().to_string()).unwrap_or_default()
+        }
+    }
+
+    pub fn subtitle(&self) -> String {
+        if self.remote_target.is_some() { return self.location(); }
+        if let Some(script) = &self.startup_script {
+            return format!("script: {}", script.file_name().unwrap_or_default().to_string_lossy());
+        }
+        compact_local_path(self.working_directory.as_deref())
     }
 
     /// Rename this workspace to a new display name.
@@ -134,6 +158,9 @@ impl Workspace {
             uuid: Uuid::new_v4(),
             has_attention: false,
             last_notification: None,
+            color: None,
+            startup_script: None,
+            remote_directory: None,
             remote_target: Some(target),
             working_directory: None,
             connection_state: ConnectionState::Reconnecting(0),
@@ -177,5 +204,92 @@ mod tests {
         std::fs::write(&file, b"not a directory").unwrap();
         assert_eq!(prepare_local_workspace("Project", &file).unwrap_err(), "Choose a folder, not a file.");
         let _ = std::fs::remove_file(file);
+    }
+}
+
+/// Retain the root directory and basename, with the full path in the tooltip.
+pub fn compact_local_path(path: Option<&std::path::Path>) -> String {
+    let Some(path) = path else { return String::new(); };
+    let parts: Vec<_> = path.components().filter_map(|c| match c {
+        std::path::Component::Normal(v) => Some(v.to_string_lossy()), _ => None,
+    }).collect();
+    match parts.as_slice() {
+        [] => "/".into(),
+        [one] => format!("/{one}"),
+        [first, last] => format!("/{first}/{last}"),
+        _ => format!("/{}/…/{}", parts[0], parts.last().unwrap()),
+    }
+}
+
+pub fn valid_workspace_color(color: &str) -> bool {
+    color.len() == 7 && color.starts_with('#') && color[1..].bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Quote one argument for the POSIX shell used by Ghostty's command option.
+pub fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+pub fn prepare_startup_script(path: &std::path::Path) -> Result<PathBuf, String> {
+    let path = path.canonicalize().map_err(|e| format!("Cannot open startup script: {e}"))?;
+    if !path.is_file() { return Err("Choose a startup script file.".into()); }
+    std::fs::File::open(&path).map_err(|e| format!("Cannot read startup script: {e}"))?;
+    Ok(path)
+}
+
+pub fn startup_command(path: &std::path::Path) -> String {
+    // Source in sh so exported variables and cd remain available to the login shell.
+    let body = format!(". {} && exec \"${{SHELL:-/bin/sh}}\" -l", shell_quote(&path.to_string_lossy()));
+    format!("/bin/sh -c {}", shell_quote(&body))
+}
+
+pub fn validate_ssh_target(target: &str) -> Result<(), String> {
+    if target.is_empty() || target.starts_with('-') || target.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("Enter an SSH alias or user@host without command-line options.".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod workflow_tests {
+    use super::*;
+
+    #[test]
+    fn workspace_locations_describe_launch_context() {
+        let mut ws = Workspace::new_bound(1, 1, "Project".into(), "/opt/team/repo".into());
+        assert_eq!(ws.subtitle(), "/opt/…/repo");
+        assert_eq!(ws.location(), "/opt/team/repo");
+        ws.startup_script = Some("/opt/start project.sh".into());
+        assert_eq!(ws.subtitle(), "script: start project.sh");
+        ws.remote_target = Some("alice@host".into());
+        ws.remote_directory = Some("/srv/project".into());
+        assert_eq!(ws.subtitle(), "ssh://alice@host/srv/project");
+        assert_eq!(compact_local_path(Some(PathBuf::from("/opt/repo").as_path())), "/opt/repo");
+        assert_eq!(compact_local_path(Some(PathBuf::from("/").as_path())), "/");
+    }
+
+    #[test]
+    fn startup_command_preserves_quoted_paths_and_environment() {
+        let directory = std::env::temp_dir().join(format!("cmux-script-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let script = directory.join("startup 'quoted' $name.sh");
+        let result = directory.join("result");
+        std::fs::write(&script, format!("printf '%s' \"$PWD\" > {}\nexit 0\n", shell_quote(&result.to_string_lossy()))).unwrap();
+        let script = prepare_startup_script(&script).unwrap();
+        let status = std::process::Command::new("/bin/sh").args(["-c", &startup_command(&script)])
+            .current_dir(&directory).status().unwrap();
+        assert!(status.success());
+        assert_eq!(std::fs::read_to_string(result).unwrap(), directory.to_string_lossy());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn invalid_ssh_options_and_css_are_rejected() {
+        for target in ["", "-oProxyCommand=bad", "host command", "host\ncommand"] {
+            assert!(validate_ssh_target(target).is_err());
+        }
+        assert!(validate_ssh_target("alice@my-server").is_ok());
+        assert!(valid_workspace_color("#abCD09"));
+        assert!(!valid_workspace_color("red; color: black"));
     }
 }

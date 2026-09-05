@@ -44,6 +44,13 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     vbox.set_margin_top(16);
     vbox.set_margin_bottom(16);
     vbox.append(&entry);
+    let directory = gtk4::Entry::new();
+    directory.set_placeholder_text(Some("Remote folder (optional, e.g. /opt/project)"));
+    vbox.append(&directory);
+    let error = gtk4::Label::new(None);
+    error.set_wrap(true);
+    error.add_css_class("error");
+    vbox.append(&error);
     dialog.set_child(Some(&vbox));
 
     // Enter key: create SSH workspace
@@ -53,7 +60,16 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
         move |e| {
             let target = e.text().to_string().trim().to_string();
             if !target.is_empty() {
-                trigger_ssh_connect(&state, target);
+                if let Err(message) = crate::workspace::validate_ssh_target(&target) {
+                    error.set_text(&message);
+                    return;
+                }
+                let directory = directory.text().trim().to_string();
+                if !directory.is_empty() && (!directory.starts_with('/') || directory.contains('\0')) {
+                    error.set_text("Use an absolute remote folder path.");
+                    return;
+                }
+                trigger_ssh_connect(&state, target, (!directory.is_empty()).then_some(directory));
                 dialog.close();
             }
         }
@@ -89,12 +105,25 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
 }
 
 /// Create an SSH workspace using the same pattern as the socket handler.
-fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String) {
+fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory: Option<String>) {
     let (write_tx, write_rx) = tokio::sync::mpsc::unbounded_channel();
     let (output_tx, _output_rx) = tokio::sync::mpsc::unbounded_channel();
     let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new(write_tx, write_rx, output_tx));
+    *bridge.directory.lock().unwrap() = directory.clone();
     let id = state.borrow_mut().create_remote_workspace(target.clone(), &bridge);
-    state.borrow_mut().workspace_bridges.insert(id, bridge.clone());
+    {
+        let mut s = state.borrow_mut();
+        let index = s.workspaces.iter().position(|w| w.id == id).unwrap();
+        s.workspaces[index].remote_directory = directory;
+        if let Some(row) = s.sidebar_list.row_at_index(index as i32) {
+            row.set_child(Some(&crate::sidebar::workspace_row_content(&s.workspaces[index])));
+            crate::sidebar::style_workspace_row(&row, &s.workspaces[index]);
+        }
+        s.workspace_bridges.insert(id, bridge.clone());
+        s.trigger_session_save();
+    }
+    let (list, app) = { let s = state.borrow(); (s.sidebar_list.clone(), s.gtk_app.clone()) };
+    crate::sidebar::wire_latest_row(&list, state.clone(), &app);
 
     let ssh_tx = state.borrow().ssh_event_tx.clone();
     let rt_handle = state.borrow().runtime_handle.clone();

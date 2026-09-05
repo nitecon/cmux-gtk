@@ -39,7 +39,7 @@ pub async fn run_ssh_lifecycle(
         let _ = ssh_tx.send(SshEvent::StateChanged {
             workspace_id,
             state: ConnectionState::Reconnecting(attempt),
-        });
+        }).await;
 
         // Deploy if first attempt
         if attempt == 0 {
@@ -57,7 +57,7 @@ pub async fn run_ssh_lifecycle(
                     let _ = ssh_tx.send(SshEvent::StateChanged {
                         workspace_id,
                         state: ConnectionState::Disconnected,
-                    });
+                    }).await;
                     eprintln!("cmux: SSH permanent failure, giving up: {e}");
                     break;
                 }
@@ -65,7 +65,7 @@ pub async fn run_ssh_lifecycle(
                 let _ = ssh_tx.send(SshEvent::StateChanged {
                     workspace_id,
                     state: ConnectionState::Disconnected,
-                });
+                }).await;
                 let backoff = backoff_duration(attempt);
                 tokio::time::sleep(backoff).await;
                 attempt += 1;
@@ -81,17 +81,18 @@ pub async fn run_ssh_lifecycle(
                 let _ = ssh_tx.send(SshEvent::StateChanged {
                     workspace_id,
                     state: ConnectionState::Connected,
-                });
+                }).await;
 
                 // D-07: inject reconnect message if this was a reconnection
                 if was_reconnect {
-                    if let Ok(streams) = bridge.streams.lock() {
-                        for (&pane_id, _) in streams.iter() {
+                    {
+                        let ids: Vec<u64> = bridge.streams.lock().unwrap().keys().copied().collect();
+                        for pane_id in ids {
                             let msg = b"\r\n\x1b[32m[Reconnected \xe2\x80\x94 new session]\x1b[0m\r\n";
                             let _ = ssh_tx.send(SshEvent::RemoteOutput {
                                 pane_id,
                                 data: msg.to_vec(),
-                            });
+                            }).await;
                         }
                     }
                 }
@@ -143,27 +144,28 @@ pub async fn run_ssh_lifecycle(
                 eprintln!("cmux: SSH to {target} exited: {exit_status:?}");
 
                 // D-06: inject disconnect message into all active panes
-                if let Ok(streams) = bridge.streams.lock() {
-                    for (&pane_id, _) in streams.iter() {
+                {
+                    let ids: Vec<u64> = bridge.streams.lock().unwrap().keys().copied().collect();
+                    for pane_id in ids {
                         let msg = b"\r\n\x1b[33m[SSH disconnected \xe2\x80\x94 reconnecting...]\x1b[0m\r\n";
                         let _ = ssh_tx.send(SshEvent::RemoteOutput {
                             pane_id,
                             data: msg.to_vec(),
-                        });
+                        }).await;
                     }
                 }
 
                 let _ = ssh_tx.send(SshEvent::StateChanged {
                     workspace_id,
                     state: ConnectionState::Disconnected,
-                });
+                }).await;
             }
             Err(e) => {
                 eprintln!("cmux: SSH connection to {target} failed: {e}");
                 let _ = ssh_tx.send(SshEvent::StateChanged {
                     workspace_id,
                     state: ConnectionState::Disconnected,
-                });
+                }).await;
             }
         }
 
@@ -172,7 +174,7 @@ pub async fn run_ssh_lifecycle(
             let _ = ssh_tx.send(SshEvent::StateChanged {
                 workspace_id,
                 state: ConnectionState::Disconnected,
-            });
+            }).await;
             break;
         }
 
@@ -218,7 +220,7 @@ async fn run_proxy_routing(
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
-                        handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending);
+                        handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending).await;
                     }
                 }
                 Err(e) => {
@@ -229,22 +231,29 @@ async fn run_proxy_routing(
         }
     });
 
-    // Open remote streams for all registered panes (reader is running to receive responses)
-    {
-        let pane_ids: Vec<u64> = bridge.streams.lock()
-            .map(|s| s.keys().copied().collect())
-            .unwrap_or_default();
-        for pane_id in pane_ids {
-            match open_remote_stream(&writer, bridge, pane_id, &pending, ssh_tx, 80, 24).await {
-                Ok(stream_id) => {
-                    eprintln!("cmux: opened remote stream {stream_id} for pane {pane_id}");
-                }
-                Err(e) => {
-                    eprintln!("cmux: failed to open remote stream for pane {pane_id}: {e}");
+    let _read_guard = AbortOnDrop(read_handle.abort_handle());
+
+    // New terminals can appear after the tunnel connects. Surface initialization
+    // registers them only once GTK can receive their startup output.
+    let open_writer = writer.clone();
+    let open_bridge = bridge.clone();
+    let open_tx = ssh_tx.clone();
+    let open_pending = pending.clone();
+    let open_handle = tokio::spawn(async move {
+        loop {
+            let ids: Vec<u64> = open_bridge.streams.lock().unwrap().iter()
+                .filter(|(_, stream)| stream.stream_id.is_empty()).map(|(&id, _)| id).collect();
+            for id in ids {
+                if let Err(error) = open_remote_stream(&open_writer, &open_bridge, id, &open_pending, &open_tx, 80, 24).await {
+                    eprintln!("cmux: remote terminal launch failed: {error}");
+                    open_bridge.remove_pane(id);
                 }
             }
+            open_bridge.changed.notified().await;
         }
-    }
+    });
+
+    let _open_guard = AbortOnDrop(open_handle.abort_handle());
 
     // Write path: consume WriteRequests and send as JSON-RPC to SSH stdin
     let write_writer = writer.clone();
@@ -255,10 +264,12 @@ async fn run_proxy_routing(
             let rpc = serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": rpc_id,
-                "method": "proxy.write",
+                "method": if req.close { "proxy.close" } else if req.resize.is_some() { "stream.resize" } else { "proxy.write" },
                 "params": {
                     "stream_id": req.stream_id,
                     "data_base64": req.data_base64,
+                    "cols": req.resize.map(|v| v.0),
+                    "rows": req.resize.map(|v| v.1),
                 }
             });
             let line = format!("{}\n", rpc);
@@ -272,77 +283,45 @@ async fn run_proxy_routing(
         }
     });
 
+    let _write_guard = AbortOnDrop(write_handle.abort_handle());
+
     // Wait for read path to finish (SSH connection closed)
     let _ = read_handle.await;
     // Cancel write path
     write_handle.abort();
+    open_handle.abort();
 }
 
 /// Handle an incoming JSON message from cmuxd-remote.
-fn handle_incoming_message(
+async fn handle_incoming_message(
     msg: &serde_json::Value,
     bridge: &SshBridge,
     ssh_tx: &SshEventTx,
     pending: &PendingMap,
 ) {
-    // Check if it's an async event (has "event" field)
-    if let Some(event_name) = msg.get("event").and_then(|v| v.as_str()) {
-        let stream_id = msg
-            .get("stream_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-
-        match event_name {
+    if let Some(event) = msg.get("event").and_then(|v| v.as_str()) {
+        let stream = msg.get("stream_id").and_then(|v| v.as_str()).unwrap_or("");
+        let id = bridge.stream_to_pane.lock().unwrap().get(stream).copied();
+        let Some(pane_id) = id else { return; };
+        match event {
             "proxy.stream.data" => {
-                if let Some(data_b64) = msg.get("data_base64").and_then(|v| v.as_str()) {
-                    if let Ok(data) = base64::engine::general_purpose::STANDARD.decode(data_b64) {
-                        // Look up pane_id from stream_id
-                        if let Ok(s2p) = bridge.stream_to_pane.lock() {
-                            if let Some(&pane_id) = s2p.get(stream_id) {
-                                let _ = ssh_tx.send(SshEvent::RemoteOutput { pane_id, data });
-                            }
-                        }
+                if let Some(encoded) = msg.get("data_base64").and_then(|v| v.as_str()) {
+                    if let Ok(data) = base64::engine::general_purpose::STANDARD.decode(encoded) {
+                        // Backpressure the SSH reader when GTK is busy. Never drop terminal output.
+                        let _ = ssh_tx.send(SshEvent::RemoteOutput { pane_id, data }).await;
                     }
                 }
             }
-            "proxy.stream.eof" => {
-                if let Ok(s2p) = bridge.stream_to_pane.lock() {
-                    if let Some(&pane_id) = s2p.get(stream_id) {
-                        let _ = ssh_tx.send(SshEvent::RemoteEof { pane_id });
-                        drop(s2p);
-                        bridge.remove_pane(pane_id);
-                    }
-                }
+            "proxy.stream.eof" | "proxy.stream.error" => {
+                bridge.remove_pane(pane_id);
+                let _ = ssh_tx.send(SshEvent::RemoteEof { pane_id }).await;
             }
-            "proxy.stream.error" => {
-                let error = msg
-                    .get("error")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                eprintln!("cmux: proxy stream error for {stream_id}: {error}");
-                // Treat like EOF
-                if let Ok(s2p) = bridge.stream_to_pane.lock() {
-                    if let Some(&pane_id) = s2p.get(stream_id) {
-                        let _ = ssh_tx.send(SshEvent::RemoteEof { pane_id });
-                        drop(s2p);
-                        bridge.remove_pane(pane_id);
-                    }
-                }
-            }
-            _ => {
-                eprintln!("cmux: unknown SSH event: {event_name}");
-            }
+            _ => {}
         }
         return;
     }
-
-    // Check if it's an RPC response (has "id" field)
     if let Some(id) = msg.get("id").and_then(|v| v.as_u64()) {
-        if let Ok(mut map) = pending.lock() {
-            if let Some(tx) = map.remove(&id) {
-                let _ = tx.send(msg.clone());
-            }
-        }
+        if let Some(tx) = pending.lock().unwrap().remove(&id) { let _ = tx.send(msg.clone()); }
     }
 }
 
@@ -356,6 +335,8 @@ pub async fn open_remote_stream(
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
+    let (cols, rows) = bridge.contexts.lock().unwrap().get(&pane_id)
+        .map(|ctx| *ctx.size.lock().unwrap()).unwrap_or((cols, rows));
     // Send session.spawn RPC
     let spawn_id = bridge.next_id();
     let spawn_rpc = serde_json::json!({
@@ -365,6 +346,7 @@ pub async fn open_remote_stream(
         "params": {
             "cols": cols,
             "rows": rows,
+            "cwd": bridge.directory.lock().unwrap().clone(),
         }
     });
 
@@ -387,8 +369,8 @@ pub async fn open_remote_stream(
     }
 
     // Await response
-    let resp = resp_rx
-        .await
+    let resp = tokio::time::timeout(std::time::Duration::from_secs(15), resp_rx)
+        .await.map_err(|_| "session.spawn timed out".to_string())?
         .map_err(|_| "session.spawn response channel dropped".to_string())?;
 
     let stream_id = resp
@@ -404,6 +386,12 @@ pub async fn open_remote_stream(
             format!("session.spawn failed: {err_msg}")
         })?
         .to_string();
+
+    // Install routing before subscribing: the daemon may emit output immediately.
+    bridge.register_pane(pane_id, stream_id.clone());
+    if let Some(ctx) = bridge.contexts.lock().unwrap().get(&pane_id) {
+        *ctx.stream_id.lock().unwrap() = Some(stream_id.clone());
+    }
 
     // Subscribe to the stream
     let sub_id = bridge.next_id();
@@ -433,8 +421,8 @@ pub async fn open_remote_stream(
     }
 
     // Await subscribe response
-    let _sub_resp = sub_rx
-        .await
+    let _sub_resp = tokio::time::timeout(std::time::Duration::from_secs(15), sub_rx)
+        .await.map_err(|_| "proxy.stream.subscribe timed out".to_string())?
         .map_err(|_| "proxy.stream.subscribe response channel dropped".to_string())?;
 
     // Register in bridge
@@ -445,13 +433,14 @@ pub async fn open_remote_stream(
     let _ = ssh_tx.send(SshEvent::StreamOpened {
         pane_id,
         stream_id: stream_id.clone(),
-    });
+    }).await;
 
     Ok(stream_id)
 }
 
 /// Start an SSH process with cmuxd-remote in stdio mode.
 async fn start_ssh(target: &str) -> Result<Child, String> {
+    crate::workspace::validate_ssh_target(target)?;
     let child = Command::new("ssh")
         .args([
             "-o",
@@ -467,6 +456,7 @@ async fn start_ssh(target: &str) -> Result<Child, String> {
             "serve",
             "--stdio",
         ])
+        .kill_on_drop(true)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -502,4 +492,9 @@ mod tests {
         assert_eq!(backoff_duration(5), Duration::from_secs(30)); // capped
         assert_eq!(backoff_duration(10), Duration::from_secs(30)); // still capped
     }
+}
+
+struct AbortOnDrop(tokio::task::AbortHandle);
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) { self.0.abort(); }
 }

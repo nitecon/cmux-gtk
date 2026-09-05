@@ -6,6 +6,14 @@ use std::path::{Path, PathBuf};
 pub struct WorkspaceSession {
     pub uuid: String,
     pub name: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub startup_script: Option<PathBuf>,
+    #[serde(default)]
+    pub remote_target: Option<String>,
+    #[serde(default)]
+    pub remote_directory: Option<String>,
     /// Directory all local terminals in this workspace start in.
     #[serde(default)]
     pub working_directory: Option<PathBuf>,
@@ -102,6 +110,10 @@ mod tests {
             workspaces: vec![WorkspaceSession {
                 uuid: "test-uuid-1".to_string(),
                 name: name.to_string(),
+                color: None,
+                startup_script: None,
+                remote_target: None,
+                remote_directory: None,
                 working_directory: Some(PathBuf::from("/tmp")),
                 active_pane_uuid: None,
                 layout: SplitNodeData::Leaf {

@@ -14,6 +14,8 @@ pub struct PaneStream {
 pub struct WriteRequest {
     pub stream_id: String,
     pub data_base64: String,
+    pub close: bool,
+    pub resize: Option<(u16, u16)>,
 }
 
 /// Output data from remote shell to be dispatched to GTK main thread.
@@ -26,6 +28,9 @@ pub struct OutputEvent {
 pub struct SshBridge {
     /// Maps pane_id -> stream state
     pub streams: Arc<Mutex<HashMap<u64, PaneStream>>>,
+    pub contexts: Mutex<HashMap<u64, Arc<IoWriteContext>>>,
+    pub changed: tokio::sync::Notify,
+    pub directory: Mutex<Option<String>>,
     /// Maps stream_id -> pane_id (reverse lookup for incoming events)
     pub stream_to_pane: Arc<Mutex<HashMap<String, u64>>>,
     /// Channel to send write requests to the SSH tunnel task (swappable for reconnect)
@@ -46,11 +51,42 @@ impl SshBridge {
     ) -> Self {
         Self {
             streams: Arc::new(Mutex::new(HashMap::new())),
+            contexts: Mutex::new(HashMap::new()),
+            changed: tokio::sync::Notify::new(),
+            directory: Mutex::new(None),
             stream_to_pane: Arc::new(Mutex::new(HashMap::new())),
             write_tx: Arc::new(Mutex::new(write_tx)),
             write_rx: Mutex::new(Some(write_rx)),
             next_rpc_id: Arc::new(AtomicU64::new(10)), // Start after handshake IDs
             output_tx,
+        }
+    }
+
+    pub fn create_context(&self, ssh_tx: crate::ssh::SshEventTx) -> Arc<IoWriteContext> {
+        static NEXT_REMOTE_ID: AtomicU64 = AtomicU64::new(1 << 40);
+        let id = NEXT_REMOTE_ID.fetch_add(1, Ordering::Relaxed);
+        let ctx = Arc::new(IoWriteContext {
+            pane_id: id,
+            write_tx: self.write_tx.clone(),
+            surface_ptr: std::sync::atomic::AtomicUsize::new(0),
+            size: Mutex::new((80, 24)),
+            stream_id: Mutex::new(None),
+            eof_received: AtomicBool::new(false),
+            ssh_tx,
+        });
+        self.contexts.lock().unwrap().insert(id, ctx.clone());
+        ctx
+    }
+
+    pub fn remove_context(&self, id: u64) {
+        self.contexts.lock().unwrap().remove(&id);
+        if let Some(stream) = self.streams.lock().unwrap().remove(&id) {
+            self.stream_to_pane.lock().unwrap().remove(&stream.stream_id);
+            if !stream.stream_id.is_empty() {
+                let _ = self.write_tx.lock().unwrap().send(WriteRequest {
+                    stream_id: stream.stream_id, data_base64: String::new(), close: true, resize: None,
+                });
+            }
         }
     }
 
@@ -69,6 +105,12 @@ impl SshBridge {
 
     /// Clear all stream state (for reconnect -- old streams are stale).
     pub fn clear_stream_ids(&self) {
+        if let Ok(contexts) = self.contexts.lock() {
+            for ctx in contexts.values() {
+                *ctx.stream_id.lock().unwrap() = None;
+                ctx.eof_received.store(false, Ordering::Relaxed);
+            }
+        }
         if let Ok(mut streams) = self.streams.lock() {
             for ps in streams.values_mut() {
                 ps.stream_id.clear();
@@ -111,6 +153,7 @@ impl SshBridge {
                 subscribed: false,
             });
         }
+        self.changed.notify_one();
     }
 
     /// Mark a pane's stream as subscribed.
@@ -146,13 +189,15 @@ impl SshBridge {
 /// Must be allocated with Arc and leaked via Arc::into_raw for the C callback.
 pub struct IoWriteContext {
     pub pane_id: u64,
-    pub write_tx: mpsc::UnboundedSender<WriteRequest>,
+    pub write_tx: Arc<Mutex<mpsc::UnboundedSender<WriteRequest>>>,
+    pub surface_ptr: std::sync::atomic::AtomicUsize,
+    pub size: Mutex<(u16, u16)>,
     /// Set after proxy.open returns the stream_id.
     pub stream_id: Mutex<Option<String>>,
     /// Set when remote shell exits -- next keypress triggers pane close.
     pub eof_received: AtomicBool,
     /// Channel to send close requests to the GTK main loop.
-    pub ssh_tx: mpsc::UnboundedSender<crate::ssh::SshEvent>,
+    pub ssh_tx: crate::ssh::SshEventTx,
 }
 
 /// C-compatible callback invoked by Ghostty when user types in a manual-mode surface.
@@ -173,7 +218,7 @@ pub unsafe extern "C" fn ssh_io_write_cb(
 
     // After remote shell exits, any keypress closes the pane
     if ctx.eof_received.load(Ordering::Relaxed) {
-        let _ = ctx.ssh_tx.send(crate::ssh::SshEvent::ClosePaneRequest {
+        let _ = ctx.ssh_tx.try_send(crate::ssh::SshEvent::ClosePaneRequest {
             pane_id: ctx.pane_id,
         });
         return;
@@ -182,9 +227,25 @@ pub unsafe extern "C" fn ssh_io_write_cb(
     let bytes = std::slice::from_raw_parts(data as *const u8, len);
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
     if let Some(ref stream_id) = *ctx.stream_id.lock().unwrap() {
-        let _ = ctx.write_tx.send(WriteRequest {
+        let _ = ctx.write_tx.lock().unwrap().send(WriteRequest {
             stream_id: stream_id.clone(),
             data_base64: b64,
+            close: false,
+            resize: None,
         });
+    }
+}
+
+impl IoWriteContext {
+    pub fn resize(&self, columns: u16, rows: u16) {
+        let size = (columns.max(1), rows.max(1));
+        let mut previous = self.size.lock().unwrap();
+        if *previous == size { return; }
+        *previous = size;
+        if let Some(stream_id) = self.stream_id.lock().unwrap().clone() {
+            let _ = self.write_tx.lock().unwrap().send(WriteRequest {
+                stream_id, data_base64: String::new(), close: false, resize: Some(size),
+            });
+        }
     }
 }

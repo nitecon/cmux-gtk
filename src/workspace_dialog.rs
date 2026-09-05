@@ -67,6 +67,18 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
     folder_row.append(&browse_button);
     content.append(&folder_row);
 
+    let script_label = gtk4::Label::new(Some("Startup script (optional, POSIX shell)"));
+    script_label.set_xalign(0.0);
+    content.append(&script_label);
+    let script_entry = gtk4::Entry::new();
+    script_entry.set_placeholder_text(Some("/path/to/start-workspace.sh"));
+    content.append(&script_entry);
+    let script_help = gtk4::Label::new(Some("Runs in each terminal, including after restart. Leave empty for a regular shell."));
+    script_help.set_wrap(true);
+    script_help.set_xalign(0.0);
+    script_help.add_css_class("dim-label");
+    content.append(&script_help);
+
     let validation = gtk4::Label::new(Some("Choose an existing folder."));
     validation.set_xalign(0.0);
     validation.add_css_class("dim-label");
@@ -137,9 +149,12 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
             }
 
             let path = std::path::PathBuf::from(path_entry.text().as_str());
-            let result = state
-                .borrow_mut()
-                .create_workspace_in(name_entry.text().to_string(), &path);
+            let script = script_entry.text();
+            let result = if script.trim().is_empty() {
+                state.borrow_mut().create_workspace_in(name_entry.text().to_string(), &path)
+            } else {
+                state.borrow_mut().create_script_workspace(name_entry.text().to_string(), &path, std::path::Path::new(script.as_str()))
+            };
             match result {
                 Ok(_) => {
                     let sidebar_list = state.borrow().sidebar_list.clone();
