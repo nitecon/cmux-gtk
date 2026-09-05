@@ -2,9 +2,31 @@
 
 Status: in progress. This document is a completion checklist, not a claim that the migration is finished.
 
-## Inventory evidence
+## Current requirement status
 
-The initial tracked-source inventory contained 41 Rust files, four Go files and three C files outside Ghostty; no owned Swift, Objective-C or Zig source. The application binaries are Rust. `build.rs` builds the X11 C bridge and links the Ghostty archive. The only website CI job typechecks the inherited standalone `web` tree.
+This table supersedes the historical checkpoint notes below. Audited against tracked files at `055952a9` on 2026-09-05; this is not a completion claim.
+
+| Requirement | Current evidence | Remaining work |
+| --- | --- | --- |
+| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 61 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
+| Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
+| Document every owned function | Both Python clients and five maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Fresh Python scan finds 404 undocumented declarations under `tests` and 686 under `tests_v2`, across 81 and 96 files respectively. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
+| Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
+| Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
+| KISS and shared behavior | Shared pane closure, persistence, browser transport/decoding, Go stream lifecycle and Python discovery/transport/reference helpers have replaced duplication. | Review remaining large desktop/pane modules and synchronous browser startup/UI paths; finish cancellation and queue-bound audits. |
+| End-to-end observability and benchmarks | Bounded logs, CLI/GTK correlation, resource/CPU counters, browser metrics, session-write timing, ping/churn artifacts and issue snapshots implemented. | SSH/external-service correlation, remaining browser paths, workload-specific rendering/notification benchmarks, report comparison and diagnostic-log collection remain incomplete. |
+| Executable verification | CI run 33986235148 passed fully at `2afc4a41`. Run 33986935543 at `d958b692` has passed Python discovery/transport, Rust units, pane closure and browser pixel/GTK delivery tests; remaining jobs were still active at this audit. | Require completed CI evidence for the cumulative final revision and validate workloads beyond narrow fixtures. No local tests are permitted. |
+
+Session standby/resume hooks and additional agent-facing feature parity remain a separately deferred task. Their deferral does not waive any active refactor or observability requirement. A release tag is not appropriate while the active scope remains unfinished.
+
+## Historical implementation checkpoints
+
+The following notes preserve findings and verification at the time of each change. Their "remaining", "next stage" and CI-pending statements are historical; use the table above and current CI state for decisions.
+
+### Initial inventory
+
+The initial tracked-source inventory contained 41 Rust files, four Go files and three C files outside Ghostty; no owned Swift, Objective-C or Zig source. The application binaries are Rust. `build.rs` builds the X11 C bridge and links the Ghostty archive. At that initial checkpoint, a separate website CI job typechecked the inherited standalone `web` tree; both were subsequently removed.
 
 Legacy candidates include the standalone upstream marketing website, macOS instructions in `CONTRIBUTING.md`, tests that require missing Xcode/Swift projects, unused native stubs, historical planning notes and duplicated desktop assets. Audit references before removal. Some Python protocol tests are portable and must be retained or adapted rather than deleted by directory name. `scripts/cmux-cli` and the prompt probe currently import `tests_v2/cmux.py`.
 

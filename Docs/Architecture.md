@@ -40,6 +40,8 @@ flowchart LR
 
 GTK objects and model mutations stay on the GTK main thread. Parse, validate, deduplicate and coalesce telemetry on workers. Send only necessary mutations to GTK. Keep latest-value data bounded; give streams backpressure and explicit cancellation. Widgets must not retain themselves through callbacks. Free each terminal and remote PTY exactly once.
 
+The browser adapter separates discovery, command transport, frame envelopes, pixel decoding, stream delivery, pointer motion and metrics. JPEG/PNG decoding uses the Rust `image` crate with only those codec features enabled; bounded blocking workers produce shared RGBA bytes for GTK memory textures. Latest-frame channels coalesce preview input. Generic browser RPCs use bounded asynchronous exchanges, but daemon startup and several UI command paths still perform synchronous work and remain refactor targets.
+
 Focus is observable protocol behavior. Only operations documented to focus or select may move focus. Persist workspace order and launch settings consistently across CLI and UI operations. Session restore rebuilds app-owned state; it does not checkpoint arbitrary processes. Session resume enhancements remain a separate deferred task.
 
 ## Build and verification
