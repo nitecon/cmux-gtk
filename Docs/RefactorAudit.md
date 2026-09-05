@@ -314,3 +314,7 @@ CI run 33989291802 failed the new EOF churn scenario because the default applica
 ### Shared asynchronous URL navigation
 
 The Go button and Enter handler now share address normalization and async viewport/open submission. History and URL operations use one manager admission slot, ordered bounded public CLI subprocesses and one GTK completion/cancellation helper. Failed viewport sizing stops the sequence; absent/zero dimensions skip sizing. The controlled executable fixture now covers literal URL arguments with spaces/shell syntax, viewport/open/get ordering, cross-operation overlap rejection and early termination after viewport failure. All-target Cargo check passed; runtime assertions remain CI-only. Startup, mapping, resize and input/devtools synchronous paths remain to migrate.
+
+### Browser-manager cancellation ownership
+
+BrowserManager now owns a navigation stop signal as well as admission. Shutdown and Drop share stop_navigation: close admission and notify admitted futures, which stop their command sequence and drop any active kill-on-drop child future. A stopped manager cannot launch delayed navigation after teardown. Added executable coverage for an unpolled admitted operation after manager drop and a running real child that must be cancelled/reaped before its fifteen-second command deadline. All-target compilation passed; CI execution is pending. This controls application-owned CLI children, not detached browser-daemon descendants.

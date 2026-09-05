@@ -27,6 +27,7 @@ pub enum PreviewState {
 pub struct BrowserManager {
     session_name: String,
     navigation_gate: std::sync::Arc<tokio::sync::Semaphore>,
+    navigation_shutdown: tokio::sync::watch::Sender<bool>,
     binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
 
@@ -41,6 +42,7 @@ impl BrowserManager {
         BrowserManager {
             session_name: format!("cmux-{}", Uuid::new_v4().simple()),
             navigation_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
+            navigation_shutdown: tokio::sync::watch::channel(false).0,
             binary_path: None,
             stream_task: None,
             preview_state: PreviewState::Empty,
@@ -202,6 +204,7 @@ impl BrowserManager {
         commands: Vec<Vec<String>>,
         trace_id: uuid::Uuid,
     ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
+        let mut shutdown = self.navigation_shutdown.subscribe();
         let binary = self.binary_path.clone();
         let session = self.session_name.clone();
         let permit = self.navigation_gate.clone().try_acquire_owned();
@@ -213,16 +216,27 @@ impl BrowserManager {
             }),
         );
         async move {
-            let _permit =
-                permit.map_err(|_| "Browser navigation already in progress".to_string())?;
-            let binary =
-                binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
-            for command in commands {
-                let args: Vec<&str> = command.iter().map(String::as_str).collect();
-                cli::run(&binary, &session, &args, trace_id).await?;
+            let _permit = permit
+                .map_err(|_| "Browser navigation unavailable or already in progress".to_string())?;
+            let cancelled = || "Browser manager stopped".to_string();
+            if *shutdown.borrow() {
+                return Err(cancelled());
             }
-            let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
-            Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
+            let operation = async {
+                let binary =
+                    binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
+                for command in commands {
+                    let args: Vec<&str> = command.iter().map(String::as_str).collect();
+                    cli::run(&binary, &session, &args, trace_id).await?;
+                }
+                let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
+                Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
+            };
+            tokio::select! {
+                biased;
+                _ = shutdown.changed() => Err(cancelled()),
+                result = operation => result,
+            }
         }
     }
 
@@ -278,8 +292,15 @@ impl BrowserManager {
         }
     }
 
+    /// Close navigation admission and wake admitted operations so their child futures are dropped.
+    fn stop_navigation(&self) {
+        self.navigation_gate.close();
+        self.navigation_shutdown.send_replace(true);
+    }
+
     /// Shut down the daemon and clean up.
     pub fn shutdown(&mut self) {
+        self.stop_navigation();
         // Try to send close command (best-effort).
         let _ = self.send_command("close", serde_json::json!({"id": "cmux-shutdown"}));
 
@@ -304,8 +325,9 @@ impl BrowserManager {
 }
 
 impl Drop for BrowserManager {
-    /// Cancel the owned frame reader without blocking destruction or issuing browser commands.
+    /// Cancel owned navigation and frame work without issuing blocking browser commands.
     fn drop(&mut self) {
+        self.stop_navigation();
         self.stop_stream();
     }
 }
@@ -517,14 +539,64 @@ esac
             .open_async(url, Some((640, 480)), Uuid::new_v4())
             .await
             .is_err());
+        let session_name = browser.session_name.clone();
+        let abandoned = browser.navigate_async("after_drop".into(), Uuid::new_v4());
+        drop(browser);
+        assert!(abandoned.await.is_err());
         let calls =
             std::fs::read_to_string(binary.with_file_name("browser fixture.calls")).unwrap();
         let expected = [
             "back", "get", "fail", "forward", "get", "set", "open", "get", "open", "get", "set",
         ]
-        .map(|command| format!("{} {command}\n", browser.session_name))
+        .map(|command| format!("{session_name} {command}\n"))
         .concat();
         assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// Dropping the manager cancels a running CLI child before its command deadline.
+    #[tokio::test]
+    async fn manager_drop_cancels_live_navigation() {
+        let directory =
+            std::env::temp_dir().join(format!("cmux-navigation-drop-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let binary = directory.join("browser");
+        std::fs::write(
+            &binary,
+            b"#!/bin/sh\nprintf '%s' $$ > \"$0.pid\"\nexec sleep 60\n",
+        )
+        .unwrap();
+        cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        let mut browser = BrowserManager::new();
+        browser.binary_path = Some(binary);
+        let task = tokio::spawn(browser.navigate_async("back".into(), Uuid::new_v4()));
+        let pid = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if let Ok(text) = std::fs::read_to_string(directory.join("browser.pid")) {
+                    if let Ok(pid) = text.parse::<u32>() {
+                        break pid;
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        drop(browser);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while std::path::Path::new(&format!("/proc/{pid}")).exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
 
