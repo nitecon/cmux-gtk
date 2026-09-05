@@ -4,13 +4,13 @@ Status: in progress. This document is a completion checklist, not a claim that t
 
 ## Current requirement status
 
-This table supersedes the historical checkpoint notes below. Inventory refreshed from `d47c34dc` plus the removal of five absent-Resources shell-integration suites on 2026-09-05. Counts include tracked, existing owned files and exclude the Ghostty submodule; this is not a completion claim.
+This table supersedes the historical checkpoint notes below. Inventory refreshed from `58471397` plus the removal of the absent Claude Teams launcher test group on 2026-09-05. Counts include tracked, existing owned files and exclude the Ghostty submodule; this is not a completion claim.
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 70 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and five maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 316 undocumented declarations among 579 functions in 74 `tests` files, and 659 among 853 functions in 91 `tests_v2` files. All 17 functions in the five maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and five maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 295 undocumented declarations among 558 functions in 68 `tests` files, and 659 among 853 functions in 91 `tests_v2` files. All 17 functions in the five maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -545,3 +545,21 @@ and remains. Removing the stale PR fixture also removes its invalid Python escap
 warnings; no escaping workaround was added to an absent-target test.
 
 Diff validation passed; no runtime tests were run locally.
+
+
+### Removed absent Claude Teams launcher test group
+
+Removed five `tests/test_cli_claude_teams_*.py` suites and their sole shared
+`claude_teams_test_utils.py` helper. The current Rust command schema and dispatch
+have no `claude-teams`, `__tmux-compat` or external-subcommand fallback. These tests
+only invoke that absent launcher, testing environment injection, help forwarding,
+wrapper avoidance, existing shim reuse and tmux teammate sequences. The helper's
+fallback also instructed users to run the removed `scripts/reload.sh`. Its only
+callers were the deleted suites; no workflow or other source references the group.
+
+No Claude executable, installed user configuration or production API was changed.
+If a future agent launcher is selected for the deferred parity work, requirements
+include argument/environment forwarding, preserving explicit socket selection,
+avoiding recursive wrapper invocation and testing teammate pane operations through
+the actual Linux implementation. The deleted upstream suites are not current
+coverage of those requirements. Diff validation passed; no local runtime tests ran.
