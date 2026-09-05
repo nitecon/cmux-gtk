@@ -48,16 +48,6 @@ pub(crate) fn pane_id(surface: usize) -> Option<u64> {
         .map(|surface| surface.pane_id)
 }
 
-/// Find any terminal in a pane when the caller has no selected-widget mapping.
-pub(crate) fn first_surface(pane_id: u64) -> Option<usize> {
-    SURFACES
-        .lock()
-        .ok()?
-        .iter()
-        .find(|(_, surface)| surface.pane_id == pane_id)
-        .map(|(pointer, _)| *pointer)
-}
-
 /// Copy the latest reported directory, or return empty when no directory is known.
 pub(crate) fn working_directory(surface: usize) -> String {
     SURFACES
@@ -99,7 +89,6 @@ mod tests {
         assert_eq!(working_directory(first), "/first");
         assert_eq!(working_directory(second), "/second");
         assert_eq!(pane_id(first), Some(u64::MAX));
-        assert_eq!(first_surface(u64::MAX), Some(first));
         unregister(first);
         set_working_directory(first, "/late");
         assert_eq!(working_directory(first), "");

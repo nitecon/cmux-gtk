@@ -442,27 +442,7 @@ impl SplitNode {
     /// Find the Ghostty surface handle for a specific pane by pane_id.
     /// Used by debug.type to send text to a specific pane's surface.
     pub fn find_surface_for_pane(&self, target_id: u64) -> Option<ffi::ghostty_surface_t> {
-        match self {
-            SplitNode::Leaf {
-                pane_id,
-                notebook,
-                surfaces,
-                ..
-            } => {
-                if *pane_id != target_id {
-                    return None;
-                }
-                let index = notebook.current_page().unwrap_or(0) as usize;
-                surfaces
-                    .borrow()
-                    .get(index)
-                    .and_then(PaneSurface::terminal_area)
-                    .and_then(|area| surface_for_area(&area))
-            }
-            SplitNode::Split { start, end, .. } => start
-                .find_surface_for_pane(target_id)
-                .or_else(|| end.find_surface_for_pane(target_id)),
-        }
+        find_gl_area_in_tree(self, target_id).and_then(|area| surface_for_area(&area))
     }
 
     /// Collect (uuid, pane_id, active) for all leaves in this subtree.
@@ -1102,12 +1082,9 @@ impl SplitEngine {
         }
     }
 
-    /// Prefer the selected terminal, then fall back to any registered terminal in the pane.
+    /// Resolve only the selected terminal; a selected browser never falls back to a hidden terminal.
     fn find_surface(&self, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
-        find_surface_in_tree(&self.root, pane_id).or_else(|| {
-            crate::ghostty::registry::first_surface(pane_id)
-                .map(|pointer| pointer as ffi::ghostty_surface_t)
-        })
+        self.root.find_surface_for_pane(pane_id)
     }
 
     /// Resolve the pane's selected terminal widget for focus and rendering operations.
@@ -1383,11 +1360,6 @@ fn find_any_terminal_surface(node: &SplitNode, pane_id: u64) -> Option<ffi::ghos
         .filter_map(PaneSurface::terminal_area)
         .find_map(|area| surface_for_area(&area));
     found
-}
-
-/// Resolve the selected terminal's native handle, excluding browser and unrealized tabs.
-fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
-    find_gl_area_in_tree(node, pane_id).and_then(|area| surface_for_area(&area))
 }
 
 /// Return the selected terminal widget in a pane located through the shared tree lookup.

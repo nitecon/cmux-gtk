@@ -429,9 +429,9 @@ impl AppState {
                 }
             }
         }
-        // Grab GTK keyboard focus on the active pane so key events reach Ghostty.
+        // Restore focus through the selected surface for every workspace-switch caller.
         if let Some(engine) = self.split_engines.get(index) {
-            engine.grab_active_focus();
+            engine.focus_active_surface();
         }
     }
 

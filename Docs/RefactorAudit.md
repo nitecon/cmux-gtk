@@ -705,3 +705,19 @@ JSON preservation, long pane references, Unicode IDs and empty lists. The GTK
 terminal fixture checks human-readable output against its real JSON identities.
 Rust formatting, binary/test-target compilation, Python syntax and diff checks
 passed locally; runtime results remain pending CI.
+
+
+### Workspace switches share selected-surface focus ownership
+
+Removed the sidebar's extra global-registry focus assignment after workspace
+selection. `AppState::switch_to_index` now calls the pane tree's shared GTK/native
+focus restoration for every caller. Selected-surface lookup no longer falls back
+to an arbitrary hidden terminal when a browser tab is selected. The registry's
+now-unused first-terminal query and a duplicate recursive native lookup were
+removed; explicit terminal inheritance still uses its separate intentional lookup.
+
+The mixed-tab GTK fixture switches through a temporary workspace while a browser
+is selected, verifies browser selection on return, then cleans up the temporary
+workspace. It does not directly inspect Ghostty's private focused flag. Local
+binary/test-target compilation, Python parsing and diff checks passed; runtime
+results remain pending CI.
