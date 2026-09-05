@@ -651,3 +651,21 @@ checks absence in another terminal, preserves selection and rejects a missing
 read target. CLI help documents viewport scope. Local binary/test-target checking,
 Python syntax parsing and diff validation passed; native runtime results remain
 pending CI. This is current terminal inspection, not deferred session replay.
+
+
+### Terminal identity for refresh and availability
+
+Refresh now resolves an explicit surface UUID to that terminal's GLArea instead
+of refreshing the selected sibling in its containing pane. Native pointer lookup
+shares this widget resolver. An unknown/nonterminal refresh target returns
+`not_found`; no-target refresh uses the model's active pane directly. Health with
+an omitted target now checks for a native terminal just like explicit-target
+health, rather than unconditionally returning alive when a workspace exists.
+CLI help describes native terminal availability: this is not shell-process or
+external-browser health. Pane attention remains a separate returned property.
+
+The GTK fixture exercises unfocused refresh, known/missing terminal availability,
+unknown refresh rejection and unchanged selection across these operations. Local
+binary/test-target compilation, Python syntax parsing and diff validation passed;
+runtime verification remains pending CI. Pixel-level proof for refreshing a
+hidden sibling is still broader than this protocol regression's assertions.

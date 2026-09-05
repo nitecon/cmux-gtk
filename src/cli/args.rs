@@ -141,7 +141,7 @@ pub enum Commands {
         #[arg(long)]
         id: Option<String>,
     },
-    /// Check surface health
+    /// Check native terminal availability and pane attention
     Health {
         /// Target surface ID (default: focused)
         #[arg(long)]

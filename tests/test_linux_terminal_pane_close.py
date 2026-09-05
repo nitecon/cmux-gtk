@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
             ("send-text", "ignored", "--id", "00000000-0000-4000-8000-000000000000"),
             ("send-key", "ctrl+c", "--id", new_id),
             ("read-text", "--id", "00000000-0000-4000-8000-000000000000"),
+            ("refresh", "--id", "00000000-0000-4000-8000-000000000000"),
         ]:
             try:
                 app.cli(*arguments)
@@ -62,6 +63,10 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
 
         app.cli("focus-surface", survivors[0])
         before_read = app.surfaces()
+        app.cli("refresh", "--id", new_id)
+        assert json.loads(app.cli("health", "--id", new_id, "--json"))["alive"]
+        assert not json.loads(app.cli("health", "--id",
+            "00000000-0000-4000-8000-000000000000", "--json"))["alive"]
         app.cli("send-text", "printf '%s%s\n' CMUX READCHECK\r", "--id", new_id)
         app.wait_for(lambda: "CMUXREADCHECK" in json.loads(
             app.cli("read-text", "--id", new_id, "--json"))["text"], "unfocused terminal output")

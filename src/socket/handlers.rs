@@ -541,10 +541,9 @@ fn handle_socket_command_traced(
                             .unwrap_or(false);
                         (alive, attn)
                     } else {
-                        let attn = engine.root.find_active_pane_id()
-                            .map(|pid| engine.root.pane_has_attention(pid))
-                            .unwrap_or(false);
-                        (true, attn)
+                        let alive = engine.root.find_surface_for_pane(engine.active_pane_id).is_some();
+                        let attn = engine.root.pane_has_attention(engine.active_pane_id);
+                        (alive, attn)
                     }
                 } else { (false, false) }
             };
@@ -557,18 +556,19 @@ fn handle_socket_command_traced(
             let gl_area = {
                 let s = state.borrow();
                 if let Some(engine) = s.split_engines.get(s.active_index) {
-                    let target_pane_id = if let Some(ref uuid_str) = id {
-                        engine.find_pane_id_by_uuid(uuid_str)
-                    } else {
-                        engine.root.find_active_pane_id()
-                    };
-                    target_pane_id.and_then(|pid| engine.gl_area_for_pane(pid))
+                    match id.as_deref() {
+                        Some(uuid) => engine.gl_area_for_surface(uuid),
+                        None => engine.gl_area_for_pane(engine.active_pane_id),
+                    }
                 } else { None }
             };
-            if let Some(area) = gl_area {
+            let response = if let Some(area) = gl_area {
                 area.queue_render();
-            }
-            let _ = resp_tx.send(ok(req_id, json!({})));
+                ok(req_id, json!({}))
+            } else {
+                err(req_id, "not_found", "terminal surface not found")
+            };
+            let _ = resp_tx.send(response);
         }
 
         // ── pane.* ───────────────────────────────────────────────────────────

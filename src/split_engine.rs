@@ -483,20 +483,20 @@ impl SplitNode {
         }
     }
 
-    /// Find the ghostty surface handle for the leaf matching target_uuid (UUID string).
-    pub fn find_by_uuid(&self, target_uuid: &str) -> Option<ffi::ghostty_surface_t> {
+    /// Clone the terminal tab widget matching a UUID anywhere in this subtree, including hidden tabs.
+    fn find_terminal_by_uuid(&self, target_uuid: &str) -> Option<gtk4::GLArea> {
         match self {
             SplitNode::Leaf { surfaces, .. } => {
                 surfaces.borrow().iter().find_map(|surface| match surface {
                     PaneSurface::Terminal { gl_area, uuid } if uuid.to_string() == target_uuid => {
-                        surface_for_area(gl_area)
+                        Some(gl_area.clone())
                     }
                     _ => None,
                 })
             }
             SplitNode::Split { start, end, .. } => start
-                .find_by_uuid(target_uuid)
-                .or_else(|| end.find_by_uuid(target_uuid)),
+                .find_terminal_by_uuid(target_uuid)
+                .or_else(|| end.find_terminal_by_uuid(target_uuid)),
         }
     }
 
@@ -1115,9 +1115,14 @@ impl SplitEngine {
         panes
     }
 
+    /// Clone a terminal widget by stable tab identity without changing notebook selection or focus.
+    pub fn gl_area_for_surface(&self, uuid: &str) -> Option<gtk4::GLArea> {
+        self.root.find_terminal_by_uuid(uuid)
+    }
+
     /// Look up a surface by its UUID string. Returns the ghostty surface handle if found.
     pub fn find_surface_by_uuid(&self, target_uuid: &str) -> Option<ffi::ghostty_surface_t> {
-        self.root.find_by_uuid(target_uuid)
+        self.gl_area_for_surface(target_uuid).and_then(|area| surface_for_area(&area))
     }
 
     /// Look up a pane_id by its UUID string.
