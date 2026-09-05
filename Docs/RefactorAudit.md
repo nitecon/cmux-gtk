@@ -597,3 +597,18 @@ its absence after explicit termination/reaping. This guards against accidentally
 switching back to the main thread's children file and missing Ghostty's IO-thread
 children. Python syntax parsing and diff checks passed; runtime verification is
 left to GitHub Actions.
+
+
+### Explicit surface split targets
+
+The socket split handler no longer discards its optional surface ID. It uses the
+shared pane-tree surface selector before splitting, so a requested sibling tab or
+pane supplies the active target in the current workspace. An unknown target
+returns `not_found` without creating a pane or changing selection. Omitted targets
+retain active-pane behavior. Cross-workspace target switching is not implied.
+
+The terminal lifecycle CI scenario focuses the last pane, splits the first by ID,
+and verifies the new surface's traversal position, selected identity and child
+creation/cleanup. It also checks unchanged layout and selection after an invalid
+ID. Workspace binary checking, Python syntax parsing and diff validation passed;
+runtime results remain pending GitHub Actions.

@@ -376,9 +376,9 @@ fn handle_socket_command_traced(
             let _ = resp_tx.send(ok(req_id, json!({"surfaces": panes})));
         }
 
-        SocketCommand::SurfaceSplit { req_id, id: _, direction, resp_tx } => {
-            // Split the active pane in the active workspace.
-            // SplitEngine::split_active splits by orientation and returns new pane_id.
+        SocketCommand::SurfaceSplit { req_id, id, direction, resp_tx } => {
+            // Split the requested surface in the active workspace, or its active pane.
+            // Selecting/splitting is focus intent; invalid targets must not create a pane.
             let orientation = if direction == "vertical" {
                 gtk4::Orientation::Vertical
             } else {
@@ -388,6 +388,10 @@ fn handle_socket_command_traced(
                 let mut s = state.borrow_mut();
                 let idx = s.active_index;
                 if let Some(engine) = s.split_engines.get_mut(idx) {
+                    if id.as_deref().is_some_and(|target| !engine.focus_surface(target)) {
+                        let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                        return;
+                    }
                     engine.split_active(orientation)
                         .and_then(|new_pane_id| {
                             // Find the uuid of the newly created pane.
