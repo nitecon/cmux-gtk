@@ -1,6 +1,36 @@
 //! Linux process resource inspection without terminal content or environment data.
 
 use std::io;
+use std::io::Read;
+
+/// Read the first kernel CPU model name from at most 64 KiB of procfs data.
+/// Blocking worker-only I/O; None means unavailable or unsupported, not generic hardware.
+/// This identifies one reported model, not every CPU in a heterogeneous system.
+pub fn cpu_model() -> Option<String> {
+    let mut bytes = Vec::new();
+    std::fs::File::open("/proc/cpuinfo")
+        .ok()?
+        .take(64 * 1024)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    parse_cpu_model(std::str::from_utf8(&bytes).ok()?)
+}
+
+/// Select a complete, nonempty model-name line; reject oversized or control-bearing labels.
+fn parse_cpu_model(cpuinfo: &str) -> Option<String> {
+    cpuinfo.split_inclusive('\n').find_map(|line| {
+        if !line.ends_with('\n') {
+            return None;
+        }
+        let (key, value) = line.split_once(':')?;
+        let value = value.trim();
+        (key.trim() == "model name"
+            && !value.is_empty()
+            && value.len() <= 256
+            && !value.chars().any(char::is_control))
+        .then(|| value.to_owned())
+    })
+}
 
 /// A point-in-time resource sample for this process, in kernel-reported units.
 #[derive(Debug, Default)]
@@ -81,6 +111,28 @@ fn parse_status(status: &str) -> Resources {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CPU indices and unrelated fields are not model identities; truncated or invalid labels stay absent.
+    #[test]
+    fn cpu_model_uses_complete_kernel_labels() {
+        assert_eq!(
+            parse_cpu_model(
+                "processor : 0\nmodel name\t: Example CPU 12\nmodel name: Second CPU\n"
+            ),
+            Some("Example CPU 12".into())
+        );
+        assert_eq!(parse_cpu_model("processor: 0\nHardware: board\n"), None);
+        assert_eq!(parse_cpu_model("model name: truncated"), None);
+        assert_eq!(
+            parse_cpu_model("model name: \nmodel name: valid\n"),
+            Some("valid".into())
+        );
+        assert_eq!(parse_cpu_model("model name: bad\0label\n"), None);
+        assert_eq!(
+            parse_cpu_model(&format!("model name: {}\n", "x".repeat(257))),
+            None
+        );
+    }
 
     /// Missing and malformed values remain distinguishable from measured zero.
     #[test]

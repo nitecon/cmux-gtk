@@ -111,7 +111,7 @@ and matches recorded host, build, GTK, backend, terminal count, iterations and
 warmup settings. It recomputes median/p95/p99 from samples and prints JSON values,
 deltas and percentages. Positive changes are slower. It does not infer statistical
 significance or impose a regression threshold. Matching metadata cannot establish
-identical hardware; CPU model and actual renderer identity are not recorded. New diagnostic snapshots
+identical hardware; actual renderer identity is not recorded and a model label is not a complete hardware fingerprint. New diagnostic snapshots
 include libgl_software_override: true for LIBGL_ALWAYS_SOFTWARE=1, false for 0,
 and null for absent or unrecognized values. This records the application override,
 not renderer selection. Comparison requires matching before/after and cross-report
@@ -121,3 +121,12 @@ workload; this command rejects that report type.
 Benchmark comparison also requires valid host/workload metadata, integer counts and a positive application PID, plus stable runtime settings and terminal counts between each run's before/after snapshots. Identically malformed reports are rejected. Unrepresentable numeric results produce a command error with no partial JSON output.
 
 The socket-to-GTK bridge holds at most 64 waiting commands. Dispatch uses immediate admission: a full queue returns `overloaded`, and a closed receiver returns `internal_error`. `rpc.queue.rejected` records trace ID, error code and queue capacity without command content. This is an explicit boundary in addition to the existing 64-connection limit and serial per-connection dispatch; it does not establish a previous unbounded-growth bug or impose a byte-exact heap ceiling. Accepted requests still wait for GTK completion, so a stalled GTK thread remains a separate responsiveness concern.
+
+Diagnostic snapshots now include `cpu_model`, the first complete `model name` label
+found in at most 64 KiB of `/proc/cpuinfo`. Reads run on the diagnostics worker;
+labels are capped at 256 bytes and reject control characters. Missing, malformed
+or unsupported kernel formats produce null. This reports one kernel model label,
+not all CPUs in a heterogeneous system or a stable host identity. Benchmark
+comparison requires matching before/after and cross-report values, rejecting
+unknown-versus-known identities. Older unknown reports can still be compared
+with each other, subject to the other compatibility checks.

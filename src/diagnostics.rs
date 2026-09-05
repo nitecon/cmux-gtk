@@ -121,6 +121,7 @@ pub fn snapshot() -> serde_json::Value {
         "schema": 1, "version": env!("CMUX_VERSION"), "pid": std::process::id(),
         "build_profile": if cfg!(debug_assertions) { "debug" } else { "release" },
         "gtk_version": format!("{}.{}.{}", gtk4::major_version(), gtk4::minor_version(), gtk4::micro_version()),
+        "cpu_model": cmux_platform::process::cpu_model(),
         "requested_backend": std::env::var("GDK_BACKEND").unwrap_or_else(|_| "auto".into()),
         // Record only the recognized numeric override, never arbitrary environment content.
         // Absence/other spellings are unknown; this does not identify the active renderer.

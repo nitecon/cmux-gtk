@@ -62,6 +62,28 @@ class Comparison(unittest.TestCase):
         with self.assertRaises(ValueError):
             COMPARISON.compare_reports(candidate, candidate)
 
+    def test_cpu_model_compatibility(self):
+        """Unknown, changed or malformed CPU identities must not masquerade as matched hardware."""
+        candidate = copy.deepcopy(self.baseline)
+        for snapshot in (candidate["before"], candidate["after"]):
+            snapshot["cpu_model"] = "Example CPU"
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(self.baseline, candidate)
+        self.assertEqual(COMPARISON.compare_reports(candidate, candidate)["matched_settings"]["cpu_model"], "Example CPU")
+        changed = copy.deepcopy(candidate)
+        for snapshot in (changed["before"], changed["after"]):
+            snapshot["cpu_model"] = "Different CPU"
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(candidate, changed)
+        candidate["after"]["cpu_model"] = "Different CPU"
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(candidate, candidate)
+        for model in [True, 7, "", " ", "x" * 257, "bad\nlabel"]:
+            for snapshot in (candidate["before"], candidate["after"]):
+                snapshot["cpu_model"] = model
+            with self.assertRaises(ValueError):
+                COMPARISON.compare_reports(candidate, candidate)
+
     def test_matching_invalid_metadata_is_rejected(self):
         """Identically corrupted reports must not pass just because their settings match."""
         mutations = [

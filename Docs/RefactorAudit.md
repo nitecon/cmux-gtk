@@ -16,7 +16,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
 | KISS and shared behavior | Shared pane closure, persistence, browser transport/decoding, Go stream lifecycle and Python discovery/transport/reference helpers have replaced duplication. | Review remaining large desktop/pane modules and synchronous browser startup/UI paths; finish cancellation and queue-bound audits. |
 | End-to-end observability and benchmarks | Bounded logs, CLI/GTK correlation, resource/CPU counters, browser metrics, session-write timing, ping/churn artifacts and issue snapshots implemented. | SSH/external-service correlation, remaining browser paths, workload-specific optimized rendering/notification/browser/remote benchmarks, richer host metadata, memory-report comparison and diagnostic-log collection remain incomplete. Guarded CLI-ping report comparison and a debug render/churn baseline now exist. |
-| Executable verification | Run 33997418114 at `b07615fb` completed successfully, covering transport separation, request validation, typed input/read, SIGINT, close selection, memory churn, clipboard, SSH, software-rendering metadata and optimized benchmarks. Archived raw earlier baseline remains under Docs/Benchmarks/e08b976f. | Later terminal-input validation, legacy fixture cleanup, report generation and asynchronous DevTools delivery still need cumulative CI. No local tests are permitted. |
+| Executable verification | Run 33998082761 at `d4aa87d6` completed successfully, covering terminal-input validation, report artifact generation, transport validation, typed input/read, SIGINT, close selection, memory churn, clipboard, SSH and optimized benchmarks. Archived raw earlier baseline remains under Docs/Benchmarks/e08b976f. | Later asynchronous DevTools work, browser response validation/discovery, keyboard routing and CPU metadata still need cumulative CI. No local tests are permitted. |
 
 Session standby/resume hooks and additional agent-facing feature parity remain a separately deferred task. Their deferral does not waive any active refactor or observability requirement. A release tag is not appropriate while the active scope remains unfinished.
 
@@ -950,3 +950,19 @@ Preserved the useful baseline-versus-workspace-churn workload and starting count
 Moved OS-native PATH traversal from the browser adapter into cmux-platform paths::find_command_on_path. Agent-browser and system-Chromium selection both use that boundary; browser-specific precedence, package locations and NVM version policy remain in the adapter. Candidate lookup preserves PATH order and follows regular-file symlinks; execution still validates permissions and format. The library has no GTK dependency for this service.
 
 Added a real-filesystem CI scenario for path precedence, directory rejection, valid symlinks and broken candidates using an explicit path list rather than process environment mutation. Workspace all-target and platform-without-default-features compilation passed. Diff checks passed; no local tests ran. This is another platform boundary extraction, not complete portability or a resolution of synchronous startup I/O.
+
+### Record bounded CPU model provenance
+
+The Linux platform process service now reads at most 64 KiB of cpuinfo and selects
+a complete, nonempty model-name label capped at 256 bytes. Missing/unsupported
+formats stay unavailable, and incomplete/control-bearing labels are rejected.
+Diagnostics samples this on its worker and automatically carries the result into
+benchmark and issue-report snapshots. Comparison validates model labels and
+requires stable before/after and cross-report identity, including unknown state.
+This does not establish identical hardware or enumerate heterogeneous CPUs.
+
+Added executable parser and report-comparison cases for supported labels,
+malformed/truncated input and changed or unknown model identity. Workspace
+all-target compilation, Python syntax and diff checks passed; no local tests ran.
+Earlier cumulative run 33998082761 at d4aa87d6 completed successfully. Current CPU
+metadata and subsequent browser/routing changes still require CI evidence.

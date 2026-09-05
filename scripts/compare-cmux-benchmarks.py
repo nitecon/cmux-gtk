@@ -77,6 +77,15 @@ def comparison_settings(report):
     if (final_software is not None and type(final_software) is not bool) or final_software != software:
         raise ValueError("software rendering override changed during benchmark")
     settings["libgl_software_override"] = software
+    cpu_model = before.get("cpu_model")
+    if cpu_model is not None and (
+            not isinstance(cpu_model, str) or not cpu_model.strip()
+            or len(cpu_model.encode("utf-8")) > 256
+            or any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in cpu_model)):
+        raise ValueError("CPU model must be a bounded nonempty label or unknown")
+    if after.get("cpu_model") != cpu_model:
+        raise ValueError("CPU model changed during benchmark")
+    settings["cpu_model"] = cpu_model
     settings.update(host=host, iterations=report["iterations"], warmup=report["warmup"],
                     terminals=terminals, includes=report["includes"])
     return settings
