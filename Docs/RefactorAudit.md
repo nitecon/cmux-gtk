@@ -90,8 +90,8 @@ Removed `tests_v2/test_update_timing.py`: it only parsed timing constants from t
 
 | Candidate | Required follow-up |
 | --- | --- |
-| `tests_v2/test_ctrl_enter_keybind.py` | Replace macOS activation/keystrokes and user-config dependence with an isolated GTK keybinding scenario. |
-| `tests/test_cmd_option_t_close_other_tabs_in_pane.py` | Check Linux shortcut/confirmation support before mapping its real-keyboard scenario. |
+| Removed `tests_v2/test_ctrl_enter_keybind.py` | Replaced by configured Ctrl+Enter plus real X11 input in the isolated GTK clipboard/input fixture. |
+| Removed `tests/test_cmd_option_t_close_other_tabs_in_pane.py` | Mac-only Cmd+Option+T and Cmd+D confirmation have no equivalent implemented Linux close-other-tabs action. This is an upstream feature gap, not retained runnable coverage. |
 | `tests{,_v2}/test_cpu_notifications.py` | Retain CPU/resource intent; replace AppleScript activation and use bounded diagnostic samples. |
 | `tests/test_session_restore_unfocused_workspace_{relaunch,multi_window}_cycle.py` | Audit current metadata restoration coverage separately from the deferred session-resume feature. |
 
@@ -140,3 +140,7 @@ Keyboard, socket and native terminal-close callers now share `SplitEngine::close
 ## Bounded preview pixels and background decoding
 
 Replaced GTK-thread image decoding with the browser pixels component, using `image` without default features and only JPEG/PNG codecs. It supplies strict header limits, a pixel budget, checked output allocation and a best-effort codec allocation budget rather than maintaining a custom image-header parser. Two semaphore permits bound blocking decodes globally and remain owned by running work after delivery cancellation. GTK receives shared RGBA memory textures. Added real PNG/JPEG decode tests, oversized-header rejection, and texture-assignment coverage in the existing display-isolated CI test. Added aggregated decode timing and overload counters. Workspace checks and Clippy gates pass; new runtime coverage awaits CI. No local tests were run.
+
+## Linux keybinding coverage replaces AppleScript
+
+The isolated Ghostty/GTK input fixture now loads `ctrl+enter=text:\r`, types a shell command through xdotool, checks that typing alone has not executed it, then asserts Ctrl+Enter executes in the focused terminal. It does not read the user's config or skip for missing Accessibility permissions. Removed its old AppleScript test and the unimplemented macOS close-other-tabs shortcut test. Both were outside Linux CI; the new binding assertion runs in the existing Xvfb clipboard/input job. No local tests were run.

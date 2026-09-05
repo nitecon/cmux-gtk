@@ -867,7 +867,7 @@ mod clipboard_integration_tests {
             let mut args = [arg.as_ptr() as *mut i8];
             ffi::ghostty_init(1, args.as_mut_ptr());
             let config = ffi::ghostty_config_new();
-            let text = b"font-size = 12\nshell-integration = none\ncopy-on-select = true\n";
+            let text = b"font-size = 12\nshell-integration = none\ncopy-on-select = true\nkeybind = ctrl+enter=text:\\r\n";
             ffi::ghostty_config_load_string(
                 config,
                 text.as_ptr().cast(),
@@ -998,6 +998,20 @@ mod clipboard_integration_tests {
             std::fs::read_to_string(first.join("primary-result")).unwrap(),
             "primary"
         );
+        // Exercise an explicitly configured Ghostty binding through GTK/X11 input.
+        xdo(&[
+            "type",
+            "--clearmodifiers",
+            "printf bound > ctrl-enter-result",
+        ]);
+        assert!(!first.join("ctrl-enter-result").exists());
+        xdo(&["key", "--clearmodifiers", "ctrl+Return"]);
+        pump_until(|| first.join("ctrl-enter-result").exists());
+        assert_eq!(
+            std::fs::read_to_string(first.join("ctrl-enter-result")).unwrap(),
+            "bound"
+        );
+        assert!(!second.join("ctrl-enter-result").exists());
         crate::split_engine::destroy_terminal_area(&left);
         crate::split_engine::destroy_terminal_area(&right);
         window.destroy();
