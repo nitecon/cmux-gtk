@@ -109,7 +109,24 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
                 ["xdotool", "type", "--clearmodifiers", "--delay", "1", "--", command], timeout=10,
             )
             subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Return"], timeout=10)
-            eventually(lambda: marker.exists() and marker.read_text() in new_children)
+            try:
+                eventually(lambda: marker.exists() and marker.read_text() in new_children)
+            except AssertionError:
+                # Record fixture-owned evidence only, never terminal contents or shell environment.
+                report["interactive_failure"] = {
+                    "iteration": iteration, "selected_surface": selected,
+                    "expected_child_pids": sorted(new_children),
+                    "current_child_pids": sorted(children()),
+                    "marker_exists": marker.exists(),
+                    "marker_pid": None,
+                }
+                if marker.exists():
+                    with marker.open() as marker_file:
+                        value = marker_file.read(32)
+                    if value.isdecimal():
+                        report["interactive_failure"]["marker_pid"] = value
+                print(json.dumps(report["interactive_failure"]))
+                raise
             cli("close-surface", selected)
             eventually(lambda: children() == before_children)
         for surface_id in reversed(split_ids):

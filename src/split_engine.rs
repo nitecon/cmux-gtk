@@ -718,6 +718,29 @@ impl SplitEngine {
         true
     }
 
+    /// Select a surface's notebook page and owning pane, then move GTK keyboard focus there.
+    /// Return false without changing selection when the surface is absent from this workspace.
+    pub fn focus_surface(&mut self, uuid: &str) -> bool {
+        let Some(pane_id) = self.root.find_pane_id_by_uuid(uuid) else {
+            return false;
+        };
+        let Some((notebook, surfaces)) = find_pane_tabs(&self.root, pane_id) else {
+            return false;
+        };
+        let page = surfaces.borrow().iter()
+            .find(|surface| surface.uuid().to_string() == uuid)
+            .and_then(|surface| notebook.page_num(&surface.widget()));
+        let Some(page) = page else {
+            return false;
+        };
+        // Release the surface-list borrow before GTK emits switch-page callbacks.
+        self.active_pane_id = pane_id;
+        notebook.set_current_page(Some(page));
+        self.root.update_focus_css(pane_id);
+        self.grab_active_focus();
+        true
+    }
+
     /// Split the active pane to the right (Ctrl+D per D-10).
     /// Replaces the active Leaf with a Split(Horizontal) containing the old leaf + new leaf.
     /// Per D-08: new surface inherits CWD via ghostty_surface_inherited_config.

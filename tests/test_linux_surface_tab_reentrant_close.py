@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import subprocess
 import tempfile
 
 from linux_app import running_app
@@ -36,6 +37,18 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             "CMUX_AGENT_BROWSER": str(mock_browser), "CMUX_LOG": str(diagnostic_log),
         }) as app:
             app.wait_for(lambda: recorded(f"browser tab wiring complete uuid={browser_id}"), "browser wiring")
+            for target in [browser_id, terminal_id] * 3:
+                app.cli("focus-surface", target)
+                selected = {surface["uuid"] for surface in app.surfaces() if surface["active"]}
+                assert selected == {target}, selected
+            before_invalid = app.surfaces()
+            try:
+                app.cli("focus-surface", "00000000-0000-4000-8000-000000000000")
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise AssertionError("unknown surface focus unexpectedly succeeded")
+            assert app.surfaces() == before_invalid, "failed focus changed selection"
             app.cli("close-surface", terminal_id)
             app.cli("ping")
             app.wait_for(lambda: recorded("browser map deferred while application state is busy"), "deferred browser mapping")

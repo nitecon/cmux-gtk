@@ -388,3 +388,22 @@ inherit from. Split and sibling-tab paths now share terminal widget construction
 workspace launch settings and context-menu attachment. Native inheritance remains
 optional; browser-only splits use workspace configuration. Local workspace binary
 checking passed; executable regression verification remains in GitHub Actions.
+
+
+### Surface focus selects the requested sibling tab
+
+The socket `surface.focus` handler previously found a surface's containing pane
+and focused whichever tab was already selected there. `SplitEngine::focus_surface`
+now owns complete selection: resolve the existing notebook page, release model
+borrows before GTK callbacks, select that page and focus its owning pane. Missing
+identities fail without changing selection. The GTK browser lifecycle fixture
+covers alternating terminal/browser siblings, cross-pane selection and missing
+identity behavior through the public CLI. Local binary checking and Python syntax
+parsing passed; runtime coverage is pending CI.
+
+Actions run 33990901144 failed the strict new-terminal keyboard scenario before
+reaching memory churn: the shell PID marker did not match a newly created direct
+child. This does not establish an OOM or input-routing root cause. The fixture now
+preserves bounded, fixture-owned failure evidence (expected/current PIDs, selected
+surface and whether the marker exists with a numeric PID) in its benchmark artifact
+and log. The original strict input assertion remains unchanged.

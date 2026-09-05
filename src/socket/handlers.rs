@@ -411,25 +411,18 @@ fn handle_socket_command_traced(
 
         SocketCommand::SurfaceFocus { req_id, id, resp_tx } => {
             // SOCK-05: surface.focus IS a focus-intent command — allowed to change focus.
-            let pane_id = {
-                let s = state.borrow();
-                s.split_engines.get(s.active_index)
-                    .and_then(|engine| engine.find_pane_id_by_uuid(&id))
+            let focused = {
+                let mut s = state.borrow_mut();
+                let idx = s.active_index;
+                s.split_engines.get_mut(idx)
+                    .is_some_and(|engine| engine.focus_surface(&id))
             };
-            match pane_id {
-                Some(pid) => {
-                    let mut s = state.borrow_mut();
-                    let idx = s.active_index;
-                    if let Some(engine) = s.split_engines.get_mut(idx) {
-                        engine.active_pane_id = pid;
-                        engine.root.update_focus_css(pid);
-                        engine.grab_active_focus();
-                    }
-                    drop(s);
-                    let _ = resp_tx.send(ok(req_id, json!({})));
-                }
-                None => { let _ = resp_tx.send(err(req_id, "not_found", "surface not found")); }
-            }
+            let response = if focused {
+                ok(req_id, json!({}))
+            } else {
+                err(req_id, "not_found", "surface not found")
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::SurfaceClose { req_id, id, resp_tx } => {
