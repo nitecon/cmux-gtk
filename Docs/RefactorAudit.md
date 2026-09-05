@@ -407,3 +407,20 @@ child. This does not establish an OOM or input-routing root cause. The fixture n
 preserves bounded, fixture-owned failure evidence (expected/current PIDs, selected
 surface and whether the marker exists with a numeric PID) in its benchmark artifact
 and log. The original strict input assertion remains unchanged.
+
+
+### Workspace-owned native focus restoration
+
+`SplitEngine::focus_active_surface` now resolves its selected terminal through the
+pane tree and shares GTK focus routing with `grab_active_focus`. It no longer
+scans the process-global raw-widget registry for the first `active-pane` CSS
+class, calls GTK/Ghostty while retaining those registry locks, or queues redraws
+for every unrelated terminal. Browser selection retains the URL-entry fallback;
+only the selected realized terminal receives a render request. The current GTK
+pane-close/browser lifecycle fixtures exercise this restoration path. Local
+workspace binary checking passed, with existing deprecated X11 bridge warnings.
+
+The separate divider-drag recovery helper still scans global registries and
+schedules follow-up rendering; it remains a refactor target requiring resize and
+focus regression coverage. This change does not claim to resolve the pending
+interactive-tab CI failure or all focus routing.

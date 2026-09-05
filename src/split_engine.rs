@@ -665,44 +665,18 @@ impl SplitEngine {
         self.root.find_uuid_for_pane(self.active_pane_id)
     }
 
-    /// Grab GTK keyboard focus AND notify Ghostty of focus for the active pane.
-    /// Use this after any operation that may have moved focus away from the terminal
-    /// (sidebar toggle, workspace switch, etc.). grab_active_focus() only handles the
-    /// GTK side; this method ensures Ghostty's internal focused state is also updated.
+    /// Restore GTK and native focus to this workspace's selected surface on the GTK thread.
+    /// Resolve ownership through the pane tree; CSS classes in other workspaces are not identity.
     pub fn focus_active_surface(&self) {
-        if let Some(gl_area) = self.find_gl_area(self.active_pane_id) {
-            gl_area.grab_focus();
-        } else if let Some(entry) = find_url_entry_in_tree(&self.root, self.active_pane_id) {
-            entry.grab_focus();
-        }
-        // Call ghostty_surface_set_focus(true) on the active surface via registry lookup.
-        if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-            if let Ok(gl_to_surface) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
-                for area_ptr in areas.iter() {
-                    let area: gtk4::glib::translate::Borrowed<gtk4::GLArea> =
-                        unsafe { gtk4::glib::translate::from_glib_borrow(area_ptr.0) };
-                    if area.has_css_class("active-pane") {
-                        if let Some(&surface_ptr) = gl_to_surface.get(&(area_ptr.0 as usize)) {
-                            unsafe {
-                                crate::ghostty::ffi::ghostty_surface_set_focus(
-                                    surface_ptr as ffi::ghostty_surface_t,
-                                    true,
-                                );
-                            }
-                        }
-                        break;
-                    }
-                }
+        self.grab_active_focus();
+        if let Some(area) = self.find_gl_area(self.active_pane_id) {
+            if let Some(surface) = surface_for_area(&area) {
+                // SAFETY: the selected widget owns this live native handle; lookup releases
+                // the registry lock before calling Ghostty, which may invoke GTK callbacks.
+                unsafe { ffi::ghostty_surface_set_focus(surface, true) };
             }
-        }
-        // Kick the render loop to repaint after focus restore.
-        if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-            for area_ptr in areas.iter() {
-                let area: gtk4::glib::translate::Borrowed<gtk4::GLArea> =
-                    unsafe { gtk4::glib::translate::from_glib_borrow(area_ptr.0) };
-                if area.is_realized() {
-                    area.queue_render();
-                }
+            if area.is_realized() {
+                area.queue_render();
             }
         }
     }
