@@ -210,10 +210,7 @@ pub fn handle_close_pane(state: &Rc<RefCell<AppState>>, app: &gtk4::Application)
     let close_workspace = {
         let mut s = state.borrow_mut();
         if let Some(engine) = s.active_split_engine_mut() {
-            match engine.close_active() {
-                None => true, // last pane -> close workspace
-                Some(_) => false,
-            }
+            engine.close_active().is_none() // Last pane: close the workspace.
         } else {
             false
         }

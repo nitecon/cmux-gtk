@@ -28,7 +28,9 @@ pub fn discover_socket() -> Option<String> {
 
     // 2. $XDG_RUNTIME_DIR/cmux/cmux.sock (fallback /run/user/{uid}/cmux/cmux.sock)
     let runtime_dir = cmux_platform::paths::runtime_dir();
-    let xdg_socket = cmux_platform::paths::socket_path().to_string_lossy().into_owned();
+    let xdg_socket = cmux_platform::paths::socket_path()
+        .to_string_lossy()
+        .into_owned();
     if Path::new(&xdg_socket).exists() {
         return Some(xdg_socket);
     }
@@ -62,7 +64,7 @@ pub fn discover_socket() -> Option<String> {
             }
         }
         if !candidates.is_empty() {
-            candidates.sort_by(|a, b| b.1.cmp(&a.1));
+            candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.1));
             return Some(candidates[0].0.clone());
         }
     }

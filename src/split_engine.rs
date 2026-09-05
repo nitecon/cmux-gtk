@@ -94,7 +94,7 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
             bridge.remove_context(ctx.pane_id);
         }
     }
-    let raw_area = area.as_ptr() as *mut gtk4::ffi::GtkGLArea;
+    let raw_area = area.as_ptr();
     // Controllers may receive focus/resize signals during GTK teardown.
     // Clear their shared handle before freeing Ghostty, avoiding callbacks into freed memory.
     unsafe {
@@ -1055,7 +1055,7 @@ impl SplitEngine {
             },
         );
 
-        let _replaced = self.replace_leaf_with_split(active_id, new_leaf, orientation)?;
+        self.replace_leaf_with_split(active_id, new_leaf, orientation)?;
 
         // If the root was a Leaf, it's now a Split whose Paned has no parent.
         // Re-parent the new Paned root into the GtkStack page we saved above.
@@ -1337,10 +1337,8 @@ impl SplitEngine {
         let active_id = self.active_pane_id;
 
         // Cannot close the last pane — workspace close is handled at AppState level.
-        let is_single_pane = match &self.root {
-            SplitNode::Leaf { pane_id, .. } if *pane_id == active_id => true,
-            _ => false,
-        };
+        let is_single_pane =
+            matches!(&self.root, SplitNode::Leaf { pane_id, .. } if *pane_id == active_id);
         if is_single_pane {
             return None; // Signal to AppState: close the workspace instead
         }

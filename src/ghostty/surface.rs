@@ -135,9 +135,7 @@ fn initialize_surface(
     area.grab_focus();
     crate::ghostty::callbacks::SURFACE_PTR.store(surface as usize, Ordering::SeqCst);
     if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-        areas.push(crate::ghostty::callbacks::GtkGLAreaPtr(
-            area.as_ptr() as *mut gtk4::ffi::GtkGLArea
-        ));
+        areas.push(crate::ghostty::callbacks::GtkGLAreaPtr(area.as_ptr()));
     }
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);

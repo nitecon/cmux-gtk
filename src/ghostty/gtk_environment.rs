@@ -18,7 +18,7 @@ pub fn configure() {
     // backing when a dmabuf outlives it. Avoid the affected ownership path.
     // https://github.com/GNOME/gtk/commit/7ff233c7ff2a9949ffd28c9ff55500e1b7578e5e
     // Limit the workaround to the versions audited here; keep desktop GL.
-    if version >= (4, 16, 0) && version <= (4, 22, 4) {
+    if ((4, 16, 0)..=(4, 22, 4)).contains(&version) {
         append_flags("GDK_DISABLE", &["dmabuf"]);
     }
     crate::diagnostics::event(format_args!(

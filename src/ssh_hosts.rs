@@ -93,7 +93,7 @@ pub fn all_hosts() -> Vec<String> {
 /// "user@host:2222" -> "host"
 /// "dev-server" -> "dev-server"
 pub fn workspace_name_from_target(target: &str) -> String {
-    let host_part = target.split('@').last().unwrap_or(target);
+    let host_part = target.split('@').next_back().unwrap_or(target);
     let without_port = host_part.split(':').next().unwrap_or(host_part);
     without_port.to_string()
 }
