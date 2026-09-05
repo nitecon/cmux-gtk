@@ -23,7 +23,7 @@ def load_report(path):
 
 def validated_samples(report):
     """Require complete successful ping evidence and finite positive raw latency measurements."""
-    if report.get("schema") != 1 or report.get("workload") != "sequential_cli_ping":
+    if type(report.get("schema")) is not int or report["schema"] != 1 or report.get("workload") != "sequential_cli_ping":
         raise ValueError("only schema-1 sequential_cli_ping reports are supported")
     if report.get("status") != "passed":
         raise ValueError("failed or partial benchmark reports cannot establish a comparison")
@@ -31,7 +31,9 @@ def validated_samples(report):
     count = report["iterations"]
     if type(count) is not int or not 1 <= count <= 100000:
         raise ValueError("invalid iteration count")
-    if not isinstance(samples, list) or len(samples) != count or report["completed_iterations"] != count:
+    if (not isinstance(samples, list) or len(samples) != count
+            or type(report["completed_iterations"]) is not int
+            or report["completed_iterations"] != count):
         raise ValueError("sample count does not match completed workload")
     if any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0 for value in samples):
         raise ValueError("latency samples must be finite positive numbers")
@@ -42,16 +44,34 @@ def comparison_settings(report):
     """Require matching recorded workload/runtime metadata; this cannot establish identical hardware."""
     before = report["before"]
     after = report["after"]
+    if any(type(snapshot["pid"]) is not int or snapshot["pid"] <= 0 for snapshot in (before, after)):
+        raise ValueError("application PID must be a positive integer")
     if before["pid"] != after["pid"]:
         raise ValueError("application changed during benchmark")
     names = ("build_profile", "gtk_version", "requested_backend")
     settings = {name: before[name] for name in names}
-    if any(value is None for value in settings.values()):
+    if any(not isinstance(value, str) or not value.strip() for value in settings.values()):
         raise ValueError("runtime metadata is incomplete")
+    if any(after[name] != settings[name] for name in names):
+        raise ValueError("runtime settings changed during benchmark")
     if settings["build_profile"] != "release":
         raise ValueError("comparison requires optimized application builds")
-    settings.update(host=report["host"], iterations=report["iterations"], warmup=report["warmup"],
-                    terminals=before["terminals"]["registered"], includes=report["includes"])
+    terminals = before["terminals"]["registered"]
+    final_terminals = after["terminals"]["registered"]
+    if (type(terminals) is not int or terminals < 0 or type(final_terminals) is not int
+            or final_terminals != terminals):
+        raise ValueError("terminal count is invalid or changed during benchmark")
+    if type(report["warmup"]) is not int or report["warmup"] < 0:
+        raise ValueError("warmup must be a nonnegative integer")
+    host = report["host"]
+    if not isinstance(host, dict) or any(
+            not isinstance(host.get(name), str) or not host[name].strip()
+            for name in ("platform", "machine")):
+        raise ValueError("host metadata is incomplete")
+    if not isinstance(report["includes"], str) or not report["includes"].strip():
+        raise ValueError("workload description is missing")
+    settings.update(host=host, iterations=report["iterations"], warmup=report["warmup"],
+                    terminals=terminals, includes=report["includes"])
     return settings
 
 
@@ -69,6 +89,8 @@ def compare_reports(baseline, candidate):
         metrics[name] = {"baseline_us": old_value, "candidate_us": new_value,
                          "delta_us": new_value - old_value,
                          "change_percent": (new_value / old_value - 1) * 100}
+        if not all(math.isfinite(value) for value in metrics[name].values()):
+            raise ValueError("latency comparison exceeds the finite numeric range")
     return {"schema": 1, "workload": "sequential_cli_ping",
             "baseline_revision": baseline.get("revision"), "candidate_revision": candidate.get("revision"),
             "matched_settings": settings, "latency": metrics,
@@ -83,9 +105,10 @@ def main():
     args = parser.parse_args()
     try:
         report = compare_reports(load_report(args.baseline), load_report(args.candidate))
-    except (OSError, ValueError, KeyError, TypeError) as error:
+        output = json.dumps(report, indent=2, allow_nan=False)
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, RecursionError) as error:
         parser.error(f"cannot compare reports: {error}")
-    print(json.dumps(report, indent=2, allow_nan=False))
+    print(output)
 
 
 if __name__ == "__main__":

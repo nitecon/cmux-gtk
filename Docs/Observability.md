@@ -112,3 +112,5 @@ significance or impose a regression threshold. Matching metadata cannot establis
 identical hardware; CPU model and software-rendering identity are not recorded by
 the current ping producer. Memory-churn comparison remains a separate unfinished
 workload; this command rejects that report type.
+
+Benchmark comparison also requires valid host/workload metadata, integer counts and a positive application PID, plus stable runtime settings and terminal counts between each run's before/after snapshots. Identically malformed reports are rejected. Unrepresentable numeric results produce a command error with no partial JSON output.

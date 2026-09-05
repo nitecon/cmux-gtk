@@ -782,3 +782,7 @@ Actions run 33993016898 failed the unfocused terminal read scenario: the command
 ### Rust formatting normalization (2026-09-05)
 
 Applied workspace rustfmt to the five owned modules with accumulated formatting drift: main, socket commands/handlers, split engine and SSH dialog. No Ghostty files or user image changes were staged. Workspace formatting and whitespace checks now pass, as does cargo check --workspace --bins (existing deprecated X11 API warnings remain). No local executable tests were run. Actions run 33993392449 remains live; typed-input follow-up 33993716499 was pending when inspected. The full legacy/documentation/architecture audit and cumulative runtime verification remain incomplete.
+
+### Benchmark evidence validation (2026-09-05)
+
+Strengthened the CLI comparison boundary: schema and completion counts reject boolean aliases; metadata must describe a host, workload and stable positive application PID; runtime build/backend/GTK metadata and terminal counts must remain stable within each report. Warmup and terminal counts require nonnegative integers. Non-finite derived metrics and serialization errors now fail through the CLI error path before stdout output. Added executable tests for equally malformed report pairs, partial completion aliases, overflow and oversized report files. Python AST parsing and git diff --check pass; tests remain CI-only. Run 33993392449 is confirmed live at workspace checking, with its Go job successful; newer input/formatting and comparison changes are not yet cumulatively verified.
