@@ -348,3 +348,7 @@ Removed the duplicate v1/v2 new_tab_interactive_after_splits scripts, which reli
 ### Owned shell function documentation pass
 
 A tracked-file declaration scan outside Ghostty found three remaining shell functions without preceding contracts: two Linux fixture cleanup traps and the pane-close child counter. Added comments documenting ownership, global inputs, error propagation and the existing unbounded shutdown wait. All conventional shell function declarations found by this scan now have adjacent comments; this is declaration evidence, not a claim that all shell lifecycle behavior or embedded code has been reviewed. The two shell fixtures still need bounded process teardown consistent with maintained Python fixture cleanup. Shell syntax and diff checks passed; no tests ran locally.
+
+### Shared Linux application fixture lifetime
+
+Replaced test_linux_terminal_pane_close.sh with a Python scenario using tests/linux_app.py. The shared fixture owns isolated XDG paths, bounded CLI calls, monotonic condition waits, thread-aware child discovery and process_support termination/reaping; failure-log output is capped at 64 KiB. The pane-close scenario retains real CLI split/close and native assertion checks while strengthening verification to preserve exact surviving surface identities and the original terminal child. Main CI now invokes the Python scenario. Python syntax and diff checks passed; executable verification remains CI-only. The browser-map shell fixture still needs migration to the same bounded ownership path.

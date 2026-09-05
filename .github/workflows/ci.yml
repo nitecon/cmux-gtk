@@ -109,7 +109,7 @@ jobs:
         run: sudo apt-get install -y xvfb dbus-x11 openbox xdotool wmctrl x11-utils
 
       - name: Test terminal pane close lifecycle
-        run: dbus-run-session -- xvfb-run -a ./tests/test_linux_terminal_pane_close.sh
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_terminal_pane_close.py
 
       - name: Test surface tab close with browser mapping
         run: dbus-run-session -- xvfb-run -a ./tests/test_linux_surface_tab_reentrant_close.sh
