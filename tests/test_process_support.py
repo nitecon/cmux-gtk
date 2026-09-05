@@ -10,6 +10,48 @@ import unittest
 from unittest.mock import patch
 
 from process_support import linux_child_pids, linux_process_belongs_to, stop_process, wait_until
+from pty_support import capture_prompt_session
+
+
+class PromptCapture(unittest.TestCase):
+    """Exercise real PTY output and child cleanup without requiring zsh or GTK."""
+
+    def test_output_and_nonzero_exit(self):
+        """Capture shell bytes and expose a failed child exit rather than accepting partial output."""
+        output = capture_prompt_session([sys.executable, "-c", "print('prompt-marker')"], os.environ)
+        self.assertIn(b"prompt-marker", output)
+        with self.assertRaises(subprocess.CalledProcessError) as failure:
+            capture_prompt_session([sys.executable, "-c", "raise SystemExit(7)"], os.environ)
+        self.assertEqual(failure.exception.returncode, 7)
+
+    def test_oversized_output_reaps_child(self):
+        """A noisy live process exceeds the byte cap and is reaped on the error path."""
+        children = []
+        launch = subprocess.Popen
+
+        def record_child(*args, **kwargs):
+            """Launch a real child and retain its handle for cleanup assertions."""
+            child = launch(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with patch("pty_support.subprocess.Popen", side_effect=record_child):
+            with self.assertRaisesRegex(ValueError, "one MiB"):
+                capture_prompt_session([sys.executable, "-c",
+                    "import os,time; os.write(1,b'x'*2097152); time.sleep(60)"], os.environ)
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll())
+
+    def test_failed_launch_closes_descriptors(self):
+        """A missing executable releases both PTY descriptors before propagating launch failure."""
+        import pty
+        master, slave = pty.openpty()
+        with patch("pty_support.pty.openpty", return_value=(master, slave)):
+            with self.assertRaises(FileNotFoundError):
+                capture_prompt_session(["/missing/cmux-prompt-fixture"], os.environ)
+        for descriptor in (master, slave):
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
 
 
 class ProcessCleanup(unittest.TestCase):

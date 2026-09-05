@@ -12,13 +12,11 @@ extra prompt lines.
 from __future__ import annotations
 
 import os
-import pty
-import select
 import shutil
-import subprocess
 import tempfile
-import time
 from pathlib import Path
+
+from pty_support import capture_prompt_session
 
 
 FRESH_PROMPT = b"\x1b]133;A;cl=line\x07"
@@ -28,6 +26,7 @@ START_OUTPUT = b"\x1b]133;C\x07"
 
 
 def _write_redrawing_zshrc(path: Path) -> None:
+    """Write an isolated zsh prompt that resets once after its asynchronous callback."""
     path.write_text(
         """
 autoload -Uz add-zsh-hook
@@ -39,10 +38,12 @@ RPROMPT=''
 typeset -gi _cmux_redraw_done=0
 typeset -g _cmux_redraw_fd=''
 
+# Permit one asynchronous redraw for the next prompt cycle.
 _cmux_redraw_precmd() {
   _cmux_redraw_done=0
 }
 
+# Unregister and close the readiness pipe, then reset the prompt once.
 _cmux_redraw_ready() {
   emulate -L zsh
   local fd="${1:-$_cmux_redraw_fd}"
@@ -56,6 +57,7 @@ _cmux_redraw_ready() {
   zle reset-prompt
 }
 
+# Schedule the readiness event when this prompt has not yet redrawn.
 _cmux_redraw_line_init() {
   if (( !_cmux_redraw_done )) && [[ -z "$_cmux_redraw_fd" ]]; then
     exec {_cmux_redraw_fd}< <(
@@ -73,50 +75,8 @@ zle -N zle-line-init _cmux_redraw_line_init
     )
 
 
-def _capture_session(env: dict[str, str], zsh_path: str) -> bytes:
-    master, slave = pty.openpty()
-    proc = subprocess.Popen(
-        [zsh_path, "-d", "-i"],
-        stdin=slave,
-        stdout=slave,
-        stderr=slave,
-        env=env,
-        close_fds=True,
-    )
-    os.close(slave)
-
-    output = bytearray()
-    start = time.time()
-    phase = 0
-    try:
-        while time.time() - start < 5:
-            readable, _, _ = select.select([master], [], [], 0.2)
-            if master in readable:
-                try:
-                    chunk = os.read(master, 4096)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                output.extend(chunk)
-
-            elapsed = time.time() - start
-            if phase == 0 and elapsed > 1.0:
-                os.write(master, b"\n")
-                phase = 1
-            elif phase == 1 and elapsed > 2.5:
-                os.write(master, b"exit\n")
-                phase = 2
-    finally:
-        try:
-            proc.wait(timeout=5)
-        finally:
-            os.close(master)
-
-    return bytes(output)
-
-
 def main() -> int:
+    """Check one fresh prompt marker plus redraw markers in the captured empty-command cycle."""
     root = Path(__file__).resolve().parents[1]
     wrapper_dir = root / "ghostty" / "src" / "shell-integration" / "zsh"
     if not (wrapper_dir / ".zshenv").exists():
@@ -142,7 +102,8 @@ def main() -> int:
         env.pop("GHOSTTY_SHELL_FEATURES", None)
         env.pop("GHOSTTY_BIN_DIR", None)
 
-        output = _capture_session(env, zsh_path)
+        output = capture_prompt_session([zsh_path, "-d", "-i"], env,
+                                        prompt_delay=1.0, exit_delay=2.5, duration=5)
 
         marker = output.find(END_COMMAND)
         if marker == -1:

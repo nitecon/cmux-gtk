@@ -13,13 +13,11 @@ logical prompt redraw, which matches the Theo/Prezto Pure duplication repro.
 from __future__ import annotations
 
 import os
-import pty
-import select
 import shutil
-import subprocess
 import tempfile
-import time
 from pathlib import Path
+
+from pty_support import capture_prompt_session
 
 
 PROMPT_START = b"\x1b]133;P;k=i\x07"
@@ -34,6 +32,7 @@ typeset -g CMUX_LAST_PROMPT=''
 typeset -gi CMUX_ASYNC_DONE=0
 typeset -g CMUX_ASYNC_FD=''
 
+# Rebuild the two-line prompt and reset ZLE only when its expanded text changes.
 cmux_render_prompt() {
   local cleaned_ps1=$PROMPT
   if [[ $PROMPT = *$prompt_newline* ]]; then
@@ -51,6 +50,7 @@ cmux_render_prompt() {
   typeset -g CMUX_LAST_PROMPT=$expanded_prompt
 }
 
+# Close the readiness pipe and apply the simulated asynchronous git status once.
 cmux_async_ready() {
   emulate -L zsh
   local fd="${1:-$CMUX_ASYNC_FD}"
@@ -66,11 +66,13 @@ cmux_async_ready() {
   cmux_render_prompt async
 }
 
+# Reset asynchronous state and render the initial prompt before input.
 precmd() {
   CMUX_ASYNC_DONE=0
   cmux_render_prompt precmd
 }
 
+# Register one delayed readiness callback for the current prompt cycle.
 cmux_line_init() {
   if (( !CMUX_ASYNC_DONE )) && [[ -z $CMUX_ASYNC_FD ]]; then
     exec {CMUX_ASYNC_FD}< <(
@@ -86,51 +88,8 @@ PROMPT='%F{5}❯%f '
 """.lstrip()
 
 
-def _capture_session(env: dict[str, str], zsh_path: str, workdir: Path) -> bytes:
-    master, slave = pty.openpty()
-    proc = subprocess.Popen(
-        [zsh_path, "-d", "-i"],
-        cwd=str(workdir),
-        stdin=slave,
-        stdout=slave,
-        stderr=slave,
-        env=env,
-        close_fds=True,
-    )
-    os.close(slave)
-
-    output = bytearray()
-    start = time.time()
-    phase = 0
-    try:
-        while time.time() - start < 4.5:
-            readable, _, _ = select.select([master], [], [], 0.2)
-            if master in readable:
-                try:
-                    chunk = os.read(master, 4096)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                output.extend(chunk)
-
-            elapsed = time.time() - start
-            if phase == 0 and elapsed > 1.2:
-                os.write(master, b"\n")
-                phase = 1
-            elif phase == 1 and elapsed > 2.8:
-                os.write(master, b"exit\n")
-                phase = 2
-    finally:
-        try:
-            proc.wait(timeout=5)
-        finally:
-            os.close(master)
-
-    return bytes(output)
-
-
 def main() -> int:
+    """Check that Pure hidden-carriage-return redraws omit explicit continuation markers."""
     root = Path(__file__).resolve().parents[1]
     wrapper_dir = root / "ghostty" / "src" / "shell-integration" / "zsh"
     resources_dir = root / "ghostty" / "src"
@@ -159,7 +118,7 @@ def main() -> int:
         env.pop("GHOSTTY_SHELL_FEATURES", None)
         env.pop("GHOSTTY_BIN_DIR", None)
 
-        output = _capture_session(env, zsh_path, root)
+        output = capture_prompt_session([zsh_path, "-d", "-i"], env, cwd=root)
 
         prompt_start_count = output.count(PROMPT_START)
         prompt_continuation_count = output.count(PROMPT_CONTINUATION)
