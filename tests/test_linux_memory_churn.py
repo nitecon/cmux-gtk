@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         "build_profile": "debug", "backend": "x11", "software_rendering": True,
         "host": {"system": platform.system(), "release": platform.release(),
                  "machine": platform.machine()},
-        "workload": {"split_close_cycles": 45, "child_eof_cycles": 9,
+        "workload": {"interactive_sibling_tabs": 3, "split_close_cycles": 45, "child_eof_cycles": 9,
                      "split_right_shortcut": "<Ctrl><Alt>d",
                      "redraw_iterations": 1800,
                      "redraw_target_hz": 30, "window_pixels": [1800, 1000]},
@@ -91,6 +91,37 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         window = windows[-1]
         baseline_children = children()
         record_resources("baseline", 0)
+        # New sibling tabs must accept real GTK input without a focus-switch repair.
+        split_ids = []
+        for _ in range(2):
+            cli("split", "--direction", "horizontal")
+            eventually(lambda: len(children()) == len(baseline_children) + len(split_ids) + 1)
+            listed = json.loads(cli("list-surfaces", "--json"))["surfaces"]
+            split_ids.append(next(surface["uuid"] for surface in listed if surface["active"]))
+        for iteration in range(3):
+            before_children = children()
+            before_surfaces = {surface["uuid"] for surface in json.loads(cli("list-surfaces", "--json"))["surfaces"]}
+            subprocess.check_call(
+                ["xdotool", "windowfocus", window, "key", "--clearmodifiers", "ctrl+t"], timeout=10,
+            )
+            eventually(lambda: len(children()) == len(before_children) + 1)
+            new_children = children() - before_children
+            listed = json.loads(cli("list-surfaces", "--json"))["surfaces"]
+            selected = next(surface["uuid"] for surface in listed if surface["active"])
+            assert selected not in before_surfaces, "new sibling terminal did not become selected"
+            marker = root / f"interactive-tab-{iteration}"
+            command = "printf '%s' \"$$\" > " + shlex.quote(str(marker))
+            subprocess.check_call(
+                ["xdotool", "type", "--clearmodifiers", "--delay", "1", "--", command], timeout=10,
+            )
+            subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Return"], timeout=10)
+            eventually(lambda: marker.exists() and marker.read_text() in new_children)
+            cli("close-surface", selected)
+            eventually(lambda: children() == before_children)
+        for surface_id in reversed(split_ids):
+            cli("close-surface", surface_id)
+        eventually(lambda: children() == baseline_children)
+        record_resources("interactive_tabs", 3)
         samples = []
         for cycle in range(45):
             cli("split", "--direction", "horizontal")
