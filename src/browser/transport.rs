@@ -40,6 +40,22 @@ fn exchange(mut stream: UnixStream, request: &Value, timeout: Duration) -> io::R
 mod tests {
     use super::*;
 
+    /// A connected peer that never answers must return a socket timeout instead of blocking indefinitely.
+    #[test]
+    fn silent_peer_times_out() {
+        let (client, _peer) = UnixStream::pair().unwrap();
+        let error = exchange(
+            client,
+            &serde_json::json!({"action": "ping"}),
+            Duration::from_millis(30),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+        ));
+    }
+
     /// Exercise actual socket framing and reject a peer response larger than the memory budget.
     #[test]
     fn response_bounds() {
