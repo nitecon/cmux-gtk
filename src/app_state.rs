@@ -208,7 +208,6 @@ impl AppState {
         if let Some(directory) = workspace.working_directory.as_ref() {
             row.set_tooltip_text(Some(&directory.to_string_lossy()));
         }
-        self.sidebar_list.append(&row);
 
         // Build split tree from session data (D-05)
         let engine = crate::split_engine::SplitEngine::from_data_with_command(
@@ -221,6 +220,7 @@ impl AppState {
             remote_launch,
         )?;
 
+        self.sidebar_list.append(&row);
         // Add to stack
         let page_name = format!("workspace-{}", id);
         self.stack.add_named(&engine.root_widget(), Some(&page_name));
@@ -480,10 +480,14 @@ impl AppState {
 
     /// Rename the active workspace. Per D-03/D-10: Ctrl+Shift+R (UI wired in Plan 04/05).
     pub fn rename_active(&mut self, new_name: String) {
-        if let Some(ws) = self.workspaces.get_mut(self.active_index) {
+        self.rename_workspace_at(self.active_index, new_name);
+    }
+
+    pub fn rename_workspace_at(&mut self, index: usize, new_name: String) {
+        if let Some(ws) = self.workspaces.get_mut(index) {
             ws.rename(new_name.clone());
             // Update the sidebar label (Phase 4 nested layout: row > hbox > vbox > label).
-            if let Some(row) = self.sidebar_list.row_at_index(self.active_index as i32) {
+            if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
                 if let Some(hbox) = row.child().and_downcast::<gtk4::Box>() {
                     if let Some(vbox) = hbox.first_child().and_downcast::<gtk4::Box>() {
                         if let Some(label) = vbox.first_child().and_downcast::<gtk4::Label>() {

@@ -77,11 +77,7 @@ pub async fn run_ssh_lifecycle(
         match start_ssh(&target).await {
             Ok(mut child) => {
                 let was_reconnect = attempt > 0;
-                attempt = 0; // Reset on successful connection
-                let _ = ssh_tx.send(SshEvent::StateChanged {
-                    workspace_id,
-                    state: ConnectionState::Connected,
-                }).await;
+                let mut connected = false;
 
                 // D-07: inject reconnect message if this was a reconnection
                 if was_reconnect {
@@ -129,7 +125,8 @@ pub async fn run_ssh_lifecycle(
                         eprintln!("cmux: SSH handshake flush failed: {e}");
                     } else {
                         // Run bidirectional proxy routing
-                        run_proxy_routing(
+                        connected = run_proxy_routing(
+                            workspace_id,
                             buf_writer,
                             reader,
                             &bridge,
@@ -139,6 +136,7 @@ pub async fn run_ssh_lifecycle(
                     }
                 }
 
+                if connected { attempt = 0; }
                 // Wait for SSH process to exit
                 let exit_status = child.wait().await;
                 eprintln!("cmux: SSH to {target} exited: {exit_status:?}");
@@ -192,11 +190,13 @@ pub async fn run_ssh_lifecycle(
 
 /// Bidirectional proxy routing between bridge channels and SSH stdin/stdout.
 async fn run_proxy_routing(
+    workspace_id: u64,
     buf_writer: BufWriter<tokio::process::ChildStdin>,
     reader: tokio::process::ChildStdout,
     bridge: &Arc<SshBridge>,
     ssh_tx: &SshEventTx,
-) {
+) -> bool {
+    let connected = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
     let writer = Arc::new(tokio::sync::Mutex::new(buf_writer));
 
@@ -211,6 +211,7 @@ async fn run_proxy_routing(
     let read_bridge = bridge.clone();
     let read_ssh_tx = ssh_tx.clone();
     let read_pending = pending.clone();
+    let read_connected = connected.clone();
     let read_handle = tokio::spawn(async move {
         let mut buf_reader = BufReader::new(reader);
         let mut line = String::new();
@@ -220,6 +221,11 @@ async fn run_proxy_routing(
                 Ok(0) => break, // EOF
                 Ok(_) => {
                     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
+                        if msg.get("id").and_then(|v| v.as_u64()) == Some(1)
+                            && msg.get("ok").and_then(|v| v.as_bool()) == Some(true) {
+                            read_connected.store(true, std::sync::atomic::Ordering::Release);
+                            let _ = read_ssh_tx.send(SshEvent::StateChanged { workspace_id, state: ConnectionState::Connected }).await;
+                        }
                         handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending).await;
                     }
                 }
@@ -290,6 +296,7 @@ async fn run_proxy_routing(
     // Cancel write path
     write_handle.abort();
     open_handle.abort();
+    connected.load(std::sync::atomic::Ordering::Acquire)
 }
 
 /// Handle an incoming JSON message from cmuxd-remote.
@@ -356,6 +363,7 @@ pub async fn open_remote_stream(
         map.insert(spawn_id, resp_tx);
     }
 
+    let _spawn_request = PendingRequest(pending.clone(), spawn_id);
     // Write RPC
     {
         let line = format!("{}\n", spawn_rpc);
@@ -409,6 +417,7 @@ pub async fn open_remote_stream(
         map.insert(sub_id, sub_tx);
     }
 
+    let _subscribe_request = PendingRequest(pending.clone(), sub_id);
     {
         let line = format!("{}\n", sub_rpc);
         let mut w = writer.lock().await;
@@ -497,4 +506,9 @@ mod tests {
 struct AbortOnDrop(tokio::task::AbortHandle);
 impl Drop for AbortOnDrop {
     fn drop(&mut self) { self.0.abort(); }
+}
+
+struct PendingRequest(PendingMap, u64);
+impl Drop for PendingRequest {
+    fn drop(&mut self) { self.0.lock().unwrap().remove(&self.1); }
 }

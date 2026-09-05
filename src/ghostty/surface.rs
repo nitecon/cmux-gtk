@@ -749,3 +749,107 @@ pub(crate) unsafe extern "C" fn write_clipboard_cb(
     };
     clipboard.set_text(&text);
 }
+
+#[cfg(test)]
+mod clipboard_integration_tests {
+    use super::*;
+    use gtk4::prelude::*;
+    use std::sync::atomic::Ordering;
+
+    fn pump_until(mut ready: impl FnMut() -> bool) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !ready() {
+            assert!(std::time::Instant::now() < deadline, "GTK clipboard condition timed out");
+            while glib::MainContext::default().pending() { glib::MainContext::default().iteration(false); }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    fn settle() {
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(300);
+        pump_until(|| std::time::Instant::now() >= until);
+    }
+
+    fn xdo(args: &[&str]) {
+        assert!(std::process::Command::new("xdotool").args(args).status().unwrap().success());
+        settle();
+    }
+
+    #[test]
+    #[ignore = "real X11/Ghostty clipboard integration; run under Xvfb in CI"]
+    fn linux_clipboard_shortcuts_primary_and_surface_routing() {
+        std::env::set_var("GDK_DEBUG", "gl-prefer-gl");
+        gtk4::init().unwrap();
+        let app = gtk4::Application::new(Some("io.cmux.ClipboardTest"), Default::default());
+        let root = std::env::temp_dir().join(format!("cmux-clipboard-{}", uuid::Uuid::new_v4()));
+        let first = root.join("first");
+        let second = root.join("second");
+        std::fs::create_dir_all(&first).unwrap();
+        std::fs::create_dir_all(&second).unwrap();
+        let ghostty = unsafe {
+            let arg = std::ffi::CString::new("cmux-clipboard-test").unwrap();
+            let mut args = [arg.as_ptr() as *mut i8];
+            ffi::ghostty_init(1, args.as_mut_ptr());
+            let config = ffi::ghostty_config_new();
+            let text = b"font-size = 12\nshell-integration = none\ncopy-on-select = true\n";
+            ffi::ghostty_config_load_string(config, text.as_ptr().cast(), text.len(), c"test".as_ptr());
+            ffi::ghostty_config_finalize(config);
+            let runtime = ffi::ghostty_runtime_config_s {
+                userdata: std::ptr::null_mut(), supports_selection_clipboard: true,
+                wakeup_cb: Some(crate::ghostty::callbacks::wakeup_cb),
+                action_cb: Some(crate::ghostty::callbacks::action_cb),
+                read_clipboard_cb: Some(read_clipboard_cb),
+                confirm_read_clipboard_cb: Some(confirm_read_clipboard_cb),
+                write_clipboard_cb: Some(write_clipboard_cb),
+                close_surface_cb: Some(crate::ghostty::callbacks::close_surface_cb),
+                tmux_control_cb: None,
+            };
+            let ghostty = ffi::ghostty_app_new(&runtime, config);
+            ffi::ghostty_config_free(config);
+            assert!(!ghostty.is_null());
+            crate::ghostty::callbacks::APP_PTR.store(ghostty as usize, Ordering::SeqCst);
+            ghostty
+        };
+        let (left, left_cell) = create_surface(&app, ghostty, None, Some(first.clone()), 900001,
+            SurfaceIoMode::Command("/bin/sh -c 'printf \"CMUXPRIMARY\\n\"; exec /bin/sh'".into()));
+        let (right, right_cell) = create_surface(&app, ghostty, None, Some(second.clone()), 900002, SurfaceIoMode::Exec);
+        let content = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
+        content.set_homogeneous(true);
+        content.append(&left);
+        content.append(&right);
+        let window = gtk4::Window::builder().title("cmux-clipboard-integration").default_width(900).default_height(400).decorated(false).child(&content).build();
+        window.present();
+        pump_until(|| left_cell.borrow().is_some() && right_cell.borrow().is_some());
+        settle();
+        let window_id = std::process::Command::new("xdotool").args(["search", "--name", "^cmux-clipboard-integration$"]).output().unwrap();
+        let id = String::from_utf8(window_id.stdout).unwrap().lines().next().unwrap().to_string();
+        xdo(&["windowfocus", &id]);
+        let display = gtk4::gdk::Display::default().unwrap();
+        // Select a printed word with real X11 mouse events. PRIMARY must update without Copy.
+        xdo(&["mousemove", "--window", &id, "45", "10", "click", "--repeat", "2", "--delay", "150", "1"]);
+        let selected = glib::MainContext::default().block_on(display.primary_clipboard().read_text_future()).unwrap().unwrap();
+        assert_eq!(selected.as_str(), "CMUXPRIMARY");
+        xdo(&["key", "--clearmodifiers", "ctrl+shift+c"]);
+        let copied = glib::MainContext::default().block_on(display.clipboard().read_text_future()).unwrap().unwrap();
+        assert_eq!(copied.as_str(), "CMUXPRIMARY");
+        // Simulate another surface being the last registered one. Paste must still
+        // complete against the surface which made the request.
+        crate::ghostty::callbacks::SURFACE_PTR.store(right_cell.borrow().unwrap() as usize, Ordering::SeqCst);
+        display.clipboard().set_text("printf standard > standard-result");
+        xdo(&["key", "--clearmodifiers", "ctrl+shift+v"]);
+        xdo(&["key", "Return"]);
+        pump_until(|| first.join("standard-result").exists());
+        assert!(!second.join("standard-result").exists());
+        display.primary_clipboard().set_text("printf primary > primary-result");
+        xdo(&["mousemove", "--window", &id, "150", "70", "click", "2"]);
+        xdo(&["key", "Return"]);
+        pump_until(|| first.join("primary-result").exists());
+        assert_eq!(std::fs::read_to_string(first.join("primary-result")).unwrap(), "primary");
+        crate::split_engine::destroy_terminal_area(&left);
+        crate::split_engine::destroy_terminal_area(&right);
+        window.destroy();
+        crate::ghostty::callbacks::APP_PTR.store(0, Ordering::SeqCst);
+        unsafe { ffi::ghostty_app_free(ghostty); }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

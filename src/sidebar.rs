@@ -378,6 +378,10 @@ mod lifecycle_tests {
             state.borrow_mut().workspaces.push(workspace);
             wire_row_close_button(&row, state.clone(), &app);
             attach_sidebar_context_menu(&row, state.clone());
+            row.activate_action("workspace.color-red", None).unwrap();
+            assert_eq!(state.borrow().workspaces[0].color.as_deref(), Some("#703a40"));
+            row.activate_action("workspace.color-default", None).unwrap();
+            assert_eq!(state.borrow().workspaces[0].color, None);
             let weak = row.downgrade();
             list.remove(&row);
             state.borrow_mut().workspaces.pop();

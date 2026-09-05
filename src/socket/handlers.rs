@@ -187,7 +187,9 @@ pub fn handle_socket_command(
                     "uuid": uuid_str,
                     "working_directory": directory,
                 })));
-            }
+            }            let (list, app) = { let s = state.borrow(); (s.sidebar_list.clone(), s.gtk_app.clone()) };
+            crate::sidebar::wire_latest_row(&list, state.clone(), &app);
+
         }
 
         SocketCommand::WorkspaceSelect { req_id, id, resp_tx } => {
@@ -238,11 +240,7 @@ pub fn handle_socket_command(
             match idx {
                 Some(i) => {
                     let mut s = state.borrow_mut();
-                    let prev_active = s.active_index;
-                    s.switch_to_index(i);
-                    s.rename_active(name);
-                    // Restore previous active index to avoid focus side effect.
-                    s.switch_to_index(prev_active);
+                    s.rename_workspace_at(i, name);
                     drop(s);
                     let _ = resp_tx.send(ok(req_id, json!({})));
                 }
@@ -278,18 +276,7 @@ pub fn handle_socket_command(
             match idx {
                 Some(from) => {
                     let to = position.min(s.workspaces.len().saturating_sub(1));
-                    let ws = s.workspaces.remove(from);
-                    let engine = s.split_engines.remove(from);
-                    s.workspaces.insert(to, ws);
-                    s.split_engines.insert(to, engine);
-                    // Adjust active_index after reorder.
-                    if from == s.active_index {
-                        s.active_index = to;
-                    } else if from < s.active_index && to >= s.active_index {
-                        s.active_index -= 1;
-                    } else if from > s.active_index && to <= s.active_index {
-                        s.active_index += 1;
-                    }
+                    s.reorder_workspace(from, to);
                     drop(s);
                     let _ = resp_tx.send(ok(req_id, json!({})));
                 }

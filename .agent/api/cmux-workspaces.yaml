@@ -1,0 +1,49 @@
+app: cmux-gtk
+title: Linux workspace launch and lifecycle
+space: cmux-gtk
+slug: workspace-launch
+summary: GTK workspace launch descriptors, clipboard ownership, ordering, remote PTYs, and bounded update delivery.
+kind: agent_context
+source_format: agent_context
+source_ref: src/workspace.rs
+labels: [linux, gtk, workspace, clipboard, lifecycle]
+content:
+  purpose: Preserve launch context and identity across terminal creation, workspace organization, and session restore.
+  workflows:
+    - name: Local or script workspace
+      steps:
+        - Create Workspace accepts an existing local folder and an optional readable POSIX shell script.
+        - Pass the canonical folder through Ghostty working_directory. Source the script through config.command before exec of the login shell.
+        - Inherit the launch command for splits and terminal tabs. Replay on session restore.
+    - name: SSH workspace
+      steps:
+        - Use an SSH config alias or user@host and an optional absolute remote folder. Authentication uses SSH keys/agent with BatchMode enabled.
+        - Install the local daemon with scripts/install-cmuxd-remote.sh before first remote launch. Deploy to remote .local/bin/cmuxd-remote.
+        - Each terminal surface owns its own remote context and stream identity. Start stream only after surface initialization; route output by that identity.
+        - Persist host, remote folder and layout. Reconnect creates fresh remote shell sessions rather than recovering previous processes.
+    - name: Workspace organization
+      steps:
+        - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.
+        - workspace.reorder RPC uses the same operation and snapshots the new ordering.
+        - Background colors are validated RGB hex values. Default removes the override. Serialize color with the workspace.
+  endpoints:
+    - method: session.spawn
+      transport: SSH stdio daemon RPC
+      description: Starts a remote shell PTY. Optional cwd is passed as the process directory; invalid folders produce spawn_failed. cols and rows set the initial terminal grid.
+    - method: stream.resize
+      transport: SSH stdio daemon RPC
+      description: Resize the PTY belonging to stream_id using cols and rows.
+    - method: proxy.close
+      transport: SSH stdio daemon RPC
+      description: Close and reap the PTY or proxy connection belonging to stream_id.
+  schemas:
+    workspace_session:
+      fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, color, active_pane_uuid, layout]
+      compatibility: New optional fields default to null when reading older session files. Session ordering is array ordering.
+  safety:
+    - Validate workspace paths before creating surfaces. Quote shell paths as one POSIX argument.
+    - Never route asynchronous clipboard or remote output using the last focused or initialized surface pointer.
+    - PRIMARY selection and the standard clipboard are separate. Ctrl+Shift+C/V applies to terminal widgets; selection and middle-click use Ghostty selection semantics.
+    - Replaceable browser frames and session snapshots use latest-value channels. SSH output uses bounded backpressure and must not drop terminal bytes.
+    - Closing a terminal clears GTK callback handles before freeing Ghostty and unregisters its remote context. Closing a workspace cancels its SSH process and routing tasks.
+    - Run executable behavior tests in GitHub Actions, not locally.

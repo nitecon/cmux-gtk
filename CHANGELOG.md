@@ -2,6 +2,21 @@
 
 All notable changes to cmux GTK are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Persistent startup-script and SSH workspace launch details, remote folder selection, and launch-context inheritance for terminal tabs and splits.
+- Compact workspace location subtitles, drag/menu reordering, and persistent background colors.
+- Executable Linux clipboard, workspace launch, widget lifecycle and memory churn checks in CI; documented the upstream six-month review.
+
+### Fixed
+
+- Route asynchronous clipboard reads to the requesting terminal and handle Ctrl+Shift+C/V directly in terminal widgets.
+- Bound browser frame, session snapshot, mouse motion and SSH output delivery; remove widget callback reference cycles and cancel remote tasks when workspaces close.
+- Keep remote streams separate across sibling tabs, propagate terminal size, and close remote PTYs with their terminals.
+- Keep CLI workspace ordering aligned with sidebar order and saved sessions.
+
 ## [0.1.7] - 2026-09-05
 
 ### Added

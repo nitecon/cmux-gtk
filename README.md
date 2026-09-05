@@ -28,6 +28,35 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **Ghostty compatible** — Reads your existing `~/.config/ghostty/config` for themes, fonts, and colors
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
 
+## Workspace workflows
+
+Use **New Workspace** (`Ctrl+N`) to choose a local folder and optionally a POSIX
+startup script. The script runs in each new terminal and again after restart;
+exported variables and directory changes are inherited by the shell. Leave the
+script empty for a normal terminal. A script can also launch a custom remote
+session, for example with `exec ssh -t my-host`.
+
+Use **New SSH Workspace** (`Ctrl+Shift+S`) for a daemon-backed SSH workspace.
+Enter an SSH config alias or `user@host`, with an optional absolute remote
+folder. SSH key/agent authentication must already work without prompts. Prepare
+the local remote-daemon binary with `./scripts/install-cmuxd-remote.sh`; cmux
+uploads it on connection. Splits and terminal tabs stay remote. Restart restores
+the host, folder and layout; reconnect starts fresh shells, so use a remote
+session manager if you need processes to survive a disconnect.
+
+Workspace subtitles show `/first/…/basename`, the startup script, or
+`ssh://host/path`. Hover for the full location. Drag sidebar rows to reorder them,
+or use **Move Up/Down** in the context menu. **Background Color** provides a
+palette and a Default reset. Order and colors are saved with the session.
+
+In terminals, **Ctrl+Shift+C/V** copies and pastes the standard clipboard.
+Selecting text automatically makes it available to **middle-click paste** through
+Linux PRIMARY selection. Ghostty's `copy-on-select` configuration still applies;
+its Linux default is `true`.
+
+The [six-month upstream review](docs/research/upstream-2026-09.md) records which
+upstream features informed this port and which are candidates for later work.
+
 ## Install
 
 ### Homebrew on Linux (recommended)

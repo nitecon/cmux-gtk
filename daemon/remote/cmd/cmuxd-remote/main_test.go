@@ -753,3 +753,52 @@ func asInt(t *testing.T, value any, field string) int {
 		return 0
 	}
 }
+
+func TestSessionSpawnDirectoryAndClose(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	directory := t.TempDir()
+	server := &rpcServer{nextStreamID: 1, streams: map[string]*streamState{}}
+	defer server.closeAll()
+	response := server.handleSessionSpawn(rpcRequest{ID: 1, Params: map[string]any{
+		"cwd": directory, "cols": 91, "rows": 31,
+	}})
+	if !response.OK {
+		t.Fatalf("spawn failed: %#v", response.Error)
+	}
+	id := response.Result["stream_id"].(string)
+	stream, ok := server.getStream(id)
+	if !ok {
+		t.Fatal("missing spawned PTY")
+	}
+	conn := stream.conn.(*ptyConn)
+	// Execute in the real spawned shell, verifying cwd rather than request metadata.
+	if _, err := conn.Write([]byte("printf '%s' \"$PWD\" > cwd-result\n")); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		data, err := os.ReadFile(filepath.Join(directory, "cwd-result"))
+		if err == nil && string(data) == directory {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("shell did not run in requested cwd: %s, %v", data, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	closed := server.handleProxyClose(rpcRequest{ID: 2, Params: map[string]any{"stream_id": id}})
+	if !closed.OK {
+		t.Fatalf("close failed: %#v", closed.Error)
+	}
+	if _, exists := server.getStream(id); exists {
+		t.Fatal("closed PTY retained in stream map")
+	}
+	if conn.cmd.ProcessState == nil {
+		t.Fatal("closed PTY child was not reaped")
+	}
+
+	invalid := server.handleSessionSpawn(rpcRequest{ID: 3, Params: map[string]any{"cwd": filepath.Join(directory, "missing")}})
+	if invalid.OK {
+		t.Fatal("nonexistent remote folder silently accepted")
+	}
+}

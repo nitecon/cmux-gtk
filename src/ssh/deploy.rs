@@ -15,6 +15,7 @@ pub fn local_daemon_path() -> PathBuf {
 /// Deploy cmuxd-remote to remote host via scp.
 /// Copies to ~/.local/bin/cmuxd-remote on the remote.
 pub async fn deploy_remote(target: &str) -> Result<(), String> {
+    crate::workspace::validate_ssh_target(target)?;
     let local_path = local_daemon_path();
     if !local_path.exists() {
         return Err(format!(
@@ -25,7 +26,8 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
 
     // Ensure remote directory exists
     let mkdir_status = Command::new("ssh")
-        .args([target, "mkdir", "-p", "~/.local/bin"])
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, "mkdir", "-p", "~/.local/bin"])
+        .kill_on_drop(true)
         .status()
         .await
         .map_err(|e| format!("SSH mkdir failed: {e}"))?;
@@ -36,7 +38,8 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
     // scp the binary
     let remote_dest = format!("{target}:~/.local/bin/cmuxd-remote");
     let scp_status = Command::new("scp")
-        .args([local_path.to_str().unwrap(), &remote_dest])
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", local_path.to_str().unwrap(), &remote_dest])
+        .kill_on_drop(true)
         .status()
         .await
         .map_err(|e| format!("scp failed: {e}"))?;
@@ -46,7 +49,8 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
 
     // Make executable
     let chmod_status = Command::new("ssh")
-        .args([target, "chmod", "+x", "~/.local/bin/cmuxd-remote"])
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, "chmod", "+x", "~/.local/bin/cmuxd-remote"])
+        .kill_on_drop(true)
         .status()
         .await
         .map_err(|e| format!("SSH chmod failed: {e}"))?;

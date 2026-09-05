@@ -93,3 +93,21 @@ jobs:
 
       - name: Test terminal memory and PTY cleanup under churn
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_memory_churn.py
+
+      - name: Test Linux clipboard selection and paste routing
+        run: dbus-run-session -- xvfb-run -a env GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 cargo test --bin cmux-app linux_clipboard_shortcuts_primary_and_surface_routing -- --ignored --test-threads=1
+
+      - name: Setup Go for SSH integration fixture
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: daemon/remote/go.mod
+
+      - name: Build remote integration daemon
+        working-directory: daemon/remote
+        run: go build -o ../../target/cmuxd-remote ./cmd/cmuxd-remote
+
+      - name: Install SSH integration dependencies
+        run: sudo apt-get install -y openssh-server
+
+      - name: Test script and SSH workspace launch and restore
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_workspace_launch.py
