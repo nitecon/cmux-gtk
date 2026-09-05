@@ -11,3 +11,5 @@
   - Docs/Observability.md
 019df63f-3d1d-7a23-930b-3538dcaff23a:
   - src/browser/pixels.rs
+019df63f-14af-76e3-9bdf-a2641131368e:
+  - src/socket/dispatch.rs

@@ -36,10 +36,13 @@ content:
       description: Close a UUID in the active workspace. Sibling removal preserves the selected surviving tab or chooses the same slot with end fallback. Empty-pane removal preserves a surviving active pane; closing the active pane selects a surviving sibling. Unknown UUIDs return not_found. The final workspace surface is retained and reports close_failed. This command does not implement cross-workspace targeting.
     - method: surface.send_text
       transport: Unix JSON socket
-      description: Paste text to optional id or the selected terminal without changing focus. Bracketed paste can keep newlines from submitting shell commands; send a literal carriage return through surface.send_key to submit separately. Missing native terminals return not_found; NUL bytes return invalid_params.
+      description: Require a string text field; missing or non-string input returns invalid_params before GTK admission. Explicit empty text remains valid. Paste to optional id or the selected terminal without changing focus. Bracketed paste can keep newlines from submitting shell commands; send a literal carriage return through surface.send_key to submit separately. Missing native terminals return not_found; NUL bytes return invalid_params.
     - method: surface.send_key
       transport: Unix JSON socket
-      description: Type one literal Unicode character without bracketed paste and without changing focus. Newline becomes carriage return; NUL returns invalid_params. Named key descriptors return not_supported; full key translation remains unfinished.
+      description: Require a string key field; missing or non-string input returns invalid_params before GTK admission. Type one literal Unicode character without bracketed paste and without changing focus. Newline becomes carriage return; NUL returns invalid_params. Empty strings and named key descriptors return not_supported; full key translation remains unfinished.
+    - method: debug.type
+      transport: Unix JSON socket
+      description: Require a string text field using the same input validation as surface.send_text. Paste into the selected terminal; explicit empty text remains valid. This endpoint does not synthesize physical GTK keyboard events.
     - method: surface.read_text
       transport: Unix JSON socket
       description: Return plain clipboard-formatted current viewport text from optional id without changing focus or selection. Native output is bounded to 256 KiB and 65536 cells. Missing terminals return not_found; failed or oversized captures return read_failed. This is a best-effort snapshot during concurrent output.

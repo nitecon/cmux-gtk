@@ -2,6 +2,110 @@
 use super::*;
 use crate::socket::COMMAND_CAPACITY;
 
+/// Invalid input cannot consume GTK queue slots or turn into a successful empty paste.
+#[tokio::test]
+async fn malformed_terminal_input_never_reaches_gtk() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+    for (method, field) in [
+        ("surface.send_text", "text"),
+        ("surface.send_key", "key"),
+        ("debug.type", "text"),
+    ] {
+        for input in [
+            None,
+            Some(serde_json::json!(null)),
+            Some(serde_json::json!(false)),
+            Some(serde_json::json!(7)),
+            Some(serde_json::json!([])),
+            Some(serde_json::json!({})),
+        ] {
+            let mut params = serde_json::json!({});
+            if let Some(input) = input {
+                params[field] = input;
+            }
+            let request = serde_json::json!({"id": 16, "method": method, "params": params});
+            let response = tokio::time::timeout(
+                std::time::Duration::from_secs(1),
+                dispatch_line(request.to_string(), &tx),
+            )
+            .await
+            .expect("invalid input must not await GTK");
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(response["id"], 16);
+            assert_eq!(response["error"]["code"], "invalid_params", "{method}");
+            assert!(rx.try_recv().is_err());
+        }
+    }
+}
+
+/// Input dispatch preserves empty text, Unicode, control characters and explicit targets.
+#[tokio::test]
+async fn terminal_input_reaches_gtk_unchanged() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+    for (method, field, input) in [
+        ("surface.send_text", "text", ""),
+        ("surface.send_text", "text", "echo λ\n"),
+        ("surface.send_key", "key", "λ"),
+        ("surface.send_key", "key", "\r"),
+        ("debug.type", "text", ""),
+        ("debug.type", "text", "echo λ\n"),
+    ] {
+        let mut params = serde_json::json!({"id": "target-uuid"});
+        params[field] = serde_json::json!(input);
+        let request = serde_json::json!({"id": 17, "method": method, "params": params});
+        let dispatch = dispatch_line(request.to_string(), &tx);
+        let consume = async {
+            let commands::SocketCommand::Observed { command, .. } = rx.recv().await.unwrap() else {
+                panic!("missing observed request");
+            };
+            let (req_id, resp_tx) = match *command {
+                commands::SocketCommand::SurfaceSendText {
+                    req_id,
+                    id,
+                    text,
+                    resp_tx,
+                } => {
+                    assert_eq!(method, "surface.send_text");
+                    assert_eq!(id.as_deref(), Some("target-uuid"));
+                    assert_eq!(text, input);
+                    (req_id, resp_tx)
+                }
+                commands::SocketCommand::SurfaceSendKey {
+                    req_id,
+                    id,
+                    key,
+                    resp_tx,
+                } => {
+                    assert_eq!(method, "surface.send_key");
+                    assert_eq!(id.as_deref(), Some("target-uuid"));
+                    assert_eq!(key, input);
+                    (req_id, resp_tx)
+                }
+                commands::SocketCommand::DebugType {
+                    req_id,
+                    text,
+                    resp_tx,
+                } => {
+                    assert_eq!(method, "debug.type");
+                    assert_eq!(text, input);
+                    (req_id, resp_tx)
+                }
+                _ => panic!("wrong input command"),
+            };
+            resp_tx.send(ok(req_id, serde_json::json!({}))).unwrap();
+        };
+        let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            tokio::join!(dispatch, consume)
+        })
+        .await
+        .unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["id"], 17);
+        assert_eq!(response["ok"], true);
+        assert!(rx.try_recv().is_err());
+    }
+}
+
 /// Non-object parameters cannot erase explicit targets and activate command defaults.
 #[tokio::test]
 async fn malformed_envelopes_never_reach_gtk() {

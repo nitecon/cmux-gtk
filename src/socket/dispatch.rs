@@ -278,26 +278,41 @@ pub(super) async fn dispatch_line(
                 .to_string(),
             resp_tx,
         },
-        "surface.send_text" => commands::SocketCommand::SurfaceSendText {
-            req_id: req_id.clone(),
-            id: target,
-            text: params
-                .get("text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            resp_tx,
-        },
-        "surface.send_key" => commands::SocketCommand::SurfaceSendKey {
-            req_id: req_id.clone(),
-            id: target,
-            key: params
-                .get("key")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            resp_tx,
-        },
+        "surface.send_text" | "surface.send_key" | "debug.type" => {
+            let field = if method == "surface.send_key" {
+                "key"
+            } else {
+                "text"
+            };
+            let Some(input) = params.get(field).and_then(serde_json::Value::as_str) else {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    &format!("{field} must be a string"),
+                )
+                .to_string();
+            };
+            let input = input.to_owned();
+            match method.as_str() {
+                "surface.send_text" => commands::SocketCommand::SurfaceSendText {
+                    req_id: req_id.clone(),
+                    id: target,
+                    text: input,
+                    resp_tx,
+                },
+                "surface.send_key" => commands::SocketCommand::SurfaceSendKey {
+                    req_id: req_id.clone(),
+                    id: target,
+                    key: input,
+                    resp_tx,
+                },
+                _ => commands::SocketCommand::DebugType {
+                    req_id: req_id.clone(),
+                    text: input,
+                    resp_tx,
+                },
+            }
+        }
         "surface.read_text" => commands::SocketCommand::SurfaceReadText {
             req_id: req_id.clone(),
             id: target,
@@ -339,15 +354,6 @@ pub(super) async fn dispatch_line(
 
         "debug.layout" => commands::SocketCommand::DebugLayout {
             req_id: req_id.clone(),
-            resp_tx,
-        },
-        "debug.type" => commands::SocketCommand::DebugType {
-            req_id: req_id.clone(),
-            text: params
-                .get("text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
             resp_tx,
         },
 
