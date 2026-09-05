@@ -424,3 +424,21 @@ The separate divider-drag recovery helper still scans global registries and
 schedules follow-up rendering; it remains a refactor target requiring resize and
 focus regression coverage. This change does not claim to resolve the pending
 interactive-tab CI failure or all focus routing.
+
+
+### Divider recovery belongs to the affected pane subtree
+
+Moved divider gesture discovery and recovery to `src/split_engine/recovery.rs`.
+Shared discovery replaces the duplicated Paned/child controller wiring. All GTK
+callbacks use local closures and weak divider references. Recovery traverses only
+mapped descendant terminal widgets, excluding hidden sibling tabs and unrelated
+workspaces, and releases registry lookup locks before native calls. Follow-up
+paint passes recheck owner mapping and never retain a detached divider. The global
+native mailbox tick remains necessary for Ghostty's asynchronous resize pipeline.
+The position-notification fallback still coalesces per idle, not per completed
+gesture; this compatibility fallback is not a full drag lifecycle signal.
+
+A new explicit Xvfb CI step exercises mapping, selected-terminal GTK focus and
+owner release with pending recovery callbacks. It does not establish native pixel
+correctness or real pointer-divider gesture behavior. Local binary and test-target
+compilation passed; no tests ran locally. Full runtime verification remains pending.

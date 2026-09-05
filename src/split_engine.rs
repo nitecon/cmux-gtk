@@ -1,6 +1,7 @@
 //! Workspace pane tree, surface ownership and interactive layout operations.
 
 mod restore;
+mod recovery;
 
 use crate::ghostty::ffi;
 use gtk4::prelude::*;
@@ -945,109 +946,7 @@ impl SplitEngine {
                 });
             }
 
-            // Restore GTK focus AND Ghostty focus after GtkPaned drag ends (Gap 1A).
-            //
-            // The divider drag temporarily moves GTK focus to the separator handle,
-            // which causes Ghostty's cursor blink and keyboard input to stop.
-            //
-            // IMPORTANT: We must NOT restore focus on every `notify::position` change
-            // during the drag — that fires on every pixel of movement and causes:
-            //   1. grab_focus() thrashing that fights the active gesture
-            //   2. ghostty_surface_set_focus(true) message storms to the render thread
-            //   3. GL_AREA_REGISTRY lock contention with the resize idle handler
-            // Instead, we detect the drag lifecycle via the paned's internal GestureDrag
-            // controller and restore focus only once when the drag ends.
-            {
-                // Find the GtkPaned's internal GestureDrag on its separator handle.
-                // GTK4's Paned uses a GestureDrag controller internally — we observe
-                // the controller list and connect to its drag-end signal.
-                //
-                // The gesture lives on the separator handle widget, not the Paned
-                // itself. Walk the Paned's children to find the separator, then
-                // inspect its controllers.
-                let mut found_gesture = false;
-
-                // First try: controllers on the Paned itself
-                let controllers = paned.observe_controllers();
-                let n = controllers.n_items();
-                eprintln!("cmux: Paned has {} controllers", n);
-                for i in 0..n {
-                    if let Some(obj) = controllers.item(i) {
-                        eprintln!("cmux:   controller[{}]: {}", i, obj.type_().name());
-                        if let Ok(gesture) = obj.downcast::<gtk4::GestureDrag>() {
-                            eprintln!("cmux:   -> found GestureDrag on Paned, connecting drag-end");
-                            gesture.connect_drag_end(|_gesture, _offset_x, _offset_y| {
-                                eprintln!("cmux: GestureDrag drag-end fired on Paned — deferring focus restore to idle");
-                                // Defer to idle so GTK has time to fully release the gesture
-                                // and clean up the event sequence before we move focus.
-                                gtk4::glib::idle_add_local_once(|| {
-                                    eprintln!("cmux: drag-end idle: restoring focus now");
-                                    restore_active_pane_focus();
-                                });
-                            });
-                            found_gesture = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Second try: walk children to find the separator handle widget
-                if !found_gesture {
-                    let mut child = paned.first_child();
-                    while let Some(ref widget) = child {
-                        let type_name = widget.type_().name();
-                        eprintln!("cmux: Paned child: {}", type_name);
-                        let ctrl_list = widget.observe_controllers();
-                        let cn = ctrl_list.n_items();
-                        for i in 0..cn {
-                            if let Some(obj) = ctrl_list.item(i) {
-                                eprintln!(
-                                    "cmux:   child controller[{}]: {}",
-                                    i,
-                                    obj.type_().name()
-                                );
-                                if let Ok(gesture) = obj.downcast::<gtk4::GestureDrag>() {
-                                    eprintln!(
-                                        "cmux:   -> found GestureDrag on {}, connecting drag-end",
-                                        type_name
-                                    );
-                                    gesture.connect_drag_end(|_gesture, _offset_x, _offset_y| {
-                                        eprintln!("cmux: GestureDrag drag-end fired on separator — deferring focus restore to idle");
-                                        gtk4::glib::idle_add_local_once(|| {
-                                            eprintln!("cmux: separator drag-end idle: restoring focus now");
-                                            restore_active_pane_focus();
-                                        });
-                                    });
-                                    found_gesture = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if found_gesture {
-                            break;
-                        }
-                        child = widget.next_sibling();
-                    }
-                }
-
-                if !found_gesture {
-                    eprintln!("cmux: WARNING — no GestureDrag found on Paned or its children, falling back to notify::position");
-                    // Fallback: use notify::position but debounced via idle.
-                    // connect_notify requires Send+Sync, so use AtomicBool instead of Rc<Cell>.
-                    let restore_pending =
-                        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-                    paned.connect_notify(Some("position"), move |_paned, _pspec| {
-                        if restore_pending.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                            return;
-                        }
-                        let pending = restore_pending.clone();
-                        gtk4::glib::idle_add_once(move || {
-                            pending.store(false, std::sync::atomic::Ordering::SeqCst);
-                            restore_active_pane_focus();
-                        });
-                    });
-                }
-            }
+            recovery::install(&paned);
 
             SplitNode::Split {
                 orientation: orientation_cap,
@@ -1532,96 +1431,6 @@ fn remove_widget_from_parent(widget: &gtk4::Widget) {
         }
     } else if let Some(stack) = parent.downcast_ref::<gtk4::Stack>() {
         stack.remove(widget);
-    }
-}
-
-/// Restore GTK keyboard focus and Ghostty surface focus to the active pane.
-/// Called once when a GtkPaned drag ends — NOT on every pixel of movement.
-/// Re-syncs each surface's cached size with the GLArea's current allocation to
-/// break any anti-flicker stall in Ghostty's drawFrame() guard, then kicks
-/// the render thread with ghostty_surface_refresh + queue_render.
-///
-/// Does NOT touch focus state. The cursor blink timer runs independently of
-/// resize. Calling set_focus(false→true) here kills the timer due to an async
-/// cancel race in Ghostty's renderer thread: the false message enqueues a timer
-/// cancel, but the true message is processed before the cancel callback fires,
-/// so the guard `if cursor_c.state() != .active` sees `.active` and skips the
-/// restart. The cancel then completes, leaving the timer permanently dead.
-fn restore_active_pane_focus() {
-    // Re-set size + refresh ALL surfaces to break the anti-flicker stall.
-    if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-        if let Ok(gl_to_surface) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
-            for area_ptr in areas.iter() {
-                let area: gtk4::glib::translate::Borrowed<gtk4::GLArea> =
-                    unsafe { gtk4::glib::translate::from_glib_borrow(area_ptr.0) };
-                if let Some(&surface_ptr) = gl_to_surface.get(&(area_ptr.0 as usize)) {
-                    let scale = area.scale_factor();
-                    let w = (area.width() * scale) as u32;
-                    let h = (area.height() * scale) as u32;
-                    if w > 0 && h > 0 {
-                        unsafe {
-                            let surface = surface_ptr as ffi::ghostty_surface_t;
-                            ffi::ghostty_surface_set_size(surface, w, h);
-                            ffi::ghostty_surface_refresh(surface);
-                        }
-                    }
-                }
-                if area.is_realized() {
-                    area.queue_render();
-                    area.queue_draw();
-                }
-            }
-        }
-    }
-
-    // Drive the app tick to process any pending mailbox messages (redraw_surface, etc.)
-    let app_ptr = crate::ghostty::callbacks::APP_PTR.load(std::sync::atomic::Ordering::SeqCst);
-    if app_ptr != 0 {
-        unsafe {
-            let app = app_ptr as ffi::ghostty_app_t;
-            ffi::ghostty_app_tick(app);
-        }
-    }
-
-    // Restore GTK keyboard focus to the active pane.
-    if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-        for area_ptr in areas.iter() {
-            let area: gtk4::glib::translate::Borrowed<gtk4::GLArea> =
-                unsafe { gtk4::glib::translate::from_glib_borrow(area_ptr.0) };
-            if area.has_css_class("active-pane") {
-                area.grab_focus();
-                area.queue_render();
-                break;
-            }
-        }
-    }
-
-    // The set_size → IO thread → render thread → updateFrame → cells rebuild pipeline
-    // is asynchronous. The immediate queue_render above may still draw stale content
-    // because cells haven't been rebuilt yet. Schedule follow-up recovery ticks to
-    // give the pipeline time to converge (50ms, 150ms, 300ms).
-    for delay_ms in [50u32, 150, 300] {
-        gtk4::glib::timeout_add_local_once(
-            std::time::Duration::from_millis(delay_ms as u64),
-            move || {
-                let app_ptr =
-                    crate::ghostty::callbacks::APP_PTR.load(std::sync::atomic::Ordering::SeqCst);
-                if app_ptr != 0 {
-                    unsafe {
-                        ffi::ghostty_app_tick(app_ptr as ffi::ghostty_app_t);
-                    }
-                }
-                if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-                    for area_ptr in areas.iter() {
-                        let area: gtk4::glib::translate::Borrowed<gtk4::GLArea> =
-                            unsafe { gtk4::glib::translate::from_glib_borrow(area_ptr.0) };
-                        if area.is_realized() {
-                            area.queue_render();
-                        }
-                    }
-                }
-            },
-        );
     }
 }
 
