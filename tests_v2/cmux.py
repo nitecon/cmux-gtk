@@ -18,11 +18,11 @@ Notes:
 """
 
 import base64
+import sys
+from pathlib import Path
 import errno
-import glob
 import json
 import os
-import platform
 import select
 import socket
 import time
@@ -30,85 +30,11 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from cmux_socket_discovery import default_socket_path as _default_socket_path
+
 class cmuxError(Exception):
     """Exception raised for cmux errors."""
-
-
-_APP_SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/cmux")
-_STABLE_SOCKET_PATH = os.path.join(_APP_SUPPORT_DIR, "cmux.sock")
-_LEGACY_STABLE_SOCKET_PATH = "/tmp/cmux.sock"
-_LAST_SOCKET_PATH_FILES = [
-    os.path.join(_APP_SUPPORT_DIR, "last-socket-path"),
-    "/tmp/cmux-last-socket-path",
-]
-
-
-def _read_last_socket_path() -> Optional[str]:
-    for marker_path in _LAST_SOCKET_PATH_FILES:
-        try:
-            with open(marker_path, "r", encoding="utf-8") as f:
-                path = f.read().strip()
-            if path:
-                return path
-        except OSError:
-            continue
-    # Linux: also check XDG_RUNTIME_DIR marker (D-05).
-    if platform.system() == "Linux":
-        xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-        linux_marker = os.path.join(xdg, "cmux", "last-socket-path")
-        try:
-            with open(linux_marker, "r", encoding="utf-8") as f:
-                path = f.read().strip()
-            if path:
-                return path
-        except OSError:
-            pass
-    return None
-
-
-def _default_socket_path() -> str:
-    # Backwards/forward compatibility: some scripts export CMUX_SOCKET,
-    # while the client historically used CMUX_SOCKET_PATH.
-    override = os.environ.get("CMUX_SOCKET_PATH") or os.environ.get("CMUX_SOCKET")
-    if override:
-        if os.path.exists(override):
-            return override
-        if override not in {_STABLE_SOCKET_PATH, _LEGACY_STABLE_SOCKET_PATH}:
-            return override
-
-    # Linux: check XDG_RUNTIME_DIR paths before macOS Application Support paths (D-05).
-    if platform.system() == "Linux":
-        xdg_runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
-        linux_socket = os.path.join(xdg_runtime, "cmux", "cmux.sock")
-        linux_marker = os.path.join(xdg_runtime, "cmux", "last-socket-path")
-        if os.path.exists(linux_socket):
-            return linux_socket
-        # Check the marker file written by the Rust app at startup.
-        try:
-            with open(linux_marker, "r", encoding="utf-8") as f:
-                marker_path = f.read().strip()
-            if marker_path and os.path.exists(marker_path):
-                return marker_path
-        except OSError:
-            pass
-
-    last_socket = _read_last_socket_path()
-    if last_socket and os.path.exists(last_socket):
-        return last_socket
-
-    candidates = ["/tmp/cmux-debug.sock", _STABLE_SOCKET_PATH, _LEGACY_STABLE_SOCKET_PATH]
-    for path in candidates:
-        if os.path.exists(path):
-            return path
-
-    discovered = glob.glob("/tmp/cmux-debug-*.sock")
-    discovered.extend(glob.glob(os.path.join(_APP_SUPPORT_DIR, "cmux*.sock")))
-    discovered = [path for path in discovered if os.path.exists(path)]
-    if discovered:
-        discovered.sort(key=os.path.getmtime, reverse=True)
-        return discovered[0]
-
-    return candidates[0]
 
 
 def _looks_like_uuid(s: str) -> bool:

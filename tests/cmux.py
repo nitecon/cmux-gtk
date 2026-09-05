@@ -29,36 +29,27 @@ Usage:
 """
 
 import socket
+import sys
+from pathlib import Path
 import select
 import os
 import time
 import errno
 import json
 import base64
-import glob
 import re
 from typing import Optional, List, Tuple, Union
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from cmux_socket_discovery import default_socket_path as _default_socket_path
 
 class cmuxError(Exception):
     """Exception raised for cmux errors"""
     pass
 
 
-_APP_SUPPORT_DIR = os.path.expanduser("~/Library/Application Support/cmux")
-_STABLE_SOCKET_PATH = os.path.join(_APP_SUPPORT_DIR, "cmux.sock")
-_LEGACY_STABLE_SOCKET_PATH = "/tmp/cmux.sock"
-_LAST_SOCKET_PATH_FILES = [
-    os.path.join(_APP_SUPPORT_DIR, "last-socket-path"),
-    "/tmp/cmux-last-socket-path",
-]
 _DEFAULT_DEBUG_BUNDLE_ID = "com.cmuxterm.app.debug"
-
-
-def _sanitize_tag_slug(raw: str) -> str:
-    cleaned = re.sub(r"[^a-z0-9]+", "-", (raw or "").strip().lower())
-    cleaned = re.sub(r"-+", "-", cleaned).strip("-")
-    return cleaned or "agent"
 
 
 def _sanitize_bundle_suffix(raw: str) -> str:
@@ -88,87 +79,6 @@ def _default_bundle_id() -> str:
     return _DEFAULT_DEBUG_BUNDLE_ID
 
 
-def _read_last_socket_path() -> Optional[str]:
-    for marker_path in _LAST_SOCKET_PATH_FILES:
-        try:
-            with open(marker_path, "r", encoding="utf-8") as f:
-                path = f.read().strip()
-            if path:
-                return path
-        except OSError:
-            continue
-    return None
-
-
-def _can_connect(path: str, timeout: float = 0.15, retries: int = 4) -> bool:
-    # Best-effort check to avoid getting stuck on stale socket files.
-    for _ in range(max(1, retries)):
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        try:
-            s.settimeout(timeout)
-            s.connect(path)
-            return True
-        except OSError:
-            time.sleep(0.05)
-        finally:
-            try:
-                s.close()
-            except Exception:
-                pass
-    return False
-
-
-def _default_socket_path() -> str:
-    tag = os.environ.get("CMUX_TAG")
-    if tag:
-        slug = _sanitize_tag_slug(tag)
-        tagged_candidates = [
-            f"/tmp/cmux-debug-{slug}.sock",
-            f"/tmp/cmux-{slug}.sock",
-        ]
-        for path in tagged_candidates:
-            if os.path.exists(path) and _can_connect(path):
-                return path
-        # If nothing is connectable yet (e.g. the app is still starting),
-        # fall back to the first existing candidate.
-        for path in tagged_candidates:
-            if os.path.exists(path):
-                return path
-        # Prefer the debug naming convention when we have to guess.
-        return tagged_candidates[0]
-
-    override = os.environ.get("CMUX_SOCKET_PATH")
-    if override:
-        if os.path.exists(override) and _can_connect(override):
-            return override
-        # Treat stable defaults as implicit so old env values still migrate cleanly.
-        if not os.path.exists(override) and override not in {_STABLE_SOCKET_PATH, _LEGACY_STABLE_SOCKET_PATH}:
-            return override
-
-    last_socket = _read_last_socket_path()
-    if last_socket:
-        if os.path.exists(last_socket) and _can_connect(last_socket):
-            return last_socket
-
-    # Prefer the non-tagged sockets when present.
-    candidates = ["/tmp/cmux-debug.sock", _STABLE_SOCKET_PATH, _LEGACY_STABLE_SOCKET_PATH]
-    for path in candidates:
-        if os.path.exists(path) and _can_connect(path):
-            return path
-
-    # Otherwise, fall back to the newest discovered socket if there is one.
-    tagged = glob.glob("/tmp/cmux-debug-*.sock")
-    tagged.extend(glob.glob(os.path.join(_APP_SUPPORT_DIR, "cmux*.sock")))
-    tagged = [p for p in tagged if os.path.exists(p)]
-    if tagged:
-        tagged.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-        for p in tagged:
-            if _can_connect(p, timeout=0.1, retries=2):
-                return p
-
-    return candidates[0]
-
-
 class cmux:
     """Client for controlling cmux via Unix socket"""
 
@@ -177,6 +87,7 @@ class cmux:
 
     @staticmethod
     def default_socket_path() -> str:
+        """Resolve the current Linux socket using shared client discovery rules."""
         return _default_socket_path()
 
     @staticmethod

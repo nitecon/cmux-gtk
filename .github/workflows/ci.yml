@@ -88,6 +88,9 @@ jobs:
       - name: Test version flags without a display or socket
         run: python3 tests/test_cli_version_flag.py
 
+      - name: Test Python Linux socket discovery
+        run: python3 tests/test_socket_discovery.py
+
       - name: Test prompt probe cleanup
         run: python3 tests/test_prompt_probe.py
 
