@@ -22,19 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cmux import cmux, cmuxError
 
 
-class TestResult:
-    def __init__(self, name: str):
-        self.name = name
-        self.passed = False
-        self.message = ""
-
-    def success(self, msg: str = ""):
-        self.passed = True
-        self.message = msg
-
-    def failure(self, msg: str):
-        self.passed = False
-        self.message = msg
+from result_support import TestResult
 
 
 def test_screen_not_blank(client: cmux) -> TestResult:

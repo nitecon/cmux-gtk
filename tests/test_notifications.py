@@ -24,22 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cmux import cmux, cmuxError
 
 
-class TestResult:
-    def __init__(self, name: str):
-        """Create a failed-by-default scenario result with a human-readable name."""
-        self.name = name
-        self.passed = False
-        self.message = ""
-
-    def success(self, msg: str = ""):
-        """Mark this scenario passed and retain its optional explanation."""
-        self.passed = True
-        self.message = msg
-
-    def failure(self, msg: str):
-        """Retain the failure explanation; results begin in the failed state."""
-        self.passed = False
-        self.message = msg
+from result_support import TestResult
 
 
 def wait_for_notifications(client: cmux, expected: int, timeout: float = 2.0) -> list[dict]:

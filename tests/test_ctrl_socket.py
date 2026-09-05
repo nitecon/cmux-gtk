@@ -24,22 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cmux import cmux, cmuxError
 
 
-class TestResult:
-    def __init__(self, name: str):
-        """Create a failed-by-default scenario result with a descriptive name."""
-        self.name = name
-        self.passed = False
-        self.message = ""
-
-    def success(self, msg: str = ""):
-        """Mark the scenario passed and retain its optional explanation."""
-        self.passed = True
-        self.message = msg
-
-    def failure(self, msg: str):
-        """Retain a failure explanation; the scenario starts in the failed state."""
-        self.passed = False
-        self.message = msg
+from result_support import TestResult
 
 
 def test_connection(client: cmux) -> TestResult:

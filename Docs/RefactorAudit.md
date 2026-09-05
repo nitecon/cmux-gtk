@@ -834,3 +834,9 @@ Actions run 33993982736 at a4311237 is confirmed live after passing typed-input/
 Surface split direction is now validated off GTK and carried as a two-variant enum. Omission keeps horizontal default; explicit unknown strings, booleans, null and numbers return invalid_params before admission. Unknown close UUIDs retain the NotFound result instead of being collapsed into the last-surface failure. Added dispatcher error/correlation coverage and no-layout/no-focus-mutation checks to the Linux scenario. All-target compilation, formatting and static Python parsing pass; executable checks remain CI-only.
 
 Run 33993982736 at a4311237 has completed successfully, including Go, GTK lifecycle, typed input/read, queue behavior, benchmark comparison tests, memory churn, clipboard, SSH restoration and optimized CLI benchmarks. Later selection/refactor and SIGINT scenario commits still require cumulative CI; this is not full-goal completion.
+
+### Shared scenario result record and verified close behavior (2026-09-05)
+
+Consolidated the identical TestResult behavior from six retained scenario sources into tests/result_support.py, with a relative v2 entry link. The documented helper preserves explicit success/failure replacement semantics and failed-by-default initialization. Protocol selection and scenario bodies are unchanged. This removes repeated helper declarations without adding an assertion framework or metadata-only tests. Static Python parsing and whitespace validation pass.
+
+Actions run 33994475960 at 7ae37a73 completed successfully, including SIGINT through the unfocused terminal, workspace and sibling/pane close selection, memory churn, SSH restoration and optimized benchmarks. This is cumulative evidence for the close/refocus changes previously pending. Run 33996829835 for split-direction/error validation remains live; the full legacy/documentation/platform/observability completion audit remains open.
