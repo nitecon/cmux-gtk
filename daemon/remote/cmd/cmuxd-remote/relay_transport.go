@@ -98,7 +98,7 @@ func dialSocket(addr string, refreshAddr func() string) (net.Conn, error) {
 		}
 		return conn, nil
 	}
-	return net.Dial("unix", addr)
+	return net.DialTimeout("unix", addr, 2*time.Second)
 }
 
 // dialTCP opens a TCP relay with a two-second connection timeout and disables Nagle buffering.
@@ -122,7 +122,9 @@ func isConnectionRefused(err error) bool {
 // authenticateRelayConn validates the relay challenge, proves token possession and restores deadlines on success.
 func authenticateRelayConn(conn net.Conn, auth *relayAuthState) error {
 	reader := bufio.NewReader(conn)
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return fmt.Errorf("set relay authentication deadline: %w", err)
+	}
 
 	var challenge struct {
 		Protocol string `json:"protocol"`
@@ -130,7 +132,7 @@ func authenticateRelayConn(conn net.Conn, auth *relayAuthState) error {
 		RelayID  string `json:"relay_id"`
 		Nonce    string `json:"nonce"`
 	}
-	line, err := reader.ReadString('\n')
+	line, err := readRelayLine(reader, 64*1024)
 	if err != nil {
 		return fmt.Errorf("failed to read relay auth challenge: %w", err)
 	}
@@ -157,7 +159,7 @@ func authenticateRelayConn(conn net.Conn, auth *relayAuthState) error {
 		return fmt.Errorf("failed to send relay auth response: %w", err)
 	}
 
-	line, err = reader.ReadString('\n')
+	line, err = readRelayLine(reader, 64*1024)
 	if err != nil {
 		return fmt.Errorf("failed to read relay auth result: %w", err)
 	}
@@ -170,8 +172,7 @@ func authenticateRelayConn(conn net.Conn, auth *relayAuthState) error {
 	if !result.OK {
 		return fmt.Errorf("relay auth rejected")
 	}
-	_ = conn.SetDeadline(time.Time{})
-	return nil
+	return conn.SetDeadline(time.Time{})
 }
 
 // computeRelayMAC binds the relay identity, nonce and protocol version with HMAC-SHA256.
@@ -189,6 +190,10 @@ func socketRoundTrip(socketPath, command string, refreshAddr func() string) (str
 	}
 	defer conn.Close()
 
+	deadline := time.Now().Add(15 * time.Second)
+	if err := conn.SetDeadline(deadline); err != nil {
+		return "", fmt.Errorf("set request deadline: %w", err)
+	}
 	if _, err := fmt.Fprintf(conn, "%s\n", command); err != nil {
 		return "", fmt.Errorf("failed to send command: %w", err)
 	}
@@ -204,9 +209,15 @@ func socketRoundTrip(socketPath, command string, refreshAddr func() string) (str
 		if sawNewline {
 			readTimeout = 120 * time.Millisecond
 		}
-		_ = conn.SetReadDeadline(time.Now().Add(readTimeout))
+		readDeadline := time.Now().Add(readTimeout)
+		if readDeadline.After(deadline) {
+			readDeadline = deadline
+		}
+		if err := conn.SetReadDeadline(readDeadline); err != nil {
+			return "", fmt.Errorf("set response deadline: %w", err)
+		}
 
-		chunk, err := reader.ReadString('\n')
+		chunk, err := readRelayLine(reader, maxRPCFrameBytes-response.Len())
 		if chunk != "" {
 			response.WriteString(chunk)
 			if strings.Contains(chunk, "\n") {
@@ -216,7 +227,7 @@ func socketRoundTrip(socketPath, command string, refreshAddr func() string) (str
 
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				if sawNewline {
+				if sawNewline && time.Now().Before(deadline) {
 					break
 				}
 				return "", fmt.Errorf("failed to read response: timeout waiting for response")
@@ -255,14 +266,9 @@ func socketRoundTripV2(socketPath, method string, params map[string]any, refresh
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	if _, err := conn.Write(append(payload, '\n')); err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-
-	reader := bufio.NewReader(conn)
-	line, err := reader.ReadString('\n')
+	line, err := exchangeRelayRequest(conn, payload, relayRequestTimeout(method, params))
 	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		return "", err
 	}
 
 	// Parse the response to check for errors
@@ -297,4 +303,55 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// readRelayLine bounds one line including its newline and fails without draining an oversized peer.
+// Partial data and EOF/timeout are preserved for the legacy multiline response reader.
+func readRelayLine(reader *bufio.Reader, limit int) (string, error) {
+	var line strings.Builder
+	for {
+		chunk, err := reader.ReadSlice('\n')
+		if len(chunk) > limit-line.Len() {
+			return "", fmt.Errorf("relay response exceeds byte limit %d", limit)
+		}
+		line.Write(chunk)
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			return line.String(), err
+		}
+	}
+}
+
+// relayRequestTimeout allows thirty seconds, extending explicit browser waits by five seconds.
+func relayRequestTimeout(method string, params map[string]any) time.Duration {
+	const fallback = 30 * time.Second
+	if method != "browser.wait" {
+		return fallback
+	}
+	milliseconds, ok := params["timeout_ms"].(float64)
+	// JSON RPC parameters decode as float64. Bound conversion before duration arithmetic.
+	const maxMilliseconds = float64((1<<63-1)/int64(time.Millisecond)) - 5000
+	if !ok || milliseconds <= 0 || milliseconds >= maxMilliseconds {
+		return fallback
+	}
+	requested := time.Duration(milliseconds)*time.Millisecond + 5*time.Second
+	if requested > fallback {
+		return requested
+	}
+	return fallback
+}
+
+// exchangeRelayRequest bounds both request writes and response reads with a single deadline.
+// The caller owns closing the connection on every outcome.
+func exchangeRelayRequest(conn net.Conn, payload []byte, timeout time.Duration) (string, error) {
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return "", fmt.Errorf("set relay deadline: %w", err)
+	}
+	if _, err := conn.Write(append(payload, '\n')); err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	line, err := readRelayLine(bufio.NewReader(conn), maxRPCFrameBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+	return line, nil
 }
