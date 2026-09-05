@@ -135,7 +135,7 @@ async fn handle_connection(
                 break;
             }
         };
-        let response = dispatch_line(&line, &cmd_tx).await;
+        let response = dispatch_line(line, &cmd_tx).await;
         if let Err(error) = framing::write_response(&mut writer, &response).await {
             crate::diagnostics::record(
                 "rpc.response.failed",
@@ -149,12 +149,13 @@ async fn handle_connection(
 }
 
 /// Parse a JSON-RPC line and dispatch to the appropriate SocketCommand.
+/// Consumes raw input and releases unused JSON fields before awaiting execution.
 /// Returns the JSON response string (without trailing newline).
 async fn dispatch_line(
-    line: &str,
+    line: String,
     cmd_tx: &tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
 ) -> String {
-    let req: serde_json::Value = match serde_json::from_str(line) {
+    let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
         Err(_) => {
             return serde_json::json!({
@@ -166,26 +167,31 @@ async fn dispatch_line(
         }
     };
 
-    let req_id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
-    let method = req
-        .get("method")
-        .and_then(|m| m.as_str())
-        .unwrap_or("")
-        .to_string();
-    let params = req
-        .get("params")
-        .cloned()
+    drop(line);
+    let req_id = req
+        .get_mut("id")
+        .map(serde_json::Value::take)
+        .unwrap_or(serde_json::Value::Null);
+    let method = match req.get_mut("method").map(serde_json::Value::take) {
+        Some(serde_json::Value::String(method)) => method,
+        _ => String::new(),
+    };
+    let mut params = req
+        .get_mut("params")
+        .map(serde_json::Value::take)
         .unwrap_or(serde_json::Value::Object(Default::default()));
 
     let mut operation = crate::diagnostics::Operation::begin(
         &method,
         req.get("trace_id").and_then(|id| id.as_str()),
     );
+    drop(req);
     // Early validation failures below are errors; cancellation while awaiting
     // execution is reset explicitly before yielding to the response channel.
     operation.finish(false);
 
     if method == "system.diagnostics" {
+        drop(params);
         operation.pending();
         return match tokio::task::spawn_blocking(crate::diagnostics::snapshot).await {
             Ok(snapshot) => {
@@ -481,7 +487,7 @@ async fn dispatch_line(
             commands::SocketCommand::BrowserAction {
                 req_id: req_id.clone(),
                 action,
-                params,
+                params: params.take(),
                 surface_ref,
                 resp_tx,
             }
@@ -494,6 +500,8 @@ async fn dispatch_line(
         },
     };
 
+    drop(params);
+    drop(method);
     let observed = commands::SocketCommand::Observed {
         command: Box::new(cmd),
         trace_id: operation.id,
@@ -545,7 +553,7 @@ mod tests {
     async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let response = dispatch_line(
-            r#"{"id":7,"method":"workspace.create","params":{"working_directory":"/definitely/not/a/cmux/directory"}}"#,
+            r#"{"id":7,"method":"workspace.create","params":{"working_directory":"/definitely/not/a/cmux/directory"}}"#.into(),
             &tx,
         )
         .await;
