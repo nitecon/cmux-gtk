@@ -200,20 +200,24 @@ impl BrowserManager {
             .map_err(|e| format!("Failed to parse stream port '{}': {}", content.trim(), e))
     }
 
+    /// Cancel and release the frame reader; repeated calls are harmless.
+    fn stop_stream(&mut self) {
+        if let Some(task) = self.stream_task.take() {
+            task.abort();
+        }
+    }
+
     /// Shut down the daemon and clean up.
     pub fn shutdown(&mut self) {
         // Try to send close command (best-effort).
         let _ = self.send_command("close", serde_json::json!({"id": "cmux-shutdown"}));
 
-        if let Some(task) = self.stream_task.take() {
-            task.abort();
-        }
-        self.stream_task = None;
+        self.stop_stream();
     }
 
     /// Connect to the agent-browser stream WebSocket and start forwarding
-    /// decoded JPEG frames to the GTK main thread via mpsc channel.
-    /// The Picture widget is updated in idle callbacks per D-02.
+    /// decoded JPEG frames to GTK through a latest-value channel.
+    /// Immutable shared bytes avoid copying the JPEG when GTK consumes it.
     pub fn start_stream(
         &mut self,
         runtime: &tokio::runtime::Handle,
@@ -223,10 +227,8 @@ impl BrowserManager {
         let url = format!("ws://127.0.0.1:{}", port);
 
         // Only the latest frame matters; a slow GTK loop must not accumulate JPEGs.
-        if let Some(task) = self.stream_task.take() {
-            task.abort();
-        }
-        let (frame_tx, mut frame_rx) = tokio::sync::watch::channel(None::<Vec<u8>>);
+        self.stop_stream();
+        let (frame_tx, mut frame_rx) = tokio::sync::watch::channel(None::<glib::Bytes>);
 
         // Spawn tokio task: WebSocket client that reads frames
         let stream_task = runtime.spawn(async move {
@@ -254,7 +256,10 @@ impl BrowserManager {
                                 if let Ok(jpeg_bytes) =
                                     base64::engine::general_purpose::STANDARD.decode(data_b64)
                                 {
-                                    if frame_tx.send(Some(jpeg_bytes)).is_err() {
+                                    if frame_tx
+                                        .send(Some(glib::Bytes::from_owned(jpeg_bytes)))
+                                        .is_err()
+                                    {
                                         break;
                                     }
                                 }
@@ -266,7 +271,7 @@ impl BrowserManager {
         });
         self.stream_task = Some(stream_task);
 
-        // Spawn GTK-side receiver: poll mpsc and update Picture widget
+        // Await the newest shared frame on GTK and update the Picture widget.
         let picture_weak = picture.downgrade();
         glib::MainContext::default().spawn_local(async move {
             let mut first_frame = true;
@@ -274,10 +279,9 @@ impl BrowserManager {
                 let Some(picture_clone) = picture_weak.upgrade() else {
                     break;
                 };
-                let Some(jpeg_bytes) = frame_rx.borrow_and_update().clone() else {
+                let Some(bytes) = frame_rx.borrow_and_update().clone() else {
                     continue;
                 };
-                let bytes = glib::Bytes::from_owned(jpeg_bytes);
                 match gtk4::gdk::Texture::from_bytes(&bytes) {
                     Ok(texture) => {
                         picture_clone.set_paintable(Some(&texture));
@@ -308,6 +312,13 @@ impl BrowserManager {
 
         self.preview_state = PreviewState::Streaming;
         Ok(())
+    }
+}
+
+impl Drop for BrowserManager {
+    /// Cancel the owned frame reader without blocking destruction or issuing browser commands.
+    fn drop(&mut self) {
+        self.stop_stream();
     }
 }
 
