@@ -1,7 +1,7 @@
 //! Workspace pane tree, surface ownership and interactive layout operations.
 
-mod restore;
 mod recovery;
+mod restore;
 
 use crate::ghostty::ffi;
 use gtk4::prelude::*;
@@ -681,7 +681,9 @@ impl SplitEngine {
         let Some((notebook, surfaces)) = find_pane_tabs(&self.root, pane_id) else {
             return false;
         };
-        let page = surfaces.borrow().iter()
+        let page = surfaces
+            .borrow()
+            .iter()
             .find(|surface| surface.uuid().to_string() == uuid)
             .and_then(|surface| notebook.page_num(&surface.widget()));
         let Some(page) = page else {
@@ -735,14 +737,15 @@ impl SplitEngine {
                 None
             };
 
-        let inherited_config = find_any_terminal_surface(&self.root, active_id).map(|surface| unsafe {
-            // Stop the previous terminal receiving input before the new pane takes focus.
-            ffi::ghostty_surface_set_focus(surface, false);
-            ffi::ghostty_surface_inherited_config(
-                surface,
-                ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_SPLIT,
-            )
-        });
+        let inherited_config =
+            find_any_terminal_surface(&self.root, active_id).map(|surface| unsafe {
+                // Stop the previous terminal receiving input before the new pane takes focus.
+                ffi::ghostty_surface_set_focus(surface, false);
+                ffi::ghostty_surface_inherited_config(
+                    surface,
+                    ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_SPLIT,
+                )
+            });
         let new_gl_area = self.create_terminal_widget(new_pane_id, inherited_config);
 
         // Replace the active leaf in the tree with a Split node.
@@ -1113,7 +1116,9 @@ impl SplitEngine {
         } else {
             self.find_pane_id_by_uuid(reference)
         };
-        let Some(pane_id) = pane_id else { return false; };
+        let Some(pane_id) = pane_id else {
+            return false;
+        };
         if !self.activate_pane(pane_id) {
             return false;
         }
@@ -1128,7 +1133,8 @@ impl SplitEngine {
 
     /// Look up a surface by its UUID string. Returns the ghostty surface handle if found.
     pub fn find_surface_by_uuid(&self, target_uuid: &str) -> Option<ffi::ghostty_surface_t> {
-        self.gl_area_for_surface(target_uuid).and_then(|area| surface_for_area(&area))
+        self.gl_area_for_surface(target_uuid)
+            .and_then(|area| surface_for_area(&area))
     }
 
     /// Look up a pane_id by its UUID string.
@@ -1435,11 +1441,22 @@ fn remove_widget_from_parent(widget: &gtk4::Widget) {
 /// Copy pane/tab identities and notebook selection without retaining widgets or moving focus.
 fn collect_pane_snapshots(node: &SplitNode, panes: &mut Vec<PaneInfo>) {
     match node {
-        SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+        SplitNode::Leaf {
+            pane_id,
+            notebook,
+            surfaces,
+            ..
+        } => {
             let surface_ids: Vec<Uuid> = surfaces.borrow().iter().map(PaneSurface::uuid).collect();
-            let selected_surface = notebook.current_page()
-                .and_then(|index| surface_ids.get(index as usize)).copied();
-            panes.push(PaneInfo { id: *pane_id, surface_ids, selected_surface });
+            let selected_surface = notebook
+                .current_page()
+                .and_then(|index| surface_ids.get(index as usize))
+                .copied();
+            panes.push(PaneInfo {
+                id: *pane_id,
+                surface_ids,
+                selected_surface,
+            });
         }
         SplitNode::Split { start, end, .. } => {
             collect_pane_snapshots(start, panes);

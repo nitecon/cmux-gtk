@@ -404,14 +404,21 @@ fn build_ui(
         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
             let (native_events, dropped) = crate::ghostty::events::take();
             if dropped > 0 {
-                crate::diagnostics::record("native.events.overflow", serde_json::json!({"dropped": dropped}));
+                crate::diagnostics::record(
+                    "native.events.overflow",
+                    serde_json::json!({"dropped": dropped}),
+                );
             }
             let mut created = false;
             for event in native_events {
                 match event {
                     crate::ghostty::events::Event::NewTerminalTab(pane_id) => {
-                        created |= state.borrow_mut().split_engines.iter_mut()
-                            .find_map(|engine| engine.new_terminal_tab_for_pane(pane_id)).is_some();
+                        created |= state
+                            .borrow_mut()
+                            .split_engines
+                            .iter_mut()
+                            .find_map(|engine| engine.new_terminal_tab_for_pane(pane_id))
+                            .is_some();
                     }
                     crate::ghostty::events::Event::Bell(pane_id) => {
                         state.borrow_mut().set_pane_attention(pane_id);

@@ -1,6 +1,6 @@
+use crate::app_state::AppState;
 #[allow(deprecated)]
 use gtk4::prelude::*;
-use crate::app_state::AppState;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -60,7 +60,9 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     for field in [&entry, &directory] {
         let connect = connect.downgrade();
         field.connect_activate(move |_| {
-            if let Some(connect) = connect.upgrade() { connect.emit_clicked(); }
+            if let Some(connect) = connect.upgrade() {
+                connect.emit_clicked();
+            }
         });
     }
     connect.connect_clicked({
@@ -68,7 +70,9 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
         let dialog = dialog.downgrade();
         let entry = entry.clone();
         move |_| {
-            let Some(dialog) = dialog.upgrade() else { return; };
+            let Some(dialog) = dialog.upgrade() else {
+                return;
+            };
             let target = entry.text().to_string().trim().to_string();
             if !target.is_empty() {
                 if let Err(message) = crate::workspace::validate_ssh_target(&target) {
@@ -76,7 +80,9 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
                     return;
                 }
                 let directory = directory.text().trim().to_string();
-                if !directory.is_empty() && (!directory.starts_with('/') || directory.contains('\0')) {
+                if !directory.is_empty()
+                    && (!directory.starts_with('/') || directory.contains('\0'))
+                {
                     error.set_text("Use an absolute remote folder path.");
                     return;
                 }
@@ -92,7 +98,9 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
         let dialog = dialog.downgrade();
         move |_, key, _, _| {
             if key == gtk4::gdk::Key::Escape {
-                if let Some(dialog) = dialog.upgrade() { dialog.close(); }
+                if let Some(dialog) = dialog.upgrade() {
+                    dialog.close();
+                }
                 gtk4::glib::Propagation::Stop
             } else {
                 gtk4::glib::Propagation::Proceed
@@ -119,25 +127,34 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
 fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory: Option<String>) {
     let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
     *bridge.directory.lock().unwrap() = directory.clone();
-    let id = state.borrow_mut().create_remote_workspace(target.clone(), &bridge);
+    let id = state
+        .borrow_mut()
+        .create_remote_workspace(target.clone(), &bridge);
     {
         let mut s = state.borrow_mut();
         let index = s.workspaces.iter().position(|w| w.id == id).unwrap();
         s.workspaces[index].remote_directory = directory;
         if let Some(row) = s.sidebar_list.row_at_index(index as i32) {
-            row.set_child(Some(&crate::sidebar::workspace_row_content(&s.workspaces[index])));
+            row.set_child(Some(&crate::sidebar::workspace_row_content(
+                &s.workspaces[index],
+            )));
             crate::sidebar::style_workspace_row(&row, &s.workspaces[index]);
         }
         s.workspace_bridges.insert(id, bridge.clone());
         s.trigger_session_save();
     }
-    let (list, app) = { let s = state.borrow(); (s.sidebar_list.clone(), s.gtk_app.clone()) };
+    let (list, app) = {
+        let s = state.borrow();
+        (s.sidebar_list.clone(), s.gtk_app.clone())
+    };
     crate::sidebar::wire_latest_row(&list, state.clone(), &app);
 
     let ssh_tx = state.borrow().ssh_event_tx.clone();
     let rt_handle = state.borrow().runtime_handle.clone();
     if let (Some(tx), Some(rt)) = (ssh_tx, rt_handle) {
-        let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(id, target, tx, bridge));
+        let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
+            id, target, tx, bridge,
+        ));
         state.borrow_mut().ssh_task_handles.insert(id, handle);
     }
 }
