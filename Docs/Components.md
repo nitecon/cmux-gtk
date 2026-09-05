@@ -6,7 +6,7 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | --- | --- | --- |
 | Desktop composition | Construct GTK application, connect events, own application lifetime | `src/main.rs`, header/menu/dialog modules |
 | Workspace model | Workspace identity, launch settings, order and attention | `src/workspace.rs`, `src/app_state.rs` |
-| Pane tree | Splits, sibling tabs, selection and surface lifecycle | `src/split_engine.rs` |
+| Pane tree | Splits, sibling tabs, selection and surface lifecycle; saved layouts rebuild through a dedicated GTK restoration module | `src/split_engine.rs`, `src/split_engine/restore.rs` |
 | Terminal adapter | Ghostty configuration, input, clipboard and rendering through its C ABI; surface registry owns routing and last-known directories through teardown | `src/ghostty` |
 | Browser adapter | Optional browser daemon, commands, previews and navigation | `src/browser.rs`, `src/browser/{discovery,transport,frames,pixels,stream,motion,metrics}.rs` |
 | Command interface | Shared CLI argument schema, protocol validation and dispatch; completion generation imports the schema alone | `src/cli/args.rs`, `src/cli`, `src/socket`; repository Python clients share `scripts/cmux_socket_discovery.py` and `scripts/cmux_socket_transport.py` |
