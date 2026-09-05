@@ -414,7 +414,7 @@ fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
             label.set_text("No browser session active");
             return;
         };
-        runtime.spawn(browser.send_command_async("snapshot", serde_json::json!({})))
+        runtime.spawn(browser.snapshot_async())
     };
     finish_devtools_snapshot(label, task, activity);
 }
@@ -423,7 +423,7 @@ fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
 /// Weak ownership prevents the pending request from retaining a closed browser tab.
 fn finish_devtools_snapshot(
     label: &gtk4::Label,
-    mut task: tokio::task::JoinHandle<Result<serde_json::Value, String>>,
+    mut task: tokio::task::JoinHandle<Result<String, String>>,
     mut activity: crate::browser::metrics::Activity,
 ) {
     let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
@@ -449,14 +449,9 @@ fn finish_devtools_snapshot(
             return;
         };
         let text = match result {
-            Ok(Ok(result)) => {
+            Ok(Ok(text)) => {
                 activity.finish("success");
-                result
-                    .get("data")
-                    .and_then(serde_json::Value::as_str)
-                    .or_else(|| result.get("result").and_then(serde_json::Value::as_str))
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| serde_json::to_string_pretty(&result).unwrap_or_default())
+                text
             }
             Ok(Err(error)) => {
                 activity.finish("error");
@@ -622,13 +617,23 @@ mod tests {
             ),
             (Ok(serde_json::json!({"result": "alternate"})), "alternate"),
             (
+                Ok(serde_json::json!({"data": {"nodes": []}})),
+                r#"{"data":{"nodes":[]}}"#,
+            ),
+            (
                 Err("peer unavailable".to_string()),
                 "Snapshot error: peer unavailable",
             ),
         ] {
             let label = gtk4::Label::new(Some("Loading snapshot…"));
-            let (reply, receiver) = tokio::sync::oneshot::channel();
-            let task = runtime.spawn(async move { receiver.await.unwrap() });
+            let (reply, receiver) =
+                tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
+            let task = runtime.spawn(async move {
+                receiver
+                    .await
+                    .unwrap()
+                    .and_then(crate::browser::snapshot_text)
+            });
             finish_devtools_snapshot(
                 &label,
                 task,
@@ -654,7 +659,12 @@ mod tests {
         let weak = label.downgrade();
         let (reply, receiver) =
             tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
-        let task = runtime.spawn(async move { receiver.await.unwrap() });
+        let task = runtime.spawn(async move {
+            receiver
+                .await
+                .unwrap()
+                .and_then(crate::browser::snapshot_text)
+        });
         finish_devtools_snapshot(
             &label,
             task,

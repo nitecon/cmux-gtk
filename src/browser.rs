@@ -261,6 +261,29 @@ impl BrowserManager {
         async move { transport::request_async(&path, &request).await }
     }
 
+    /// Fetch a snapshot with bounded async transport and prepare display text off GTK.
+    /// Formatting uses a blocking worker; cancellation may leave only that bounded CPU job finishing.
+    pub fn snapshot_async(
+        &self,
+    ) -> impl std::future::Future<Output = Result<String, String>> + Send + 'static {
+        let request = self.send_command_async("snapshot", serde_json::json!({}));
+        async move {
+            // Keep admission through formatting, even if the caller cancels after
+            // the blocking worker starts. Rapid toggles cannot queue unbounded jobs.
+            static SNAPSHOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+            let permit = SNAPSHOTS
+                .try_acquire()
+                .map_err(|_| "Snapshot capacity reached".to_string())?;
+            let response = request.await?;
+            tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                snapshot_text(response)
+            })
+            .await
+            .map_err(|error| format!("Snapshot formatting failed: {error}"))?
+        }
+    }
+
     /// Add a fresh protocol identity and action to caller-owned parameters.
     fn command_request(action: &str, params: Value) -> Value {
         let req_id = format!("cmux-{}", Uuid::new_v4());
@@ -455,9 +478,49 @@ fn read_stream_port_file(path: &std::path::Path) -> std::io::Result<u16> {
         .ok_or_else(invalid)
 }
 
+/// Move textual snapshot payloads out of the response or serialize structured fallback compactly.
+/// Compact JSON avoids indentation amplification of the transport's bounded response.
+fn snapshot_text(mut response: Value) -> Result<String, String> {
+    for field in ["data", "result"] {
+        if let Some(value) = response.get_mut(field) {
+            if value.is_string() {
+                if let Value::String(text) = value.take() {
+                    return Ok(text);
+                }
+            }
+        }
+    }
+    serde_json::to_string(&response).map_err(|error| format!("Invalid snapshot: {error}"))
+}
+
 #[cfg(test)]
 mod manager_tests {
     use super::*;
+
+    /// Text fields preserve Unicode and emptiness; nested fallback does not gain indentation.
+    #[test]
+    fn snapshot_display_preserves_payload_without_indentation_growth() {
+        assert_eq!(
+            snapshot_text(serde_json::json!({"data": "λ\ntext"})).unwrap(),
+            "λ\ntext"
+        );
+        assert_eq!(
+            snapshot_text(serde_json::json!({"data": "", "result": "ignored"})).unwrap(),
+            ""
+        );
+        assert_eq!(
+            snapshot_text(serde_json::json!({"data": {}, "result": "fallback"})).unwrap(),
+            "fallback"
+        );
+        let mut nested = serde_json::json!([0, 1, 2, 3]);
+        for _ in 0..64 {
+            nested = serde_json::json!([nested]);
+        }
+        let compact = serde_json::to_string(&nested).unwrap();
+        let display = snapshot_text(nested.clone()).unwrap();
+        assert_eq!(display.len(), compact.len());
+        assert_eq!(serde_json::from_str::<Value>(&display).unwrap(), nested);
+    }
 
     /// Independent managers resolve different command and stream endpoints without starting daemons.
     #[test]
