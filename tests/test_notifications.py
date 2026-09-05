@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Automated tests for notification focus/suppression behavior.
+Shared upstream notification focus/suppression scenarios.
+
+The v2 entry is a symlink to this implementation. Client selection uses the
+invoked entry directory, preserving each protocol adapter. These scenarios
+require upstream notification/debug endpoints and are not Linux parity proof.
 
 Usage:
     python3 test_notifications.py
@@ -14,6 +18,7 @@ import sys
 import time
 from typing import Optional
 
+# Keep this lexical: resolving the v2 symlink would load the v1 client.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError
@@ -21,20 +26,24 @@ from cmux import cmux, cmuxError
 
 class TestResult:
     def __init__(self, name: str):
+        """Create a failed-by-default scenario result with a human-readable name."""
         self.name = name
         self.passed = False
         self.message = ""
 
     def success(self, msg: str = ""):
+        """Mark this scenario passed and retain its optional explanation."""
         self.passed = True
         self.message = msg
 
     def failure(self, msg: str):
+        """Retain the failure explanation; results begin in the failed state."""
         self.passed = False
         self.message = msg
 
 
 def wait_for_notifications(client: cmux, expected: int, timeout: float = 2.0) -> list[dict]:
+    """Poll for an exact inbox count using wall time; return the final list even on timeout."""
     start = time.time()
     while time.time() - start < timeout:
         items = client.list_notifications()
@@ -59,6 +68,7 @@ def wait_for_flash_count(client: cmux, surface: str, minimum: int = 1, timeout: 
 
 
 def ensure_two_surfaces(client: cmux) -> list[tuple[int, str, bool]]:
+    """Create one right split if needed, then return the legacy surface tuple list."""
     surfaces = client.list_surfaces()
     if len(surfaces) < 2:
         client.new_split("right")
@@ -68,6 +78,7 @@ def ensure_two_surfaces(client: cmux) -> list[tuple[int, str, bool]]:
 
 
 def focused_surface_index(client: cmux) -> int:
+    """Return the focused surface index or fail if the legacy response has no focused row."""
     surfaces = client.list_surfaces()
     focused = next((s for s in surfaces if s[2]), None)
     if focused is None:
@@ -85,6 +96,7 @@ def send_osc(client: cmux, sequence: str, surface: Optional[int] = None) -> None
 
 
 def test_clear_prior_notifications(client: cmux) -> TestResult:
+    """Check that a newer notification replaces the previous notification for the same panel."""
     result = TestResult("Clear Prior Panel Notifications")
     try:
         client.clear_notifications()
@@ -105,6 +117,7 @@ def test_clear_prior_notifications(client: cmux) -> TestResult:
 
 
 def test_suppress_when_focused(client: cmux) -> TestResult:
+    """Check that app-and-panel focus suppresses insertion into the notification inbox."""
     result = TestResult("Suppress When App+Panel Focused")
     try:
         client.clear_notifications()
@@ -121,6 +134,7 @@ def test_suppress_when_focused(client: cmux) -> TestResult:
 
 
 def test_not_suppressed_when_inactive(client: cmux) -> TestResult:
+    """Check that an inactive application retains an unread notification."""
     result = TestResult("Allow When App Inactive")
     try:
         client.clear_notifications()
@@ -139,6 +153,7 @@ def test_not_suppressed_when_inactive(client: cmux) -> TestResult:
 
 
 def test_kitty_notification_simple(client: cmux) -> TestResult:
+    """Print a simple OSC 99 notification and check its inbox title after native rate-limit delay."""
     result = TestResult("Kitty OSC 99 Simple")
     try:
         client.clear_notifications()
@@ -161,6 +176,7 @@ def test_kitty_notification_simple(client: cmux) -> TestResult:
 
 
 def test_kitty_notification_chunked(client: cmux) -> TestResult:
+    """Require OSC 99 chunks to publish only after completion, preserving title and body."""
     result = TestResult("Kitty OSC 99 Chunked Title/Body")
     try:
         client.clear_notifications()
@@ -191,6 +207,7 @@ def test_kitty_notification_chunked(client: cmux) -> TestResult:
 
 
 def test_rxvt_notification_osc777(client: cmux) -> TestResult:
+    """Print OSC 777 and check its title and body after native rate-limit delay."""
     result = TestResult("RXVT OSC 777 Notification")
     try:
         client.clear_notifications()
@@ -216,6 +233,7 @@ def test_rxvt_notification_osc777(client: cmux) -> TestResult:
 
 
 def test_mark_read_on_focus_change(client: cmux) -> TestResult:
+    """Check that focusing a notified surface marks it read and emits a dismissal flash."""
     result = TestResult("Mark Read On Panel Focus")
     try:
         client.clear_notifications()
@@ -253,6 +271,7 @@ def test_mark_read_on_focus_change(client: cmux) -> TestResult:
 
 
 def test_mark_read_on_app_active(client: cmux) -> TestResult:
+    """Check that simulated activation marks the existing notification read without removing it."""
     result = TestResult("Mark Read On App Active")
     try:
         client.clear_notifications()
@@ -281,6 +300,7 @@ def test_mark_read_on_app_active(client: cmux) -> TestResult:
 
 
 def test_mark_read_on_tab_switch(client: cmux) -> TestResult:
+    """Switch away and back, requiring the original workspace notification to become read."""
     result = TestResult("Mark Read On Tab Switch")
     try:
         client.clear_notifications()
@@ -310,6 +330,7 @@ def test_mark_read_on_tab_switch(client: cmux) -> TestResult:
 
 
 def test_flash_on_tab_switch(client: cmux) -> TestResult:
+    """Require a dismissal flash on the original surface when returning to its notified workspace."""
     result = TestResult("Flash On Tab Switch")
     try:
         client.clear_notifications()
@@ -344,6 +365,7 @@ def test_flash_on_tab_switch(client: cmux) -> TestResult:
 
 
 def test_focus_on_notification_click(client: cmux) -> TestResult:
+    """Check that the notification action focuses and flashes its target surface."""
     result = TestResult("Focus On Notification Click")
     try:
         client.clear_notifications()
@@ -382,6 +404,7 @@ def test_focus_on_notification_click(client: cmux) -> TestResult:
 
 
 def test_restore_focus_on_tab_switch(client: cmux) -> TestResult:
+    """Check that workspace switching restores the previously focused surface identity."""
     result = TestResult("Restore Focus On Tab Switch")
     try:
         client.clear_notifications()
@@ -418,6 +441,7 @@ def test_restore_focus_on_tab_switch(client: cmux) -> TestResult:
 
 
 def test_clear_on_tab_close(client: cmux) -> TestResult:
+    """Require closing a notified workspace to remove its inbox entries."""
     result = TestResult("Clear On Tab Close")
     try:
         client.clear_notifications()
@@ -447,6 +471,7 @@ def test_clear_on_tab_close(client: cmux) -> TestResult:
 
 
 def run_tests() -> int:
+    """Run the legacy notification scenarios, reset focus/inbox state on normal completion and summarize failures."""
     results = []
     with cmux() as client:
         results.append(test_clear_prior_notifications(client))
