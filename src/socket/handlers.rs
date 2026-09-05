@@ -14,13 +14,11 @@ fn err(req_id: Value, code: &str, message: &str) -> Value {
     json!({"id": req_id, "ok": false, "error": {"code": code, "message": message}})
 }
 
-/// Send literal UTF-8 text to a live terminal in the active workspace without changing focus.
-/// Resolve the optional UUID before native calls; reject missing targets and embedded NUL bytes.
-fn send_terminal_text(
+/// Resolve a live terminal in the current workspace without focus changes; GTK-thread callers only.
+fn terminal_target(
     state: &crate::app_state::AppStateRef,
     id: Option<&str>,
-    text: &str,
-) -> Result<(), (&'static str, &'static str)> {
+) -> Result<crate::ghostty::ffi::ghostty_surface_t, (&'static str, &'static str)> {
     let surface = {
         let state = state.borrow();
         state.split_engines.get(state.active_index).and_then(|engine| {
@@ -31,6 +29,17 @@ fn send_terminal_text(
         })
     }.filter(|surface| !surface.is_null())
         .ok_or(("not_found", "live terminal surface not found"))?;
+    Ok(surface)
+}
+
+/// Send literal UTF-8 text to a live terminal in the active workspace without changing focus.
+/// Resolve the optional UUID before native calls; reject missing targets and embedded NUL bytes.
+fn send_terminal_text(
+    state: &crate::app_state::AppStateRef,
+    id: Option<&str>,
+    text: &str,
+) -> Result<(), (&'static str, &'static str)> {
+    let surface = terminal_target(state, id)?;
     let text = std::ffi::CString::new(text)
         .map_err(|_| ("invalid_params", "terminal text contains a NUL byte"))?;
     // SAFETY: the native handle belongs to a live GTK-thread widget. No model borrow
@@ -506,10 +515,18 @@ fn handle_socket_command_traced(
             let _ = resp_tx.send(response);
         }
 
-        SocketCommand::SurfaceReadText { req_id, id: _, resp_tx } => {
-            // SOCK-05: No focus side effects.
-            // Stub — Ghostty screen buffer API not yet available. Phase 4.
-            let _ = resp_tx.send(ok(req_id, json!({"text": ""})));
+        SocketCommand::SurfaceReadText { req_id, id, resp_tx } => {
+            let result = terminal_target(state, id.as_deref()).and_then(|surface| {
+                // SAFETY: resolution found a live GTK-owned terminal. No model
+                // borrow or event-loop iteration spans this bounded native read.
+                unsafe { crate::ghostty::text::read_visible(surface) }
+                    .map_err(|message| ("read_failed", message))
+            });
+            let response = match result {
+                Ok(text) => ok(req_id, json!({"text": text})),
+                Err((code, message)) => err(req_id, code, message),
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::SurfaceHealth { req_id, id, resp_tx } => {

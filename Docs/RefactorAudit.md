@@ -630,3 +630,24 @@ changes. Local binary compilation, Python parsing and diff checks passed.
 the current Ghostty header. Replacing it needs bounded extraction and executable
 read/focus coverage. Full named-key dispatch also remains unfinished; explicit
 rejection is not claimed as implementation of that capability.
+
+
+### Bounded terminal viewport reads replace the empty-result stub
+
+`surface.read_text` now resolves the requested terminal without changing focus and
+calls `src/ghostty/text.rs` for viewport extraction. It uses the existing native
+scrollbar and byte-bounded clipboard-text APIs, preserving selection and scroll
+position. Native formatting limits output to 256 KiB and selected-cell work to
+65,536 cells; oversized or failed captures return `read_failed`, not empty success.
+A guard frees every successful native allocation, including validation failures.
+Worst-case JSON escaping remains under the socket's four-MiB response limit.
+Output uses Ghostty clipboard trimming/codepoint settings and contains plain text.
+The separate scrollbar/read calls are a best-effort snapshot under concurrent
+output, not an atomic terminal checkpoint. No Ghostty submodule change was needed.
+
+Shared terminal resolution now serves text input and reads. The GTK CI fixture
+prints a marker through targeted input, reads it from an unfocused terminal,
+checks absence in another terminal, preserves selection and rejects a missing
+read target. CLI help documents viewport scope. Local binary/test-target checking,
+Python syntax parsing and diff validation passed; native runtime results remain
+pending CI. This is current terminal inspection, not deferred session replay.

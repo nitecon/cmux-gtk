@@ -5,3 +5,4 @@ pub mod gtk_environment;
 pub mod input;
 pub(crate) mod registry;
 pub mod surface;
+pub(crate) mod text;

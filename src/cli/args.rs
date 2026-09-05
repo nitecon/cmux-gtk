@@ -135,7 +135,7 @@ pub enum Commands {
         #[arg(long)]
         id: Option<String>,
     },
-    /// Read text from a surface
+    /// Read current terminal viewport text (up to 256 KiB)
     ReadText {
         /// Target surface ID (default: focused)
         #[arg(long)]

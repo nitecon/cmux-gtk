@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Verify closing a nested terminal pane preserves siblings and reaps exactly its PTY child."""
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -49,6 +50,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
         for arguments in [
             ("send-text", "ignored", "--id", "00000000-0000-4000-8000-000000000000"),
             ("send-key", "ctrl+c", "--id", new_id),
+            ("read-text", "--id", "00000000-0000-4000-8000-000000000000"),
         ]:
             try:
                 app.cli(*arguments)
@@ -58,6 +60,14 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
                 raise AssertionError(f"unsupported input unexpectedly succeeded: {arguments[0]}")
             assert app.surfaces() == targeted, "failed input changed selection"
 
+        app.cli("focus-surface", survivors[0])
+        before_read = app.surfaces()
+        app.cli("send-text", "printf '%s%s\n' CMUX READCHECK\r", "--id", new_id)
+        app.wait_for(lambda: "CMUXREADCHECK" in json.loads(
+            app.cli("read-text", "--id", new_id, "--json"))["text"], "unfocused terminal output")
+        assert "CMUXREADCHECK" not in json.loads(
+            app.cli("read-text", "--id", survivors[0], "--json"))["text"]
+        assert app.surfaces() == before_read, "terminal input/read changed focus"
         app.cli("close-surface", new_id)
         app.wait_for(lambda: len(app.children()) == len(before_children) - 1, "targeted split cleanup")
     log = (root / "app.log").read_text()
