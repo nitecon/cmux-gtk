@@ -3,7 +3,9 @@ use serde_json::Value;
 mod discovery;
 mod frames;
 pub(crate) mod metrics;
+mod motion;
 mod stream;
+pub use motion::spawn_motion_forwarder;
 mod transport;
 pub use discovery::agent_browser_available;
 use discovery::{find_system_chrome, which_agent_browser};
@@ -356,44 +358,4 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
         pane_id: next_pane_id,
         uuid,
     }
-}
-
-/// Spawn a tokio task that forwards mouse motion events to the agent-browser daemon.
-/// Events are throttled to ~16fps (60ms) to avoid flooding the daemon (D-08).
-/// The returned sender can be cloned into the GTK motion controller closure.
-pub fn spawn_motion_forwarder(
-    runtime: &tokio::runtime::Handle,
-    daemon_socket_path: std::path::PathBuf,
-) -> tokio::sync::watch::Sender<(i64, i64)> {
-    let (tx, mut rx) = tokio::sync::watch::channel((0i64, 0i64));
-    runtime.spawn(async move {
-        let mut last_sent = std::time::Instant::now();
-        while rx.changed().await.is_ok() {
-            let (x, y) = *rx.borrow_and_update();
-            let now = std::time::Instant::now();
-            if now.duration_since(last_sent) < std::time::Duration::from_millis(60) {
-                continue;
-            }
-            last_sent = now;
-            let path = daemon_socket_path.clone();
-            let _ = tokio::task::spawn_blocking(move || {
-                use std::io::Write;
-                if let Ok(mut stream) = std::os::unix::net::UnixStream::connect(&path) {
-                    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(1)));
-                    let req = serde_json::json!({
-                        "id": "motion",
-                        "action": "input_mouse",
-                        "type": "mouseMoved",
-                        "x": x,
-                        "y": y,
-                    });
-                    let mut msg = serde_json::to_string(&req).unwrap_or_default();
-                    msg.push('\n');
-                    let _ = stream.write_all(msg.as_bytes());
-                }
-            })
-            .await;
-        }
-    });
-    tx
 }
