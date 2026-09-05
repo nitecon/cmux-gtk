@@ -1,3 +1,4 @@
+"""Retained upstream resize scenarios; debug layout and full scrollback contracts need Linux adaptation."""
 from __future__ import annotations
 
 import re
@@ -12,11 +13,13 @@ OSC_ESCAPE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
 
 def must(cond: bool, msg: str) -> None:
+    """Raise the legacy client error when a scenario invariant is false."""
     if not cond:
         raise cmuxError(msg)
 
 
 def wait_for(pred, timeout_s: float = 5.0, step_s: float = 0.05) -> None:
+    """Poll against a wall-clock deadline; predicate failures propagate and calls are not preempted."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if pred():
@@ -26,6 +29,7 @@ def wait_for(pred, timeout_s: float = 5.0, step_s: float = 0.05) -> None:
 
 
 def clean_line(raw: str) -> str:
+    """Strip CSI/OSC escapes, carriage returns and surrounding whitespace for line matching."""
     line = OSC_ESCAPE_RE.sub("", raw)
     line = ANSI_ESCAPE_RE.sub("", line)
     line = line.replace("\r", "")
@@ -33,12 +37,14 @@ def clean_line(raw: str) -> str:
 
 
 def layout_panes(client: cmux) -> list[dict]:
+    """Read upstream debug-layout pane records; requires the legacy layout_debug endpoint."""
     layout_payload = client.layout_debug() or {}
     layout = layout_payload.get("layout") or {}
     return list(layout.get("panes") or [])
 
 
 def pane_extent(client: cmux, pane_id: str, axis: str) -> float:
+    """Return a matching debug pane frame dimension, defaulting missing dimensions to zero; fail if absent."""
     panes = layout_panes(client)
     for pane in panes:
         pid = str(pane.get("paneId") or pane.get("pane_id") or "")
@@ -50,6 +56,7 @@ def pane_extent(client: cmux, pane_id: str, axis: str) -> float:
 
 
 def workspace_panes(client: cmux, workspace_id: str) -> list[tuple[str, bool, int]]:
+    """Decode upstream workspace-filtered pane records; missing surface_count becomes zero."""
     payload = client._call("pane.list", {"workspace_id": workspace_id}) or {}
     out: list[tuple[str, bool, int]] = []
     for row in payload.get("panes") or []:
@@ -62,6 +69,7 @@ def workspace_panes(client: cmux, workspace_id: str) -> list[tuple[str, bool, in
 
 
 def focused_pane_id(client: cmux, workspace_id: str) -> str:
+    """Return the first focused pane in the upstream workspace response or raise if none exists."""
     for pane_id, focused, _surface_count in workspace_panes(client, workspace_id):
         if focused:
             return pane_id
@@ -69,6 +77,7 @@ def focused_pane_id(client: cmux, workspace_id: str) -> str:
 
 
 def surface_scrollback_text(client: cmux, workspace_id: str, surface_id: str) -> str:
+    """Request upstream workspace/surface-scoped scrollback; this requires support for those legacy parameters."""
     payload = client._call(
         "surface.read_text",
         {"workspace_id": workspace_id, "surface_id": surface_id, "scrollback": True},
@@ -77,15 +86,18 @@ def surface_scrollback_text(client: cmux, workspace_id: str, surface_id: str) ->
 
 
 def surface_scrollback_lines(client: cmux, workspace_id: str, surface_id: str) -> list[str]:
+    """Split the requested upstream scrollback into escape-stripped, trimmed lines."""
     text = surface_scrollback_text(client, workspace_id, surface_id)
     return [clean_line(raw) for raw in text.splitlines()]
 
 
 def scrollback_has_exact_line(client: cmux, workspace_id: str, surface_id: str, token: str) -> bool:
+    """Match a complete normalized scrollback line so echoed command fragments do not count."""
     return token in surface_scrollback_lines(client, workspace_id, surface_id)
 
 
 def wait_for_surface_command_roundtrip(client: cmux, workspace_id: str, surface_id: str) -> None:
+    """Try four unique echo probes, polling each for 2.5 seconds; transport calls have their own bounds."""
     for _attempt in range(1, 5):
         token = f"CMUX_READY_{secrets.token_hex(4)}"
         client.send_surface(surface_id, f"echo {token}\n")
@@ -101,14 +113,17 @@ def wait_for_surface_command_roundtrip(client: cmux, workspace_id: str, surface_
 
 
 def pick_resize_direction_for_pane(client: cmux, pane_ids: list[str], target_pane: str) -> tuple[str, str]:
+    """Choose a resize direction and dimension from dominant pane position spread; requires two debug panes."""
     panes = [p for p in layout_panes(client) if str(p.get("paneId") or p.get("pane_id") or "") in pane_ids]
     if len(panes) < 2:
         raise cmuxError(f"Need >=2 panes for resize test, got {panes}")
 
     def x_of(p: dict) -> float:
+        """Read the debug frame horizontal origin, using zero when absent."""
         return float((p.get("frame") or {}).get("x") or 0.0)
 
     def y_of(p: dict) -> float:
+        """Read the debug frame vertical origin, using zero when absent."""
         return float((p.get("frame") or {}).get("y") or 0.0)
 
     x_span = max(x_of(p) for p in panes) - min(x_of(p) for p in panes)
