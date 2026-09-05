@@ -4,14 +4,6 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-// A wrapper around a raw pointer to a GtkGLArea to mark it as Send+Sync.
-// This is safe because we only ever access the pointer on the GLib main thread,
-// inside glib::idle_add_once closures.
-#[derive(Copy, Clone)]
-pub(crate) struct GtkGLAreaPtr(pub(crate) *mut ffi::GtkGLArea);
-unsafe impl Send for GtkGLAreaPtr {}
-unsafe impl Sync for GtkGLAreaPtr {}
-
 /// Coalesces burst wakeup calls into a single GLib idle dispatch.
 /// GLib's idle_add does not deduplicate — this flag prevents queueing N
 /// idle tasks when Ghostty fires N wakeups in a single frame burst.
@@ -20,15 +12,6 @@ pub static WAKEUP_PENDING: AtomicBool = AtomicBool::new(false);
 /// The GhosttyApp handle — stored as usize to be Send across the idle closure.
 /// Safety: ghostty_app_t is opaque void* and only called from the GLib main thread.
 pub static APP_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// The GhostttySurface handle — stored so read_clipboard_cb can complete paste requests.
-/// Safety: ghostty_surface_t is opaque void* and only accessed from the GLib main thread.
-pub static SURFACE_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// Registry of all live GLArea instances. wakeup_cb iterates this to queue_render all panes.
-/// Stores raw pointers because gtk4::GLArea is not Send/Sync. The pointers are only
-/// dereferenced on the main thread inside glib::idle_add_once closures.
-pub static GL_AREA_REGISTRY: Mutex<Vec<GtkGLAreaPtr>> = Mutex::new(Vec::new());
 
 /// Phase 4: Pane ID that most recently received a bell. Read by wakeup_cb to update attention state.
 pub static BELL_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

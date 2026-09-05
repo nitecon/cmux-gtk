@@ -133,10 +133,6 @@ fn initialize_surface(
     );
     *cell.borrow_mut() = Some(surface);
     area.grab_focus();
-    crate::ghostty::callbacks::SURFACE_PTR.store(surface as usize, Ordering::SeqCst);
-    if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-        areas.push(crate::ghostty::callbacks::GtkGLAreaPtr(area.as_ptr()));
-    }
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);
     }
@@ -968,10 +964,8 @@ mod clipboard_integration_tests {
             .unwrap()
             .unwrap();
         assert_eq!(copied.as_str(), "CMUXPRIMARY");
-        // Simulate another surface being the last registered one. Paste must still
-        // complete against the surface which made the request.
-        crate::ghostty::callbacks::SURFACE_PTR
-            .store(right_cell.borrow().unwrap() as usize, Ordering::SeqCst);
+        // Both terminals are live; paste must complete against the requesting
+        // terminal without changing the other terminal's directory or input.
         display
             .clipboard()
             .set_text("printf standard > standard-result");

@@ -459,3 +459,19 @@ Local workspace binary checking and diff validation passed. Existing headless
 terminal lifecycle, clipboard and sustained rendering CI scenarios provide runtime
 coverage, which is not yet confirmed for this commit. No benchmark improvement or
 OOM resolution is claimed from compilation alone.
+
+
+### Retired redundant global terminal state
+
+Removed the now write-only `GL_AREA_REGISTRY`, its `GtkGLAreaPtr` raw-pointer
+wrapper and unsafe Send/Sync implementations. Render and focus dispatch no longer
+consume this duplicate list. Also removed the unused `SURFACE_PTR` last-created
+terminal global: clipboard completion already belongs to the requesting widget's
+native surface cell. Initialization and teardown no longer maintain either global.
+The clipboard regression still starts two real terminals and checks that standard
+and primary paste reach only the requesting one; its artificial write to the
+obsolete global was removed. The live GLArea-to-native mapping and surface metadata
+registry retain their distinct routing and diagnostics responsibilities.
+
+Workspace binary and test-target compilation passed. No local tests ran; runtime
+clipboard/lifecycle verification remains in GitHub Actions.

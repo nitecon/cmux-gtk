@@ -121,17 +121,9 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
         .and_then(|mut registry| registry.remove(&(raw_area as usize)))
         .map(|raw| raw as ffi::ghostty_surface_t);
 
-    if let Ok(mut areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-        areas.retain(|candidate| candidate.0 != raw_area);
-    }
-
     let Some(surface) = surface else {
         return;
     };
-    if crate::ghostty::callbacks::SURFACE_PTR.load(Ordering::SeqCst) == surface as usize {
-        crate::ghostty::callbacks::SURFACE_PTR.store(0, Ordering::SeqCst);
-    }
-
     unsafe { ffi::ghostty_surface_set_focus(surface, false) };
     if area.is_realized() {
         area.make_current();
