@@ -14,7 +14,7 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Session/configuration | Serializable state, compatibility, atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
 | Remote transport | SSH deployment, reconnect and stream ownership; Go PTY adapter owns native child launch, I/O, resize and teardown; session module manages attachment-size metadata; relay transport owns authentication, bounded response framing and socket deadlines | `src/ssh`, `daemon/remote/cmd/cmuxd-remote/{main,params,pty,sessions,streams,relay_transport}.go` |
 | Linux services | XDG locations, atomic file replacement, private directory/file and release-executable permissions, peer credentials, process resources, installation ownership, desktop notifications and optional GTK/X11 placement and OpenGL callbacks; remaining native services are pending extraction | `crates/cmux-platform` |
-| Distribution | Dependency setup, linking, packages and release publishing | `build.rs`, `scripts`, `packaging`, `.github/workflows` |
+| Distribution | Dependency setup, linking, packages and release publishing; scripts/release-version.sh owns literal root-package version lookup | `build.rs`, `scripts`, `packaging`, `.github/workflows` |
 
 The Linux library exposes small typed functions, with no dependency on workspace state. CLI use must not require GTK initialization. GTK-specific services can be an optional feature. Keep Unix transport and Linux kernel details at this boundary as extraction progresses. A future platform provides equivalent services; the current refactor does not implement unsupported platforms.
 

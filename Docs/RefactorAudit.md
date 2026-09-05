@@ -284,3 +284,7 @@ Moved socket-directory, socket-file and updater-executable access policies into 
 ### Shared packaging validation
 
 All three package validators now source documented argument-based reporting from packaging/scripts/validation.sh. DEB checks no longer use eval: dpkg listing/control output is cached in temporary files and checks invoke validators and grep directly. RPM negative checks no longer interpolate paths into bash command strings. A shared absence check distinguishes no match from input errors. Added a main-CI shell behavior scenario for literal arguments, paths containing spaces, counters, negative matching and missing-file failures. Shell syntax checks and git diff --check passed; behavior tests remain CI-only. Existing package-format assertions remain release-workflow checks.
+
+### Shared release version lookup
+
+DEB/RPM builders and the version-bump script now use the documented package_version helper in scripts/release-version.sh. It selects the root [package] table, tolerates whitespace/comments used in literal declarations, and rejects missing, inherited or non-release versions instead of selecting an unrelated dependency version. The helper intentionally supports the repository literal X.Y.Z convention rather than claiming to parse arbitrary TOML. Package builders preserve their CMUX_VERSION override. Added main-CI executable shell scenarios for workspace/dependency versions preceding/following the root, paths with spaces, absent files and unsupported declarations. Shell syntax and diff checks passed locally; no tests ran locally.

@@ -39,7 +39,9 @@ jobs:
           submodules: recursive
 
       - name: Test package validation helpers
-        run: bash tests/test_package_validation.sh
+        run: |
+          bash tests/test_package_validation.sh
+          bash tests/test_release_version.sh
 
       - name: Identify Ghostty build cache
         id: ghostty_revision

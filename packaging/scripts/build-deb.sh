@@ -13,8 +13,8 @@ CMUX_CLI="${2:-$REPO_ROOT/target/release/cmux}"
 CMUXD_REMOTE="${3:-$REPO_ROOT/daemon/remote/cmuxd-remote}"
 AGENT_BROWSER="${4:-$($REPO_ROOT/scripts/resolve-agent-browser.sh)}"
 
-# Extract version from Cargo.toml
-VERSION="${CMUX_VERSION:-$(grep '^version' "$REPO_ROOT/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')}"
+source "$REPO_ROOT/scripts/release-version.sh"
+VERSION="${CMUX_VERSION:-$(package_version "$REPO_ROOT/Cargo.toml")}"
 VERSION="${VERSION#v}"
 
 # Verify all binaries exist

@@ -4,11 +4,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-CURRENT_VERSION="$(awk '
-  /^\[package\]$/ { in_package=1; next }
-  /^\[/ { in_package=0 }
-  in_package && /^version = "/ { gsub(/^version = "|"$/, ""); print; exit }
-' Cargo.toml)"
+source "$REPO_ROOT/scripts/release-version.sh"
+CURRENT_VERSION="$(package_version "$REPO_ROOT/Cargo.toml")"
 
 if [[ ! "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
   echo "Error: unsupported Cargo version: $CURRENT_VERSION" >&2
