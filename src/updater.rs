@@ -173,8 +173,6 @@ fn release_arch() -> Result<&'static str> {
 /// Stage both executables, validate them, then replace companions before the CLI.
 /// Cleans staging after success or failure; individual renames are atomic, the pair is not.
 fn install_archive(bytes: &[u8]) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
     let current_exe = std::env::current_exe()
         .context("cannot locate the running cmux executable")?
         .canonicalize()
@@ -215,7 +213,7 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
             entry
                 .unpack(&staging)
                 .with_context(|| format!("failed to extract {name}"))?;
-            std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755))?;
+            cmux_platform::filesystem::set_executable_permissions(&staging)?;
             staged.push((name.clone(), staging, install_dir.join(name)));
         }
 

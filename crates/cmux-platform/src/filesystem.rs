@@ -1,11 +1,35 @@
 //! Linux filesystem operations shared by persistent application settings.
 
 use std::io::{self, Write};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
+
+/// Create a directory tree and restrict its final directory to its owner.
+/// New directories are created with mode 0700 (subject to umask); the final
+/// directory is set to exactly 0700, including when it already exists.
+/// Ancestor permissions are not changed. Performs blocking filesystem I/O.
+pub fn create_private_directory(path: &Path) -> io::Result<()> {
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(path)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
+}
+
+/// Restrict an existing file or socket to owner read/write access (0600).
+/// Follows symlinks and returns filesystem errors; callers own path selection.
+pub fn restrict_file_to_owner(path: &Path) -> io::Result<()> {
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+}
+
+/// Set a staged release executable to owner write and universal read/execute (0755).
+/// Follows symlinks and returns filesystem errors; callers validate staged content.
+pub fn set_executable_permissions(path: &Path) -> io::Result<()> {
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+}
 
 /// Replace a file atomically using a private, uniquely created sibling file.
 ///
@@ -67,6 +91,41 @@ mod tests {
             std::process::id(),
             NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed)
         ))
+    }
+
+    /// Private paths and staged binaries receive exact access modes, including existing paths.
+    #[test]
+    fn access_policies_apply_to_existing_paths() {
+        let root = directory();
+        create_private_directory(&root).unwrap();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        create_private_directory(&root).unwrap();
+        assert_eq!(
+            std::fs::metadata(&root).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        let file = root.join("binary");
+        std::fs::write(&file, b"payload").unwrap();
+        set_executable_permissions(&file).unwrap();
+        assert_eq!(
+            std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+        restrict_file_to_owner(&file).unwrap();
+        assert_eq!(
+            std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let missing = root.join("missing");
+        assert_eq!(
+            restrict_file_to_owner(&missing).unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+        assert_eq!(
+            set_executable_permissions(&missing).unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     /// Concurrent saves expose one complete payload and leave no temporary files.

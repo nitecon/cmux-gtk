@@ -4,7 +4,6 @@ pub mod commands;
 mod framing;
 pub mod handlers;
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 /// Compute the Unix socket path per D-06.
@@ -41,12 +40,9 @@ pub fn start_socket_server(
     let dir = socket_dir();
 
     // Create directory with restrictive permissions.
-    if let Err(e) = std::fs::create_dir_all(&dir) {
+    if let Err(e) = cmux_platform::filesystem::create_private_directory(&dir) {
         eprintln!("cmux: socket dir create failed: {e}");
         return;
-    }
-    if let Err(e) = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)) {
-        eprintln!("cmux: socket dir chmod failed: {e}");
     }
 
     // Remove stale socket from previous run (ignore ENOENT).
@@ -64,8 +60,10 @@ pub fn start_socket_server(
     };
 
     // Set socket file mode to 0600 (owner read/write only).
-    if let Err(e) = std::fs::set_permissions(&sock_path, std::fs::Permissions::from_mode(0o600)) {
+    if let Err(e) = cmux_platform::filesystem::restrict_file_to_owner(&sock_path) {
         eprintln!("cmux: socket chmod failed: {e}");
+        let _ = std::fs::remove_file(&sock_path);
+        return;
     }
 
     // Write last-socket-path marker so cmux.py can discover the socket.
