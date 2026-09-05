@@ -4,6 +4,8 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-05
+
 ### Added
 
 - Persistent startup-script and SSH workspace launch details, remote folder selection, and launch-context inheritance for terminal tabs and splits.
@@ -15,6 +17,7 @@ All notable changes to cmux GTK are documented here.
 - Route asynchronous clipboard reads to the requesting terminal and handle Ctrl+Shift+C/V directly in terminal widgets.
 - Bound browser frame, session snapshot, mouse motion and SSH output delivery; remove widget callback reference cycles and cancel remote tasks when workspaces close.
 - Keep remote streams separate across sibling tabs, propagate terminal size, and close remote PTYs with their terminals.
+- Upload remote helpers atomically and recover on retry after an interrupted deployment.
 - Keep CLI workspace ordering aligned with sidebar order and saved sessions.
 - Preserve launch command buffers through terminal lifetime and route input correctly in freshly restored workspaces.
 - Avoid GTK's affected dmabuf texture ownership path on GTK 4.16–4.22.4, and redraw only terminals targeted by Ghostty render requests.
