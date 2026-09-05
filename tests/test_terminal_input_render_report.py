@@ -18,11 +18,13 @@ Environment:
 
 import base64
 import json
+from html import escape as esc
 import os
 import sys
 import time
+import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -31,6 +33,7 @@ from cmux import cmux, cmuxError
 
 SOCKET_PATH = os.environ.get("CMUX_SOCKET") or os.environ.get("CMUX_SOCKET_PATH") or "/tmp/cmux-debug.sock"
 HTML_REPORT = Path(__file__).parent / "terminal_input_report.html"
+MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 
 
 @dataclass
@@ -42,8 +45,15 @@ class Shot:
     changed_pixels: int
 
     def to_base64(self) -> str:
-        """Read the entire snapshot for embedding; propagate file-read failures."""
-        return base64.b64encode(self.path.read_bytes()).decode("utf-8")
+        """Encode at most eight MiB of snapshot bytes; reject oversized files.
+
+        File errors propagate. This limits allocation, not image dimensions or format.
+        """
+        with self.path.open("rb") as source:
+            data = source.read(MAX_SNAPSHOT_BYTES + 1)
+        if len(data) > MAX_SNAPSHOT_BYTES:
+            raise ValueError(f"Snapshot exceeds {MAX_SNAPSHOT_BYTES} bytes: {self.path}")
+        return base64.b64encode(data).decode("ascii")
 
 
 def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
@@ -119,23 +129,15 @@ def _panel_sequence_blink_and_type(c: cmux, panel_id: str, prefix: str, typed_ch
     return shots, meta
 
 
-def _write_report(cases: list[dict]) -> None:
-    """Overwrite the adjacent HTML report with embedded snapshots and escaped metadata.
+def _report_parts(cases: list[dict]):
+    """Yield escaped HTML fragments, embedding only one bounded snapshot at a time.
 
-    Image reads and the complete HTML document are unbounded in this legacy tool.
+    Metadata remains caller-owned; this manual tool expects its two collected cases.
+    Image read failures propagate to the report writer without replacing old output.
     """
-    generated = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    def esc(s: str) -> str:
-        """Escape text and double-quoted HTML attribute values."""
-        return (
-            s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
-
-    html = f"""<!DOCTYPE html>
+    yield f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -228,7 +230,7 @@ def _write_report(cases: list[dict]) -> None:
 """
 
     for case in cases:
-        html += f"""
+        yield f"""
   <div class="case">
     <h2>{esc(case["name"])}</h2>
     <div class="desc">{esc(case["description"])}</div>
@@ -236,23 +238,42 @@ def _write_report(cases: list[dict]) -> None:
 """
         for shot in case["shots"]:
             label = f'{shot.label} | changed_pixels={shot.changed_pixels}'
-            html += f"""
+            yield f"""
       <figure>
         <figcaption>{esc(label)}</figcaption>
         <img src="data:image/png;base64,{shot.to_base64()}" alt="{esc(shot.label)}" />
       </figure>
 """
-        html += f"""
+        yield f"""
     </div>
     <pre>{esc(json.dumps(case.get("meta", {}), indent=2))}</pre>
   </div>
 """
 
-    html += """
+    yield """
 </body>
 </html>
 """
-    HTML_REPORT.write_text(html)
+
+
+def _write_report(cases: list[dict]) -> None:
+    """Stream into a private sibling file, replacing the report only after success.
+
+    On write or image-read failure, remove temporary output and preserve any prior
+    report. This does not fsync for crash durability; callers own report cleanup.
+    """
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
+                                         dir=HTML_REPORT.parent, prefix=".cmux-report-",
+                                         delete=False) as output:
+            temporary = Path(output.name)
+            for part in _report_parts(cases):
+                output.write(part)
+        os.replace(temporary, HTML_REPORT)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def main() -> int:
