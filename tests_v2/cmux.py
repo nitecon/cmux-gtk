@@ -38,6 +38,24 @@ class cmuxError(Exception):
     """Exception raised for cmux errors."""
 
 
+def _decode_response(line: str, request_id: int) -> dict:
+    """Validate a v2 response envelope before accessing results or structured server errors."""
+    response = json.loads(line)
+    if not isinstance(response, dict):
+        raise ValueError("Response must be a JSON object")
+    if type(response.get("id")) is not int or response["id"] != request_id:
+        raise ValueError("Response ID does not match the request")
+    if type(response.get("ok")) is not bool:
+        raise ValueError("Response must contain a boolean ok field")
+    if not response["ok"]:
+        error = response.get("error")
+        if not isinstance(error, dict):
+            raise ValueError("Failed response must contain an error object")
+        if any(key in error and not isinstance(error[key], str) for key in ("code", "message")):
+            raise ValueError("Error code and message must be strings")
+    return response
+
+
 def _looks_like_uuid(s: str) -> bool:
     """Return whether the supplied string parses as a UUID."""
     try:
@@ -167,19 +185,18 @@ class cmux:
             "params": params or {},
         }
         line = json.dumps(payload, separators=(",", ":")) + "\n"
-        self._socket.sendall(line.encode("utf-8"))
+        try:
+            self._socket.sendall(line.encode("utf-8"))
+        except OSError as error:
+            self.close()
+            raise cmuxError(f"Socket write failed: {error}") from error
 
         resp_line = self._recv_line(timeout_s=timeout_s)
         try:
-            resp = json.loads(resp_line)
-        except json.JSONDecodeError as e:
-            raise cmuxError(f"Invalid JSON response: {e}: {resp_line[:200]}")
-
-        if not isinstance(resp, dict):
-            raise cmuxError(f"Invalid response type: {type(resp).__name__}")
-
-        if resp.get("id") != req_id:
-            raise cmuxError(f"Mismatched response id: expected {req_id}, got {resp.get('id')}")
+            resp = _decode_response(resp_line, req_id)
+        except (ValueError, RecursionError) as error:
+            self.close()
+            raise cmuxError("Invalid v2 response envelope") from error
 
         if resp.get("ok") is True:
             return resp.get("result")
