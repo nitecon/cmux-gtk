@@ -712,6 +712,21 @@ func TestSessionInvalidParamsAndNotFound(t *testing.T) {
 	if badSize.OK || badSize.Error == nil || badSize.Error.Code != "invalid_params" {
 		t.Fatalf("session.attach with cols=0 should return invalid_params: %+v", badSize)
 	}
+
+	opened := server.handleRequest(rpcRequest{ID: 3, Method: "session.open", Params: map[string]any{"session_id": "existing"}})
+	if !opened.OK {
+		t.Fatalf("session.open failed: %+v", opened)
+	}
+	params := map[string]any{"session_id": "existing", "attachment_id": "new", "cols": 80, "rows": 24}
+	resize := server.handleRequest(rpcRequest{ID: 4, Method: "session.resize", Params: params})
+	if resize.OK || resize.Error == nil || resize.Error.Message != "attachment not found" {
+		t.Fatalf("resize created an absent attachment: %+v", resize)
+	}
+	status := server.handleRequest(rpcRequest{ID: 5, Method: "session.status", Params: params})
+	assertAttachmentCount(t, status, 0)
+	attached := server.handleRequest(rpcRequest{ID: 6, Method: "session.attach", Params: params})
+	assertAttachmentCount(t, attached, 1)
+	assertEffectiveSize(t, attached, 80, 24)
 }
 
 func assertEffectiveSize(t *testing.T, resp rpcResponse, wantCols, wantRows int) {
