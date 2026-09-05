@@ -3,6 +3,7 @@ use gtk4::{gio, Application, ApplicationWindow, CssProvider};
 use std::ffi::CString;
 
 mod app_state;
+mod bounded_json;
 mod browser;
 mod config;
 mod diagnostics;

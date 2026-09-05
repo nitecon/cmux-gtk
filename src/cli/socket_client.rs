@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
+const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 /// Errors from CLI socket operations.
@@ -11,7 +12,7 @@ const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 pub enum CliError {
     /// Could not connect to the socket.
     ConnectionError(String),
-    /// The server returned an error response.
+    /// The request was rejected locally or the server returned an error response.
     CommandError(String),
     /// Unexpected protocol-level error (malformed response, timeout, etc).
     ProtocolError(String),
@@ -111,12 +112,12 @@ impl SocketClient {
             "params": params,
         });
 
-        let mut line = request.to_string();
-        line.push('\n');
+        let line = super::bounded_json::json_line(&request, MAX_REQUEST_BYTES)
+            .ok_or_else(|| CliError::CommandError("request exceeds encoded byte limit".into()))?;
 
         write_request(
             &mut self.writer,
-            line.as_bytes(),
+            &line,
             remaining_budget(started, self.timeout)?,
         )?;
         let response = read_response(
@@ -254,6 +255,30 @@ mod tests {
             last_trace_id: None,
         };
         (client, peer)
+    }
+
+    /// Reject an oversized encoded request without sending bytes or retiring a usable connection.
+    #[test]
+    fn oversized_request_is_not_sent() {
+        use std::io::Read;
+        let (mut client, mut peer) = client_pair();
+        let params = serde_json::json!({"text": "\n".repeat(MAX_REQUEST_BYTES / 2)});
+        assert!(matches!(
+            client.call("surface.send_text", params),
+            Err(CliError::CommandError(_))
+        ));
+        peer.set_nonblocking(true).unwrap();
+        assert_eq!(
+            peer.read(&mut [0; 1]).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        peer.set_nonblocking(false).unwrap();
+        peer.write_all(b"{\"id\":2,\"ok\":true,\"result\":{\"pong\":true}}\n")
+            .unwrap();
+        assert_eq!(
+            client.call("system.ping", serde_json::json!({})).unwrap(),
+            serde_json::json!({"pong": true})
+        );
     }
 
     /// Malformed envelopes retire the connection before a later response can be mistaken for success.

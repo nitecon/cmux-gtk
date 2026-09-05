@@ -230,3 +230,7 @@ The CLI now validates response IDs, boolean ok fields and structured server erro
 ## Shared Rust CLI exchange budget
 
 CLI request writes now use a documented partial-write loop with decreasing socket timeouts. A shared remaining-budget helper carries the operation budget from request preparation through writing and response reading, rather than granting a fresh full timeout at each phase. Interrupted writes retry within the same budget; transport errors continue to retire the connection. CI socket-pair coverage verifies exact bytes and a live non-reading peer. Workspace all-target compilation and diff checks pass; no local tests run. Unix connection establishment and outbound serialization allocation remain open audit items.
+
+## Shared bounded JSON encoding
+
+Extracted the existing diagnostic JSON-line encoder into a neutral module shared by desktop and CLI compilation. CLI requests now stop serialization at 4 MiB including the newline, accounting for JSON escaping before socket writes. Oversized local requests leave the connection usable because no bytes were sent. Existing caller-owned JSON values remain outside the encoder budget. Moved encoding behavior tests with the helper and added a real socket-pair test proving no partial request is emitted and a later valid request succeeds. Workspace all-target checking and diff validation pass; no local tests run.

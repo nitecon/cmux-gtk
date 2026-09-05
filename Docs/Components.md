@@ -19,3 +19,5 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 The Linux library exposes small typed functions, with no dependency on workspace state. CLI use must not require GTK initialization. GTK-specific services can be an optional feature. Keep Unix transport and Linux kernel details at this boundary as extraction progresses. A future platform provides equivalent services; the current refactor does not implement unsupported platforms.
 
 Share repeated behavior at its owning component. UI and socket callers should invoke the same workspace operations; configuration files should use the same path and atomic-write helpers; credential tests must call the production authentication function. Do not duplicate those rules in adapters or tests.
+
+`src/bounded_json.rs` owns size-limited JSON-line encoding shared by CLI requests and diagnostic records. It has no GTK or platform dependency; each caller supplies its own byte budget.
