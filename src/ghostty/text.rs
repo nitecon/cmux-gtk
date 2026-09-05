@@ -1,4 +1,4 @@
-//! Bounded, non-selecting terminal text snapshots through the native Ghostty API.
+//! Literal terminal input and bounded, non-selecting text snapshots through the native Ghostty API.
 
 use super::ffi;
 
@@ -18,6 +18,23 @@ impl Drop for NativeText {
         // surface alive on GTK until this guard is dropped.
         unsafe { ffi::ghostty_surface_free_text(self.surface, &mut self.text) };
     }
+}
+
+/// Deliver literal UTF-8 text, rejecting embedded NUL bytes before native input.
+/// The native call borrows the converted string only until it returns.
+///
+/// # Safety
+/// The caller must provide a live surface on its owning GTK thread and prevent
+/// teardown throughout this call. Release model borrows before calling Ghostty.
+pub(crate) unsafe fn send_literal(
+    surface: ffi::ghostty_surface_t,
+    text: &str,
+) -> Result<(), &'static str> {
+    let text = std::ffi::CString::new(text).map_err(|_| "terminal text contains a NUL byte")?;
+    // SAFETY: the caller guarantees surface lifetime; the CString remains live
+    // throughout the synchronous input call, including its trailing NUL.
+    unsafe { ffi::ghostty_surface_text(surface, text.as_ptr(), text.as_bytes().len()) };
+    Ok(())
 }
 
 /// Copy up to 256 KiB of clipboard-formatted text from the current viewport.

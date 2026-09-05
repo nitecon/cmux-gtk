@@ -62,14 +62,10 @@ fn send_terminal_text(
     text: &str,
 ) -> Result<(), (&'static str, &'static str)> {
     let surface = terminal_target(state, id)?;
-    let text = std::ffi::CString::new(text)
-        .map_err(|_| ("invalid_params", "terminal text contains a NUL byte"))?;
-    // SAFETY: the native handle belongs to a live GTK-thread widget. No model borrow
-    // remains during the call, and the input allocation lives until Ghostty returns.
-    unsafe {
-        crate::ghostty::ffi::ghostty_surface_text(surface, text.as_ptr(), text.as_bytes().len());
-    }
-    Ok(())
+    // SAFETY: target resolution found a live native terminal on GTK and released
+    // the model borrow. No event-loop iteration or teardown occurs before delivery.
+    unsafe { crate::ghostty::text::send_literal(surface, text) }
+        .map_err(|message| ("invalid_params", message))
 }
 
 /// Resolve a surface_ref string ("surface:N" or UUID) to a UUID string.

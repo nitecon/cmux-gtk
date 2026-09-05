@@ -92,3 +92,6 @@ Native callback handoff uses a 128-event FIFO and drains at most 16 events per
 creation requests remain distinct. `native.events.overflow` records the number
 of capacity-rejected events since the previous drain, without command or terminal
 content. This is a loss indicator, not proof that all requested actions completed.
+
+
+[CI baseline e08b976f](Benchmarks/e08b976f/README.md) preserves raw release CLI and debug terminal-churn reports with provenance, measured values and scope limits.

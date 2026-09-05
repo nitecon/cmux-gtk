@@ -743,3 +743,19 @@ CI run 33992451759 at e08b976f confirms successful divider lifetime, terminal ch
 restore scenarios. Optimized benchmark build was still running when inspected.
 This verifies the earlier fixture corrections, not changes after that commit or
 the full refactor objective.
+
+
+### Terminal adapter ownership and verified baseline artifacts
+
+Literal input conversion and native delivery now live in `ghostty/text.rs` beside
+bounded viewport reads, with explicit pointer-lifetime contracts. Socket handling
+keeps target resolution and protocol error translation. This extraction preserves
+input behavior; local binary/test-target compilation and diff checks passed.
+
+Run 33992451759 at e08b976f completed successfully, including the optimized ping
+benchmark. Raw ping and memory-churn JSON artifacts are preserved under
+`Docs/Benchmarks/e08b976f`, with provenance and scope limits in its README. Release
+ping measured median 1.657496 ms and p95 1.737285 ms. Debug post-warmup churn RSS
+samples went from 354636 to 360820 KiB, and the sampled redraw interval from 376200
+to 376228 KiB. These are workload-specific baselines, not universal leak-freedom
+or verification of later commits. No local runtime tests were executed.

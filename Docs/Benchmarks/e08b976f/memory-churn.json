@@ -1,0 +1,4105 @@
+{
+  "schema": 1,
+  "revision": "e08b976fde0847086b3e54e945a68dd7fa86a380",
+  "build_profile": "debug",
+  "backend": "x11",
+  "software_rendering": true,
+  "host": {
+    "system": "Linux",
+    "release": "6.17.0-1022-azure",
+    "machine": "x86_64"
+  },
+  "workload": {
+    "interactive_sibling_tabs": 3,
+    "split_close_cycles": 45,
+    "child_eof_cycles": 9,
+    "split_right_shortcut": "<Ctrl><Alt>d",
+    "redraw_iterations": 1800,
+    "redraw_target_hz": 30,
+    "window_pixels": [
+      1800,
+      1000
+    ]
+  },
+  "status": "passed",
+  "samples": [
+    {
+      "phase": "baseline",
+      "iteration": 0,
+      "elapsed_seconds": 0.3234931609999876,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "sampled": false
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 117832,
+          "cpu_user_us": 232643,
+          "file_descriptors": 32,
+          "peak_rss_kib": 242564,
+          "rss_kib": 242564,
+          "threads": 33
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 0
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 310,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "interactive_tabs",
+      "iteration": 3,
+      "elapsed_seconds": 1.714720148000083,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 7405,
+          "max_delay_us": 7405,
+          "sample_age_ms": 691,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 343354,
+          "cpu_user_us": 1265475,
+          "file_descriptors": 32,
+          "peak_rss_kib": 342956,
+          "rss_kib": 341152,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 16
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 1701,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 1,
+      "elapsed_seconds": 2.0632008009999936,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 251,
+          "max_delay_us": 7405,
+          "sample_age_ms": 39,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 387438,
+          "cpu_user_us": 1587778,
+          "file_descriptors": 43,
+          "peak_rss_kib": 347164,
+          "rss_kib": 347164,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 20
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 2049,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 6,
+      "elapsed_seconds": 3.378794929000037,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 9193,
+          "max_delay_us": 9193,
+          "sample_age_ms": 346,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 555681,
+          "cpu_user_us": 2760088,
+          "file_descriptors": 43,
+          "peak_rss_kib": 353576,
+          "rss_kib": 353576,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 37
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 3365,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 10,
+      "elapsed_seconds": 4.817054618000043,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 6361,
+          "max_delay_us": 9193,
+          "sample_age_ms": 778,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 694891,
+          "cpu_user_us": 3708793,
+          "file_descriptors": 32,
+          "peak_rss_kib": 355444,
+          "rss_kib": 354636,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 51
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 4803,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 11,
+      "elapsed_seconds": 5.042328674000032,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 6361,
+          "max_delay_us": 9193,
+          "sample_age_ms": 1003,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 724728,
+          "cpu_user_us": 3942808,
+          "file_descriptors": 43,
+          "peak_rss_kib": 355784,
+          "rss_kib": 355784,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 55
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 5028,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 16,
+      "elapsed_seconds": 6.29445548700005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 2054,
+          "max_delay_us": 9193,
+          "sample_age_ms": 248,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 932650,
+          "cpu_user_us": 5107274,
+          "file_descriptors": 43,
+          "peak_rss_kib": 357184,
+          "rss_kib": 357152,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 72
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 6281,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 21,
+      "elapsed_seconds": 7.496632703000046,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 8481,
+          "max_delay_us": 9193,
+          "sample_age_ms": 440,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1133239,
+          "cpu_user_us": 6230284,
+          "file_descriptors": 43,
+          "peak_rss_kib": 358140,
+          "rss_kib": 358140,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 89
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 7482,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 25,
+      "elapsed_seconds": 8.954877407000026,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 21402,
+          "max_delay_us": 21402,
+          "sample_age_ms": 878,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1282996,
+          "cpu_user_us": 7224712,
+          "file_descriptors": 32,
+          "peak_rss_kib": 358472,
+          "rss_kib": 357568,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 103
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 8941,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 26,
+      "elapsed_seconds": 9.205101145000071,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 8279,
+          "max_delay_us": 21402,
+          "sample_age_ms": 120,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1310773,
+          "cpu_user_us": 7460781,
+          "file_descriptors": 43,
+          "peak_rss_kib": 358548,
+          "rss_kib": 358488,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 107
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 9191,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 31,
+      "elapsed_seconds": 10.502150976000053,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 34831,
+          "max_delay_us": 34831,
+          "sample_age_ms": 382,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1492059,
+          "cpu_user_us": 8605934,
+          "file_descriptors": 43,
+          "peak_rss_kib": 359000,
+          "rss_kib": 358908,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 124
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 10488,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 36,
+      "elapsed_seconds": 11.836477549000051,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 35664,
+          "max_delay_us": 35664,
+          "sample_age_ms": 681,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1685647,
+          "cpu_user_us": 9974007,
+          "file_descriptors": 43,
+          "peak_rss_kib": 360016,
+          "rss_kib": 359924,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 141
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 11823,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 41,
+      "elapsed_seconds": 13.18762468500006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 101,
+          "max_delay_us": 35664,
+          "sample_age_ms": 17,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1888199,
+          "cpu_user_us": 11341362,
+          "file_descriptors": 43,
+          "peak_rss_kib": 361056,
+          "rss_kib": 360996,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 158
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 2
+        },
+        "uptime_ms": 13174,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 45,
+      "elapsed_seconds": 14.679765487000054,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 2885,
+          "max_delay_us": 35664,
+          "sample_age_ms": 506,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2056673,
+          "cpu_user_us": 12492163,
+          "file_descriptors": 32,
+          "peak_rss_kib": 361640,
+          "rss_kib": 360820,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 172
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 14666,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 1,
+      "elapsed_seconds": 29.777862454,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 42089,
+          "max_delay_us": 44888,
+          "sample_age_ms": 388,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2288364,
+          "cpu_user_us": 62561018,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376200,
+          "rss_kib": 376200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 175
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 29764,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 2,
+      "elapsed_seconds": 30.78873944899999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 4064,
+          "max_delay_us": 44888,
+          "sample_age_ms": 394,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2295447,
+          "cpu_user_us": 65968718,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376200,
+          "rss_kib": 376200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 176
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 30774,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 3,
+      "elapsed_seconds": 31.801996798999994,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 1462,
+          "max_delay_us": 44888,
+          "sample_age_ms": 406,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2307916,
+          "cpu_user_us": 69296788,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376200,
+          "rss_kib": 376200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 177
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 31787,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 4,
+      "elapsed_seconds": 32.815996547000054,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 19502,
+          "max_delay_us": 44888,
+          "sample_age_ms": 398,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2321914,
+          "cpu_user_us": 72674615,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376204,
+          "rss_kib": 376204,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 178
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 32799,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 5,
+      "elapsed_seconds": 33.824197432999995,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 27,
+          "max_delay_us": 44888,
+          "sample_age_ms": 409,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2340852,
+          "cpu_user_us": 76035525,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376204,
+          "rss_kib": 376204,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 179
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 33810,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 6,
+      "elapsed_seconds": 34.83102308299999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 1228,
+          "max_delay_us": 44888,
+          "sample_age_ms": 415,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2358545,
+          "cpu_user_us": 79388962,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 180
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 34817,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 7,
+      "elapsed_seconds": 35.843378304,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 44467,
+          "max_delay_us": 44888,
+          "sample_age_ms": 382,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2374841,
+          "cpu_user_us": 82800001,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 181
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 35828,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 8,
+      "elapsed_seconds": 36.85608274200001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 6168,
+          "max_delay_us": 44888,
+          "sample_age_ms": 388,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2390905,
+          "cpu_user_us": 86182098,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 182
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 36841,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 9,
+      "elapsed_seconds": 37.863305448999995,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 7203,
+          "max_delay_us": 44888,
+          "sample_age_ms": 389,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2403068,
+          "cpu_user_us": 89537403,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 183
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 37849,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 10,
+      "elapsed_seconds": 38.86986049799998,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 1647,
+          "max_delay_us": 44888,
+          "sample_age_ms": 395,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2417054,
+          "cpu_user_us": 92907928,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 184
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 38856,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 11,
+      "elapsed_seconds": 39.87532270000008,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 6839,
+          "max_delay_us": 44888,
+          "sample_age_ms": 394,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2437900,
+          "cpu_user_us": 96237309,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376208,
+          "rss_kib": 376208,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 185
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 39862,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 12,
+      "elapsed_seconds": 40.88569555000004,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 11604,
+          "max_delay_us": 44888,
+          "sample_age_ms": 390,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2451088,
+          "cpu_user_us": 99610628,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376212,
+          "rss_kib": 376212,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 186
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 40870,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 13,
+      "elapsed_seconds": 41.89946344200007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 11059,
+          "max_delay_us": 44888,
+          "sample_age_ms": 392,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2464863,
+          "cpu_user_us": 102934654,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 187
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 41883,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 14,
+      "elapsed_seconds": 42.915030676000015,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 2790,
+          "max_delay_us": 44888,
+          "sample_age_ms": 403,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2480514,
+          "cpu_user_us": 106337730,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 188
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 42897,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 15,
+      "elapsed_seconds": 43.92092578100005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 4811,
+          "max_delay_us": 44888,
+          "sample_age_ms": 408,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2489436,
+          "cpu_user_us": 109718989,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 189
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 43907,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 16,
+      "elapsed_seconds": 44.9277204,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38609,
+          "max_delay_us": 44888,
+          "sample_age_ms": 377,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2497189,
+          "cpu_user_us": 113102512,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 190
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 44914,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 17,
+      "elapsed_seconds": 45.93844019400001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 13990,
+          "max_delay_us": 44888,
+          "sample_age_ms": 373,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2515510,
+          "cpu_user_us": 116416410,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 191
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 45924,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 18,
+      "elapsed_seconds": 46.94795328100008,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 8091,
+          "max_delay_us": 44888,
+          "sample_age_ms": 375,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2535616,
+          "cpu_user_us": 119800614,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 192
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 46934,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 19,
+      "elapsed_seconds": 47.95948972300005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38610,
+          "max_delay_us": 44888,
+          "sample_age_ms": 346,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2545471,
+          "cpu_user_us": 123188753,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 193
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 47944,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 20,
+      "elapsed_seconds": 48.96962656900007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 7258,
+          "max_delay_us": 44888,
+          "sample_age_ms": 349,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2553092,
+          "cpu_user_us": 126580380,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 194
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 48954,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 21,
+      "elapsed_seconds": 49.98175880300005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 23976,
+          "max_delay_us": 44888,
+          "sample_age_ms": 336,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2565002,
+          "cpu_user_us": 129973854,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 195
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 49965,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 22,
+      "elapsed_seconds": 50.98746431699999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 21463,
+          "max_delay_us": 44888,
+          "sample_age_ms": 323,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2588167,
+          "cpu_user_us": 133279605,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 196
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 50974,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 23,
+      "elapsed_seconds": 51.993210136000016,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 9041,
+          "max_delay_us": 44888,
+          "sample_age_ms": 319,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2612485,
+          "cpu_user_us": 136602283,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 197
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 51979,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 24,
+      "elapsed_seconds": 53.004079359,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 11581,
+          "max_delay_us": 44888,
+          "sample_age_ms": 319,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2624416,
+          "cpu_user_us": 139976581,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 198
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 52990,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 25,
+      "elapsed_seconds": 54.01270287900002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 10011,
+          "max_delay_us": 44888,
+          "sample_age_ms": 317,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2638365,
+          "cpu_user_us": 143317040,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 199
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 53998,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 26,
+      "elapsed_seconds": 55.02255740999999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 14999,
+          "max_delay_us": 44888,
+          "sample_age_ms": 311,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2656348,
+          "cpu_user_us": 146667405,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 200
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 55007,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 27,
+      "elapsed_seconds": 56.03366725300009,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 9196,
+          "max_delay_us": 44888,
+          "sample_age_ms": 312,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2671425,
+          "cpu_user_us": 150032507,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 201
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 56017,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 28,
+      "elapsed_seconds": 57.04642050000007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 32260,
+          "max_delay_us": 44888,
+          "sample_age_ms": 294,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2688641,
+          "cpu_user_us": 153392120,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 202
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 57032,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 29,
+      "elapsed_seconds": 58.05444987300007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 18779,
+          "max_delay_us": 44888,
+          "sample_age_ms": 283,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2705872,
+          "cpu_user_us": 156690577,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 203
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 58039,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 30,
+      "elapsed_seconds": 59.06017433300008,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 14434,
+          "max_delay_us": 44888,
+          "sample_age_ms": 275,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2712820,
+          "cpu_user_us": 160052377,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 204
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 59046,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 31,
+      "elapsed_seconds": 60.06558718500003,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 6803,
+          "max_delay_us": 44888,
+          "sample_age_ms": 274,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2726830,
+          "cpu_user_us": 163430145,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 205
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 60052,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 32,
+      "elapsed_seconds": 61.07349741200005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 21535,
+          "max_delay_us": 44888,
+          "sample_age_ms": 259,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2736466,
+          "cpu_user_us": 166744777,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 206
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 61058,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 33,
+      "elapsed_seconds": 62.08196423700008,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 14942,
+          "max_delay_us": 44888,
+          "sample_age_ms": 254,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2752618,
+          "cpu_user_us": 170089132,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 207
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 62068,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 34,
+      "elapsed_seconds": 63.09099359300001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 5507,
+          "max_delay_us": 44888,
+          "sample_age_ms": 257,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2773756,
+          "cpu_user_us": 173430546,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 208
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 63077,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 35,
+      "elapsed_seconds": 64.10103013500009,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 13470,
+          "max_delay_us": 44888,
+          "sample_age_ms": 254,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2795002,
+          "cpu_user_us": 176781876,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 209
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 64087,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 36,
+      "elapsed_seconds": 65.10899221900002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 29907,
+          "max_delay_us": 44888,
+          "sample_age_ms": 230,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2812243,
+          "cpu_user_us": 180079966,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376220,
+          "rss_kib": 376220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 210
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 65093,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 37,
+      "elapsed_seconds": 66.12185419600007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 17842,
+          "max_delay_us": 44888,
+          "sample_age_ms": 227,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2820057,
+          "cpu_user_us": 183469374,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376224,
+          "rss_kib": 376224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 211
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 66108,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 38,
+      "elapsed_seconds": 67.12850919100003,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 20895,
+          "max_delay_us": 44888,
+          "sample_age_ms": 212,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2832410,
+          "cpu_user_us": 186825610,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376224,
+          "rss_kib": 376224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 212
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 67114,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 39,
+      "elapsed_seconds": 68.13836399000002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 17018,
+          "max_delay_us": 44888,
+          "sample_age_ms": 204,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2849309,
+          "cpu_user_us": 190190884,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 213
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 68123,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 40,
+      "elapsed_seconds": 69.14636647400005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 34941,
+          "max_delay_us": 44888,
+          "sample_age_ms": 178,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2863262,
+          "cpu_user_us": 193519182,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 214
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 69132,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 41,
+      "elapsed_seconds": 70.15599892099999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 13705,
+          "max_delay_us": 44888,
+          "sample_age_ms": 175,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2883398,
+          "cpu_user_us": 196846168,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 215
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 70142,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 42,
+      "elapsed_seconds": 71.16693381300001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 9595,
+          "max_delay_us": 44888,
+          "sample_age_ms": 175,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2895013,
+          "cpu_user_us": 200231723,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 216
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 71152,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 43,
+      "elapsed_seconds": 72.17674616500005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 12343,
+          "max_delay_us": 44888,
+          "sample_age_ms": 173,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2908995,
+          "cpu_user_us": 203605602,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 217
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 72162,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 44,
+      "elapsed_seconds": 73.18732934299999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 18822,
+          "max_delay_us": 44888,
+          "sample_age_ms": 164,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2919010,
+          "cpu_user_us": 206950644,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 218
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 73172,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 45,
+      "elapsed_seconds": 74.198198832,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 15460,
+          "max_delay_us": 44888,
+          "sample_age_ms": 160,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2935335,
+          "cpu_user_us": 210326215,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 219
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 74184,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 46,
+      "elapsed_seconds": 75.20564877300001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "debug",
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 19776,
+          "max_delay_us": 44888,
+          "sample_age_ms": 148,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 12571,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2945259,
+          "cpu_user_us": 213618101,
+          "file_descriptors": 32,
+          "peak_rss_kib": 376228,
+          "rss_kib": 376228,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 220
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "registered": 1
+        },
+        "uptime_ms": 75191,
+        "version": "0.1.8"
+      }
+    }
+  ],
+  "shutdown_forced": false
+}
