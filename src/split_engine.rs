@@ -608,8 +608,6 @@ pub struct SplitEngine {
     pub active_pane_id: u64,
     /// Monotonically increasing pane ID counter.
     next_pane_id: u64,
-    /// GTK Application handle needed to create new GLAreas.
-    app: gtk4::Application,
     /// Ghostty app handle needed to create new surfaces.
     ghostty_app: ffi::ghostty_app_t,
     /// Workspace binding used for every new local terminal pane.
@@ -619,21 +617,14 @@ pub struct SplitEngine {
 }
 
 impl SplitEngine {
-    /// Create a new SplitEngine with a single leaf pane.
-    /// The initial GLArea and surface are created by the caller (Plan 04) and passed in.
+    /// Take ownership of an initial terminal widget and create one selected pane on GTK.
+    /// The widget owns its deferred native-surface initialization and cleanup callbacks.
     pub fn new(
-        app: gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
         initial_gl_area: gtk4::GLArea,
-        _initial_surface_cell: std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>,
         pane_id: u64,
         working_directory: Option<std::path::PathBuf>,
     ) -> Self {
-        // The initial surface may not be realized yet. SplitEngine stores the cell
-        // so it can read the surface pointer after realize. For focus/split operations
-        // that run after realize, we read from the cell.
-        // For the tree structure, we store null initially and update after realize.
-        // Phase 9: Attach right-click context menu (D-08)
         attach_terminal_context_menu(&initial_gl_area);
         let root = create_pane(
             pane_id,
@@ -647,7 +638,6 @@ impl SplitEngine {
             root,
             active_pane_id: pane_id,
             next_pane_id: pane_id + 1,
-            app,
             ghostty_app,
             working_directory,
             launch_command: None,
@@ -793,7 +783,6 @@ impl SplitEngine {
             new_pane_id
         );
         let (new_gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
-            &self.app,
             self.ghostty_app,
             Some(inherited_config),
             self.working_directory.clone(),
@@ -850,7 +839,6 @@ impl SplitEngine {
             unsafe { ffi::ghostty_surface_set_focus(surface, false) };
         }
         let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
-            &self.app,
             self.ghostty_app,
             inherited,
             self.working_directory.clone(),

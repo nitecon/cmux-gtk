@@ -262,3 +262,7 @@ Saved-tree restoration now borrows one immutable context containing GTK/native l
 ### Pane restoration module
 
 Moved saved-layout reconstruction and its borrowed launch context into `src/split_engine/restore.rs`. The pane engine retains interactive operations and shared surface constructors; the child module retains existing UUID, focus, directory/command precedence and depth-limit behavior. This is component separation of existing restoration, not implementation of the deferred session-resume feature task. Updated the component map and recorded the applicable Rust module guidance. `cargo check --workspace --all-targets` passed; executable restoration checks remain in GitHub Actions. Existing native GTK/X11 deprecation warnings remain.
+
+### Remove obsolete pane-construction dependencies
+
+Removed the unused GTK Application parameter from terminal construction and the corresponding retained application handle from SplitEngine and restoration context. Removed the unused initial surface-cell constructor argument; the terminal widget still owns the native surface cell and lifecycle callbacks. Corrected documentation that claimed the engine stored that cell or initialized the Ghostty application. Local, remote and restored workspace creation now share the existing sidebar row builder, replacing two duplicate construction blocks. Updated the executable clipboard fixture for the narrower constructor API. Validation: all-target Cargo check; runtime coverage remains in Actions.

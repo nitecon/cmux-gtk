@@ -138,15 +138,7 @@ impl AppState {
             .startup_script
             .as_deref()
             .map(crate::workspace::startup_command);
-        // Phase 9: Use shared row builder for consistent layout including close button
-        let hbox = crate::sidebar::workspace_row_content(&workspace);
-
-        let row = gtk4::ListBoxRow::new();
-        row.set_child(Some(&hbox));
-        crate::sidebar::style_workspace_row(&row, &workspace);
-        unsafe {
-            row.set_data("workspace-id", id);
-        }
+        let row = self.build_sidebar_row(&workspace);
         self.sidebar_list.append(&row);
 
         // Create surface and split engine
@@ -155,8 +147,7 @@ impl AppState {
             "cmux: create_workspace calling create_surface for workspace_id={}, pane_id={}",
             id, pane_id
         );
-        let (gl_area, surface_cell) = crate::ghostty::surface::create_surface(
-            &self.gtk_app,
+        let (gl_area, _) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             None,
             workspace.working_directory.clone(),
@@ -167,10 +158,8 @@ impl AppState {
                 .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec),
         );
         let mut engine = SplitEngine::new(
-            self.gtk_app.clone(),
             self.ghostty_app,
-            gl_area.clone(),
-            surface_cell,
+            gl_area,
             pane_id,
             workspace.working_directory.clone(),
         );
@@ -228,19 +217,10 @@ impl AppState {
                     ssh_tx: self.ssh_event_tx.clone().unwrap(),
                 });
 
-        // Phase 9: Use shared row builder for consistent layout including close button
-        let hbox = crate::sidebar::workspace_row_content(&workspace);
-
-        let row = gtk4::ListBoxRow::new();
-        row.set_child(Some(&hbox));
-        crate::sidebar::style_workspace_row(&row, &workspace);
-        unsafe {
-            row.set_data("workspace-id", id);
-        }
+        let row = self.build_sidebar_row(&workspace);
 
         // Build split tree from session data (D-05)
         let engine = crate::split_engine::SplitEngine::from_data_with_command(
-            self.gtk_app.clone(),
             self.ghostty_app,
             &ws.layout,
             ws.active_pane_uuid.as_deref(),
@@ -277,7 +257,8 @@ impl AppState {
         Some(id)
     }
 
-    /// Build a sidebar row for a workspace. Used by create_workspace and create_remote_workspace.
+    /// Build an unattached GTK sidebar row with workspace identity, styling and controls.
+    /// Local, remote and restored workspaces share this construction path.
     fn build_sidebar_row(&self, workspace: &Workspace) -> gtk4::ListBoxRow {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&crate::sidebar::workspace_row_content(workspace)));
@@ -313,22 +294,14 @@ impl AppState {
                 .clone()
                 .expect("SSH event channel initialized"),
         };
-        let (gl_area, surface_cell) = crate::ghostty::surface::create_surface(
-            &self.gtk_app,
+        let (gl_area, _) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             None,
             None,
             pane_id,
             remote_launch.clone(),
         );
-        let mut engine = SplitEngine::new(
-            self.gtk_app.clone(),
-            self.ghostty_app,
-            gl_area,
-            surface_cell,
-            pane_id,
-            None,
-        );
+        let mut engine = SplitEngine::new(self.ghostty_app, gl_area, pane_id, None);
 
         engine.remote_launch = Some(remote_launch);
         let page_name = workspace.stack_page_name.clone();

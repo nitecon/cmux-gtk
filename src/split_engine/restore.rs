@@ -14,7 +14,6 @@ use uuid::Uuid;
 
 /// Borrow immutable launch dependencies while rebuilding one saved pane tree on GTK.
 struct RestoreContext<'a> {
-    app: &'a gtk4::Application,
     ghostty_app: ffi::ghostty_app_t,
     working_directory: Option<&'a std::path::Path>,
     launch_command: Option<&'a str>,
@@ -35,7 +34,6 @@ impl RestoreContext<'_> {
                 .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
         });
         let (gl_area, _) = crate::ghostty::surface::create_surface(
-            self.app,
             self.ghostty_app,
             None,
             directory,
@@ -51,7 +49,6 @@ impl SplitEngine {
     /// Rebuild a saved tree with fresh pane IDs and the supplied launch context.
     /// Preserve surface UUIDs; reject excessive nesting and fall back to the first pane for focus.
     pub fn from_data_with_command(
-        app: gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
         data: &SplitNodeData,
         active_pane_uuid: Option<&str>,
@@ -63,7 +60,6 @@ impl SplitEngine {
             std::sync::atomic::AtomicU64::new(1 << 24);
         let mut next_pane_id = NEXT_RESTORE_BASE.fetch_add(1 << 18, Ordering::Relaxed);
         let context = RestoreContext {
-            app: &app,
             ghostty_app,
             working_directory: working_directory.as_deref(),
             launch_command: launch_command.as_deref(),
@@ -83,7 +79,6 @@ impl SplitEngine {
             root,
             active_pane_id: active_id,
             next_pane_id,
-            app,
             ghostty_app,
             working_directory,
             launch_command,

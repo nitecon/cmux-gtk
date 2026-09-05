@@ -156,11 +156,11 @@ fn initialize_surface(
     Some(surface)
 }
 
-/// Creates and returns a GtkGLArea with a Ghostty terminal surface wired up.
-/// Initializes ghostty_app_t, then defers ghostty_surface_t creation until the
-/// GtkGLArea is realized and has received a non-zero allocation.
+/// Create a terminal widget on the GTK main thread using an existing Ghostty app.
+/// Native surface creation waits for realization and non-zero allocation. The widget
+/// owns initialization and cleanup callbacks; the returned shared cell exposes the
+/// current surface pointer and becomes empty when the native surface is released.
 pub fn create_surface(
-    _app: &gtk4::Application,
     ghostty_app: ffi::ghostty_app_t,
     inherited_config: Option<ffi::ghostty_surface_config_s>,
     working_directory: Option<std::path::PathBuf>,
@@ -856,7 +856,6 @@ mod clipboard_integration_tests {
     fn linux_clipboard_shortcuts_primary_and_surface_routing() {
         crate::ghostty::gtk_environment::configure();
         gtk4::init().unwrap();
-        let app = gtk4::Application::new(Some("io.cmux.ClipboardTest"), Default::default());
         let root = std::env::temp_dir().join(format!("cmux-clipboard-{}", uuid::Uuid::new_v4()));
         let first = root.join("first");
         let second = root.join("second");
@@ -893,7 +892,6 @@ mod clipboard_integration_tests {
             ghostty
         };
         let (left, left_cell) = create_surface(
-            &app,
             ghostty,
             None,
             Some(first.clone()),
@@ -903,7 +901,6 @@ mod clipboard_integration_tests {
             ),
         );
         let (right, right_cell) = create_surface(
-            &app,
             ghostty,
             None,
             Some(second.clone()),
