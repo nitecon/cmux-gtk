@@ -732,10 +732,11 @@ impl SplitEngine {
         self.split_active(gtk4::Orientation::Vertical)
     }
 
-    /// Split the active pane, inherit a terminal's config and focus the newly allocated pane.
-    /// Return None when no terminal can supply the inherited context.
+    /// Split the active pane and focus a new terminal, inheriting native context when available.
+    /// Browser-only panes use workspace launch settings. Return None for a missing active pane.
     pub fn split_active(&mut self, orientation: gtk4::Orientation) -> Option<u64> {
         let active_id = self.active_pane_id;
+        self.root.find_node(active_id)?;
         let new_pane_id = self.next_pane_id;
         self.next_pane_id += 1;
 
@@ -757,45 +758,15 @@ impl SplitEngine {
                 None
             };
 
-        // Find the active leaf's surface for inherited config.
-        let inherited_surface = find_any_terminal_surface(&self.root, active_id)?;
-
-        // Unfocus the old surface before the split — Ghostty routes input by focus state,
-        // so without this the old pane continues receiving keystrokes after the new pane
-        // is created (SPLIT-07).
-        unsafe {
-            ffi::ghostty_surface_set_focus(inherited_surface, false);
-        }
-
-        // Get inherited config from the active surface (for CWD inheritance per D-08).
-        // Pass by value (ghostty_surface_config_s is Copy) — avoids dangling pointer
-        // in the GLArea realize callback, which fires asynchronously after this returns.
-        let inherited_config = unsafe {
+        let inherited_config = find_any_terminal_surface(&self.root, active_id).map(|surface| unsafe {
+            // Stop the previous terminal receiving input before the new pane takes focus.
+            ffi::ghostty_surface_set_focus(surface, false);
             ffi::ghostty_surface_inherited_config(
-                inherited_surface,
+                surface,
                 ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_SPLIT,
             )
-        };
-
-        // Create new GLArea + surface for the new pane.
-        eprintln!(
-            "cmux: split_active calling create_surface for new_pane_id={}",
-            new_pane_id
-        );
-        let (new_gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
-            self.ghostty_app,
-            Some(inherited_config),
-            self.working_directory.clone(),
-            new_pane_id,
-            self.remote_launch.clone().unwrap_or_else(|| {
-                self.launch_command
-                    .clone()
-                    .map(crate::ghostty::surface::SurfaceIoMode::Command)
-                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
-            }),
-        );
-        // Phase 9: Attach right-click context menu (D-08)
-        attach_terminal_context_menu(&new_gl_area);
+        });
+        let new_gl_area = self.create_terminal_widget(new_pane_id, inherited_config);
 
         // Replace the active leaf in the tree with a Split node.
         let new_leaf = create_pane(
@@ -826,18 +797,13 @@ impl SplitEngine {
         Some(new_pane_id)
     }
 
-    /// Create and select a terminal surface tab in the focused pane.
-    pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
-        let pane_id = self.active_pane_id;
-        let inherited = find_any_terminal_surface(&self.root, pane_id).map(|surface| unsafe {
-            ffi::ghostty_surface_inherited_config(
-                surface,
-                ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_TAB,
-            )
-        });
-        if let Some(surface) = self.find_surface(pane_id) {
-            unsafe { ffi::ghostty_surface_set_focus(surface, false) };
-        }
+    /// Construct a terminal widget on GTK with shared workspace launch and context-menu policy.
+    /// Native initialization is deferred to realization; the widget owns surface cleanup.
+    fn create_terminal_widget(
+        &self,
+        pane_id: u64,
+        inherited: Option<ffi::ghostty_surface_config_s>,
+    ) -> gtk4::GLArea {
         let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             inherited,
@@ -851,6 +817,22 @@ impl SplitEngine {
             }),
         );
         attach_terminal_context_menu(&gl_area);
+        gl_area
+    }
+
+    /// Create and select a terminal surface tab in the focused pane.
+    pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
+        let pane_id = self.active_pane_id;
+        let inherited = find_any_terminal_surface(&self.root, pane_id).map(|surface| unsafe {
+            ffi::ghostty_surface_inherited_config(
+                surface,
+                ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_TAB,
+            )
+        });
+        if let Some(surface) = self.find_surface(pane_id) {
+            unsafe { ffi::ghostty_surface_set_focus(surface, false) };
+        }
+        let gl_area = self.create_terminal_widget(pane_id, inherited);
         let uuid = Uuid::new_v4();
         let (notebook, surfaces) = find_pane_tabs(&self.root, pane_id)?;
         append_pane_surface(

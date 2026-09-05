@@ -369,3 +369,22 @@ preempted, so their blocking operations still require independent deadlines.
 The existing CI helper suite covers budget exhaustion, eventual success and
 predicate failures. Local validation was Python syntax parsing and diff checks;
 runtime verification remains in GitHub Actions.
+
+
+### Browser-only pane split and obsolete WebKit stability suites
+
+Removed identical `tests/test_browser_panel_stability.py` and
+`tests_v2/test_browser_panel_stability.py`: both require WKWebView first-responder
+commands absent from the GTK server. They also suppress surface cleanup failures.
+The maintained GTK browser mapping fixture now repeats terminal split creation,
+explicit surface focus changes, terminal closure and child-process cleanup while
+preserving the browser surface. It uses the existing local browser mock; it proves
+application selection and lifecycle behavior, not rendered Chromium focus or
+keyboard delivery. Those require separate real-browser integration coverage.
+
+This exposed a product inconsistency: a browser-only pane could create a terminal
+tab but could not split, because split creation required a native terminal to
+inherit from. Split and sibling-tab paths now share terminal widget construction,
+workspace launch settings and context-menu attachment. Native inheritance remains
+optional; browser-only splits use workspace configuration. Local workspace binary
+checking passed; executable regression verification remains in GitHub Actions.

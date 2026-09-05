@@ -387,7 +387,7 @@ Hard invariant:
 2. `tests_v2/test_browser_api_comprehensive.py`
 3. `tests_v2/test_browser_api_unsupported_matrix.py`
 4. `tests_v2/test_browser_goto_split.py`
-5. `tests_v2/test_browser_panel_stability.py`
+5. Historical WKWebView stability suite removed; Linux pane lifecycle coverage is now in `tests/test_linux_surface_tab_reentrant_close.py` (mock browser, not WebKit first-responder coverage).
 6. `tests_v2/test_browser_custom_keybinds.py`
 
 ### Test Design Rules
