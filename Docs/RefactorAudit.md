@@ -493,3 +493,17 @@ capacity rejection, bounded draining and restored admission. Workspace binary an
 test-target compilation passed locally; executable verification remains pending.
 This refactors existing attention handling, without starting the deferred agent
 notification or session-resume feature task.
+
+
+### Native callback contracts and target decoding
+
+Documented the module boundary and explicit safety contracts for wakeup, action
+and close callbacks, including worker-to-GTK handoff, tagged-union validity and
+borrowed directory payload lifetime. Action dispatch now decodes the surface target
+once and shares deferred pane-action routing between bells and terminal creation.
+The close-request log and declaration now accurately state that shell exit leaves
+the tab open until explicit teardown, removing the misleading future AppState
+promise. This does not implement automatic EOF tab closure or session resume.
+
+Rust formatting, workspace binary compilation and diff checks passed. Runtime
+validation remains in GitHub Actions.
