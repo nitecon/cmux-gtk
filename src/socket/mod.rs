@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod commands;
+mod framing;
 pub mod handlers;
 
 use std::os::unix::fs::PermissionsExt;
@@ -110,12 +111,23 @@ async fn handle_connection(
     stream: tokio::net::UnixStream,
     cmd_tx: tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
 ) {
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::io::{AsyncWriteExt, BufReader};
 
     let (reader, mut writer) = stream.into_split();
-    let mut lines = BufReader::new(reader).lines();
+    let mut reader = BufReader::new(reader);
 
-    while let Ok(Some(line)) = lines.next_line().await {
+    loop {
+        let line = match framing::next_request(&mut reader).await {
+            Ok(Some(line)) => line,
+            Ok(None) => break,
+            Err(error) => {
+                crate::diagnostics::record(
+                    "rpc.framing.rejected",
+                    serde_json::json!({"error_kind": format!("{:?}", error.kind())}),
+                );
+                break;
+            }
+        };
         let response = dispatch_line(&line, &cmd_tx).await;
         if writer.write_all(response.as_bytes()).await.is_err() {
             break;
