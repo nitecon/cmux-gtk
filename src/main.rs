@@ -607,7 +607,7 @@ fn build_ui(
 
     // Phase 9: Register GIO actions for menu/button dispatch
     crate::menus::register_actions(&window, state.clone(), &sidebar_box, app);
-    crate::menus::register_accels(app);
+    crate::menus::register_accels(app, &shortcut_map);
 
     // 7. Install keyboard shortcuts (config-driven, D-06)
     crate::shortcuts::install_shortcuts(&window, state.clone(), &sidebar_box, app, shortcut_map);

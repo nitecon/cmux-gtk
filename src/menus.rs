@@ -1,5 +1,5 @@
-use gtk4::prelude::*;
 use gtk4::gio;
+use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -83,10 +83,7 @@ pub fn register_actions(
     window.add_action(&action);
 
     // win.close-surface-tab — close one terminal/browser tab in its pane.
-    let action = gio::SimpleAction::new(
-        "close-surface-tab",
-        Some(&String::static_variant_type()),
-    );
+    let action = gio::SimpleAction::new("close-surface-tab", Some(&String::static_variant_type()));
     action.connect_activate({
         let state = state.clone();
         let app = app.clone();
@@ -304,23 +301,30 @@ pub fn register_actions(
     window.add_action(&action);
 }
 
-/// Register keyboard accelerators for GIO actions so menus show shortcut hints.
-/// Per Pitfall 3 from RESEARCH.md: GTK4 shows accels in menus ONLY if registered via set_accels_for_action.
-pub fn register_accels(app: &gtk4::Application) {
-    app.set_accels_for_action("win.new-workspace", &["<Ctrl>n"]);
-    app.set_accels_for_action("win.close-workspace", &["<Ctrl><Shift>w"]);
-    app.set_accels_for_action("win.new-ssh-workspace", &["<Ctrl><Shift>s"]);
-    app.set_accels_for_action("win.browser-open", &["<Ctrl><Shift>b"]);
+/// Register menu accelerators from the resolved shortcut map plus fixed nonconfigurable actions.
+/// GIO accelerators can activate commands, so they must agree with capture-phase dispatch.
+pub fn register_accels(app: &gtk4::Application, shortcuts: &crate::config::ShortcutMap) {
+    use crate::config::ShortcutAction;
+    for (action, name) in [
+        (ShortcutAction::NewWorkspace, "win.new-workspace"),
+        (ShortcutAction::CloseWorkspace, "win.close-workspace"),
+        (ShortcutAction::NewSshWorkspace, "win.new-ssh-workspace"),
+        (ShortcutAction::BrowserOpen, "win.browser-open"),
+        (ShortcutAction::ClosePane, "win.close-pane"),
+        (ShortcutAction::ToggleSidebar, "win.toggle-sidebar"),
+        (ShortcutAction::SplitRight, "win.split-right"),
+        (ShortcutAction::SplitDown, "win.split-down"),
+        (ShortcutAction::RenameWorkspace, "win.rename-workspace"),
+    ] {
+        let accelerator = shortcuts.accelerator_for(action);
+        let accelerators: Vec<&str> = accelerator.as_deref().into_iter().collect();
+        app.set_accels_for_action(name, &accelerators);
+    }
     app.set_accels_for_action("win.new-terminal-tab", &["<Ctrl>t"]);
     app.set_accels_for_action("win.new-browser-tab", &["<Ctrl><Shift>l"]);
-    app.set_accels_for_action("win.close-pane", &["<Ctrl><Shift>x"]);
-    app.set_accels_for_action("win.toggle-sidebar", &["<Ctrl>b"]);
-    app.set_accels_for_action("win.split-right", &["<Ctrl>d"]);
-    app.set_accels_for_action("win.split-down", &["<Ctrl><Shift>d"]);
     app.set_accels_for_action("win.copy", &["<Ctrl><Shift>c"]);
     app.set_accels_for_action("win.paste", &["<Ctrl><Shift>v"]);
     app.set_accels_for_action("win.find", &["<Ctrl>f"]);
-    app.set_accels_for_action("win.rename-workspace", &["<Ctrl><Shift>r"]);
     app.set_accels_for_action("app.quit", &["<Ctrl>q"]);
 }
 
@@ -400,7 +404,10 @@ pub fn build_terminal_context_menu() -> gio::Menu {
 /// Includes Open in External Browser and Copy URL actions.
 pub fn build_browser_context_menu() -> gio::Menu {
     let menu = gio::Menu::new();
-    menu.append(Some("Open in External Browser"), Some("win.open-external-browser"));
+    menu.append(
+        Some("Open in External Browser"),
+        Some("win.open-external-browser"),
+    );
     menu.append(Some("Copy URL"), Some("win.copy-url"));
     menu.append(Some("Close Pane"), Some("win.close-pane"));
     menu
@@ -418,9 +425,7 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
         .title("Workspaces")
         .build();
 
-    let ws_group = gtk4::ShortcutsGroup::builder()
-        .title("Workspaces")
-        .build();
+    let ws_group = gtk4::ShortcutsGroup::builder().title("Workspaces").build();
     ws_group.append(&shortcut("<Ctrl>n", "New Workspace"));
     ws_group.append(&shortcut("<Ctrl><Shift>w", "Close Workspace"));
     ws_group.append(&shortcut("<Ctrl>bracketright", "Next Workspace"));
@@ -436,9 +441,7 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
         .title("Panes")
         .build();
 
-    let pane_group = gtk4::ShortcutsGroup::builder()
-        .title("Panes")
-        .build();
+    let pane_group = gtk4::ShortcutsGroup::builder().title("Panes").build();
     pane_group.append(&shortcut("<Ctrl>d", "Split Right"));
     pane_group.append(&shortcut("<Ctrl><Shift>d", "Split Down"));
     pane_group.append(&shortcut("<Ctrl><Shift>x", "Close Pane"));
@@ -455,9 +458,7 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
         .title("Edit")
         .build();
 
-    let edit_group = gtk4::ShortcutsGroup::builder()
-        .title("Edit")
-        .build();
+    let edit_group = gtk4::ShortcutsGroup::builder().title("Edit").build();
     edit_group.append(&shortcut("<Ctrl><Shift>c", "Copy"));
     edit_group.append(&shortcut("<Ctrl><Shift>v", "Paste"));
     edit_group.append(&shortcut("<Ctrl>f", "Find"));
@@ -470,9 +471,7 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
         .title("View")
         .build();
 
-    let view_group = gtk4::ShortcutsGroup::builder()
-        .title("View")
-        .build();
+    let view_group = gtk4::ShortcutsGroup::builder().title("View").build();
     view_group.append(&shortcut("<Ctrl>b", "Toggle Sidebar"));
     view_group.append(&shortcut("<Ctrl><Shift>b", "Open Browser"));
     view_group.append(&shortcut("<Ctrl><Shift>s", "New SSH Workspace"));
@@ -485,9 +484,7 @@ fn build_shortcuts_window() -> gtk4::ShortcutsWindow {
         .title("General")
         .build();
 
-    let general_group = gtk4::ShortcutsGroup::builder()
-        .title("General")
-        .build();
+    let general_group = gtk4::ShortcutsGroup::builder().title("General").build();
     general_group.append(&shortcut("<Ctrl>q", "Quit"));
     general_section.append(&general_group);
     sections.append(&general_section);

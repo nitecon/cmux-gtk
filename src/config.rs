@@ -304,6 +304,14 @@ impl ShortcutMap {
         ShortcutMap { map }
     }
 
+    /// Return GTK's accelerator spelling for an action surviving config and collision resolution.
+    /// Menus use this same map as capture-phase dispatch, avoiding stale default accelerators.
+    pub fn accelerator_for(&self, action: ShortcutAction) -> Option<String> {
+        self.map.iter().find_map(|((mods, key), mapped)| {
+            (*mapped == action).then(|| gtk4::accelerator_name(*key, *mods).to_string())
+        })
+    }
+
     /// Look up a shortcut action for the given modifier+key combination.
     /// Masks modifiers to ignore Caps Lock, Num Lock, etc.
     /// Normalizes keyval to lowercase because GTK4 key events give uppercase
