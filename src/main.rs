@@ -120,20 +120,7 @@ fn main() {
 
     updater::spawn_auto_update();
 
-    // GTK may create its compositor context before the first GtkGLArea. Prefer
-    // desktop GL up front so that context can be shared with Ghostty's GL 4.3
-    // renderer (GTK otherwise prefers GLES on some Wayland drivers).
-    let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_default();
-    if !gdk_debug
-        .split([':', ' ', ','])
-        .any(|flag| flag == "gl-prefer-gl")
-    {
-        let separator = if gdk_debug.is_empty() { "" } else { ":" };
-        std::env::set_var(
-            "GDK_DEBUG",
-            format!("{gdk_debug}{separator}gl-prefer-gl"),
-        );
-    }
+    crate::ghostty::gtk_environment::configure();
 
     // Tokio runtime for socket I/O (kept alive for app lifetime).
     let runtime = tokio::runtime::Runtime::new()

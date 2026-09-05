@@ -16,6 +16,7 @@ All notable changes to cmux GTK are documented here.
 - Bound browser frame, session snapshot, mouse motion and SSH output delivery; remove widget callback reference cycles and cancel remote tasks when workspaces close.
 - Keep remote streams separate across sibling tabs, propagate terminal size, and close remote PTYs with their terminals.
 - Keep CLI workspace ordering aligned with sidebar order and saved sessions.
+- Avoid GTK's affected dmabuf texture ownership path on GTK 4.16–4.22.4, and redraw only terminals targeted by Ghostty render requests.
 
 ## [0.1.7] - 2026-09-05
 

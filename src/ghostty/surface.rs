@@ -789,7 +789,7 @@ mod clipboard_integration_tests {
     #[test]
     #[ignore = "real X11/Ghostty clipboard integration; run under Xvfb in CI"]
     fn linux_clipboard_shortcuts_primary_and_surface_routing() {
-        std::env::set_var("GDK_DEBUG", "gl-prefer-gl");
+        crate::ghostty::gtk_environment::configure();
         gtk4::init().unwrap();
         let app = gtk4::Application::new(Some("io.cmux.ClipboardTest"), Default::default());
         let root = std::env::temp_dir().join(format!("cmux-clipboard-{}", uuid::Uuid::new_v4()));

@@ -51,15 +51,25 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     error.set_wrap(true);
     error.add_css_class("error");
     vbox.append(&error);
+    let connect = gtk4::Button::with_label("Connect");
+    connect.add_css_class("suggested-action");
+    connect.set_margin_top(12);
+    vbox.append(&connect);
     dialog.set_child(Some(&vbox));
 
-    // Enter key: create SSH workspace
-    entry.connect_activate({
+    for field in [&entry, &directory] {
+        let connect = connect.downgrade();
+        field.connect_activate(move |_| {
+            if let Some(connect) = connect.upgrade() { connect.emit_clicked(); }
+        });
+    }
+    connect.connect_clicked({
         let state = state.clone();
         let dialog = dialog.downgrade();
-        move |e| {
+        let entry = entry.clone();
+        move |_| {
             let Some(dialog) = dialog.upgrade() else { return; };
-            let target = e.text().to_string().trim().to_string();
+            let target = entry.text().to_string().trim().to_string();
             if !target.is_empty() {
                 if let Err(message) = crate::workspace::validate_ssh_target(&target) {
                     error.set_text(&message);

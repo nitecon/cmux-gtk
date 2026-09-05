@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 import time
@@ -58,6 +59,33 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         assert samples[-1] - samples[0] < 96 * 1024, f"RSS grew after warmup: {samples} KiB"
         assert len(json.loads(cli("list-surfaces", "--json"))["surfaces"]) == 1
         print(f"45 split/close cycles reaped every PTY; RSS samples: {samples} KiB")
+
+        # The reported OOM happened without pane churn. Exercise thousands of
+        # large frames as well, keeping terminal history bounded by repainting
+        # the same screen. A frame-sized leak becomes visible within seconds.
+        windows = subprocess.check_output(["xdotool", "search", "--pid", str(app.pid)], text=True).split()
+        assert windows, "application has no X11 window"
+        subprocess.check_call(["xdotool", "windowsize", windows[-1], "1800", "1000"])
+        marker = root / "render-complete"
+        program = ("import sys,time,pathlib; "
+                   "[(sys.stdout.write('\\x1b[H' + (str(i%10)*160+'\\r\\n')*50), "
+                   "sys.stdout.flush(),time.sleep(1/30)) for i in range(1800)]; "
+                   f"pathlib.Path({str(marker)!r}).touch()")
+        cli("send-text", "python3 -u -c " + shlex.quote(program) + "\n")
+        render_samples = []
+        deadline = time.monotonic() + 90
+        started = time.monotonic()
+        while not marker.exists():
+            assert app.poll() is None, "application exited during rendering"
+            assert time.monotonic() < deadline, "terminal output stalled"
+            current = rss()
+            assert current < 2 * 1024 * 1024, f"rendering exceeded 2 GiB RSS: {current} KiB"
+            if time.monotonic() - started > 15:
+                render_samples.append(current)
+            time.sleep(1)
+        assert len(render_samples) >= 20, "sustained output did not run long enough"
+        assert max(render_samples[-10:]) - min(render_samples[:10]) < 128 * 1024, f"render RSS kept growing: {render_samples} KiB"
+        print(f"1800 large terminal redraws; RSS samples: {render_samples} KiB")
     except BaseException:
         log.flush()
         log.seek(0)

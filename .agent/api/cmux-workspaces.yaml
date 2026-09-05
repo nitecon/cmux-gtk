@@ -46,4 +46,5 @@ content:
     - PRIMARY selection and the standard clipboard are separate. Ctrl+Shift+C/V applies to terminal widgets; selection and middle-click use Ghostty selection semantics.
     - Replaceable browser frames and session snapshots use latest-value channels. SSH output uses bounded backpressure and must not drop terminal bytes.
     - Closing a terminal clears GTK callback handles before freeing Ghostty and unregisters its remote context. Closing a workspace cancels its SSH process and routing tasks.
+    - Configure GDK before GTK initialization. Match Ghostty desktop OpenGL requirements and disable dmabuf on audited GTK 4.16 through 4.22.4 versions affected by the upstream GtkGLArea ownership leak. Dispatch render actions to their target surface.
     - Run executable behavior tests in GitHub Actions, not locally.

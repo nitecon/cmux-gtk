@@ -70,16 +70,9 @@ pub unsafe extern "C" fn wakeup_cb(_userdata: *mut std::ffi::c_void) {
                 crate::ghostty::ffi::ghostty_app_tick(app);
             }
         }
-        // queue_render on ALL registered GLAreas
-        if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-            for area_ptr in areas.iter() {
-                let area: glib::translate::Borrowed<gtk4::GLArea> =
-                    unsafe { glib::translate::from_glib_borrow(area_ptr.0) };
-                if area.is_realized() {
-                    area.queue_render();
-                }
-            }
-        }
+        // app_tick dispatches targeted RENDER actions. A mailbox wakeup can
+        // also be title/clipboard/scrollbar work; it does not itself dirty every
+        // terminal in every workspace.
     });
 }
 
@@ -146,11 +139,20 @@ pub unsafe extern "C" fn action_cb(
 
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_RENDER {
         // Trigger a render on the GLArea — will call ghostty_surface_draw on main thread.
+        let target = if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
+            Some(unsafe { _target.target.surface } as usize)
+        } else { None };
+        let mappings = GL_TO_SURFACE.lock().ok();
         if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
             for area_ptr in areas.iter() {
+                if let Some(target) = target {
+                    if mappings.as_ref().and_then(|map| map.get(&(area_ptr.0 as usize))).copied() != Some(target) {
+                        continue;
+                    }
+                }
                 let area: glib::translate::Borrowed<gtk4::GLArea> =
                     unsafe { glib::translate::from_glib_borrow(area_ptr.0) };
-                if area.is_realized() {
+                if area.is_mapped() {
                     area.queue_render();
                 }
             }
