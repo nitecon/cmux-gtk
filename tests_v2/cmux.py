@@ -12,6 +12,8 @@ Protocol:
   Response: {"id": 1, "ok": true, "result": {...}}
 
 Notes:
+- Convenience wrappers include upstream debug APIs that the Linux server may not implement.
+  Query capabilities and treat method-not-found as unsupported; wrappers are not feature guarantees.
 - v2 uses stable UUID handles for workspaces/panes/surfaces.
 - For test convenience, this client accepts integer indexes for many methods and
   resolves them to IDs using list calls.
@@ -37,6 +39,7 @@ class cmuxError(Exception):
 
 
 def _looks_like_uuid(s: str) -> bool:
+    """Return whether the supplied string parses as a UUID."""
     try:
         uuid.UUID(s)
         return True
@@ -45,6 +48,7 @@ def _looks_like_uuid(s: str) -> bool:
 
 
 def _looks_like_ref(s: str, kind: Optional[str] = None) -> bool:
+    """Validate a typed window/workspace/pane/surface reference and optional expected kind."""
     parts = s.split(":", 1)
     if len(parts) != 2:
         return False
@@ -150,6 +154,7 @@ class cmux:
             raise cmuxError(f"Socket response failed: {error}") from error
 
     def _call(self, method: str, params: Optional[Dict[str, Any]] = None, timeout_s: float = 20.0) -> Any:
+        """Send one numbered JSON request, validate its response ID and raise cmuxError on server failure."""
         if self._socket is None:
             raise cmuxError("Not connected")
 
@@ -192,6 +197,7 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def _resolve_workspace_id(self, workspace: Union[str, int, None]) -> Optional[str]:
+        """Resolve the current workspace, an index, typed reference or UUID; reject invalid identifiers."""
         if workspace is None:
             res = self._call("workspace.current")
             wsid = (res or {}).get("workspace_id")
@@ -218,6 +224,7 @@ class cmux:
         return s
 
     def _resolve_surface_id(self, surface: Union[str, int, None], workspace_id: Optional[str] = None) -> Optional[str]:
+        """Resolve focus or a surface index in the requested workspace, preserving explicit refs and UUIDs."""
         if surface is None:
             # Try fast-path via identify.
             ident = self._call("system.identify")
@@ -247,6 +254,7 @@ class cmux:
         return s
 
     def _resolve_pane_id(self, pane: Union[str, int, None], workspace_id: Optional[str] = None) -> Optional[str]:
+        """Resolve focus or a pane index in the requested workspace, preserving explicit refs and UUIDs."""
         if pane is None:
             ident = self._call("system.identify")
             focused = (ident or {}).get("focused") or {}
@@ -279,13 +287,16 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def ping(self) -> bool:
+        """Return whether the server reports a successful protocol ping."""
         res = self._call("system.ping")
         return bool((res or {}).get("pong"))
 
     def capabilities(self) -> dict:
+        """Return the server capability map; use it to determine supported operations."""
         return dict(self._call("system.capabilities") or {})
 
     def identify(self, caller: Optional[dict] = None) -> dict:
+        """Return server identity and focus information, optionally supplying caller metadata."""
         params: Dict[str, Any] = {}
         if caller is not None:
             params["caller"] = caller
@@ -296,10 +307,12 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def list_windows(self) -> List[dict]:
+        """Return the window records advertised by the server."""
         res = self._call("window.list") or {}
         return list(res.get("windows") or [])
 
     def current_window(self) -> str:
+        """Return the current window ID, raising if the response omits it."""
         res = self._call("window.current") or {}
         wid = res.get("window_id")
         if not wid:
@@ -307,6 +320,7 @@ class cmux:
         return str(wid)
 
     def new_window(self) -> str:
+        """Request a new window and require its ID in the response."""
         res = self._call("window.create") or {}
         wid = res.get("window_id")
         if not wid:
@@ -314,9 +328,11 @@ class cmux:
         return str(wid)
 
     def focus_window(self, window_id: str) -> None:
+        """Request focus for an explicit window ID."""
         self._call("window.focus", {"window_id": str(window_id)})
 
     def close_window(self, window_id: str) -> None:
+        """Request closure of an explicit window ID."""
         self._call("window.close", {"window_id": str(window_id)})
 
     # ---------------------------------------------------------------------
@@ -324,6 +340,7 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def list_workspaces(self, window_id: Optional[str] = None) -> List[Tuple[int, str, str, bool]]:
+        """Return index, ID, title and selection tuples, optionally restricted to a window."""
         params: Dict[str, Any] = {}
         if window_id is not None:
             params["window_id"] = str(window_id)
@@ -339,6 +356,7 @@ class cmux:
         return out
 
     def new_workspace(self, window_id: Optional[str] = None) -> str:
+        """Create a workspace in the optional window and require its returned ID."""
         params: Dict[str, Any] = {}
         if window_id is not None:
             params["window_id"] = str(window_id)
@@ -349,10 +367,12 @@ class cmux:
         return str(wsid)
 
     def select_workspace(self, workspace: Union[str, int]) -> None:
+        """Resolve a workspace index or identifier and request its selection."""
         wsid = self._resolve_workspace_id(workspace)
         self._call("workspace.select", {"workspace_id": wsid})
 
     def rename_workspace(self, title: str, workspace: Union[str, int, None] = None) -> None:
+        """Trim and validate a nonempty title before renaming the resolved workspace."""
         renamed = str(title).strip()
         if not renamed:
             raise cmuxError("rename_workspace requires a non-empty title")
@@ -363,12 +383,14 @@ class cmux:
         self._call("workspace.rename", params)
 
     def current_workspace(self) -> str:
+        """Return the selected workspace ID or raise when no workspace is selected."""
         wsid = self._resolve_workspace_id(None)
         if not wsid:
             raise cmuxError("No current workspace")
         return wsid
 
     def next_workspace(self) -> str:
+        """Select the next workspace and require its returned ID."""
         res = self._call("workspace.next") or {}
         wsid = res.get("workspace_id")
         if not wsid:
@@ -376,6 +398,7 @@ class cmux:
         return str(wsid)
 
     def previous_workspace(self) -> str:
+        """Select the previous workspace and require its returned ID."""
         res = self._call("workspace.previous") or {}
         wsid = res.get("workspace_id")
         if not wsid:
@@ -383,6 +406,7 @@ class cmux:
         return str(wsid)
 
     def last_workspace(self) -> str:
+        """Request the last workspace and require its returned ID."""
         res = self._call("workspace.last") or {}
         wsid = res.get("workspace_id")
         if not wsid:
@@ -390,6 +414,7 @@ class cmux:
         return str(wsid)
 
     def move_workspace_to_window(self, workspace: Union[str, int], window_id: str, focus: bool = True) -> None:
+        """Move a resolved workspace to a window, forwarding the requested focus policy."""
         wsid = self._resolve_workspace_id(workspace)
         self._call(
             "workspace.move_to_window",
@@ -405,6 +430,7 @@ class cmux:
         after_workspace: Union[str, int, None] = None,
         window_id: Optional[str] = None,
     ) -> None:
+        """Reorder a workspace using exactly one index, before-workspace or after-workspace target."""
         wsid = self._resolve_workspace_id(workspace)
         params: Dict[str, Any] = {"workspace_id": wsid}
 
@@ -427,23 +453,29 @@ class cmux:
         self._call("workspace.reorder", params)
 
     def close_workspace(self, workspace_id: str) -> None:
+        """Resolve the workspace identifier and request its closure."""
         wsid = self._resolve_workspace_id(workspace_id)
         self._call("workspace.close", {"workspace_id": wsid})
 
     # Backwards-compatible aliases
     def list_tabs(self) -> List[Tuple[int, str, str, bool]]:
+        """Alias list_workspaces for callers using the older tab vocabulary."""
         return self.list_workspaces()
 
     def new_tab(self) -> str:
+        """Alias new_workspace and return the created workspace ID."""
         return self.new_workspace()
 
     def close_tab(self, workspace_id: str) -> None:
+        """Alias close_workspace for older tab-oriented callers."""
         return self.close_workspace(workspace_id)
 
     def select_tab(self, workspace: Union[str, int]) -> None:
+        """Alias select_workspace for older tab-oriented callers."""
         return self.select_workspace(workspace)
 
     def current_tab(self) -> str:
+        """Alias current_workspace and return its ID."""
         return self.current_workspace()
 
     # ---------------------------------------------------------------------
@@ -451,6 +483,7 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def list_surfaces(self, workspace: Union[str, int, None] = None) -> List[Tuple[int, str, bool]]:
+        """Return surface index, ID and focus tuples, optionally restricted to a workspace."""
         params: Dict[str, Any] = {}
         if workspace is not None:
             wsid = self._resolve_workspace_id(workspace)
@@ -466,6 +499,7 @@ class cmux:
         return out
 
     def focus_surface(self, surface: Union[str, int]) -> None:
+        """Resolve and validate a surface before requesting focus."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
@@ -473,9 +507,11 @@ class cmux:
 
     def focus_surface_by_panel(self, surface_id: str) -> None:
         # In v2, surface_id is the panel UUID.
+        """Focus a panel using its v2 surface identifier."""
         self.focus_surface(surface_id)
 
     def new_split(self, direction: str) -> str:
+        """Split in the requested direction and require the new surface ID."""
         res = self._call("surface.split", {"direction": direction}) or {}
         sid = res.get("surface_id")
         if not sid:
@@ -483,12 +519,14 @@ class cmux:
         return str(sid)
 
     def drag_surface_to_split(self, surface: Union[str, int], direction: str) -> None:
+        """Resolve a surface and request moving it into a directional split."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
         self._call("surface.drag_to_split", {"surface_id": sid, "direction": direction})
 
     def new_pane(self, direction: str = "right", panel_type: str = "terminal", url: str = None) -> str:
+        """Create a directional pane of the requested type and return its surface ID."""
         params: Dict[str, Any] = {"direction": direction, "type": panel_type}
         if url:
             params["url"] = url
@@ -499,6 +537,7 @@ class cmux:
         return str(sid)
 
     def new_surface(self, pane: Union[str, int, None] = None, panel_type: str = "terminal", url: str = None) -> str:
+        """Create a terminal or browser surface in an optional resolved pane and return its ID."""
         params: Dict[str, Any] = {"type": panel_type}
         if pane is not None:
             pid = self._resolve_pane_id(pane)
@@ -514,6 +553,7 @@ class cmux:
         return str(sid)
 
     def close_surface(self, surface: Union[str, int, None] = None) -> None:
+        """Request closure of an explicit surface or let the server select the current one."""
         params: Dict[str, Any] = {}
         if surface is not None:
             sid = self._resolve_surface_id(surface)
@@ -534,6 +574,7 @@ class cmux:
         index: Optional[int] = None,
         focus: bool = True,
     ) -> None:
+        """Resolve supplied destinations and placement refs, then request a surface move with focus policy."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
@@ -574,6 +615,7 @@ class cmux:
         before_surface: Union[str, int, None] = None,
         after_surface: Union[str, int, None] = None,
     ) -> None:
+        """Reorder a surface using exactly one index, before-surface or after-surface target."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
@@ -601,6 +643,7 @@ class cmux:
         self._call("surface.reorder", params)
 
     def trigger_flash(self, surface: Union[str, int, None] = None) -> None:
+        """Request attention highlighting for an explicit or server-selected surface."""
         params: Dict[str, Any] = {}
         if surface is not None:
             sid = self._resolve_surface_id(surface)
@@ -610,6 +653,7 @@ class cmux:
         self._call("surface.trigger_flash", params)
 
     def refresh_surfaces(self, workspace: Union[str, int, None] = None) -> None:
+        """Request surface refresh for an optional resolved workspace."""
         params: Dict[str, Any] = {}
         if workspace is not None:
             wsid = self._resolve_workspace_id(workspace)
@@ -617,6 +661,7 @@ class cmux:
         self._call("surface.refresh", params)
 
     def surface_health(self, workspace: Union[str, int, None] = None) -> List[dict]:
+        """Return server surface-health records for an optional workspace."""
         params: Dict[str, Any] = {}
         if workspace is not None:
             wsid = self._resolve_workspace_id(workspace)
@@ -625,6 +670,7 @@ class cmux:
         return list(res.get("surfaces") or [])
 
     def clear_history(self, surface: Union[str, int, None] = None, workspace: Union[str, int, None] = None) -> None:
+        """Clear history for an optional surface resolved within the supplied workspace."""
         params: Dict[str, Any] = {}
         if workspace is not None:
             wsid = self._resolve_workspace_id(workspace)
@@ -641,6 +687,7 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def list_panes(self) -> List[Tuple[int, str, int, bool]]:
+        """Return pane index, ID, surface-count and focus tuples."""
         res = self._call("pane.list") or {}
         out: List[Tuple[int, str, int, bool]] = []
         for row in res.get("panes") or []:
@@ -653,12 +700,14 @@ class cmux:
         return out
 
     def focus_pane(self, pane: Union[str, int]) -> None:
+        """Resolve and validate a pane before requesting focus."""
         pid = self._resolve_pane_id(pane)
         if not pid:
             raise cmuxError(f"Invalid pane: {pane!r}")
         self._call("pane.focus", {"pane_id": pid})
 
     def list_pane_surfaces(self, pane: Union[str, int, None] = None) -> List[Tuple[int, str, str, bool]]:
+        """Return index, ID, title and selection tuples for an optional pane."""
         params: Dict[str, Any] = {}
         if pane is not None:
             pid = self._resolve_pane_id(pane)
@@ -675,6 +724,7 @@ class cmux:
         return out
 
     def swap_pane(self, pane: Union[str, int], target_pane: Union[str, int], focus: bool = True) -> None:
+        """Resolve two panes and request swapping them with the chosen focus policy."""
         source = self._resolve_pane_id(pane)
         target = self._resolve_pane_id(target_pane)
         if not source or not target:
@@ -682,6 +732,7 @@ class cmux:
         self._call("pane.swap", {"pane_id": source, "target_pane_id": target, "focus": bool(focus)})
 
     def break_pane(self, pane: Union[str, int, None] = None, surface: Union[str, int, None] = None, focus: bool = True) -> str:
+        """Request detaching the selected pane or surface and require the destination workspace ID."""
         params: Dict[str, Any] = {"focus": bool(focus)}
         if pane is not None:
             pid = self._resolve_pane_id(pane)
@@ -706,6 +757,7 @@ class cmux:
         surface: Union[str, int, None] = None,
         focus: bool = True,
     ) -> None:
+        """Resolve a target pane and optional source pane/surface before requesting a join."""
         target = self._resolve_pane_id(target_pane)
         if not target:
             raise cmuxError(f"Invalid target_pane: {target_pane!r}")
@@ -723,6 +775,7 @@ class cmux:
         self._call("pane.join", params)
 
     def last_pane(self) -> str:
+        """Request the last pane and require its returned ID."""
         res = self._call("pane.last") or {}
         pid = res.get("pane_id")
         if not pid:
@@ -734,10 +787,12 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def send(self, text: str) -> None:
+        """Expand supported backslash control escapes and send text to the server-selected surface."""
         text2 = _unescape_backslash_controls(text)
         self._call("surface.send_text", {"text": text2})
 
     def send_surface(self, surface: Union[str, int], text: str) -> None:
+        """Resolve a surface and send text after expanding supported backslash control escapes."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
@@ -745,18 +800,22 @@ class cmux:
         self._call("surface.send_text", {"surface_id": sid, "text": text2})
 
     def send_key(self, key: str) -> None:
+        """Send a named key to the server-selected surface."""
         self._call("surface.send_key", {"key": key})
 
     def send_key_surface(self, surface: Union[str, int], key: str) -> None:
+        """Resolve a surface and send the named key to it."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
         self._call("surface.send_key", {"surface_id": sid, "key": key})
 
     def send_ctrl_c(self) -> None:
+        """Send the Ctrl+C key through the shared key command."""
         self.send_key("ctrl-c")
 
     def send_ctrl_d(self) -> None:
+        """Send the Ctrl+D key through the shared key command."""
         self.send_key("ctrl-d")
 
     # ---------------------------------------------------------------------
@@ -764,9 +823,11 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def notify(self, title: str, subtitle: str = "", body: str = "") -> None:
+        """Request a notification with title, subtitle and body."""
         self._call("notification.create", {"title": title, "subtitle": subtitle, "body": body})
 
     def notify_surface(self, surface: Union[str, int], title: str, subtitle: str = "", body: str = "") -> None:
+        """Associate a notification with a resolved surface."""
         sid = self._resolve_surface_id(surface)
         if not sid:
             raise cmuxError(f"Invalid surface: {surface!r}")
@@ -776,13 +837,16 @@ class cmux:
         )
 
     def list_notifications(self) -> list[dict]:
+        """Return notification records advertised by the server."""
         res = self._call("notification.list") or {}
         return list(res.get("notifications") or [])
 
     def clear_notifications(self) -> None:
+        """Request clearing the server notification list."""
         self._call("notification.clear")
 
     def set_app_focus(self, active: Union[bool, None]) -> None:
+        """Set the debug focus override to active/inactive, or clear it with None."""
         if active is None:
             state = "clear"
         else:
@@ -790,10 +854,12 @@ class cmux:
         self._call("app.focus_override.set", {"state": state})
 
     def simulate_app_active(self) -> None:
+        """Request the upstream application-activation simulation hook."""
         self._call("app.simulate_active")
 
     # Debug-only: focus via notification flow
     def focus_notification(self, workspace: Union[str, int], surface: Union[str, int, None] = None) -> None:
+        """Invoke the debug notification-focus path for a workspace and optional surface."""
         wsid = self._resolve_workspace_id(workspace)
         params: Dict[str, Any] = {"workspace_id": wsid}
         if surface is not None:
@@ -806,6 +872,7 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def open_browser(self, url: str = None) -> str:
+        """Request a browser split with an optional URL and require its surface ID."""
         params: Dict[str, Any] = {}
         if url:
             params["url"] = url
@@ -816,38 +883,46 @@ class cmux:
         return str(sid)
 
     def navigate(self, panel_id: str, url: str) -> None:
+        """Resolve a browser surface and request navigation to the supplied URL."""
         sid = self._resolve_surface_id(panel_id)
         if not sid:
             raise cmuxError(f"Invalid surface: {panel_id!r}")
         self._call("browser.navigate", {"surface_id": sid, "url": url})
 
     def browser_back(self, panel_id: str) -> None:
+        """Request backward navigation in the resolved browser surface."""
         sid = self._resolve_surface_id(panel_id)
         self._call("browser.back", {"surface_id": sid})
 
     def browser_forward(self, panel_id: str) -> None:
+        """Request forward navigation in the resolved browser surface."""
         sid = self._resolve_surface_id(panel_id)
         self._call("browser.forward", {"surface_id": sid})
 
     def browser_reload(self, panel_id: str) -> None:
+        """Request reloading the resolved browser surface."""
         sid = self._resolve_surface_id(panel_id)
         self._call("browser.reload", {"surface_id": sid})
 
     def get_url(self, panel_id: str) -> str:
+        """Return the resolved browser surface URL, or an empty string when omitted."""
         sid = self._resolve_surface_id(panel_id)
         res = self._call("browser.url.get", {"surface_id": sid}) or {}
         return str(res.get("url") or "")
 
     def focus_webview(self, panel_id: str) -> None:
+        """Request browser-content focus for the resolved surface."""
         sid = self._resolve_surface_id(panel_id)
         self._call("browser.focus_webview", {"surface_id": sid})
 
     def is_webview_focused(self, panel_id: str) -> bool:
+        """Return the server-reported browser-content focus state."""
         sid = self._resolve_surface_id(panel_id)
         res = self._call("browser.is_webview_focused", {"surface_id": sid}) or {}
         return bool(res.get("focused"))
 
     def wait_for_webview_focus(self, panel_id: str, timeout_s: float = 2.0) -> None:
+        """Poll browser-content focus every 50 ms and raise when the polling timeout expires."""
         start = time.time()
         while time.time() - start < timeout_s:
             if self.is_webview_focused(panel_id):
@@ -860,25 +935,31 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def set_shortcut(self, name: str, combo: str) -> None:
+        """Configure a named shortcut through the upstream debug hook."""
         self._call("debug.shortcut.set", {"name": name, "combo": combo})
 
     def simulate_shortcut(self, combo: str) -> None:
+        """Request a synthetic shortcut through the upstream debug hook."""
         self._call("debug.shortcut.simulate", {"combo": combo})
 
     def simulate_type(self, text: str) -> None:
+        """Expand backslash control escapes and invoke the upstream debug typing hook."""
         text2 = _unescape_backslash_controls(text)
         self._call("debug.type", {"text": text2})
 
     def activate_app(self) -> None:
+        """Request application activation through the upstream debug hook."""
         self._call("debug.app.activate")
 
     def open_command_palette_rename_tab_input(self, window_id: Optional[str] = None) -> None:
+        """Invoke the upstream palette rename-input hook for an optional window."""
         params: Dict[str, Any] = {}
         if window_id is not None:
             params["window_id"] = str(window_id)
         self._call("debug.command_palette.rename_tab.open", params)
 
     def command_palette_results(self, window_id: str, limit: int = 20) -> dict:
+        """Return upstream palette results for a window and requested result limit."""
         res = self._call(
             "debug.command_palette.results",
             {"window_id": str(window_id), "limit": int(limit)},
@@ -886,19 +967,23 @@ class cmux:
         return dict(res)
 
     def command_palette_rename_select_all(self) -> bool:
+        """Query the upstream palette rename-input select-all setting."""
         res = self._call("debug.command_palette.rename_input.select_all") or {}
         return bool(res.get("enabled"))
 
     def set_command_palette_rename_select_all(self, enabled: bool) -> bool:
+        """Set and return the upstream palette rename-input select-all setting."""
         res = self._call("debug.command_palette.rename_input.select_all", {"enabled": bool(enabled)}) or {}
         return bool(res.get("enabled"))
 
     def is_terminal_focused(self, panel: Union[str, int]) -> bool:
+        """Query the upstream terminal-focus debug hook for a resolved surface."""
         sid = self._resolve_surface_id(panel)
         res = self._call("debug.terminal.is_focused", {"surface_id": sid}) or {}
         return bool(res.get("focused"))
 
     def read_terminal_text(self, panel: Union[str, int, None] = None) -> str:
+        """Read plain or base64 terminal text, falling back to the older debug method if unavailable."""
         params: Dict[str, Any] = {}
         if panel is not None:
             sid = self._resolve_surface_id(panel)
@@ -921,6 +1006,7 @@ class cmux:
         return raw.decode("utf-8", errors="replace")
 
     def render_stats(self, panel: Union[str, int, None] = None) -> dict:
+        """Return the stats object from the upstream terminal render-statistics hook."""
         params: Dict[str, Any] = {}
         if panel is not None:
             sid = self._resolve_surface_id(panel)
@@ -930,15 +1016,18 @@ class cmux:
         return dict(res.get("stats") or {})
 
     def layout_debug(self) -> dict:
+        """Return the layout object from the upstream layout debug hook."""
         res = self._call("debug.layout") or {}
         # Server wraps LayoutDebugResponse under "layout".
         return dict(res.get("layout") or {})
 
     def panel_snapshot_reset(self, panel: Union[str, int]) -> None:
+        """Reset upstream snapshot tracking for a resolved surface."""
         sid = self._resolve_surface_id(panel)
         self._call("debug.panel_snapshot.reset", {"surface_id": sid})
 
     def panel_snapshot(self, panel: Union[str, int], label: str = "") -> dict:
+        """Capture upstream panel diagnostics and normalize surface_id to the v1 panel_id key."""
         sid = self._resolve_surface_id(panel)
         params: Dict[str, Any] = {"surface_id": sid}
         if label:
@@ -950,28 +1039,35 @@ class cmux:
         return res
 
     def bonsplit_underflow_count(self) -> int:
+        """Read the legacy Bonsplit underflow counter from the upstream debug hook."""
         res = self._call("debug.bonsplit_underflow.count") or {}
         return int(res.get("count") or 0)
 
     def reset_bonsplit_underflow_count(self) -> None:
+        """Reset the legacy Bonsplit underflow counter through the upstream debug hook."""
         self._call("debug.bonsplit_underflow.reset")
 
     def empty_panel_count(self) -> int:
+        """Read the upstream debug counter for empty panels."""
         res = self._call("debug.empty_panel.count") or {}
         return int(res.get("count") or 0)
 
     def reset_empty_panel_count(self) -> None:
+        """Reset the upstream debug counter for empty panels."""
         self._call("debug.empty_panel.reset")
 
     def flash_count(self, surface: Union[str, int]) -> int:
+        """Read the upstream flash counter for a resolved surface."""
         sid = self._resolve_surface_id(surface)
         res = self._call("debug.flash.count", {"surface_id": sid}) or {}
         return int(res.get("count") or 0)
 
     def reset_flash_counts(self) -> None:
+        """Reset all upstream debug flash counters."""
         self._call("debug.flash.reset")
 
     def screenshot(self, label: str = "") -> dict:
+        """Request an upstream window screenshot with an optional label."""
         params: Dict[str, Any] = {}
         if label:
             params["label"] = label
@@ -979,6 +1075,7 @@ class cmux:
 
 
 def main() -> None:
+    """Run one JSON method from CLI arguments, or print server capabilities when no method is supplied."""
     import argparse
 
     parser = argparse.ArgumentParser(description="cmux v2 socket client")
