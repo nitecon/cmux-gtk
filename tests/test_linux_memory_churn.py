@@ -65,6 +65,9 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
             "elapsed_seconds": time.monotonic() - measurement_start,
             "snapshot": snapshot,
         })
+        if phase in ("interactive_tabs", "split_close"):
+            baseline = report["samples"][0]["snapshot"]["terminals"]["inherited_directories"]
+            assert snapshot["terminals"]["inherited_directories"] == baseline, "closed terminals retained inherited directory allocations"
 
     try:
         eventually(socket.exists)
@@ -129,6 +132,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         for cycle in range(45):
             cli("split", "--direction", "horizontal")
             eventually(lambda: len(children()) == len(baseline_children) + 1)
+            if cycle == 0:
+                record_resources("split_live", 1)
             surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
             selected = next(s["uuid"] for s in surfaces if s["active"])
             if cycle % 5 == 0:

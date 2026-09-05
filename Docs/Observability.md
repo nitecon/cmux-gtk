@@ -130,3 +130,5 @@ not all CPUs in a heterogeneous system or a stable host identity. Benchmark
 comparison requires matching before/after and cross-report values, rejecting
 unknown-versus-known identities. Older unknown reports can still be compared
 with each other, subject to the other compatibility checks.
+
+`terminals.inherited_directories` counts Ghostty directory allocations owned by deferred terminal initialization. Split and tab inheritance allocate these strings independently of the source terminal. The Rust owner releases them through ghostty_string_free when initialization state is dropped, including unused/overridden configurations. This counter measures owned allocations, not bytes or all Ghostty allocations. The memory-churn fixture records a live split and requires the counter to return to its baseline after sibling-tab and split-close phases.

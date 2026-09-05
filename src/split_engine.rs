@@ -737,11 +737,13 @@ impl SplitEngine {
                 None
             };
 
+        // SAFETY: the selected native surface is live on GTK; the returned owner
+        // retains its allocated directory through deferred widget initialization.
         let inherited_config =
             find_any_terminal_surface(&self.root, active_id).map(|surface| unsafe {
                 // Stop the previous terminal receiving input before the new pane takes focus.
                 ffi::ghostty_surface_set_focus(surface, false);
-                ffi::ghostty_surface_inherited_config(
+                crate::ghostty::inherited::InheritedConfig::from_surface(
                     surface,
                     ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_SPLIT,
                 )
@@ -782,7 +784,7 @@ impl SplitEngine {
     fn create_terminal_widget(
         &self,
         pane_id: u64,
-        inherited: Option<ffi::ghostty_surface_config_s>,
+        inherited: Option<crate::ghostty::inherited::InheritedConfig>,
     ) -> gtk4::GLArea {
         let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
@@ -803,8 +805,10 @@ impl SplitEngine {
     /// Create and select a terminal surface tab in the focused pane.
     pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
         let pane_id = self.active_pane_id;
+        // SAFETY: the pane lookup returns a live GTK-owned native surface. The
+        // non-copying result owns its directory independently of that source.
         let inherited = find_any_terminal_surface(&self.root, pane_id).map(|surface| unsafe {
-            ffi::ghostty_surface_inherited_config(
+            crate::ghostty::inherited::InheritedConfig::from_surface(
                 surface,
                 ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_TAB,
             )

@@ -22,7 +22,7 @@ pub enum SurfaceIoMode {
 
 struct SurfaceInit {
     ghostty_app: ffi::ghostty_app_t,
-    inherited_config: Option<ffi::ghostty_surface_config_s>,
+    inherited_config: Option<super::inherited::InheritedConfig>,
     working_directory: Option<std::path::PathBuf>,
     pane_id: u64,
     io_mode: SurfaceIoMode,
@@ -71,6 +71,8 @@ fn initialize_surface(
         };
         let mut config = init
             .inherited_config
+            .as_ref()
+            .map(super::inherited::InheritedConfig::config)
             .unwrap_or_else(|| ffi::ghostty_surface_config_new());
         config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
         config.platform = platform;
@@ -158,7 +160,7 @@ fn initialize_surface(
 /// current surface pointer and becomes empty when the native surface is released.
 pub fn create_surface(
     ghostty_app: ffi::ghostty_app_t,
-    inherited_config: Option<ffi::ghostty_surface_config_s>,
+    inherited_config: Option<super::inherited::InheritedConfig>,
     working_directory: Option<std::path::PathBuf>,
     pane_id: u64,
     io_mode: SurfaceIoMode,
