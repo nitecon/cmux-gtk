@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strconv"
+	"time"
 )
 
 // getStringParam accepts only present non-null string parameters.
@@ -76,4 +78,18 @@ func checkedSignedInt(value int64) (int, bool) {
 // checkedUnsignedInt rejects values above the largest positive native integer.
 func checkedUnsignedInt(value uint64) (int, bool) {
 	return int(value), value <= uint64(^uint(0)>>1)
+}
+
+// getTimeoutParam applies an omitted default and accepts nonnegative, representable milliseconds.
+// Zero explicitly disables the transport deadline; malformed or overflowing values are errors.
+func getTimeoutParam(params map[string]any, fallback time.Duration) (time.Duration, error) {
+	if _, present := params["timeout_ms"]; !present {
+		return fallback, nil
+	}
+	milliseconds, ok := getIntParam(params, "timeout_ms")
+	const maxMilliseconds = int64(1<<63-1) / int64(time.Millisecond)
+	if !ok || milliseconds < 0 || int64(milliseconds) > maxMilliseconds {
+		return 0, fmt.Errorf("timeout_ms must be a nonnegative integer no greater than %d", maxMilliseconds)
+	}
+	return time.Duration(milliseconds) * time.Millisecond, nil
 }

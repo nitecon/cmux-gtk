@@ -386,15 +386,15 @@ func (s *rpcServer) handleProxyOpen(req rpcRequest) rpcResponse {
 		}
 	}
 
-	timeoutMs := 10000
-	if parsed, hasTimeout := getIntParam(req.Params, "timeout_ms"); hasTimeout && parsed >= 0 {
-		timeoutMs = parsed
+	timeout, err := getTimeoutParam(req.Params, 10*time.Second)
+	if err != nil {
+		return rpcResponse{ID: req.ID, OK: false, Error: &rpcError{Code: "invalid_params", Message: err.Error()}}
 	}
 
 	conn, err := net.DialTimeout(
 		"tcp",
 		net.JoinHostPort(host, strconv.Itoa(port)),
-		time.Duration(timeoutMs)*time.Millisecond,
+		timeout,
 	)
 	if err != nil {
 		return rpcResponse{
@@ -496,12 +496,12 @@ func (s *rpcServer) handleProxyWrite(req rpcRequest) rpcResponse {
 	}
 	conn := state.conn
 
-	timeoutMs := 8000
-	if parsed, hasTimeout := getIntParam(req.Params, "timeout_ms"); hasTimeout {
-		timeoutMs = parsed
+	timeout, err := getTimeoutParam(req.Params, 8*time.Second)
+	if err != nil {
+		return rpcResponse{ID: req.ID, OK: false, Error: &rpcError{Code: "invalid_params", Message: err.Error()}}
 	}
-	if timeoutMs > 0 {
-		if err := conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)); err != nil {
+	if timeout > 0 {
+		if err := conn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
 			return rpcResponse{
 				ID: req.ID,
 				OK: false,
