@@ -3,7 +3,7 @@
 Last updated: February 13, 2026  
 Source inventory snapshot: `vercel-labs/agent-browser` @ `03a8cb9`
 
-This document tracks implemented behavior and remaining parity gaps for the cmux browser port.
+This is the historical upstream macOS/WKWebView specification. Its completion claims, commands, test results and platform limitations do not describe the current Linux Rust/GTK implementation. Consult [Architecture](../Docs/Architecture.md), [Components](../Docs/Components.md) and [RefactorAudit](../Docs/RefactorAudit.md) for current contracts and evidence. The removed WKWebView unsupported-matrix test must not be used as a contract for the external agent-browser service. Retained method families are research inputs for the deferred parity scope.
 
 ## Goals
 
