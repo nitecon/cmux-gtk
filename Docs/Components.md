@@ -12,7 +12,7 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Command interface | Shared CLI argument schema, protocol validation and dispatch; completion generation imports the schema alone | `src/cli/args.rs`, `src/cli`, `src/socket` |
 | Diagnostics | Bounded structured logs, request correlation, resource snapshots, collection and optimized benchmarks | `src/diagnostics`, `src/diagnostics.rs`, `scripts/collect-cmux-diagnostics.py`, `scripts/benchmark-cmux.py` |
 | Session/configuration | Serializable state, compatibility, atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
-| Remote transport | SSH deployment, reconnect and stream ownership; Go PTY adapter owns native child launch, I/O, resize and teardown; session module manages attachment-size metadata; relay transport owns authentication, bounded response framing and socket deadlines | `src/ssh`, `daemon/remote/cmd/cmuxd-remote/{main,pty,sessions,relay_transport}.go` |
+| Remote transport | SSH deployment, reconnect and stream ownership; Go PTY adapter owns native child launch, I/O, resize and teardown; session module manages attachment-size metadata; relay transport owns authentication, bounded response framing and socket deadlines | `src/ssh`, `daemon/remote/cmd/cmuxd-remote/{main,params,pty,sessions,relay_transport}.go` |
 | Linux services | XDG locations, atomic file replacement, peer credentials, process resources, installation ownership, desktop notifications and optional GTK/X11 placement and OpenGL callbacks; remaining native services are pending extraction | `crates/cmux-platform` |
 | Distribution | Dependency setup, linking, packages and release publishing | `build.rs`, `scripts`, `packaging`, `.github/workflows` |
 

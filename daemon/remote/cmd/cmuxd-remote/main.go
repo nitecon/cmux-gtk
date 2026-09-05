@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -362,6 +361,7 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleProxyOpen validates the TCP target, connects off the registry lock and transfers ownership to the stream registry.
 func (s *rpcServer) handleProxyOpen(req rpcRequest) rpcResponse {
 	host, ok := getStringParam(req.Params, "host")
 	if !ok || host == "" {
@@ -447,6 +447,7 @@ func (s *rpcServer) handleProxyClose(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleProxyWrite decodes and writes the complete payload, returning transport failures without holding the registry lock.
 func (s *rpcServer) handleProxyWrite(req rpcRequest) rpcResponse {
 	streamID, ok := getStringParam(req.Params, "stream_id")
 	if !ok || streamID == "" {
@@ -548,6 +549,7 @@ func (s *rpcServer) handleProxyWrite(req rpcRequest) rpcResponse {
 	}
 }
 
+// handleProxyStreamSubscribe starts at most one event reader per registered stream under concurrent subscriptions.
 func (s *rpcServer) handleProxyStreamSubscribe(req rpcRequest) rpcResponse {
 	streamID, ok := getStringParam(req.Params, "stream_id")
 	if !ok || streamID == "" {
@@ -784,64 +786,5 @@ func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
 
 		s.dropStream(streamID)
 		return
-	}
-}
-
-// getStringParam accepts only present non-null string parameters.
-func getStringParam(params map[string]any, key string) (string, bool) {
-	if params == nil {
-		return "", false
-	}
-	raw, ok := params[key]
-	if !ok || raw == nil {
-		return "", false
-	}
-	value, ok := raw.(string)
-	return value, ok
-}
-
-// getIntParam converts supported numeric representations and rejects fractional floating-point values.
-func getIntParam(params map[string]any, key string) (int, bool) {
-	if params == nil {
-		return 0, false
-	}
-	raw, ok := params[key]
-	if !ok || raw == nil {
-		return 0, false
-	}
-	switch value := raw.(type) {
-	case int:
-		return value, true
-	case int8:
-		return int(value), true
-	case int16:
-		return int(value), true
-	case int32:
-		return int(value), true
-	case int64:
-		return int(value), true
-	case uint:
-		return int(value), true
-	case uint8:
-		return int(value), true
-	case uint16:
-		return int(value), true
-	case uint32:
-		return int(value), true
-	case uint64:
-		return int(value), true
-	case float64:
-		if math.Trunc(value) != value {
-			return 0, false
-		}
-		return int(value), true
-	case json.Number:
-		n, err := value.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return int(n), true
-	default:
-		return 0, false
 	}
 }
