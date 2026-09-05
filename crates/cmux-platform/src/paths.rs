@@ -1,5 +1,6 @@
-//! Shared Linux application locations for configuration, state and IPC.
+//! Shared Linux application locations and command search paths.
 
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 /// Resolve an XDG application directory, using the home-relative default.
@@ -51,4 +52,50 @@ pub fn runtime_dir() -> PathBuf {
 /// Return the default control socket path shared by desktop and CLI discovery.
 pub fn socket_path() -> PathBuf {
     runtime_dir().join("cmux.sock")
+}
+
+/// Find the first regular-file candidate on PATH without launching it.
+/// Preserve PATH order and relative/empty entries; return None when PATH is absent.
+/// This is discovery only: actual execution validates permissions and binary format.
+pub fn find_command_on_path(name: &str) -> Option<PathBuf> {
+    std::env::var_os("PATH").and_then(|path| find_command_in(name, &path))
+}
+
+/// Search a supplied OS-native path list without reading or mutating process environment.
+fn find_command_in(name: &str, search_path: &OsStr) -> Option<PathBuf> {
+    std::env::split_paths(search_path)
+        .map(|directory| directory.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Search real paths in order, following file symlinks while skipping directories and missing files.
+    #[test]
+    fn command_search_preserves_path_order() {
+        let root = std::env::temp_dir().join(format!(
+            "cmux-command-path-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("first")).unwrap();
+        std::fs::create_dir_all(root.join("second")).unwrap();
+        let first = root.join("first");
+        let second = root.join("second");
+        std::fs::create_dir(first.join("tool")).unwrap();
+        std::fs::write(second.join("tool"), b"candidate").unwrap();
+        let search = std::env::join_paths([&first, &second]).unwrap();
+        assert_eq!(find_command_in("tool", &search), Some(second.join("tool")));
+        std::fs::remove_dir(first.join("tool")).unwrap();
+        std::os::unix::fs::symlink(second.join("tool"), first.join("tool")).unwrap();
+        assert_eq!(find_command_in("tool", &search), Some(first.join("tool")));
+        std::fs::remove_file(second.join("tool")).unwrap();
+        assert!(find_command_in("tool", &search).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

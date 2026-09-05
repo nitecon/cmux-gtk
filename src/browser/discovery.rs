@@ -1,5 +1,6 @@
 //! Optional browser executable discovery without GTK widget dependencies.
 
+use cmux_platform::paths::find_command_on_path;
 use std::path::{Path, PathBuf};
 
 /// Find agent-browser binary in PATH or alongside the cmux binary.
@@ -11,7 +12,7 @@ pub(super) fn which_agent_browser() -> Option<PathBuf> {
             return Some(candidate);
         }
     }
-    if let Some(candidate) = find_on_path("agent-browser") {
+    if let Some(candidate) = find_command_on_path("agent-browser") {
         return Some(candidate);
     }
     // Check alongside cmux binary
@@ -79,16 +80,7 @@ pub(super) fn find_system_chrome() -> Option<PathBuf> {
         "chromium-browser",
     ]
     .iter()
-    .find_map(|name| find_on_path(name))
-}
-
-/// Find the first regular file with this name on PATH; execution validates permissions.
-fn find_on_path(name: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|path| {
-        std::env::split_paths(&path)
-            .map(|dir| dir.join(name))
-            .find(|candidate| candidate.is_file())
-    })
+    .find_map(|name| find_command_on_path(name))
 }
 
 #[cfg(test)]
