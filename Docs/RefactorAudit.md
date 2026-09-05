@@ -356,3 +356,16 @@ Replaced test_linux_terminal_pane_close.sh with a Python scenario using tests/li
 ### Browser-map fixture uses bounded application cleanup
 
 Replaced the reentrant browser-map shell scenario with Python using the same running_app helper as pane close. It retains actual terminal close, responsive ping, deferred-mapping and panic checks, and additionally requires the browser UUID to be the sole surviving surface. Diagnostic polling reads at most 1 MiB. The session-aware browser mock now exits and removes its endpoint/metadata after a close command; the fixture retains explicit signalling for failed-startup paths because the detached mock is not its direct child. Both maintained shell application fixtures now use shared bounded app termination/reaping. Python syntax and diff checks passed; behavior runs only in CI.
+
+
+### Shared fixture polling deadlines
+
+`tests/process_support.py::wait_until` centralizes polling used by window restore,
+SSH/script launch, terminal churn and the shared Linux application fixture.
+Monotonic elapsed time includes unsuccessful predicate work; sleeps are limited
+to the remaining budget. Exceptions propagate without retries. The application
+wrapper also checks whether its owned process has exited. Predicates cannot be
+preempted, so their blocking operations still require independent deadlines.
+The existing CI helper suite covers budget exhaustion, eventual success and
+predicate failures. Local validation was Python syntax parsing and diff checks;
+runtime verification remains in GitHub Actions.

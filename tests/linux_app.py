@@ -5,9 +5,8 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import time
 
-from process_support import stop_process
+from process_support import stop_process, wait_until
 
 
 @dataclass
@@ -40,13 +39,12 @@ class Application:
 
     def wait_for(self, predicate, description, timeout=10):
         """Poll an observable condition with an elapsed-time limit; fail promptly if cmux exits."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
+        def alive_and_ready():
+            """Check process ownership before evaluating the caller's observable condition."""
             assert self.process.poll() is None, f"cmux exited while waiting for {description}"
-            if predicate():
-                return
-            time.sleep(0.1)
-        raise AssertionError(f"timed out waiting for {description}")
+            return predicate()
+
+        wait_until(alive_and_ready, description, timeout)
 
 
 @contextmanager

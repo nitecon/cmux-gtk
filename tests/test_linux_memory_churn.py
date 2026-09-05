@@ -6,19 +6,13 @@ import platform
 from pathlib import Path
 import shlex
 import subprocess
-from process_support import stop_process
+from functools import partial
+from process_support import stop_process, wait_until
 import tempfile
 import time
 
 
-def eventually(check):
-    """Wait up to ten seconds for a lifecycle predicate to converge."""
-    for _ in range(100):
-        if check():
-            return
-        time.sleep(0.1)
-    raise AssertionError("terminal state did not converge")
-
+eventually = partial(wait_until, description="terminal state", timeout=10)
 
 with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     root = Path(directory)

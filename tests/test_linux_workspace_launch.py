@@ -11,17 +11,11 @@ import subprocess
 import tempfile
 import time
 import uuid
-from process_support import stop_process
+from functools import partial
+from process_support import stop_process, wait_until
 
 
-def eventually(check):
-    """Poll launch state up to 150 times, raising if the expected condition never appears."""
-    for _ in range(150):
-        if check():
-            return
-        time.sleep(0.1)
-    raise AssertionError("workspace launch state did not converge")
-
+eventually = partial(wait_until, description="workspace launch state", timeout=15)
 
 with tempfile.TemporaryDirectory(prefix="cmux-workflow-") as directory:
     root = Path(directory)

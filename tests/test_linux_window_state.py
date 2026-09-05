@@ -6,17 +6,11 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
-from process_support import stop_process
+from functools import partial
+from process_support import stop_process, wait_until
 
 
-def eventually(check):
-    """Poll window state up to 100 times, raising if the expected state never appears."""
-    for _ in range(100):
-        if check():
-            return
-        time.sleep(0.1)
-    raise AssertionError("window state did not converge")
-
+eventually = partial(wait_until, description="window state", timeout=10)
 
 with tempfile.TemporaryDirectory(prefix="cmux-window-") as directory:
     root = Path(directory)

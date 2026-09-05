@@ -5,8 +5,9 @@ import signal
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
-from process_support import stop_process
+from process_support import stop_process, wait_until
 
 
 class ProcessCleanup(unittest.TestCase):
@@ -35,6 +36,35 @@ class ProcessCleanup(unittest.TestCase):
         self.assertFalse(stop_process(child))
         self.assertEqual(child.returncode, 7)
         self.assertFalse(stop_process(None))
+
+
+class Polling(unittest.TestCase):
+    """Verify polling budgets include predicate work and failures remain diagnostic."""
+
+    def test_slow_predicate_consumes_deadline(self):
+        """An unsuccessful check exhausting the budget gets no extra retry or sleep."""
+        with patch("process_support.time.monotonic", side_effect=[0, 0, 2]), \
+                patch("process_support.time.sleep") as sleep:
+            with self.assertRaisesRegex(AssertionError, "waiting for terminal exit"):
+                wait_until(lambda: False, "terminal exit", timeout=1)
+            sleep.assert_not_called()
+
+    def test_success_after_retry(self):
+        """A condition may converge on a later attempt before the deadline."""
+        results = iter([False, True])
+        with patch("process_support.time.monotonic", side_effect=[0, 0, 0.95, 0.99]), \
+                patch("process_support.time.sleep") as sleep:
+            wait_until(lambda: next(results), timeout=1)
+            self.assertAlmostEqual(sleep.call_args.args[0], 0.05)
+
+    def test_predicate_failure_propagates(self):
+        """Unexpected fixture failures are not hidden by retries."""
+        def fail():
+            """Represent a failed CLI invocation inside a polling condition."""
+            raise RuntimeError("CLI failed")
+
+        with self.assertRaisesRegex(RuntimeError, "CLI failed"):
+            wait_until(fail)
 
 
 if __name__ == "__main__":
