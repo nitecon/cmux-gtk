@@ -8,7 +8,7 @@ source_format: agent_context
 source_ref: src/socket/handlers.rs
 labels: [linux, gtk, terminal, socket, lifecycle]
 content:
-  purpose: Resolve targets through the workspace pane tree and preserve focus for observational commands.
+  purpose: Worker validation and typed command construction live in src/socket/dispatch.rs; GTK target resolution and mutations live in src/socket/handlers.rs. Resolve targets through the workspace pane tree and preserve focus for observational commands.
   endpoints:
     - method: workspace.list
       transport: Unix JSON socket

@@ -860,3 +860,7 @@ The dispatcher now rejects non-object request containers and non-string/missing 
 ### Shared socket response envelopes (2026-09-05)
 
 Moved success/error response construction from GTK handlers into a small socket-owned module usable by worker validation. Replaced eleven duplicated error envelopes plus diagnostic success construction; browser lookup errors reuse the same envelope and preserve their available-target field. Existing dispatcher tests exercise these public outcomes without adding tests that mirror JSON construction. All-target compilation, formatting and whitespace checks pass; executable validation remains with Actions. This is a behavior-preserving consolidation, not completion of the remaining socket cancellation/serialization audit.
+
+### Socket responsibility separation (2026-09-05)
+
+Separated worker-side dispatch and its executable tests from listener/connection lifecycle code. The public server startup signature no longer accepts an unused AppStateRef; the transport owns no application-model reference and crosses the existing bounded command bridge for GTK work. Existing behavior, framing, correlation and validation tests are preserved under the dispatch module. All-target compilation, formatting and whitespace checks pass; runtime validation remains CI-only. Blocking connect, accepted-request cancellation and remaining serialization/resource boundaries still require completion.

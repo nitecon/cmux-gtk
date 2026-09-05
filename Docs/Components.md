@@ -25,3 +25,5 @@ Share repeated behavior at its owning component. UI and socket callers should in
 Ordered selection after removal is shared by workspace rows and sibling tabs in `src/selection.rs`: preserve the surviving selected identity, otherwise select the replacement at the same slot and fall back at the end. The helper is independent of GTK; callers own widget/model synchronization.
 
 Socket validation workers and GTK handlers construct response envelopes through `src/socket/response.rs`. The helpers preserve request identity and the common success/error shape; handlers may add documented command-specific fields before transport serialization.
+
+Within the socket component, `src/socket/mod.rs` owns listener and connection lifetimes, peer admission and framing. `dispatch.rs` validates worker-side requests and builds typed commands; `dispatch_tests.rs` holds its executable validation/admission scenarios. `handlers.rs` applies GTK/model work, and `response.rs` supplies shared envelopes. Server startup receives a runtime handle and command sender, not application state.
