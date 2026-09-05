@@ -117,6 +117,8 @@ jobs:
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app workspace_controls_release_closed_widget_trees -- --ignored --test-threads=1
 
       - name: Test terminal memory and PTY cleanup under churn
+        env:
+          CMUX_CHURN_REPORT: target/benchmarks/memory-churn.json
         if: ${{ !cancelled() && steps.debug_build.outcome == 'success' }}
         run: dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1200x24' python3 tests/test_linux_memory_churn.py
 

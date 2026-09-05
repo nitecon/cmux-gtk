@@ -2,6 +2,7 @@
 """Exercise real Ghostty terminal cleanup and measure bounded RSS after warmup."""
 import json
 import os
+import platform
 from pathlib import Path
 import shlex
 import subprocess
@@ -10,6 +11,7 @@ import time
 
 
 def eventually(check):
+    """Wait up to ten seconds for a lifecycle predicate to converge."""
     for _ in range(100):
         if check():
             return
@@ -29,13 +31,16 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
 
     def cli(*args):
+        """Invoke the isolated application CLI with a bounded subprocess lifetime."""
         return subprocess.check_output(["target/debug/cmux", "--socket", str(socket), *args], env=env, text=True, timeout=15)
 
     def rss():
+        """Read current resident memory in KiB from the application process."""
         status = Path(f"/proc/{app.pid}/status").read_text()
         return int(next(line.split()[1] for line in status.splitlines() if line.startswith("VmRSS:")))
 
     def children():
+        """Collect child identities across spawning threads, tolerating thread exit races."""
         # Linux exposes children per spawning thread, and Ghostty spawns from
         # its IO thread rather than the GTK thread.
         result = set()
@@ -46,10 +51,31 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
                 pass  # A worker may exit between enumeration and the read.
         return result
 
+    report = {
+        "schema": 1, "revision": os.environ.get("GITHUB_SHA"),
+        "build_profile": "debug", "backend": "x11", "software_rendering": True,
+        "host": {"system": platform.system(), "release": platform.release(),
+                 "machine": platform.machine()},
+        "workload": {"split_close_cycles": 45, "redraw_iterations": 1800,
+                     "redraw_target_hz": 30, "window_pixels": [1800, 1000]},
+        "status": "running", "samples": [],
+    }
+    measurement_start = time.monotonic()
+
+    def record_resources(phase, iteration):
+        """Retain correlated resource counters without collecting terminal content or paths."""
+        snapshot = json.loads(cli("diagnostics", "--json"))
+        report["samples"].append({
+            "phase": phase, "iteration": iteration,
+            "elapsed_seconds": time.monotonic() - measurement_start,
+            "snapshot": snapshot,
+        })
+
     try:
         eventually(socket.exists)
         eventually(lambda: len(children()) >= 1)
         baseline_children = children()
+        record_resources("baseline", 0)
         samples = []
         for cycle in range(45):
             cli("split", "--direction", "horizontal")
@@ -61,6 +87,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
             if cycle in (9, 24, 44):
                 time.sleep(0.5)
                 samples.append(rss())
+                record_resources("split_close", cycle + 1)
             assert app.poll() is None
         # Software GL allocators keep warm caches. Detect continuing substantial
         # growth, rather than requiring RSS to return to an unrealistically exact value.
@@ -92,16 +119,34 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
             assert current < 2 * 1024 * 1024, f"rendering exceeded 2 GiB RSS: {current} KiB"
             if time.monotonic() - started > 15:
                 render_samples.append(current)
+                record_resources("redraw", len(render_samples))
             time.sleep(1)
         assert len(render_samples) >= 20, "sustained output did not run long enough"
         assert max(render_samples[-10:]) - min(render_samples[:10]) < 128 * 1024, f"render RSS kept growing: {render_samples} KiB"
         print(f"1800 large terminal redraws; RSS samples: {render_samples} KiB")
-    except BaseException:
+        report["status"] = "passed"
+    except BaseException as error:
+        report["status"] = "failed"
+        report["error_type"] = type(error).__name__
         log.flush()
         log.seek(0)
         print(log.read())
         raise
     finally:
-        app.terminate()
-        app.wait(timeout=10)
-        log.close()
+        try:
+            app.terminate()
+            try:
+                app.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                app.kill()
+                app.wait(timeout=10)
+        finally:
+            log.close()
+            destination = os.environ.get("CMUX_CHURN_REPORT")
+            if destination:
+                report_path = Path(destination)
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                descriptor = os.open(report_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(descriptor, "w") as output:
+                    json.dump(report, output, indent=2)
+                    output.write("\n")
