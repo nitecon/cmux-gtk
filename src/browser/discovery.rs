@@ -1,6 +1,6 @@
 //! Optional browser executable discovery without GTK widget dependencies.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Find agent-browser binary in PATH or alongside the cmux binary.
 pub(super) fn which_agent_browser() -> Option<PathBuf> {
@@ -37,29 +37,32 @@ pub(super) fn which_agent_browser() -> Option<PathBuf> {
     // independently installed agent-browser versions without pinning one.
     if let Ok(home) = std::env::var("HOME") {
         let versions = PathBuf::from(home).join(".nvm/versions/node");
-        if let Ok(entries) = std::fs::read_dir(versions) {
-            let mut candidates: Vec<(Vec<u64>, PathBuf)> = entries
-                .flatten()
-                .filter_map(|entry| {
-                    let version = entry
-                        .file_name()
-                        .to_string_lossy()
-                        .trim_start_matches('v')
-                        .split('.')
-                        .map(str::parse::<u64>)
-                        .collect::<Result<Vec<_>, _>>()
-                        .ok()?;
-                    let path = entry.path().join("bin/agent-browser");
-                    path.is_file().then_some((version, path))
-                })
-                .collect();
-            candidates.sort_by(|left, right| left.0.cmp(&right.0));
-            if let Some((_, candidate)) = candidates.pop() {
-                return Some(candidate);
-            }
-        }
+        return find_nvm_browser(&versions);
     }
     None
+}
+
+/// Select the newest numeric NVM version containing agent-browser with one retained candidate.
+/// Ignore unreadable entries, nonnumeric version names and missing binaries. Equal versions
+/// keep the last encountered candidate, matching the previous stable-sort selection.
+fn find_nvm_browser(versions: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(versions)
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let version = entry
+                .file_name()
+                .to_string_lossy()
+                .trim_start_matches('v')
+                .split('.')
+                .map(str::parse::<u64>)
+                .collect::<Result<Vec<_>, _>>()
+                .ok()?;
+            let path = entry.path().join("bin/agent-browser");
+            path.is_file().then_some((version, path))
+        })
+        .max_by(|left, right| left.0.cmp(&right.0))
+        .map(|(_, path)| path)
 }
 
 /// Check executable discovery without launching the optional browser service.
@@ -86,4 +89,40 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
             .map(|dir| dir.join(name))
             .find(|candidate| candidate.is_file())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Discover actual version-directory candidates by numeric order without environment mutation.
+    #[test]
+    fn nvm_discovery_ignores_incomplete_installs_and_uses_numeric_versions() {
+        let root = std::env::temp_dir().join(format!("cmux-nvm-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(find_nvm_browser(&root).is_none());
+        for version in [
+            "v9.9.9",
+            "v20.9.0",
+            "v20.10.0",
+            "v100.0.0-beta",
+            "not-a-version",
+        ] {
+            let bin = root.join(version).join("bin");
+            std::fs::create_dir_all(&bin).unwrap();
+            std::fs::write(bin.join("agent-browser"), b"fixture").unwrap();
+        }
+        // A newer partial install and a directory named like the executable are not candidates.
+        std::fs::create_dir_all(root.join("v100.0.0/bin")).unwrap();
+        std::fs::create_dir_all(root.join("v101.0.0/bin/agent-browser")).unwrap();
+        let newest = root.join("v20.10.0/bin/agent-browser");
+        assert_eq!(find_nvm_browser(&root), Some(newest.clone()));
+        std::fs::remove_file(newest).unwrap();
+        assert_eq!(
+            find_nvm_browser(&root),
+            Some(root.join("v20.9.0/bin/agent-browser"))
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(find_nvm_browser(&root).is_none());
+    }
 }
