@@ -14,6 +14,33 @@ fn err(req_id: Value, code: &str, message: &str) -> Value {
     json!({"id": req_id, "ok": false, "error": {"code": code, "message": message}})
 }
 
+/// Send literal UTF-8 text to a live terminal in the active workspace without changing focus.
+/// Resolve the optional UUID before native calls; reject missing targets and embedded NUL bytes.
+fn send_terminal_text(
+    state: &crate::app_state::AppStateRef,
+    id: Option<&str>,
+    text: &str,
+) -> Result<(), (&'static str, &'static str)> {
+    let surface = {
+        let state = state.borrow();
+        state.split_engines.get(state.active_index).and_then(|engine| {
+            match id {
+                Some(id) => engine.find_surface_by_uuid(id),
+                None => engine.root.find_surface_for_pane(engine.active_pane_id),
+            }
+        })
+    }.filter(|surface| !surface.is_null())
+        .ok_or(("not_found", "live terminal surface not found"))?;
+    let text = std::ffi::CString::new(text)
+        .map_err(|_| ("invalid_params", "terminal text contains a NUL byte"))?;
+    // SAFETY: the native handle belongs to a live GTK-thread widget. No model borrow
+    // remains during the call, and the input allocation lives until Ghostty returns.
+    unsafe {
+        crate::ghostty::ffi::ghostty_surface_text(surface, text.as_ptr(), text.as_bytes().len());
+    }
+    Ok(())
+}
+
 /// Resolve a surface_ref string ("surface:N" or UUID) to a UUID string.
 /// Returns Ok(uuid_string) or Err((error_message, available_refs)).
 fn resolve_surface_ref(
@@ -457,59 +484,26 @@ fn handle_socket_command_traced(
         }
 
         SocketCommand::SurfaceSendText { req_id, id, text, resp_tx } => {
-            // SOCK-05: send_text is NOT a focus-intent command — NO focus change.
-            let surface = {
-                let s = state.borrow();
-                if let Some(engine) = s.split_engines.get(s.active_index) {
-                    if let Some(ref uuid_str) = id {
-                        engine.find_surface_by_uuid(uuid_str)
-                    } else {
-                        engine.root.find_surface_for_pane(engine.active_pane_id)
-                    }
-                } else { None }
+            let response = match send_terminal_text(state, id.as_deref(), &text) {
+                Ok(()) => ok(req_id, json!({})),
+                Err((code, message)) => err(req_id, code, message),
             };
-            if let Some(surf) = surface {
-                if !surf.is_null() {
-                    let c_text = std::ffi::CString::new(text.clone()).unwrap_or_default();
-                    unsafe {
-                        crate::ghostty::ffi::ghostty_surface_text(
-                            surf,
-                            c_text.as_ptr(),
-                            c_text.to_bytes().len(),
-                        );
-                    }
-                }
-            }
-            let _ = resp_tx.send(ok(req_id, json!({})));
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::SurfaceSendKey { req_id, id, key, resp_tx } => {
-            // SOCK-05: send_key is NOT a focus-intent command — NO focus change.
-            // For Phase 3, single printable chars sent as text.
-            // Complex key combos (ctrl+c, etc.) require ghostty_surface_key — Phase 4.
-            let surface = {
-                let s = state.borrow();
-                if let Some(engine) = s.split_engines.get(s.active_index) {
-                    if let Some(ref uuid_str) = id {
-                        engine.find_surface_by_uuid(uuid_str)
-                    } else {
-                        engine.root.find_surface_for_pane(engine.active_pane_id)
-                    }
-                } else { None }
+            // Literal characters use the text path. Named key combinations require
+            // native key translation; never report them as successfully delivered.
+            let result = if key.chars().count() == 1 {
+                send_terminal_text(state, id.as_deref(), &key)
+            } else {
+                Err(("not_supported", "send-key currently accepts one literal character"))
             };
-            if let Some(surf) = surface {
-                if !surf.is_null() && key.len() == 1 {
-                    let c_key = std::ffi::CString::new(key.clone()).unwrap_or_default();
-                    unsafe {
-                        crate::ghostty::ffi::ghostty_surface_text(
-                            surf,
-                            c_key.as_ptr(),
-                            c_key.to_bytes().len(),
-                        );
-                    }
-                }
-            }
-            let _ = resp_tx.send(ok(req_id, json!({})));
+            let response = match result {
+                Ok(()) => ok(req_id, json!({})),
+                Err((code, message)) => err(req_id, code, message),
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::SurfaceReadText { req_id, id: _, resp_tx } => {

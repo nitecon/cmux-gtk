@@ -46,6 +46,18 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
         else:
             raise AssertionError("unknown split target unexpectedly succeeded")
         assert app.surfaces() == targeted, "failed split changed layout or selection"
+        for arguments in [
+            ("send-text", "ignored", "--id", "00000000-0000-4000-8000-000000000000"),
+            ("send-key", "ctrl+c", "--id", new_id),
+        ]:
+            try:
+                app.cli(*arguments)
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise AssertionError(f"unsupported input unexpectedly succeeded: {arguments[0]}")
+            assert app.surfaces() == targeted, "failed input changed selection"
+
         app.cli("close-surface", new_id)
         app.wait_for(lambda: len(app.children()) == len(before_children) - 1, "targeted split cleanup")
     log = (root / "app.log").read_text()

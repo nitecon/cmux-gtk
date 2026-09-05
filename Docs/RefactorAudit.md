@@ -612,3 +612,21 @@ and verifies the new surface's traversal position, selected identity and child
 creation/cleanup. It also checks unchanged layout and selection after an invalid
 ID. Workspace binary checking, Python syntax parsing and diff validation passed;
 runtime results remain pending GitHub Actions.
+
+
+### Shared terminal input and truthful delivery errors
+
+Text and literal-key socket commands now share terminal resolution and native
+input delivery. Missing, unrealized or nonterminal targets return `not_found`,
+embedded NUL text returns `invalid_params`, and unsupported named key combinations
+return `not_supported` instead of silent success. A single Unicode scalar is
+accepted by the literal-key path; the old byte-length check discarded non-ASCII
+characters. CLI help describes this implemented scope. Native calls run after
+releasing the model borrow and retain their input allocation through completion.
+The GTK fixture checks invalid-target and unsupported-key failure without selection
+changes. Local binary compilation, Python parsing and diff checks passed.
+
+`surface.read_text` remains an empty-result stub, despite native APIs existing in
+the current Ghostty header. Replacing it needs bounded extraction and executable
+read/focus coverage. Full named-key dispatch also remains unfinished; explicit
+rejection is not claimed as implementation of that capability.

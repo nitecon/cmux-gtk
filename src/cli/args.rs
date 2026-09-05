@@ -127,9 +127,9 @@ pub enum Commands {
         #[arg(long)]
         id: Option<String>,
     },
-    /// Send a key event to a surface
+    /// Send one literal character to a terminal surface
     SendKey {
-        /// Key descriptor
+        /// Literal character (named key combinations are not supported)
         key: String,
         /// Target surface ID (default: focused)
         #[arg(long)]
