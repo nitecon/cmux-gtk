@@ -966,3 +966,9 @@ malformed/truncated input and changed or unknown model identity. Workspace
 all-target compilation, Python syntax and diff checks passed; no local tests ran.
 Earlier cumulative run 33998082761 at d4aa87d6 completed successfully. Current CPU
 metadata and subsequent browser/routing changes still require CI evidence.
+
+### Replace macOS socket-access harness with Linux boundary coverage
+
+The former test_socket_access.py searched Xcode DerivedData/.app bundles, killed external app instances, injected shell startup files and asserted upstream ancestry/password modes absent from this Linux implementation. Replaced it with an isolated application test of the actual same-user SO_PEERCRED contract. A sibling same-user CLI succeeds. A nobody client is first denied by private filesystem permissions; after broadening only fixture-owned path modes, the server independently rejects that foreign UID without a protocol response. Repeated rejections preserve same-user service, and original modes are restored in finally. No product authentication policy changed.
+
+The test explicitly runs under Xvfb/DBus in GitHub Actions and requires the runner sudo facility. Both fixture and embedded foreign-client probe parse, and diff checks pass; no tests ran locally. Updated, validated and published gateway socket ownership documentation. The old harness remains recoverable at 800da223; unsupported upstream authentication modes are not requirements of this platform refactor.
