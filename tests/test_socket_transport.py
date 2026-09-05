@@ -6,10 +6,11 @@ import socket
 import sys
 import tempfile
 import time
+import threading
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from cmux_socket_transport import connect_socket
+from cmux_socket_transport import connect_socket, read_response
 
 
 class SocketTransport(unittest.TestCase):
@@ -44,6 +45,52 @@ class SocketTransport(unittest.TestCase):
         for value in (0, -1, float("nan"), float("inf")):
             with self.subTest(timeout=value), self.assertRaises(ValueError):
                 connect_socket("/unused", value, 1)
+
+
+class ResponseFraming(unittest.TestCase):
+    """Verify byte bounds, deadlines and protocol-specific framing on Unix socket pairs."""
+
+    def test_fragmented_unicode_and_coalesced_lines(self):
+        """UTF-8 split across writes survives decoding and the next line remains buffered."""
+        reader, writer = socket.socketpair()
+        with reader, writer:
+            def send_fragments():
+                """Send a multibyte character across writes followed by two line delimiters."""
+                writer.sendall(b"\xe2")
+                time.sleep(0.02)
+                writer.sendall(b"\x82\xac\nnext\n")
+            sender = threading.Thread(target=send_fragments)
+            sender.start()
+            try:
+                buffer = bytearray()
+                self.assertEqual(read_response(reader, buffer, 1), "€")
+                self.assertEqual(read_response(reader, buffer, 1), "next")
+            finally:
+                sender.join(timeout=2)
+            self.assertFalse(sender.is_alive())
+
+    def test_oversize_and_silent_peer(self):
+        """Oversized replies fail within the byte cap and silent peers reach a total deadline."""
+        reader, writer = socket.socketpair()
+        with reader, writer:
+            writer.sendall(b"x" * 17)
+            buffer = bytearray()
+            with self.assertRaisesRegex(ValueError, "byte limit"):
+                read_response(reader, buffer, 1, limit=16)
+            self.assertLessEqual(len(buffer), 17)
+            with self.assertRaises(TimeoutError):
+                read_response(reader, bytearray(), 0.03)
+
+    def test_multiline_and_truncated_json_line(self):
+        """V1 preserves multiple lines; V2 rejects EOF without its line delimiter."""
+        reader, writer = socket.socketpair()
+        with reader, writer:
+            writer.sendall(b"one\ntwo\n")
+            self.assertEqual(read_response(reader, bytearray(), 1, multiline=True), "one\ntwo")
+            writer.sendall(b"truncated")
+            writer.shutdown(socket.SHUT_WR)
+            with self.assertRaises(ConnectionError):
+                read_response(reader, bytearray(), 1)
 
 
 if __name__ == "__main__":

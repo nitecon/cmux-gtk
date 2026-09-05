@@ -22,7 +22,6 @@ import sys
 from pathlib import Path
 import json
 import os
-import select
 import socket
 import time
 import uuid
@@ -31,7 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from cmux_socket_discovery import default_socket_path as _default_socket_path
-from cmux_socket_transport import connect_socket
+from cmux_socket_transport import connect_socket, read_response
 
 class cmuxError(Exception):
     """Exception raised for cmux errors."""
@@ -103,7 +102,7 @@ class cmux:
         """Resolve discovery at construction time and initialize disconnected protocol state."""
         self.socket_path = socket_path or _default_socket_path()
         self._socket: Optional[socket.socket] = None
-        self._recv_buffer: str = ""
+        self._recv_buffer = bytearray()
         self._next_id: int = 1
 
     # ---------------------------------------------------------------------
@@ -122,7 +121,7 @@ class cmux:
     def close(self) -> None:
         """Release the connection and discard any response buffered from that server."""
         connection, self._socket = self._socket, None
-        self._recv_buffer = ""
+        self._recv_buffer.clear()
         if connection is not None:
             connection.close()
 
@@ -141,32 +140,14 @@ class cmux:
     # ---------------------------------------------------------------------
 
     def _recv_line(self, timeout_s: float = 20.0) -> str:
+        """Read one bounded UTF-8 JSON line, discarding a failed connection."""
         if self._socket is None:
             raise cmuxError("Not connected")
-
-        if "\n" in self._recv_buffer:
-            line, rest = self._recv_buffer.split("\n", 1)
-            self._recv_buffer = rest
-            return line
-
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
-            remaining = max(0.0, deadline - time.time())
-            ready, _, _ = select.select([self._socket], [], [], min(0.2, remaining))
-            if not ready:
-                continue
-
-            chunk = self._socket.recv(8192)
-            if not chunk:
-                raise cmuxError("Socket closed")
-            self._recv_buffer += chunk.decode("utf-8", errors="replace")
-
-            if "\n" in self._recv_buffer:
-                line, rest = self._recv_buffer.split("\n", 1)
-                self._recv_buffer = rest
-                return line
-
-        raise cmuxError("Timed out waiting for response")
+        try:
+            return read_response(self._socket, self._recv_buffer, timeout_s)
+        except (OSError, ValueError) as error:
+            self.close()
+            raise cmuxError(f"Socket response failed: {error}") from error
 
     def _call(self, method: str, params: Optional[Dict[str, Any]] = None, timeout_s: float = 20.0) -> Any:
         if self._socket is None:

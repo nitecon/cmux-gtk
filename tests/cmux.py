@@ -31,7 +31,6 @@ Usage:
 import socket
 import sys
 from pathlib import Path
-import select
 import os
 import time
 import json
@@ -42,7 +41,7 @@ from typing import Optional, List, Tuple, Union
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from cmux_socket_discovery import default_socket_path as _default_socket_path
-from cmux_socket_transport import connect_socket
+from cmux_socket_transport import connect_socket, read_response
 
 class cmuxError(Exception):
     """Exception raised for cmux errors"""
@@ -99,7 +98,7 @@ class cmux:
         # Resolve at init time so imports don't "lock in" a stale path.
         self.socket_path = socket_path or _default_socket_path()
         self._socket: Optional[socket.socket] = None
-        self._recv_buffer: str = ""
+        self._recv_buffer = bytearray()
 
     def connect(self) -> None:
         """Connect within a bounded startup budget, retaining one owned socket."""
@@ -113,7 +112,7 @@ class cmux:
     def close(self) -> None:
         """Release the connection and discard any response buffered from that server."""
         connection, self._socket = self._socket, None
-        self._recv_buffer = ""
+        self._recv_buffer.clear()
         if connection is not None:
             connection.close()
 
@@ -134,35 +133,10 @@ class cmux:
 
         try:
             self._socket.sendall((command + "\n").encode())
-            data = self._recv_buffer
-            self._recv_buffer = ""
-            saw_newline = "\n" in data
-            start = time.time()
-            while True:
-                if saw_newline:
-                    ready, _, _ = select.select([self._socket], [], [], 0.1)
-                    if not ready:
-                        break
-                try:
-                    chunk = self._socket.recv(8192)
-                except socket.timeout:
-                    if saw_newline:
-                        break
-                    if time.time() - start >= 5.0:
-                        raise cmuxError("Command timed out")
-                    continue
-                if not chunk:
-                    break
-                data += chunk.decode()
-                if "\n" in data:
-                    saw_newline = True
-            if data.endswith("\n"):
-                data = data[:-1]
-            return data
-        except socket.timeout:
-            raise cmuxError("Command timed out")
-        except socket.error as e:
-            raise cmuxError(f"Socket error: {e}")
+            return read_response(self._socket, self._recv_buffer, 5.0, multiline=True)
+        except (OSError, ValueError) as error:
+            self.close()
+            raise cmuxError(f"Socket response failed: {error}") from error
 
     def ping(self) -> bool:
         """Check if the server is responding"""
