@@ -59,10 +59,12 @@ func TestStreamPumpStopsOnOutputFailure(t *testing.T) {
 	}
 }
 
+// newNotifyingBuffer creates a synchronized output buffer with a coalescing write notification.
 func newNotifyingBuffer() *notifyingBuffer {
 	return &notifyingBuffer{notify: make(chan struct{}, 1)}
 }
 
+// Write appends output under the mutex and coalesces notifications without blocking the writer.
 func (b *notifyingBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -76,6 +78,7 @@ func (b *notifyingBuffer) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// String returns the accumulated output under the mutex.
 func (b *notifyingBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -87,6 +90,7 @@ type eofWithPayloadConn struct {
 	readOnce bool
 }
 
+// Read returns the fixture payload and EOF together once, then empty EOF.
 func (c *eofWithPayloadConn) Read(p []byte) (int, error) {
 	if c.readOnce {
 		return 0, io.EOF
@@ -96,21 +100,34 @@ func (c *eofWithPayloadConn) Read(p []byte) (int, error) {
 	return n, io.EOF
 }
 
+// Write accepts discarded input for the synthetic EOF connection.
 func (c *eofWithPayloadConn) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// Close satisfies connection cleanup without owning native resources.
 func (c *eofWithPayloadConn) Close() error { return nil }
+
+// LocalAddr returns a synthetic loopback endpoint for the connection fixture.
 func (c *eofWithPayloadConn) LocalAddr() net.Addr {
 	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
 }
+
+// RemoteAddr returns a synthetic loopback peer for the connection fixture.
 func (c *eofWithPayloadConn) RemoteAddr() net.Addr {
 	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
 }
-func (c *eofWithPayloadConn) SetDeadline(time.Time) error      { return nil }
-func (c *eofWithPayloadConn) SetReadDeadline(time.Time) error  { return nil }
+
+// SetDeadline accepts deadlines as a no-op for the nonblocking synthetic connection.
+func (c *eofWithPayloadConn) SetDeadline(time.Time) error { return nil }
+
+// SetReadDeadline accepts read deadlines as a no-op for the synthetic connection.
+func (c *eofWithPayloadConn) SetReadDeadline(time.Time) error { return nil }
+
+// SetWriteDeadline accepts write deadlines as a no-op for the synthetic connection.
 func (c *eofWithPayloadConn) SetWriteDeadline(time.Time) error { return nil }
 
+// TestRunVersion checks that daemon version dispatch succeeds and prints a value.
 func TestRunVersion(t *testing.T) {
 	var out bytes.Buffer
 	code := run([]string{"version"}, strings.NewReader(""), &out, &bytes.Buffer{})
@@ -122,6 +139,7 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
+// TestWrapperBinaryDispatchesIntoCLI launches the test binary through a wrapper symlink to verify CLI entry routing.
 func TestWrapperBinaryDispatchesIntoCLI(t *testing.T) {
 	if os.Getenv("CMUXD_REMOTE_MAIN_HELPER") == "1" {
 		separator := 0
@@ -162,6 +180,7 @@ func TestWrapperBinaryDispatchesIntoCLI(t *testing.T) {
 	}
 }
 
+// TestRunStdioHelloAndPing checks handshake and ping responses through the framed stdio server.
 func TestRunStdioHelloAndPing(t *testing.T) {
 	input := strings.NewReader(
 		`{"id":1,"method":"hello","params":{}}` + "\n" +
@@ -213,6 +232,7 @@ func TestRunStdioHelloAndPing(t *testing.T) {
 	}
 }
 
+// TestRunStdioInvalidJSONAndUnknownMethod checks protocol errors do not prevent subsequent dispatch.
 func TestRunStdioInvalidJSONAndUnknownMethod(t *testing.T) {
 	input := strings.NewReader(
 		`{"id":1,"method":"hello","params":{}` + "\n" +
@@ -254,6 +274,7 @@ func TestRunStdioInvalidJSONAndUnknownMethod(t *testing.T) {
 	}
 }
 
+// TestRunStdioSessionResizeFlow exercises attachment-size operations through stdio framing.
 func TestRunStdioSessionResizeFlow(t *testing.T) {
 	input := strings.NewReader(
 		`{"id":1,"method":"session.open","params":{"session_id":"sess-stdio"}}` + "\n" +
@@ -290,6 +311,7 @@ func TestRunStdioSessionResizeFlow(t *testing.T) {
 	}
 }
 
+// TestProxyStreamRoundTrip exercises TCP stream creation, input, subscription and output events.
 func TestProxyStreamRoundTrip(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -414,6 +436,7 @@ func TestProxyStreamRoundTrip(t *testing.T) {
 	}
 }
 
+// TestProxyStreamEOFPayloadIsNotDuplicatedAcrossDataAndEOFEvents checks bytes returned alongside EOF appear in exactly one data event.
 func TestProxyStreamEOFPayloadIsNotDuplicatedAcrossDataAndEOFEvents(t *testing.T) {
 	eventOutput := newNotifyingBuffer()
 	server := &rpcServer{
@@ -491,6 +514,7 @@ func TestProxyStreamEOFPayloadIsNotDuplicatedAcrossDataAndEOFEvents(t *testing.T
 	}
 }
 
+// boolToInt converts a test predicate to a count for event assertions.
 func boolToInt(value bool) int {
 	if value {
 		return 1
@@ -498,6 +522,7 @@ func boolToInt(value bool) int {
 	return 0
 }
 
+// decodeOptionalBase64 decodes an optional event payload while treating absent data as empty.
 func decodeOptionalBase64(value any) ([]byte, error) {
 	encoded, ok := value.(string)
 	if !ok || encoded == "" {
@@ -506,6 +531,7 @@ func decodeOptionalBase64(value any) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(encoded)
 }
 
+// TestGetIntParamRejectsFractionalFloat64 checks integral JSON numbers are accepted and fractional ports rejected.
 func TestGetIntParamRejectsFractionalFloat64(t *testing.T) {
 	params := map[string]any{
 		"port":       80.9,
@@ -525,6 +551,7 @@ func TestGetIntParamRejectsFractionalFloat64(t *testing.T) {
 	}
 }
 
+// TestRunStdioOversizedFrameContinuesServing checks oversized requests are drained and later frames still receive responses.
 func TestRunStdioOversizedFrameContinuesServing(t *testing.T) {
 	oversized := `{"id":1,"method":"ping","params":{"blob":"` + strings.Repeat("a", maxRPCFrameBytes) + `"}}`
 	input := strings.NewReader(oversized + "\n" + `{"id":2,"method":"ping","params":{}}` + "\n")
@@ -560,6 +587,7 @@ func TestRunStdioOversizedFrameContinuesServing(t *testing.T) {
 	}
 }
 
+// TestProxyOpenInvalidParams checks invalid port types produce an RPC parameter error.
 func TestProxyOpenInvalidParams(t *testing.T) {
 	server := &rpcServer{
 		nextStreamID:  1,
@@ -586,6 +614,7 @@ func TestProxyOpenInvalidParams(t *testing.T) {
 	}
 }
 
+// TestSessionResizeCoordinator checks attachment sizes coordinate the session effective grid.
 func TestSessionResizeCoordinator(t *testing.T) {
 	server := &rpcServer{
 		nextStreamID:  1,
@@ -676,6 +705,7 @@ func TestSessionResizeCoordinator(t *testing.T) {
 	assertEffectiveSize(t, reattach, 110, 50) // RZ-004: recompute from active attachments on reattach
 }
 
+// TestSessionInvalidParamsAndNotFound checks validation, absent sessions and attach-versus-resize semantics.
 func TestSessionInvalidParamsAndNotFound(t *testing.T) {
 	server := &rpcServer{
 		nextStreamID:  1,
@@ -729,6 +759,7 @@ func TestSessionInvalidParamsAndNotFound(t *testing.T) {
 	assertEffectiveSize(t, attached, 80, 24)
 }
 
+// assertEffectiveSize asserts the effective grid returned by a successful session response.
 func assertEffectiveSize(t *testing.T, resp rpcResponse, wantCols, wantRows int) {
 	t.Helper()
 	if !resp.OK {
@@ -745,6 +776,7 @@ func assertEffectiveSize(t *testing.T, resp rpcResponse, wantCols, wantRows int)
 	}
 }
 
+// assertAttachmentCount asserts the number of attachments returned by a successful session response.
 func assertAttachmentCount(t *testing.T, resp rpcResponse, want int) {
 	t.Helper()
 	if !resp.OK {
@@ -770,6 +802,7 @@ func assertAttachmentCount(t *testing.T, resp rpcResponse, want int) {
 	}
 }
 
+// asInt normalizes numeric response fixtures for assertions and fails on unsupported values.
 func asInt(t *testing.T, value any, field string) int {
 	t.Helper()
 	switch typed := value.(type) {
@@ -804,6 +837,7 @@ func asInt(t *testing.T, value any, field string) int {
 	}
 }
 
+// TestSessionSpawnDirectoryAndClose checks real PTY launch directory, child reaping and invalid-directory failure.
 func TestSessionSpawnDirectoryAndClose(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 	directory := t.TempDir()

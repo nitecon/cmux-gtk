@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// captureStdout captures small synchronous CLI output by temporarily replacing process stdout; callers must not run in parallel.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 	original := os.Stdout
@@ -43,6 +44,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	return string(output)
 }
 
+// makeShortUnixSocketPath allocates a short temporary socket path and registers directory cleanup.
 func makeShortUnixSocketPath(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "cmuxd-")
@@ -53,8 +55,7 @@ func makeShortUnixSocketPath(t *testing.T) string {
 	return filepath.Join(dir, "cmux.sock")
 }
 
-// startMockSocket creates a Unix socket that accepts one connection,
-// reads a line, and responds with the given canned response.
+// startMockSocket serves a canned response for each Unix socket connection until test cleanup.
 func startMockSocket(t *testing.T, response string) string {
 	t.Helper()
 	sockPath := makeShortUnixSocketPath(t)
@@ -123,6 +124,7 @@ func startMockV2Socket(t *testing.T) string {
 	return sockPath
 }
 
+// startMockV2SocketWithRequestCapture echoes JSON requests and exposes captured payloads through a buffered channel.
 func startMockV2SocketWithRequestCapture(t *testing.T) (string, <-chan map[string]any) {
 	t.Helper()
 	sockPath := makeShortUnixSocketPath(t)
@@ -167,6 +169,7 @@ func startMockV2SocketWithRequestCapture(t *testing.T) (string, <-chan map[strin
 	return sockPath, requests
 }
 
+// startMockV2TCPSocketWithResult serves a fixed JSON result through a loopback TCP listener owned by the test.
 func startMockV2TCPSocketWithResult(t *testing.T, result any) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -233,6 +236,7 @@ func startMockTCPSocket(t *testing.T, response string) string {
 	return ln.Addr().String()
 }
 
+// startMockAuthenticatedTCPSocket checks the client challenge response against an independently computed HMAC before serving commands.
 func startMockAuthenticatedTCPSocket(t *testing.T, relayID, relayToken, response string) string {
 	t.Helper()
 	relayTokenBytes := mustHex(t, relayToken)
@@ -298,6 +302,7 @@ func startMockAuthenticatedTCPSocket(t *testing.T, relayID, relayToken, response
 	return ln.Addr().String()
 }
 
+// mustHex decodes a hexadecimal fixture or fails the calling test.
 func mustHex(t *testing.T, value string) []byte {
 	t.Helper()
 	data, err := hex.DecodeString(value)
@@ -307,6 +312,7 @@ func mustHex(t *testing.T, value string) []byte {
 	return data
 }
 
+// TestDialSocketRefreshesToUpdatedTCPAddressWithoutPolling checks that refusal triggers a single refresh to a replacement relay address.
 func TestDialSocketRefreshesToUpdatedTCPAddressWithoutPolling(t *testing.T) {
 	staleListener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -351,6 +357,7 @@ func TestDialSocketRefreshesToUpdatedTCPAddressWithoutPolling(t *testing.T) {
 	}
 }
 
+// TestDialSocketFailsFastWhenTCPAddressStaysStale checks that an unchanged refused address does not trigger readiness polling.
 func TestDialSocketFailsFastWhenTCPAddressStaysStale(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -377,6 +384,7 @@ func TestDialSocketFailsFastWhenTCPAddressStaysStale(t *testing.T) {
 	}
 }
 
+// TestCLIPingV1 checks the legacy ping command over a Unix socket.
 func TestCLIPingV1(t *testing.T) {
 	sockPath := startMockSocket(t, "pong")
 	code := runCLI([]string{"--socket", sockPath, "ping"})
@@ -385,6 +393,7 @@ func TestCLIPingV1(t *testing.T) {
 	}
 }
 
+// TestCLIPingV1OverTCP checks the legacy ping command over loopback TCP.
 func TestCLIPingV1OverTCP(t *testing.T) {
 	addr := startMockTCPSocket(t, "pong")
 	code := runCLI([]string{"--socket", addr, "ping"})
@@ -393,6 +402,7 @@ func TestCLIPingV1OverTCP(t *testing.T) {
 	}
 }
 
+// TestCLIPingV1OverAuthenticatedTCPWithEnv exercises relay authentication using environment credentials.
 func TestCLIPingV1OverAuthenticatedTCPWithEnv(t *testing.T) {
 	relayID := "relay-1"
 	relayToken := strings.Repeat("a1", 32)
@@ -406,6 +416,7 @@ func TestCLIPingV1OverAuthenticatedTCPWithEnv(t *testing.T) {
 	}
 }
 
+// TestCLIPingV1OverAuthenticatedTCPWithRelayFile exercises relay authentication using the port-specific credential file.
 func TestCLIPingV1OverAuthenticatedTCPWithRelayFile(t *testing.T) {
 	relayID := "relay-2"
 	relayToken := strings.Repeat("b2", 32)
@@ -434,6 +445,7 @@ func TestCLIPingV1OverAuthenticatedTCPWithRelayFile(t *testing.T) {
 	}
 }
 
+// TestDialSocketDetection checks Unix versus TCP address selection and failed connection handling.
 func TestDialSocketDetection(t *testing.T) {
 	// Unix socket paths should attempt Unix dial
 	for _, path := range []string{"/tmp/cmux-nonexistent-test-99999.sock", "/var/run/cmux-nonexistent.sock"} {
@@ -468,6 +480,7 @@ func TestDialSocketDetection(t *testing.T) {
 	conn.Close()
 }
 
+// TestCLINewWindowV1 checks legacy window creation command dispatch.
 func TestCLINewWindowV1(t *testing.T) {
 	sockPath := startMockSocket(t, "OK window_id=abc123")
 	code := runCLI([]string{"--socket", sockPath, "new-window"})
@@ -476,6 +489,7 @@ func TestCLINewWindowV1(t *testing.T) {
 	}
 }
 
+// TestSocketRoundTripReadsFullMultilineV1Response verifies the complete legacy multiline response is retained.
 func TestSocketRoundTripReadsFullMultilineV1Response(t *testing.T) {
 	addr := startMockTCPSocket(t, "window:alpha\nwindow:beta\nwindow:gamma")
 	resp, err := socketRoundTrip(addr, "list_windows", nil)
@@ -488,6 +502,7 @@ func TestSocketRoundTripReadsFullMultilineV1Response(t *testing.T) {
 	}
 }
 
+// TestCLICloseWindowV1 checks legacy window close arguments sent to the socket.
 func TestCLICloseWindowV1(t *testing.T) {
 	// Verify that the flag value is appended to the v1 command
 	dir := t.TempDir()
@@ -526,6 +541,7 @@ func TestCLICloseWindowV1(t *testing.T) {
 	}
 }
 
+// TestCLIListWorkspacesV2 checks workspace listing through the JSON protocol.
 func TestCLIListWorkspacesV2(t *testing.T) {
 	sockPath := startMockV2Socket(t)
 	code := runCLI([]string{"--socket", sockPath, "--json", "list-workspaces"})
@@ -534,6 +550,7 @@ func TestCLIListWorkspacesV2(t *testing.T) {
 	}
 }
 
+// TestCLIListWorkspacesV2DefaultOutputShowsResult checks human-readable workspace results without the JSON flag.
 func TestCLIListWorkspacesV2DefaultOutputShowsResult(t *testing.T) {
 	sockPath := startMockV2TCPSocketWithResult(t, map[string]any{"method": "workspace.list", "params": map[string]any{}})
 	output := captureStdout(t, func() {
@@ -547,6 +564,7 @@ func TestCLIListWorkspacesV2DefaultOutputShowsResult(t *testing.T) {
 	}
 }
 
+// TestCLINotifyDefaultOutputPrintsOKForEmptyResult checks the success marker for an empty notification result.
 func TestCLINotifyDefaultOutputPrintsOKForEmptyResult(t *testing.T) {
 	sockPath := startMockV2TCPSocketWithResult(t, map[string]any{})
 	output := captureStdout(t, func() {
@@ -560,6 +578,7 @@ func TestCLINotifyDefaultOutputPrintsOKForEmptyResult(t *testing.T) {
 	}
 }
 
+// TestCLIRPCPassthrough checks explicit RPC method forwarding.
 func TestCLIRPCPassthrough(t *testing.T) {
 	sockPath := startMockV2Socket(t)
 	code := runCLI([]string{"--socket", sockPath, "rpc", "system.capabilities"})
@@ -568,6 +587,7 @@ func TestCLIRPCPassthrough(t *testing.T) {
 	}
 }
 
+// TestCLIRPCWithParams checks explicit JSON RPC parameter forwarding.
 func TestCLIRPCWithParams(t *testing.T) {
 	sockPath := startMockV2Socket(t)
 	code := runCLI([]string{"--socket", sockPath, "rpc", "workspace.create", `{"title":"test"}`})
@@ -576,6 +596,7 @@ func TestCLIRPCWithParams(t *testing.T) {
 	}
 }
 
+// TestCLIUnknownCommand checks rejection of an unsupported command.
 func TestCLIUnknownCommand(t *testing.T) {
 	code := runCLI([]string{"--socket", "/dev/null", "does-not-exist"})
 	if code != 2 {
@@ -583,6 +604,7 @@ func TestCLIUnknownCommand(t *testing.T) {
 	}
 }
 
+// TestCLINoSocket checks command failure when the selected socket cannot be reached.
 func TestCLINoSocket(t *testing.T) {
 	// Without CMUX_SOCKET_PATH set, should fail
 	os.Unsetenv("CMUX_SOCKET_PATH")
@@ -592,6 +614,7 @@ func TestCLINoSocket(t *testing.T) {
 	}
 }
 
+// TestCLISocketEnvVar checks socket selection through the environment.
 func TestCLISocketEnvVar(t *testing.T) {
 	sockPath := startMockSocket(t, "pong")
 	os.Setenv("CMUX_SOCKET_PATH", sockPath)
@@ -603,6 +626,7 @@ func TestCLISocketEnvVar(t *testing.T) {
 	}
 }
 
+// TestCLIV2FlagMapping checks CLI flags are translated into the expected JSON parameter names.
 func TestCLIV2FlagMapping(t *testing.T) {
 	// Verify that --workspace gets mapped to workspace_id in params
 	dir := t.TempDir()
@@ -646,6 +670,7 @@ func TestCLIV2FlagMapping(t *testing.T) {
 	}
 }
 
+// TestBusyboxArgv0Detection checks invocation-name routing between daemon and relay CLI modes.
 func TestBusyboxArgv0Detection(t *testing.T) {
 	// Verify that when argv[0] base is "cmux", we enter CLI mode
 	base := filepath.Base("cmux")
@@ -662,6 +687,7 @@ func TestBusyboxArgv0Detection(t *testing.T) {
 	}
 }
 
+// TestCLIBrowserSubcommand checks browser command forwarding through the relay.
 func TestCLIBrowserSubcommand(t *testing.T) {
 	sockPath := startMockV2Socket(t)
 	code := runCLI([]string{"--socket", sockPath, "--json", "browser", "open", "--url", "https://example.com"})
@@ -670,6 +696,7 @@ func TestCLIBrowserSubcommand(t *testing.T) {
 	}
 }
 
+// TestCLINewPaneDefaultsDirectionAndForwardsExtraFlags checks pane direction defaults and additional request flags.
 func TestCLINewPaneDefaultsDirectionAndForwardsExtraFlags(t *testing.T) {
 	sockPath, requests := startMockV2SocketWithRequestCapture(t)
 	code := runCLI([]string{
@@ -706,6 +733,7 @@ func TestCLINewPaneDefaultsDirectionAndForwardsExtraFlags(t *testing.T) {
 	}
 }
 
+// TestCLIListPanelsUsesSurfaceList checks the panel-list alias maps to surface listing.
 func TestCLIListPanelsUsesSurfaceList(t *testing.T) {
 	sockPath, requests := startMockV2SocketWithRequestCapture(t)
 	code := runCLI([]string{"--socket", sockPath, "--json", "list-panels", "--workspace", "ws-1"})
@@ -727,6 +755,7 @@ func TestCLIListPanelsUsesSurfaceList(t *testing.T) {
 	}
 }
 
+// TestCLIFocusPanelUsesSurfaceFocus checks the panel-focus alias maps to surface focus.
 func TestCLIFocusPanelUsesSurfaceFocus(t *testing.T) {
 	sockPath, requests := startMockV2SocketWithRequestCapture(t)
 	code := runCLI([]string{"--socket", sockPath, "--json", "focus-panel", "--workspace", "ws-1", "--panel", "surface-1"})
@@ -754,6 +783,7 @@ func TestCLIFocusPanelUsesSurfaceFocus(t *testing.T) {
 	}
 }
 
+// TestCLIBrowserOpenUsesOpenSplitAndWorkspaceEnv checks browser creation uses the current method and workspace default.
 func TestCLIBrowserOpenUsesOpenSplitAndWorkspaceEnv(t *testing.T) {
 	sockPath, requests := startMockV2SocketWithRequestCapture(t)
 	t.Setenv("CMUX_WORKSPACE_ID", "env-ws")
@@ -779,6 +809,7 @@ func TestCLIBrowserOpenUsesOpenSplitAndWorkspaceEnv(t *testing.T) {
 	}
 }
 
+// TestCLIBrowserGetURLUsesCurrentMethodAndSurfaceEnv checks browser URL lookup uses the current method and surface default.
 func TestCLIBrowserGetURLUsesCurrentMethodAndSurfaceEnv(t *testing.T) {
 	sockPath, requests := startMockV2SocketWithRequestCapture(t)
 	t.Setenv("CMUX_SURFACE_ID", "env-sf")
@@ -801,6 +832,7 @@ func TestCLIBrowserGetURLUsesCurrentMethodAndSurfaceEnv(t *testing.T) {
 	}
 }
 
+// TestCLINoArgs checks usage behavior when the CLI receives no command.
 func TestCLINoArgs(t *testing.T) {
 	code := runCLI([]string{})
 	if code != 2 {
@@ -808,6 +840,7 @@ func TestCLINoArgs(t *testing.T) {
 	}
 }
 
+// TestCLIHelpFlag checks explicit help flag handling.
 func TestCLIHelpFlag(t *testing.T) {
 	code := runCLI([]string{"--help"})
 	if code != 0 {
@@ -815,6 +848,7 @@ func TestCLIHelpFlag(t *testing.T) {
 	}
 }
 
+// TestCLIHelpCommand checks the help command alias.
 func TestCLIHelpCommand(t *testing.T) {
 	code := runCLI([]string{"help"})
 	if code != 0 {
@@ -822,6 +856,7 @@ func TestCLIHelpCommand(t *testing.T) {
 	}
 }
 
+// TestFlagToParamKey checks CLI-to-protocol parameter spelling.
 func TestFlagToParamKey(t *testing.T) {
 	tests := []struct {
 		input, expected string
@@ -846,6 +881,7 @@ func TestFlagToParamKey(t *testing.T) {
 	}
 }
 
+// TestParseFlags checks parsed flag values for the declared schema.
 func TestParseFlags(t *testing.T) {
 	args := []string{"positional-cmd", "--workspace", "ws-1", "--surface", "sf-2", "--unknown", "val"}
 	_, err := parseFlags(args, []string{"workspace", "surface"})
@@ -854,6 +890,7 @@ func TestParseFlags(t *testing.T) {
 	}
 }
 
+// TestParseFlagsCollectsKnownFlagsAndPositionalArgs checks known flags and positional arguments are retained separately.
 func TestParseFlagsCollectsKnownFlagsAndPositionalArgs(t *testing.T) {
 	args := []string{"positional-cmd", "--workspace", "ws-1", "--surface", "sf-2"}
 	result, err := parseFlags(args, []string{"workspace", "surface"})
@@ -871,6 +908,7 @@ func TestParseFlagsCollectsKnownFlagsAndPositionalArgs(t *testing.T) {
 	}
 }
 
+// TestCLIEnvVarDefaults checks workspace and surface defaults in an actual outgoing request.
 func TestCLIEnvVarDefaults(t *testing.T) {
 	// Test that CMUX_WORKSPACE_ID and CMUX_SURFACE_ID are used as defaults
 	dir := t.TempDir()
