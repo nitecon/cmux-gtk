@@ -7,6 +7,18 @@ use std::path::Path;
 use std::time::Duration;
 
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
+const EXCHANGE_CAPACITY: usize = 16;
+static EXCHANGES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(EXCHANGE_CAPACITY);
+static REJECTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Report admitted async exchanges and overload rejections without acquiring capacity or waiting.
+pub(crate) fn snapshot() -> Value {
+    serde_json::json!({
+        "capacity": EXCHANGE_CAPACITY,
+        "in_flight": EXCHANGE_CAPACITY - EXCHANGES.available_permits(),
+        "rejected": REJECTED.load(std::sync::atomic::Ordering::Relaxed),
+    })
+}
 
 /// Connect and exchange one command with bounded response memory and socket I/O timeouts.
 /// This function blocks its caller; connection establishment has no explicit deadline.
@@ -21,10 +33,10 @@ pub(super) fn request(path: &Path, request: &Value) -> Result<Value, String> {
 /// Reject excess work immediately rather than retaining an unbounded queue of browser operations.
 pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value, String> {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
-    static EXCHANGES: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(16);
-    let _permit = EXCHANGES
-        .try_acquire()
-        .map_err(|_| "Browser command capacity reached".to_string())?;
+    let _permit = EXCHANGES.try_acquire().map_err(|_| {
+        REJECTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        "Browser command capacity reached".to_string()
+    })?;
     let exchange = async {
         let mut stream = tokio::net::UnixStream::connect(path).await?;
         let mut payload = serde_json::to_vec(request)?;

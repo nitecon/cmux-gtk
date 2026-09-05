@@ -125,6 +125,7 @@ pub fn snapshot() -> serde_json::Value {
         "resources": resources,
         "gtk_event_loop": event_loop::snapshot(),
         "browser_preview": crate::browser::metrics::snapshot(),
+        "browser_commands": crate::browser::transport::snapshot(),
         "terminals": {"registered": crate::ghostty::registry::live_count()},
         "rpc": {
             "in_flight": RPC_IN_FLIGHT.load(Ordering::Relaxed),

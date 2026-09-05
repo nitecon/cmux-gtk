@@ -6,7 +6,7 @@ pub(crate) mod metrics;
 mod motion;
 mod stream;
 pub use motion::spawn_motion_forwarder;
-mod transport;
+pub(crate) mod transport;
 pub use discovery::agent_browser_available;
 use discovery::{find_system_chrome, which_agent_browser};
 use std::path::PathBuf;
