@@ -112,6 +112,9 @@ jobs:
       - name: Test terminal pane close lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_terminal_pane_close.py
 
+      - name: Test unfocused terminal SIGINT delivery
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_terminal_sigint.py
+
       - name: Test surface tab close with browser mapping
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_surface_tab_reentrant_close.py
 
