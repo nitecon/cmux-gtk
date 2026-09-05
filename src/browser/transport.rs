@@ -1,4 +1,4 @@
-//! Synchronous browser command framing, isolated from GTK widget ownership.
+//! Browser command framing shared by asynchronous RPC and remaining synchronous UI callers.
 
 use serde_json::Value;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -35,13 +35,7 @@ pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value,
             .take(MAX_RESPONSE_BYTES + 1)
             .read_until(b'\n', &mut response)
             .await?;
-        if response.len() as u64 > MAX_RESPONSE_BYTES {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "browser response exceeds 4 MiB",
-            ));
-        }
-        serde_json::from_slice(&response).map_err(io::Error::from)
+        parse_response(&response)
     };
     tokio::time::timeout(Duration::from_secs(5), exchange)
         .await
@@ -59,13 +53,18 @@ fn exchange(mut stream: UnixStream, request: &Value, timeout: Duration) -> io::R
     BufReader::new(stream)
         .take(MAX_RESPONSE_BYTES + 1)
         .read_until(b'\n', &mut response)?;
+    parse_response(&response)
+}
+
+/// Apply the shared response-size and JSON validation contract to either transport mode.
+fn parse_response(response: &[u8]) -> io::Result<Value> {
     if response.len() as u64 > MAX_RESPONSE_BYTES {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "browser response exceeds 4 MiB",
         ));
     }
-    serde_json::from_slice(&response).map_err(Into::into)
+    serde_json::from_slice(response).map_err(Into::into)
 }
 
 #[cfg(test)]
