@@ -7,6 +7,9 @@ use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
+const MAX_STDOUT_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_STDERR_BYTES: u64 = 64 * 1024;
+
 /// Run one public CLI command with bounded pipes and a fifteen-second deadline.
 /// Cancellation kills the direct child through Tokio; descendant daemon ownership
 /// remains with BrowserManager. Errors omit raw stdout and stderr.
@@ -52,13 +55,30 @@ pub(super) async fn run(
 
 /// Decode the public CLI envelope shared by worker and remaining synchronous callers.
 /// Invalid output and failed commands return errors without exposing captured pipe contents.
+/// Move the data payload out of its envelope; never clone a potentially large result.
 pub(super) fn decode_output(output: std::process::Output) -> Result<Value, String> {
-    let payload: Value = serde_json::from_slice(&output.stdout)
-        .map_err(|_| "Browser CLI returned invalid JSON".to_string())?;
-    if !output.status.success() || payload.get("success") == Some(&Value::Bool(false)) {
+    if !output.status.success() {
         return Err("Browser CLI command failed".to_string());
     }
-    Ok(payload.get("data").cloned().unwrap_or(payload))
+    if output.stdout.len() as u64 > MAX_STDOUT_BYTES
+        || output.stderr.len() as u64 > MAX_STDERR_BYTES
+    {
+        return Err("Browser CLI output limit exceeded".to_string());
+    }
+    let mut payload: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|_| "Browser CLI returned invalid JSON".to_string())?;
+    if !payload.is_object() {
+        return Err("Browser CLI returned a non-object response".to_string());
+    }
+    match payload.get("success") {
+        Some(Value::Bool(false)) => return Err("Browser CLI command failed".to_string()),
+        Some(Value::Bool(true)) | None => {}
+        Some(_) => return Err("Browser CLI returned invalid success status".to_string()),
+    }
+    Ok(match payload.get_mut("data") {
+        Some(data) => data.take(),
+        None => payload,
+    })
 }
 
 /// Drain stdout and stderr concurrently while waiting for the direct child.
@@ -77,8 +97,8 @@ async fn execute(
     let stderr = child.stderr.take().expect("configured stderr pipe");
     let result = tokio::time::timeout(timeout, async {
         let (stdout, stderr, status) = tokio::try_join!(
-            read_bounded(stdout, 4 * 1024 * 1024),
-            read_bounded(stderr, 64 * 1024),
+            read_bounded(stdout, MAX_STDOUT_BYTES),
+            read_bounded(stderr, MAX_STDERR_BYTES),
             child.wait(),
         )?;
         Ok(std::process::Output {
@@ -117,6 +137,52 @@ async fn read_bounded(reader: impl AsyncRead + Unpin, limit: u64) -> io::Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Decode actual child output without treating malformed envelopes or failures as success.
+    #[tokio::test]
+    async fn public_cli_response_contract() {
+        for (payload, expected) in [
+            (
+                r#"{"success":true,"data":{"url":"https://example.test/λ"}}"#,
+                serde_json::json!({"url":"https://example.test/λ"}),
+            ),
+            (r#"{"success":true,"data":null}"#, Value::Null),
+            (
+                r#"{"url":"https://example.test"}"#,
+                serde_json::json!({"url":"https://example.test"}),
+            ),
+        ] {
+            let mut command = shell("printf '%s' \"$1\"");
+            command.arg("fixture").arg(payload);
+            let output = execute(command, Duration::from_secs(2)).await.unwrap();
+            assert_eq!(decode_output(output).unwrap(), expected);
+        }
+        for payload in [
+            "[]",
+            "null",
+            "false",
+            "7",
+            r#"{"success":"true"}"#,
+            r#"{"success":false,"error":"private details"}"#,
+            "not JSON",
+        ] {
+            let mut command = shell("printf '%s' \"$1\"");
+            command.arg("fixture").arg(payload);
+            let output = execute(command, Duration::from_secs(2)).await.unwrap();
+            let error = decode_output(output).unwrap_err();
+            assert!(!error.contains("private details"));
+        }
+        let output = execute(
+            shell("printf 'private details'; exit 7"),
+            Duration::from_secs(2),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            decode_output(output).unwrap_err(),
+            "Browser CLI command failed"
+        );
+    }
 
     /// Build an isolated shell child for real pipe and timeout behavior in CI.
     fn shell(script: &str) -> tokio::process::Command {
