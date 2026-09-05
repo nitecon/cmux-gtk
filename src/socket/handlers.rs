@@ -43,13 +43,23 @@ pub fn handle_socket_command(
     cmd: SocketCommand,
     state: &crate::app_state::AppStateRef,
 ) {
+    handle_socket_command_traced(cmd, state, None);
+}
+
+/// Carry an observed request identity through dispatch into asynchronous service completion.
+#[allow(unused_variables)]
+fn handle_socket_command_traced(
+    cmd: SocketCommand,
+    state: &crate::app_state::AppStateRef,
+    trace_id: Option<String>,
+) {
     match cmd {
         SocketCommand::Observed { command, trace_id, queued_at } => {
             let started = std::time::Instant::now();
             crate::diagnostics::record("rpc.gtk.start", json!({
                 "trace_id": trace_id, "queue_wait_us": queued_at.elapsed().as_micros(),
             }));
-            handle_socket_command(*command, state);
+            handle_socket_command_traced(*command, state, Some(trace_id.to_string()));
             crate::diagnostics::record("rpc.gtk.dispatched", json!({
                 "trace_id": trace_id, "duration_us": started.elapsed().as_micros(),
             }));
@@ -832,19 +842,25 @@ pub fn handle_socket_command(
                 let exchange = bm.send_command_async(daemon_action, params);
                 drop(s);
                 runtime.spawn(async move {
+                    let started = std::time::Instant::now();
                     let mut resp_tx = resp_tx;
                     // Dropping the exchange closes its socket and releases its capacity permit.
                     // Prefer cancellation when the caller has already stopped awaiting a response.
-                    tokio::select! {
+                    let outcome = tokio::select! {
                         biased;
-                        _ = resp_tx.closed() => {}
+                        _ = resp_tx.closed() => "cancelled",
                         result = exchange => {
                             match result {
-                                Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); }
-                                Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); }
+                                Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); "success" }
+                                Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); "error" }
                             }
                         }
-                    }
+                    };
+                    crate::diagnostics::record("browser.rpc.complete", json!({
+                        "trace_id": trace_id,
+                        "outcome": outcome,
+                        "duration_us": started.elapsed().as_micros(),
+                    }));
                 });
             } else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
