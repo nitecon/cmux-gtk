@@ -48,7 +48,9 @@ def main():
             workspaces = [json.loads(app.cli("current-workspace", "--json"))["uuid"]]
             for _ in range(2):
                 workspaces.append(json.loads(app.cli("new-workspace", "--json"))["uuid"])
-            app.wait_for(lambda: len(app.children()) == 3, "workspace shells")
+                # GTK initializes the PTY only after the visible terminal receives
+                # an allocation. Await it before another workspace hides this one.
+                app.wait_for(lambda: len(app.children()) == len(workspaces), "workspace shell")
             terminals = {}
             for index, workspace in enumerate(workspaces):
                 app.cli("select-workspace", workspace)
