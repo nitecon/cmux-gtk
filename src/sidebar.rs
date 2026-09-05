@@ -388,6 +388,15 @@ mod lifecycle_tests {
             drop(row);
             assert!(weak.upgrade().is_none(), "closed workspace retained by a signal callback");
         }
+        state.borrow_mut().browser_manager = Some(crate::browser::BrowserManager::new());
+        for id in 1..=20 {
+            let widgets = crate::browser::create_preview_pane(id);
+            let weak = widgets.container.downgrade();
+            crate::shortcuts::wire_browser_tab(&state, widgets);
+            // Deferred viewport work is finite, but must be allowed to release its clone.
+            while glib::MainContext::default().pending() { glib::MainContext::default().iteration(false); }
+            assert!(weak.upgrade().is_none(), "closed browser tree retained by its callbacks");
+        }
         let weak_state = Rc::downgrade(&state);
         drop(state);
         assert!(weak_state.upgrade().is_none());

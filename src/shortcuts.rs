@@ -333,7 +333,7 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
     }
 }
 
-fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
+pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
     let surface_uuid = widgets.uuid;
     let pane_id = widgets.pane_id;
     let picture = widgets.picture.clone();
@@ -355,9 +355,10 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
     // agent-browser uses one independently managed browser session. When a
     // saved browser surface becomes visible again, restore that surface's URL.
     widgets.container.connect_map({
-        let state = state.clone();
+        let state = Rc::downgrade(state);
         let entry = url_entry.clone();
         move |_| {
+            let Some(state) = state.upgrade() else { return; };
             let url = entry.text().to_string();
             if url.is_empty() {
                 return;
@@ -369,8 +370,9 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
     // Step 3b: Wire nav button signals (D-06, D-07)
     {
         let focus_controller = gtk4::EventControllerFocus::new();
-        let entry_for_focus = url_entry.clone();
+        let entry_for_focus = url_entry.downgrade();
         focus_controller.connect_enter(move |_| {
+            let Some(entry_for_focus) = entry_for_focus.upgrade() else { return ; };
             let _ = entry_for_focus.activate_action(
                 "win.focus-pane",
                 Some(&pane_id.to_variant()),
@@ -379,31 +381,35 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         url_entry.add_controller(focus_controller);
 
         // Back button
-        let state_for_back = state.clone();
+        let state_for_back = Rc::downgrade(state);
         let entry_for_back = url_entry.clone();
         widgets.back_btn.connect_clicked(move |_| {
+            let Some(state_for_back) = state_for_back.upgrade() else { return ; };
             run_browser_navigation(&state_for_back, &entry_for_back, "back");
         });
 
         // Forward button
-        let state_for_fwd = state.clone();
+        let state_for_fwd = Rc::downgrade(state);
         let entry_for_fwd = url_entry.clone();
         widgets.forward_btn.connect_clicked(move |_| {
+            let Some(state_for_fwd) = state_for_fwd.upgrade() else { return ; };
             run_browser_navigation(&state_for_fwd, &entry_for_fwd, "forward");
         });
 
         // Reload button
-        let state_for_reload = state.clone();
+        let state_for_reload = Rc::downgrade(state);
         let entry_for_reload = url_entry.clone();
         widgets.reload_btn.connect_clicked(move |_| {
+            let Some(state_for_reload) = state_for_reload.upgrade() else { return ; };
             run_browser_navigation(&state_for_reload, &entry_for_reload, "reload");
         });
 
         // Go button: reads URL entry, auto-prepends https://, navigates
-        let state_for_go = state.clone();
+        let state_for_go = Rc::downgrade(state);
         let url_entry_for_go = url_entry.clone();
         let picture_for_go = picture_ref.clone();
         widgets.go_btn.connect_clicked(move |_| {
+            let Some(state_for_go) = state_for_go.upgrade() else { return ; };
             let raw_url = url_entry_for_go.text().to_string();
             if raw_url.is_empty() {
                 return;
@@ -440,9 +446,10 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
 
     // Step 4: Set viewport to match pane size (deferred until after GTK layout)
     {
-        let state_for_viewport = state.clone();
+        let state_for_viewport = Rc::downgrade(state);
         let picture_for_viewport = picture_ref.clone();
         glib::idle_add_local_once(move || {
+            let Some(state_for_viewport) = state_for_viewport.upgrade() else { return ; };
             let pic_w = picture_for_viewport.width();
             let pic_h = picture_for_viewport.height();
             if pic_w > 0 && pic_h > 0 {
@@ -459,9 +466,11 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
     // Attach mouse click controller to the Picture for browser interaction
     {
         let click_ctrl = gtk4::GestureClick::new();
-        let state_for_click = state.clone();
-        let picture_for_click = picture_ref.clone();
+        let state_for_click = Rc::downgrade(state);
+        let picture_for_click = picture_ref.downgrade();
         click_ctrl.connect_released(move |_gesture, _n_press, x, y| {
+            let Some(picture_for_click) = picture_for_click.upgrade() else { return ; };
+            let Some(state_for_click) = state_for_click.upgrade() else { return ; };
             let _ = picture_for_click.activate_action(
                 "win.focus-pane",
                 Some(&pane_id.to_variant()),
@@ -503,8 +512,9 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         // Attach mouse motion controller for hover effects (async channel, D-08)
         let motion_ctrl = gtk4::EventControllerMotion::new();
         if let Some(mtx) = motion_tx {
-            let picture_for_motion = picture_ref.clone();
+            let picture_for_motion = picture_ref.downgrade();
             motion_ctrl.connect_motion(move |_ctrl, x, y| {
+            let Some(picture_for_motion) = picture_for_motion.upgrade() else { return ; };
                 let pic_w = picture_for_motion.width() as f64;
                 let pic_h = picture_for_motion.height() as f64;
                 if pic_w <= 0.0 || pic_h <= 0.0 {
@@ -527,9 +537,11 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         let scroll_ctrl = gtk4::EventControllerScroll::new(
             gtk4::EventControllerScrollFlags::VERTICAL | gtk4::EventControllerScrollFlags::DISCRETE,
         );
-        let state_for_scroll = state.clone();
-        let picture_for_scroll = picture_ref.clone();
+        let state_for_scroll = Rc::downgrade(state);
+        let picture_for_scroll = picture_ref.downgrade();
         scroll_ctrl.connect_scroll(move |_ctrl, _dx, dy| {
+            let Some(picture_for_scroll) = picture_for_scroll.upgrade() else { return gtk4::glib::Propagation::Proceed; };
+            let Some(state_for_scroll) = state_for_scroll.upgrade() else { return gtk4::glib::Propagation::Proceed; };
             let pic_w = picture_for_scroll.width() as f64;
             let pic_h = picture_for_scroll.height() as f64;
             if pic_w <= 0.0 || pic_h <= 0.0 {
@@ -560,8 +572,9 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         let key_ctrl = gtk4::EventControllerKey::new();
         // Bubble phase so cmux capture-phase shortcuts (Ctrl+Shift+B etc) take priority
         key_ctrl.set_propagation_phase(gtk4::PropagationPhase::Bubble);
-        let state_for_key = state.clone();
+        let state_for_key = Rc::downgrade(state);
         key_ctrl.connect_key_pressed(move |_ctrl, keyval, _keycode, mods| {
+            let Some(state_for_key) = state_for_key.upgrade() else { return gtk4::glib::Propagation::Proceed; };
             let s = state_for_key.borrow();
             let bm = match s.browser_manager.as_ref() {
                 Some(bm) => bm,
@@ -587,8 +600,9 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
             let _ = bm.send_command("input_keyboard", params);
             gtk4::glib::Propagation::Stop
         });
-        let state_for_keyup = state.clone();
+        let state_for_keyup = Rc::downgrade(state);
         key_ctrl.connect_key_released(move |_ctrl, keyval, _keycode, mods| {
+            let Some(state_for_keyup) = state_for_keyup.upgrade() else { return ; };
             let s = state_for_keyup.borrow();
             if let Some(ref bm) = s.browser_manager {
                 let (key_str, code_str) = gdk_keyval_to_cdp(keyval);
@@ -606,9 +620,10 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
     }
 
     // Step 5: Connect URL entry — Enter navigates the browser
-    let state_for_entry = state.clone();
+    let state_for_entry = Rc::downgrade(state);
     let picture_for_nav = picture_ref.clone();
     url_entry.connect_activate(move |entry| {
+            let Some(state_for_entry) = state_for_entry.upgrade() else { return ; };
         let raw_url = entry.text().to_string();
         if raw_url.is_empty() {
             return;
@@ -636,9 +651,10 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
     });
 
     // Step 6: DevTools toggle (D-10)
-    let state_for_devtools = state.clone();
+    let state_for_devtools = Rc::downgrade(state);
     let picture_for_devtools = picture_ref.clone();
     widgets.devtools_btn.connect_toggled(move |btn| {
+            let Some(state_for_devtools) = state_for_devtools.upgrade() else { return ; };
         if btn.is_active() {
             // Fetch DOM snapshot from daemon
             let snapshot_text = {

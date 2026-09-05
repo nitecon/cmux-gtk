@@ -56,8 +56,9 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     // Enter key: create SSH workspace
     entry.connect_activate({
         let state = state.clone();
-        let dialog = dialog.clone();
+        let dialog = dialog.downgrade();
         move |e| {
+            let Some(dialog) = dialog.upgrade() else { return; };
             let target = e.text().to_string().trim().to_string();
             if !target.is_empty() {
                 if let Err(message) = crate::workspace::validate_ssh_target(&target) {
@@ -78,10 +79,10 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     // Escape key: close dialog
     let esc_ctrl = gtk4::EventControllerKey::new();
     esc_ctrl.connect_key_pressed({
-        let dialog = dialog.clone();
+        let dialog = dialog.downgrade();
         move |_, key, _, _| {
             if key == gtk4::gdk::Key::Escape {
-                dialog.close();
+                if let Some(dialog) = dialog.upgrade() { dialog.close(); }
                 gtk4::glib::Propagation::Stop
             } else {
                 gtk4::glib::Propagation::Proceed

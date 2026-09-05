@@ -396,9 +396,19 @@ pub async fn open_remote_stream(
         .to_string();
 
     // Install routing before subscribing: the daemon may emit output immediately.
-    bridge.register_pane(pane_id, stream_id.clone());
-    if let Some(ctx) = bridge.contexts.lock().unwrap().get(&pane_id) {
-        *ctx.stream_id.lock().unwrap() = Some(stream_id.clone());
+    let registered = {
+        let contexts = bridge.contexts.lock().unwrap();
+        if let Some(ctx) = contexts.get(&pane_id) {
+            bridge.register_pane(pane_id, stream_id.clone());
+            *ctx.stream_id.lock().unwrap() = Some(stream_id.clone());
+            true
+        } else { false }
+    };
+    if !registered {
+        let _ = bridge.write_tx.lock().unwrap().send(crate::ssh::bridge::WriteRequest {
+            stream_id, data_base64: String::new(), close: true, resize: None,
+        });
+        return Err("terminal closed while its remote PTY was starting".into());
     }
 
     // Subscribe to the stream
@@ -434,8 +444,6 @@ pub async fn open_remote_stream(
         .await.map_err(|_| "proxy.stream.subscribe timed out".to_string())?
         .map_err(|_| "proxy.stream.subscribe response channel dropped".to_string())?;
 
-    // Register in bridge
-    bridge.register_pane(pane_id, stream_id.clone());
     bridge.mark_subscribed(pane_id);
 
     // Notify via SSH event

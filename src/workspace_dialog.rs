@@ -98,8 +98,9 @@ pub fn show_workspace_dialog(app: &gtk4::Application, state: AppStateRef) {
     browse_button.connect_clicked({
         let path_entry = path_entry.clone();
         let name_entry = name_entry.clone();
-        let dialog = dialog.clone();
+        let dialog = dialog.downgrade();
         move |_| {
+            let Some(dialog) = dialog.upgrade() else { return; };
             let chooser = gtk4::FileChooserNative::builder()
                 .title("Choose Workspace Folder")
                 .action(gtk4::FileChooserAction::SelectFolder)

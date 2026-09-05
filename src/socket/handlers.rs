@@ -187,7 +187,8 @@ pub fn handle_socket_command(
                     "uuid": uuid_str,
                     "working_directory": directory,
                 })));
-            }            let (list, app) = { let s = state.borrow(); (s.sidebar_list.clone(), s.gtk_app.clone()) };
+            }
+            let (list, app) = { let s = state.borrow(); (s.sidebar_list.clone(), s.gtk_app.clone()) };
             crate::sidebar::wire_latest_row(&list, state.clone(), &app);
 
         }

@@ -765,7 +765,7 @@ func TestSessionSpawnDirectoryAndClose(t *testing.T) {
 	if !response.OK {
 		t.Fatalf("spawn failed: %#v", response.Error)
 	}
-	id := response.Result["stream_id"].(string)
+	id := response.Result.(map[string]any)["stream_id"].(string)
 	stream, ok := server.getStream(id)
 	if !ok {
 		t.Fatal("missing spawned PTY")

@@ -74,6 +74,9 @@ fn surface_for_area(area: &gtk4::GLArea) -> Option<ffi::ghostty_surface_t> {
 /// `ghostty_surface_free`, so the shell is gone before GTK destroys the pane.
 pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
     unsafe {
+        if let Some(retired) = area.data::<std::rc::Rc<std::cell::Cell<bool>>>("cmux-surface-retired") {
+            retired.as_ref().set(true);
+        }
         if let Some((bridge, ctx)) = area.steal_data::<(std::sync::Arc<crate::ssh::bridge::SshBridge>, std::sync::Arc<crate::ssh::bridge::IoWriteContext>)>("cmux-remote-context") {
             ctx.surface_ptr.store(0, Ordering::Release);
             bridge.remove_context(ctx.pane_id);

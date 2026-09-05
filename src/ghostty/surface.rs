@@ -58,6 +58,7 @@ struct SurfaceInit {
     working_directory: Option<std::path::PathBuf>,
     pane_id: u64,
     io_mode: SurfaceIoMode,
+    retired: Rc<std::cell::Cell<bool>>,
 }
 
 /// Initialize Ghostty only after GTK has assigned a non-zero GLArea size.
@@ -73,6 +74,7 @@ fn initialize_surface(
     use gtk4::prelude::*;
     use std::sync::atomic::Ordering;
 
+    if init.retired.get() { return None; }
     if let Some(surface) = *cell.borrow() {
         return Some(surface);
     }
@@ -161,7 +163,6 @@ fn initialize_surface(
         io_write_ctx.surface_ptr.store(surface as usize, Ordering::Release);
         let size = unsafe { ffi::ghostty_surface_size(surface) };
         io_write_ctx.resize(size.columns, size.rows);
-        unsafe { area.set_data("cmux-remote-context", (bridge.clone(), io_write_ctx.clone())); }
         bridge.register_pane_placeholder(io_write_ctx.pane_id);
     }
     area.queue_render();
@@ -220,12 +221,18 @@ pub fn create_surface(
         }
         other => other,
     };
+    if let SurfaceIoMode::Manual { bridge, io_write_ctx } = &io_mode {
+        unsafe { gl_area.set_data("cmux-remote-context", (bridge.clone(), io_write_ctx.clone())); }
+    }
+    let retired = Rc::new(std::cell::Cell::new(false));
+    unsafe { gl_area.set_data("cmux-surface-retired", retired.clone()); }
     let surface_init = Rc::new(SurfaceInit {
         ghostty_app,
         inherited_config,
         working_directory,
         pane_id,
         io_mode,
+        retired,
     });
 
     // ── GtkGLArea::realize ───────────────────────────────────────────────────
@@ -669,6 +676,9 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
     use gtk4::prelude::*;
     let area_key = userdata as usize;
     let Some(surface_ptr) = clipboard_surface(area_key) else { return false; };
+    let area: glib::translate::Borrowed<gtk4::GLArea> = glib::translate::from_glib_borrow(userdata.cast::<gtk4::ffi::GtkGLArea>());
+    let Some(cell) = area.data::<Rc<RefCell<Option<ffi::ghostty_surface_t>>>>("cmux-surface-cell") else { return false; };
+    let cell = cell.as_ref().clone();
 
     let display = match gtk4::gdk::Display::default() {
         Some(d) => d,
@@ -683,7 +693,8 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
     glib::MainContext::default().spawn_local(async move {
         let result = clipboard.read_text_future().await;
         // The requesting pane may have closed while the clipboard owner replied.
-        if clipboard_surface(area_key) != Some(surface_ptr) { return; }
+        if cell.borrow().map(|surface| surface as usize) != Some(surface_ptr)
+            || clipboard_surface(area_key) != Some(surface_ptr) { return; }
         let text = result.ok().flatten().map(|s| s.to_string()).unwrap_or_default();
         let text = std::ffi::CString::new(text.replace('\0', "")).unwrap();
         unsafe {

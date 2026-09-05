@@ -249,3 +249,39 @@ impl IoWriteContext {
         }
     }
 }
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    #[test]
+    fn remote_contexts_keep_separate_streams_and_use_reconnected_sender() {
+        let (write_tx, write_rx) = mpsc::unbounded_channel();
+        let (output_tx, _) = mpsc::unbounded_channel();
+        let bridge = SshBridge::new(write_tx, write_rx, output_tx);
+        let (events, _) = mpsc::channel(16);
+        let first = bridge.create_context(events.clone());
+        let second = bridge.create_context(events);
+        assert_ne!(first.pane_id, second.pane_id);
+        bridge.register_pane(first.pane_id, "first-stream".into());
+        bridge.register_pane(second.pane_id, "second-stream".into());
+        *first.stream_id.lock().unwrap() = Some("first-stream".into());
+        *second.stream_id.lock().unwrap() = Some("second-stream".into());
+        drop(bridge.take_or_recreate_write_rx());
+        let mut reconnected = bridge.take_or_recreate_write_rx();
+        let payload = b"typed after reconnect";
+        unsafe {
+            ssh_io_write_cb(Arc::as_ptr(&second) as *mut _, payload.as_ptr().cast(), payload.len());
+        }
+        let write = reconnected.try_recv().unwrap();
+        assert_eq!(write.stream_id, "second-stream");
+        assert_eq!(base64::engine::general_purpose::STANDARD.decode(write.data_base64).unwrap(), payload);
+        bridge.remove_context(first.pane_id);
+        let close = reconnected.try_recv().unwrap();
+        assert!(close.close);
+        assert_eq!(close.stream_id, "first-stream");
+        assert!(!bridge.contexts.lock().unwrap().contains_key(&first.pane_id));
+        assert!(!bridge.streams.lock().unwrap().contains_key(&first.pane_id));
+        assert!(bridge.contexts.lock().unwrap().contains_key(&second.pane_id));
+    }
+}
