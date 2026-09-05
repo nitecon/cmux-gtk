@@ -101,13 +101,17 @@ pub fn install_shortcuts(
                     gtk4::glib::Propagation::Stop
                 }
                 // -- Workspace number shortcuts --
-                Some(action @ (
-                    ShortcutAction::Workspace1 | ShortcutAction::Workspace2 |
-                    ShortcutAction::Workspace3 | ShortcutAction::Workspace4 |
-                    ShortcutAction::Workspace5 | ShortcutAction::Workspace6 |
-                    ShortcutAction::Workspace7 | ShortcutAction::Workspace8 |
-                    ShortcutAction::Workspace9
-                )) => {
+                Some(
+                    action @ (ShortcutAction::Workspace1
+                    | ShortcutAction::Workspace2
+                    | ShortcutAction::Workspace3
+                    | ShortcutAction::Workspace4
+                    | ShortcutAction::Workspace5
+                    | ShortcutAction::Workspace6
+                    | ShortcutAction::Workspace7
+                    | ShortcutAction::Workspace8
+                    | ShortcutAction::Workspace9),
+                ) => {
                     let idx = match action {
                         ShortcutAction::Workspace1 => 0,
                         ShortcutAction::Workspace2 => 1,
@@ -173,7 +177,11 @@ pub fn handle_close_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Applica
         move |dialog, response| {
             if response == gtk4::ResponseType::Accept {
                 let mut s = state.borrow_mut();
-                if let Some(index) = s.workspaces.iter().position(|ws| Some(ws.id) == workspace_id) {
+                if let Some(index) = s
+                    .workspaces
+                    .iter()
+                    .position(|ws| Some(ws.id) == workspace_id)
+                {
                     s.close_workspace(index);
                 }
             }
@@ -226,7 +234,9 @@ pub fn handle_close_surface_tab(
         .borrow_mut()
         .active_split_engine_mut()
         .map(|engine| engine.close_surface_tab(uuid));
-    crate::diagnostics::event(format_args!("surface-tab close result uuid={uuid} result={result:?}"));
+    crate::diagnostics::event(format_args!(
+        "surface-tab close result uuid={uuid} result={result:?}"
+    ));
     match result {
         Some(crate::split_engine::CloseSurfaceResult::Closed) => {
             state.borrow().trigger_session_save();
@@ -315,7 +325,10 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
 /// stored address. agent-browser owns one live session, so the last restored tab
 /// is the initially visible stream; selecting/navigating any tab takes ownership.
 pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
-    let tabs = state.borrow().split_engines.iter()
+    let tabs = state
+        .borrow()
+        .split_engines
+        .iter()
         .flat_map(|engine| engine.browser_tabs())
         .collect::<Vec<_>>();
     for widgets in tabs {
@@ -325,8 +338,13 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
             if s.browser_manager.is_none() {
                 s.browser_manager = Some(crate::browser::BrowserManager::new());
             }
-            let bm = s.browser_manager.as_mut().expect("browser manager initialized");
-            if let Err(error) = bm.run_cli(&["open", if url.is_empty() { "about:blank" } else { &url }]) {
+            let bm = s
+                .browser_manager
+                .as_mut()
+                .expect("browser manager initialized");
+            if let Err(error) =
+                bm.run_cli(&["open", if url.is_empty() { "about:blank" } else { &url }])
+            {
                 eprintln!("cmux: failed to restore browser tab: {error}");
                 continue;
             }
@@ -336,7 +354,12 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
     }
 }
 
-pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
+/// Attach streaming, navigation and input handlers to a browser tab with an initialized manager.
+/// GTK widget handlers stay on the main thread; mapped tabs restore their saved URL.
+pub(crate) fn wire_browser_tab(
+    state: &Rc<RefCell<AppState>>,
+    widgets: crate::browser::PreviewPaneWidgets,
+) {
     let surface_uuid = widgets.uuid;
     let pane_id = widgets.pane_id;
     let picture = widgets.picture.clone();
@@ -361,7 +384,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state = Rc::downgrade(state);
         let entry = url_entry.clone();
         move |_| {
-            let Some(state) = state.upgrade() else { return; };
+            let Some(state) = state.upgrade() else {
+                return;
+            };
             let url = entry.text().to_string();
             if url.is_empty() {
                 return;
@@ -375,11 +400,10 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let focus_controller = gtk4::EventControllerFocus::new();
         let entry_for_focus = url_entry.downgrade();
         focus_controller.connect_enter(move |_| {
-            let Some(entry_for_focus) = entry_for_focus.upgrade() else { return ; };
-            let _ = entry_for_focus.activate_action(
-                "win.focus-pane",
-                Some(&pane_id.to_variant()),
-            );
+            let Some(entry_for_focus) = entry_for_focus.upgrade() else {
+                return;
+            };
+            let _ = entry_for_focus.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
         });
         url_entry.add_controller(focus_controller);
 
@@ -387,7 +411,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_back = Rc::downgrade(state);
         let entry_for_back = url_entry.clone();
         widgets.back_btn.connect_clicked(move |_| {
-            let Some(state_for_back) = state_for_back.upgrade() else { return ; };
+            let Some(state_for_back) = state_for_back.upgrade() else {
+                return;
+            };
             run_browser_navigation(&state_for_back, &entry_for_back, "back");
         });
 
@@ -395,7 +421,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_fwd = Rc::downgrade(state);
         let entry_for_fwd = url_entry.clone();
         widgets.forward_btn.connect_clicked(move |_| {
-            let Some(state_for_fwd) = state_for_fwd.upgrade() else { return ; };
+            let Some(state_for_fwd) = state_for_fwd.upgrade() else {
+                return;
+            };
             run_browser_navigation(&state_for_fwd, &entry_for_fwd, "forward");
         });
 
@@ -403,7 +431,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_reload = Rc::downgrade(state);
         let entry_for_reload = url_entry.clone();
         widgets.reload_btn.connect_clicked(move |_| {
-            let Some(state_for_reload) = state_for_reload.upgrade() else { return ; };
+            let Some(state_for_reload) = state_for_reload.upgrade() else {
+                return;
+            };
             run_browser_navigation(&state_for_reload, &entry_for_reload, "reload");
         });
 
@@ -412,12 +442,18 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let url_entry_for_go = url_entry.clone();
         let picture_for_go = picture_ref.clone();
         widgets.go_btn.connect_clicked(move |_| {
-            let Some(state_for_go) = state_for_go.upgrade() else { return ; };
+            let Some(state_for_go) = state_for_go.upgrade() else {
+                return;
+            };
             let raw_url = url_entry_for_go.text().to_string();
             if raw_url.is_empty() {
                 return;
             }
-            let url = if raw_url.contains("://") { raw_url } else { format!("https://{raw_url}") };
+            let url = if raw_url.contains("://") {
+                raw_url
+            } else {
+                format!("https://{raw_url}")
+            };
             url_entry_for_go.set_text(&url);
             let mut s = state_for_go.borrow_mut();
             if let Some(ref mut bm) = s.browser_manager {
@@ -440,9 +476,10 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let runtime = s.runtime_handle.clone();
         let bm = s.browser_manager.as_ref();
         match (runtime, bm) {
-            (Some(rt), Some(bm)) => {
-                Some(crate::browser::spawn_motion_forwarder(&rt, bm.daemon_socket_path()))
-            }
+            (Some(rt), Some(bm)) => Some(crate::browser::spawn_motion_forwarder(
+                &rt,
+                bm.daemon_socket_path(),
+            )),
             _ => None,
         }
     };
@@ -452,7 +489,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_viewport = Rc::downgrade(state);
         let picture_for_viewport = picture_ref.clone();
         glib::idle_add_local_once(move || {
-            let Some(state_for_viewport) = state_for_viewport.upgrade() else { return ; };
+            let Some(state_for_viewport) = state_for_viewport.upgrade() else {
+                return;
+            };
             let pic_w = picture_for_viewport.width();
             let pic_h = picture_for_viewport.height();
             if pic_w > 0 && pic_h > 0 {
@@ -472,12 +511,14 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_click = Rc::downgrade(state);
         let picture_for_click = picture_ref.downgrade();
         click_ctrl.connect_released(move |_gesture, _n_press, x, y| {
-            let Some(picture_for_click) = picture_for_click.upgrade() else { return ; };
-            let Some(state_for_click) = state_for_click.upgrade() else { return ; };
-            let _ = picture_for_click.activate_action(
-                "win.focus-pane",
-                Some(&pane_id.to_variant()),
-            );
+            let Some(picture_for_click) = picture_for_click.upgrade() else {
+                return;
+            };
+            let Some(state_for_click) = state_for_click.upgrade() else {
+                return;
+            };
+            let _ =
+                picture_for_click.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
             // Keep browser-page keystrokes scoped to the picture. In particular,
             // this must not steal typing from the sibling URL GtkEntry.
             picture_for_click.grab_focus();
@@ -500,14 +541,20 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
             let s = state_for_click.borrow();
             if let Some(ref bm) = s.browser_manager {
                 // mousePressed + mouseReleased = click
-                let _ = bm.send_command("input_mouse", serde_json::json!({
-                    "type": "mousePressed", "x": cx, "y": cy,
-                    "button": "left", "clickCount": 1
-                }));
-                let _ = bm.send_command("input_mouse", serde_json::json!({
-                    "type": "mouseReleased", "x": cx, "y": cy,
-                    "button": "left", "clickCount": 1
-                }));
+                let _ = bm.send_command(
+                    "input_mouse",
+                    serde_json::json!({
+                        "type": "mousePressed", "x": cx, "y": cy,
+                        "button": "left", "clickCount": 1
+                    }),
+                );
+                let _ = bm.send_command(
+                    "input_mouse",
+                    serde_json::json!({
+                        "type": "mouseReleased", "x": cx, "y": cy,
+                        "button": "left", "clickCount": 1
+                    }),
+                );
             }
         });
         picture_ref.add_controller(click_ctrl);
@@ -517,7 +564,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         if let Some(mtx) = motion_tx {
             let picture_for_motion = picture_ref.downgrade();
             motion_ctrl.connect_motion(move |_ctrl, x, y| {
-            let Some(picture_for_motion) = picture_for_motion.upgrade() else { return ; };
+                let Some(picture_for_motion) = picture_for_motion.upgrade() else {
+                    return;
+                };
                 let pic_w = picture_for_motion.width() as f64;
                 let pic_h = picture_for_motion.height() as f64;
                 if pic_w <= 0.0 || pic_h <= 0.0 {
@@ -543,8 +592,12 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         let state_for_scroll = Rc::downgrade(state);
         let picture_for_scroll = picture_ref.downgrade();
         scroll_ctrl.connect_scroll(move |_ctrl, _dx, dy| {
-            let Some(picture_for_scroll) = picture_for_scroll.upgrade() else { return gtk4::glib::Propagation::Proceed; };
-            let Some(state_for_scroll) = state_for_scroll.upgrade() else { return gtk4::glib::Propagation::Proceed; };
+            let Some(picture_for_scroll) = picture_for_scroll.upgrade() else {
+                return gtk4::glib::Propagation::Proceed;
+            };
+            let Some(state_for_scroll) = state_for_scroll.upgrade() else {
+                return gtk4::glib::Propagation::Proceed;
+            };
             let pic_w = picture_for_scroll.width() as f64;
             let pic_h = picture_for_scroll.height() as f64;
             if pic_w <= 0.0 || pic_h <= 0.0 {
@@ -562,10 +615,13 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
 
             let s = state_for_scroll.borrow();
             if let Some(ref bm) = s.browser_manager {
-                let _ = bm.send_command("input_mouse", serde_json::json!({
-                    "type": "mouseWheel", "x": cx, "y": cy,
-                    "deltaX": 0, "deltaY": delta_y
-                }));
+                let _ = bm.send_command(
+                    "input_mouse",
+                    serde_json::json!({
+                        "type": "mouseWheel", "x": cx, "y": cy,
+                        "deltaX": 0, "deltaY": delta_y
+                    }),
+                );
             }
             gtk4::glib::Propagation::Stop
         });
@@ -577,7 +633,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         key_ctrl.set_propagation_phase(gtk4::PropagationPhase::Bubble);
         let state_for_key = Rc::downgrade(state);
         key_ctrl.connect_key_pressed(move |_ctrl, keyval, _keycode, mods| {
-            let Some(state_for_key) = state_for_key.upgrade() else { return gtk4::glib::Propagation::Proceed; };
+            let Some(state_for_key) = state_for_key.upgrade() else {
+                return gtk4::glib::Propagation::Proceed;
+            };
             let s = state_for_key.borrow();
             let bm = match s.browser_manager.as_ref() {
                 Some(bm) => bm,
@@ -587,34 +645,43 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
             if key_str.is_empty() {
                 return gtk4::glib::Propagation::Proceed;
             }
-            let text = if key_str.len() == 1 && !mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
-                key_str.clone()
-            } else {
-                String::new()
-            };
+            let text =
+                if key_str.len() == 1 && !mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
+                    key_str.clone()
+                } else {
+                    String::new()
+                };
             let modifiers = cdp_modifiers(mods);
             let mut params = serde_json::json!({
                 "type": "keyDown", "key": key_str, "code": code_str,
                 "modifiers": modifiers
             });
             if !text.is_empty() {
-                params.as_object_mut().unwrap().insert("text".to_string(), serde_json::json!(text));
+                params
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("text".to_string(), serde_json::json!(text));
             }
             let _ = bm.send_command("input_keyboard", params);
             gtk4::glib::Propagation::Stop
         });
         let state_for_keyup = Rc::downgrade(state);
         key_ctrl.connect_key_released(move |_ctrl, keyval, _keycode, mods| {
-            let Some(state_for_keyup) = state_for_keyup.upgrade() else { return ; };
+            let Some(state_for_keyup) = state_for_keyup.upgrade() else {
+                return;
+            };
             let s = state_for_keyup.borrow();
             if let Some(ref bm) = s.browser_manager {
                 let (key_str, code_str) = gdk_keyval_to_cdp(keyval);
                 if !key_str.is_empty() {
                     let modifiers = cdp_modifiers(mods);
-                    let _ = bm.send_command("input_keyboard", serde_json::json!({
-                        "type": "keyUp", "key": key_str, "code": code_str,
-                        "modifiers": modifiers
-                    }));
+                    let _ = bm.send_command(
+                        "input_keyboard",
+                        serde_json::json!({
+                            "type": "keyUp", "key": key_str, "code": code_str,
+                            "modifiers": modifiers
+                        }),
+                    );
                 }
             }
         });
@@ -626,7 +693,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
     let state_for_entry = Rc::downgrade(state);
     let picture_for_nav = picture_ref.clone();
     url_entry.connect_activate(move |entry| {
-            let Some(state_for_entry) = state_for_entry.upgrade() else { return ; };
+        let Some(state_for_entry) = state_for_entry.upgrade() else {
+            return;
+        };
         let raw_url = entry.text().to_string();
         if raw_url.is_empty() {
             return;
@@ -657,7 +726,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
     let state_for_devtools = Rc::downgrade(state);
     let picture_for_devtools = picture_ref.clone();
     widgets.devtools_btn.connect_toggled(move |btn| {
-            let Some(state_for_devtools) = state_for_devtools.upgrade() else { return ; };
+        let Some(state_for_devtools) = state_for_devtools.upgrade() else {
+            return;
+        };
         if btn.is_active() {
             // Fetch DOM snapshot from daemon
             let snapshot_text = {
@@ -667,7 +738,8 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
                         Ok(result) => {
                             if let Some(text) = result.get("data").and_then(|d| d.as_str()) {
                                 text.to_string()
-                            } else if let Some(text) = result.get("result").and_then(|d| d.as_str()) {
+                            } else if let Some(text) = result.get("result").and_then(|d| d.as_str())
+                            {
                                 text.to_string()
                             } else {
                                 serde_json::to_string_pretty(&result).unwrap_or_default()
@@ -681,7 +753,10 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
             };
 
             // Create scrollable text overlay on the Picture's parent Overlay
-            if let Some(overlay) = picture_for_devtools.parent().and_then(|p| p.downcast::<gtk4::Overlay>().ok()) {
+            if let Some(overlay) = picture_for_devtools
+                .parent()
+                .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
+            {
                 let label = gtk4::Label::new(Some(&snapshot_text));
                 label.set_selectable(true);
                 label.set_wrap(true);
@@ -697,7 +772,10 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
             }
         } else {
             // Remove the DevTools overlay
-            if let Some(overlay) = picture_for_devtools.parent().and_then(|p| p.downcast::<gtk4::Overlay>().ok()) {
+            if let Some(overlay) = picture_for_devtools
+                .parent()
+                .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
+            {
                 if let Some(child) = overlay.first_child() {
                     let mut current = Some(child);
                     while let Some(widget) = current {
@@ -712,7 +790,9 @@ pub(crate) fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::br
         }
     });
 
-    crate::diagnostics::event(format_args!("browser tab wiring complete uuid={surface_uuid}"));
+    crate::diagnostics::event(format_args!(
+        "browser tab wiring complete uuid={surface_uuid}"
+    ));
     state.borrow().trigger_session_save();
 }
 
@@ -734,6 +814,8 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
     }
 }
 
+/// Run a browser history command, refresh the address entry and schedule its saved URL.
+/// Currently performs synchronous CLI I/O on GTK; browser transport extraction must move it off-thread.
 fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
     let current_url = {
         let mut s = state.borrow_mut();
@@ -744,10 +826,11 @@ fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, co
             eprintln!("cmux: browser {command} failed: {error}");
             return;
         }
-        browser
-            .run_cli(&["get", "url"])
-            .ok()
-            .and_then(|data| data.get("url").and_then(serde_json::Value::as_str).map(str::to_owned))
+        browser.run_cli(&["get", "url"]).ok().and_then(|data| {
+            data.get("url")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
     };
     if let Some(url) = current_url {
         entry.set_text(&url);
@@ -809,9 +892,15 @@ fn gdk_keyval_to_cdp(keyval: gtk4::gdk::Key) -> (String, String) {
 /// CDP: Alt=1, Ctrl=2, Meta=4, Shift=8
 fn cdp_modifiers(mods: gtk4::gdk::ModifierType) -> i32 {
     let mut m = 0;
-    if mods.contains(gtk4::gdk::ModifierType::ALT_MASK) { m |= 1; }
-    if mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) { m |= 2; }
-    if mods.contains(gtk4::gdk::ModifierType::SHIFT_MASK) { m |= 8; }
+    if mods.contains(gtk4::gdk::ModifierType::ALT_MASK) {
+        m |= 1;
+    }
+    if mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
+        m |= 2;
+    }
+    if mods.contains(gtk4::gdk::ModifierType::SHIFT_MASK) {
+        m |= 8;
+    }
     m
 }
 

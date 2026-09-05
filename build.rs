@@ -3,6 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// Export build metadata, prepare the private Ghostty archive and generate bindings/link inputs.
+/// Missing native build tools or required libraries fail the build with explicit diagnostics.
 fn main() {
     let version =
         env::var("CMUX_VERSION").unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap());
@@ -125,6 +127,8 @@ fn main() {
         .expect("Couldn't write ghostty_sys.rs");
 }
 
+/// Namespace bundled dependency symbols in an OUT_DIR copy while preserving Ghostty's public ABI.
+/// Panic when symbol discovery, map writing or LLVM archive rewriting fails.
 fn prepare_private_ghostty_archive(source: &std::path::Path) -> PathBuf {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let archive = out_dir.join("libghostty_private.a");
@@ -188,6 +192,8 @@ fn prepare_private_ghostty_archive(source: &std::path::Path) -> PathBuf {
     archive
 }
 
+/// Emit static libxml2 dependency flags followed by the required GNU C++ runtime.
+/// Fail the release build if pkg-config or the compiler cannot resolve those inputs.
 fn link_static_libxml2() {
     let output = std::process::Command::new("pkg-config")
         .args(["--libs", "--static", "libxml-2.0"])

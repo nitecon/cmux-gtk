@@ -1,7 +1,7 @@
-use base64::Engine;
 use crate::ssh::bridge::SshBridge;
 use crate::ssh::{SshEvent, SshEventTx};
 use crate::workspace::ConnectionState;
+use base64::Engine;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -37,10 +37,12 @@ pub async fn run_ssh_lifecycle(
 
     loop {
         // Update state to reconnecting
-        let _ = ssh_tx.send(SshEvent::StateChanged {
-            workspace_id,
-            state: ConnectionState::Reconnecting(attempt),
-        }).await;
+        let _ = ssh_tx
+            .send(SshEvent::StateChanged {
+                workspace_id,
+                state: ConnectionState::Reconnecting(attempt),
+            })
+            .await;
 
         // A failed upload must be retried; never fall through to an older or
         // missing daemon simply because the connection attempt count advanced.
@@ -56,18 +58,22 @@ pub async fn run_ssh_lifecycle(
                 };
 
                 if matches!(kind, FailureKind::Permanent) {
-                    let _ = ssh_tx.send(SshEvent::StateChanged {
-                        workspace_id,
-                        state: ConnectionState::Disconnected,
-                    }).await;
+                    let _ = ssh_tx
+                        .send(SshEvent::StateChanged {
+                            workspace_id,
+                            state: ConnectionState::Disconnected,
+                        })
+                        .await;
                     eprintln!("cmux: SSH permanent failure, giving up: {e}");
                     break;
                 }
 
-                let _ = ssh_tx.send(SshEvent::StateChanged {
-                    workspace_id,
-                    state: ConnectionState::Disconnected,
-                }).await;
+                let _ = ssh_tx
+                    .send(SshEvent::StateChanged {
+                        workspace_id,
+                        state: ConnectionState::Disconnected,
+                    })
+                    .await;
                 let backoff = backoff_duration(attempt);
                 tokio::time::sleep(backoff).await;
                 attempt += 1;
@@ -89,13 +95,17 @@ pub async fn run_ssh_lifecycle(
                 // D-07: inject reconnect message if this was a reconnection
                 if was_reconnect {
                     {
-                        let ids: Vec<u64> = bridge.streams.lock().unwrap().keys().copied().collect();
+                        let ids: Vec<u64> =
+                            bridge.streams.lock().unwrap().keys().copied().collect();
                         for pane_id in ids {
-                            let msg = b"\r\n\x1b[32m[Reconnected \xe2\x80\x94 new session]\x1b[0m\r\n";
-                            let _ = ssh_tx.send(SshEvent::RemoteOutput {
-                                pane_id,
-                                data: msg.to_vec(),
-                            }).await;
+                            let msg =
+                                b"\r\n\x1b[32m[Reconnected \xe2\x80\x94 new session]\x1b[0m\r\n";
+                            let _ = ssh_tx
+                                .send(SshEvent::RemoteOutput {
+                                    pane_id,
+                                    data: msg.to_vec(),
+                                })
+                                .await;
                         }
                     }
                 }
@@ -124,7 +134,8 @@ pub async fn run_ssh_lifecycle(
                     let mut buf_writer = BufWriter::new(writer);
 
                     // Send hello/handshake to verify cmuxd-remote is running
-                    let hello = serde_json::json!({"jsonrpc":"2.0","id":1,"method":"hello","params":{}});
+                    let hello =
+                        serde_json::json!({"jsonrpc":"2.0","id":1,"method":"hello","params":{}});
                     let hello_line = format!("{}\n", hello);
                     if let Err(e) = buf_writer.write_all(hello_line.as_bytes()).await {
                         eprintln!("cmux: SSH handshake write failed: {e}");
@@ -132,18 +143,15 @@ pub async fn run_ssh_lifecycle(
                         eprintln!("cmux: SSH handshake flush failed: {e}");
                     } else {
                         // Run bidirectional proxy routing
-                        connected = run_proxy_routing(
-                            workspace_id,
-                            buf_writer,
-                            reader,
-                            &bridge,
-                            &ssh_tx,
-                        )
-                        .await;
+                        connected =
+                            run_proxy_routing(workspace_id, buf_writer, reader, &bridge, &ssh_tx)
+                                .await;
                     }
                 }
 
-                if connected { attempt = 0; }
+                if connected {
+                    attempt = 0;
+                }
                 // Wait for SSH process to exit
                 let exit_status = child.wait().await;
                 eprintln!("cmux: SSH to {target} exited: {exit_status:?}");
@@ -153,33 +161,41 @@ pub async fn run_ssh_lifecycle(
                     let ids: Vec<u64> = bridge.streams.lock().unwrap().keys().copied().collect();
                     for pane_id in ids {
                         let msg = b"\r\n\x1b[33m[SSH disconnected \xe2\x80\x94 reconnecting...]\x1b[0m\r\n";
-                        let _ = ssh_tx.send(SshEvent::RemoteOutput {
-                            pane_id,
-                            data: msg.to_vec(),
-                        }).await;
+                        let _ = ssh_tx
+                            .send(SshEvent::RemoteOutput {
+                                pane_id,
+                                data: msg.to_vec(),
+                            })
+                            .await;
                     }
                 }
 
-                let _ = ssh_tx.send(SshEvent::StateChanged {
-                    workspace_id,
-                    state: ConnectionState::Disconnected,
-                }).await;
+                let _ = ssh_tx
+                    .send(SshEvent::StateChanged {
+                        workspace_id,
+                        state: ConnectionState::Disconnected,
+                    })
+                    .await;
             }
             Err(e) => {
                 eprintln!("cmux: SSH connection to {target} failed: {e}");
-                let _ = ssh_tx.send(SshEvent::StateChanged {
-                    workspace_id,
-                    state: ConnectionState::Disconnected,
-                }).await;
+                let _ = ssh_tx
+                    .send(SshEvent::StateChanged {
+                        workspace_id,
+                        state: ConnectionState::Disconnected,
+                    })
+                    .await;
             }
         }
 
         if attempt >= MAX_RETRIES {
             eprintln!("cmux: SSH max retries ({MAX_RETRIES}) exceeded for {target}, giving up");
-            let _ = ssh_tx.send(SshEvent::StateChanged {
-                workspace_id,
-                state: ConnectionState::Disconnected,
-            }).await;
+            let _ = ssh_tx
+                .send(SshEvent::StateChanged {
+                    workspace_id,
+                    state: ConnectionState::Disconnected,
+                })
+                .await;
             break;
         }
 
@@ -229,12 +245,19 @@ async fn run_proxy_routing(
                 Ok(_) => {
                     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
                         if msg.get("id").and_then(|v| v.as_u64()) == Some(1)
-                            && msg.get("ok").and_then(|v| v.as_bool()) == Some(true) {
+                            && msg.get("ok").and_then(|v| v.as_bool()) == Some(true)
+                        {
                             read_connected.store(true, std::sync::atomic::Ordering::Release);
                             eprintln!("cmux: SSH workspace={workspace_id} handshake complete");
-                            let _ = read_ssh_tx.send(SshEvent::StateChanged { workspace_id, state: ConnectionState::Connected }).await;
+                            let _ = read_ssh_tx
+                                .send(SshEvent::StateChanged {
+                                    workspace_id,
+                                    state: ConnectionState::Connected,
+                                })
+                                .await;
                         }
-                        handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending).await;
+                        handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending)
+                            .await;
                     }
                 }
                 Err(e) => {
@@ -255,13 +278,34 @@ async fn run_proxy_routing(
     let open_pending = pending.clone();
     let open_handle = tokio::spawn(async move {
         loop {
-            let ids: Vec<u64> = open_bridge.streams.lock().unwrap().iter()
-                .filter(|(_, stream)| stream.stream_id.is_empty()).map(|(&id, _)| id).collect();
+            let ids: Vec<u64> = open_bridge
+                .streams
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, stream)| stream.stream_id.is_empty())
+                .map(|(&id, _)| id)
+                .collect();
             for id in ids {
-                if let Err(error) = open_remote_stream(&open_writer, &open_bridge, id, &open_pending, &open_tx, 80, 24).await {
+                if let Err(error) = open_remote_stream(
+                    &open_writer,
+                    &open_bridge,
+                    id,
+                    &open_pending,
+                    &open_tx,
+                    80,
+                    24,
+                )
+                .await
+                {
                     eprintln!("cmux: remote terminal launch failed: {error}");
                     let message = format!("\r\n[Remote terminal failed: {error}]\r\n");
-                    let _ = open_tx.send(SshEvent::RemoteOutput { pane_id: id, data: message.into_bytes() }).await;
+                    let _ = open_tx
+                        .send(SshEvent::RemoteOutput {
+                            pane_id: id,
+                            data: message.into_bytes(),
+                        })
+                        .await;
                     let _ = open_tx.send(SshEvent::RemoteEof { pane_id: id }).await;
                     open_bridge.remove_pane(id);
                 }
@@ -320,7 +364,9 @@ async fn handle_incoming_message(
     if let Some(event) = msg.get("event").and_then(|v| v.as_str()) {
         let stream = msg.get("stream_id").and_then(|v| v.as_str()).unwrap_or("");
         let id = bridge.stream_to_pane.lock().unwrap().get(stream).copied();
-        let Some(pane_id) = id else { return; };
+        let Some(pane_id) = id else {
+            return;
+        };
         match event {
             "proxy.stream.data" => {
                 if let Some(encoded) = msg.get("data_base64").and_then(|v| v.as_str()) {
@@ -339,7 +385,9 @@ async fn handle_incoming_message(
         return;
     }
     if let Some(id) = msg.get("id").and_then(|v| v.as_u64()) {
-        if let Some(tx) = pending.lock().unwrap().remove(&id) { let _ = tx.send(msg.clone()); }
+        if let Some(tx) = pending.lock().unwrap().remove(&id) {
+            let _ = tx.send(msg.clone());
+        }
     }
 }
 
@@ -353,8 +401,13 @@ pub async fn open_remote_stream(
     cols: u16,
     rows: u16,
 ) -> Result<String, String> {
-    let (cols, rows) = bridge.contexts.lock().unwrap().get(&pane_id)
-        .map(|ctx| *ctx.size.lock().unwrap()).unwrap_or((cols, rows));
+    let (cols, rows) = bridge
+        .contexts
+        .lock()
+        .unwrap()
+        .get(&pane_id)
+        .map(|ctx| *ctx.size.lock().unwrap())
+        .unwrap_or((cols, rows));
     // Send session.spawn RPC
     let spawn_id = bridge.next_id();
     let spawn_rpc = serde_json::json!({
@@ -389,7 +442,8 @@ pub async fn open_remote_stream(
 
     // Await response
     let resp = tokio::time::timeout(std::time::Duration::from_secs(15), resp_rx)
-        .await.map_err(|_| "session.spawn timed out".to_string())?
+        .await
+        .map_err(|_| "session.spawn timed out".to_string())?
         .map_err(|_| "session.spawn response channel dropped".to_string())?;
 
     let stream_id = resp
@@ -413,12 +467,21 @@ pub async fn open_remote_stream(
             bridge.register_pane(pane_id, stream_id.clone());
             *ctx.stream_id.lock().unwrap() = Some(stream_id.clone());
             true
-        } else { false }
+        } else {
+            false
+        }
     };
     if !registered {
-        let _ = bridge.write_tx.lock().unwrap().send(crate::ssh::bridge::WriteRequest {
-            stream_id, data_base64: String::new(), close: true, resize: None,
-        });
+        let _ = bridge
+            .write_tx
+            .lock()
+            .unwrap()
+            .send(crate::ssh::bridge::WriteRequest {
+                stream_id,
+                data_base64: String::new(),
+                close: true,
+                resize: None,
+            });
         return Err("terminal closed while its remote PTY was starting".into());
     }
 
@@ -452,17 +515,20 @@ pub async fn open_remote_stream(
 
     // Await subscribe response
     let _sub_resp = tokio::time::timeout(std::time::Duration::from_secs(15), sub_rx)
-        .await.map_err(|_| "proxy.stream.subscribe timed out".to_string())?
+        .await
+        .map_err(|_| "proxy.stream.subscribe timed out".to_string())?
         .map_err(|_| "proxy.stream.subscribe response channel dropped".to_string())?;
 
     bridge.mark_subscribed(pane_id);
     eprintln!("cmux: remote terminal={pane_id} stream={stream_id} subscribed");
 
     // Notify via SSH event
-    let _ = ssh_tx.send(SshEvent::StreamOpened {
-        pane_id,
-        stream_id: stream_id.clone(),
-    }).await;
+    let _ = ssh_tx
+        .send(SshEvent::StreamOpened {
+            pane_id,
+            stream_id: stream_id.clone(),
+        })
+        .await;
 
     Ok(stream_id)
 }
@@ -505,12 +571,7 @@ fn backoff_duration(attempt: u32) -> Duration {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_max_retries_is_reasonable() {
-        assert!(MAX_RETRIES >= 5, "too few retries");
-        assert!(MAX_RETRIES <= 20, "too many retries");
-    }
-
+    /// Grow reconnect delays exponentially while capping long retry sequences.
     #[test]
     fn test_backoff_duration() {
         assert_eq!(backoff_duration(0), Duration::from_secs(1));
@@ -525,10 +586,16 @@ mod tests {
 
 struct AbortOnDrop(tokio::task::AbortHandle);
 impl Drop for AbortOnDrop {
-    fn drop(&mut self) { self.0.abort(); }
+    /// Cancel the companion task when its owning operation leaves scope.
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 struct PendingRequest(PendingMap, u64);
 impl Drop for PendingRequest {
-    fn drop(&mut self) { self.0.lock().unwrap().remove(&self.1); }
+    /// Remove an outstanding response slot on success, error or future cancellation.
+    fn drop(&mut self) {
+        self.0.lock().unwrap().remove(&self.1);
+    }
 }

@@ -365,18 +365,6 @@ fn build_ui(
             let ws_count = state.borrow().workspaces.len();
             let active = session.active_index.min(ws_count.saturating_sub(1));
             state.borrow_mut().switch_to_index(active);
-
-            // D-10: After GLAreas realize, sync surface pointers from registry.
-            if session.version >= 2 {
-                let state_for_sync = state.clone();
-                gtk4::glib::idle_add_local_once(move || {
-                    let mut s = state_for_sync.borrow_mut();
-                    for engine in &mut s.split_engines {
-                        engine.sync_surfaces_from_registry();
-                    }
-                    eprintln!("cmux: synced surface pointers from registry after restore");
-                });
-            }
         } else {
             // No session -- create the default first workspace.
             state.borrow_mut().create_workspace();
@@ -640,6 +628,7 @@ fn build_ui(
     }
 }
 
+/// Resolve a remote surface identity across workspace bridges without retaining GTK state.
 fn remote_context(
     state: &crate::app_state::AppStateRef,
     id: u64,

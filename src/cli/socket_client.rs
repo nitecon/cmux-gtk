@@ -16,6 +16,7 @@ pub enum CliError {
 }
 
 impl std::fmt::Display for CliError {
+    /// Render the underlying transport, protocol or application error for command-line output.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CliError::ConnectionError(msg) => write!(f, "{}", msg),
@@ -36,18 +37,17 @@ pub struct SocketClient {
 impl SocketClient {
     /// Connect to the cmux socket at the given path with the specified timeout.
     pub fn connect(path: &str, timeout: Duration) -> Result<Self, CliError> {
-        let stream = UnixStream::connect(path).map_err(|e| {
-            CliError::ConnectionError(format!("cannot connect to {}: {}", path, e))
-        })?;
-        stream.set_read_timeout(Some(timeout)).map_err(|e| {
-            CliError::ConnectionError(format!("set_read_timeout: {}", e))
-        })?;
-        stream.set_write_timeout(Some(timeout)).map_err(|e| {
-            CliError::ConnectionError(format!("set_write_timeout: {}", e))
-        })?;
-        let writer = stream.try_clone().map_err(|e| {
-            CliError::ConnectionError(format!("clone stream: {}", e))
-        })?;
+        let stream = UnixStream::connect(path)
+            .map_err(|e| CliError::ConnectionError(format!("cannot connect to {}: {}", path, e)))?;
+        stream
+            .set_read_timeout(Some(timeout))
+            .map_err(|e| CliError::ConnectionError(format!("set_read_timeout: {}", e)))?;
+        stream
+            .set_write_timeout(Some(timeout))
+            .map_err(|e| CliError::ConnectionError(format!("set_write_timeout: {}", e)))?;
+        let writer = stream
+            .try_clone()
+            .map_err(|e| CliError::ConnectionError(format!("clone stream: {}", e)))?;
         Ok(Self {
             reader: BufReader::new(stream),
             writer,
@@ -85,26 +85,28 @@ impl SocketClient {
         let mut line = request.to_string();
         line.push('\n');
 
-        self.writer.write_all(line.as_bytes()).map_err(|e| {
-            CliError::ProtocolError(format!("write failed: {}", e))
-        })?;
+        self.writer
+            .write_all(line.as_bytes())
+            .map_err(|e| CliError::ProtocolError(format!("write failed: {}", e)))?;
 
         let mut response_line = String::new();
-        self.reader.read_line(&mut response_line).map_err(|e| {
-            CliError::ProtocolError(format!("read failed: {}", e))
-        })?;
+        self.reader
+            .read_line(&mut response_line)
+            .map_err(|e| CliError::ProtocolError(format!("read failed: {}", e)))?;
 
         if response_line.is_empty() {
             return Err(CliError::ProtocolError("empty response from server".into()));
         }
 
-        let resp: serde_json::Value = serde_json::from_str(&response_line).map_err(|e| {
-            CliError::ProtocolError(format!("invalid JSON response: {}", e))
-        })?;
+        let resp: serde_json::Value = serde_json::from_str(&response_line)
+            .map_err(|e| CliError::ProtocolError(format!("invalid JSON response: {}", e)))?;
 
         let ok = resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
         if ok {
-            Ok(resp.get("result").cloned().unwrap_or(serde_json::Value::Null))
+            Ok(resp
+                .get("result")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null))
         } else {
             let msg = resp
                 .get("error")

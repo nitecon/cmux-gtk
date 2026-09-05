@@ -353,6 +353,7 @@ mod tests {
     use super::*;
     use clap::Parser;
 
+    /// Preserve explicit workspace naming and directory arguments in the outgoing RPC parameters.
     #[test]
     fn new_workspace_cli_sends_name_and_directory() {
         let cli = Cli::try_parse_from([

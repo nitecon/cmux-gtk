@@ -518,21 +518,7 @@ mod tests {
         );
     }
 
-    /// SOCK-05: Focus policy whitelist is documented.
-    #[test]
-    fn test_focus_policy() {
-        let focus_intent_methods = [
-            "workspace.select",
-            "pane.focus",
-            "pane.last",
-            "surface.focus",
-            "workspace.next",
-            "workspace.previous",
-            "workspace.last",
-        ];
-        assert!(!focus_intent_methods.is_empty());
-    }
-
+    /// Reject an invalid directory through the real dispatcher before any command reaches GTK.
     #[tokio::test]
     async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();

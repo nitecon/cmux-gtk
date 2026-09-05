@@ -354,6 +354,7 @@ pub fn workspace_row_content(workspace: &crate::workspace::Workspace) -> gtk4::B
     hbox
 }
 
+/// Replace the row color provider and full-location tooltip without accumulating providers.
 pub fn style_workspace_row(row: &gtk4::ListBoxRow, workspace: &crate::workspace::Workspace) {
     row.set_tooltip_text(Some(&workspace.location()));
     let context = row.style_context();
@@ -378,6 +379,7 @@ pub fn style_workspace_row(row: &gtk4::ListBoxRow, workspace: &crate::workspace:
     }
 }
 
+/// Bind workspace-ID drag/drop to model reordering with weak widget and state captures.
 fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_state::AppState>>) {
     let source = gtk4::DragSource::new();
     source.set_actions(gtk4::gdk::DragAction::MOVE);
@@ -426,6 +428,7 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
 mod lifecycle_tests {
     use super::*;
 
+    /// Exercise sidebar controls and verify removed workspace widget trees release their references.
     #[test]
     #[ignore = "requires GTK display; run in the headless CI job"]
     fn workspace_controls_release_closed_widget_trees() {

@@ -21,7 +21,16 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
 
     // Ensure remote directory exists
     let mkdir_status = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, "mkdir", "-p", "~/.local/bin"])
+        .args([
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            target,
+            "mkdir",
+            "-p",
+            "~/.local/bin",
+        ])
         .kill_on_drop(true)
         .status()
         .await
@@ -48,9 +57,17 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
     }
 
     // staging_name contains only a fixed prefix and a generated UUID.
-    let install_command = format!("chmod 755 ~/{staging_name} && mv -f ~/{staging_name} ~/.local/bin/cmuxd-remote");
+    let install_command =
+        format!("chmod 755 ~/{staging_name} && mv -f ~/{staging_name} ~/.local/bin/cmuxd-remote");
     let chmod_status = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, &install_command])
+        .args([
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            target,
+            &install_command,
+        ])
         .kill_on_drop(true)
         .status()
         .await
@@ -63,9 +80,18 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Best-effort removal of a validated remote staging filename after failed deployment.
 async fn remove_staged_daemon(target: &str, staging_name: &str) {
     let _ = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, &format!("rm -f ~/{staging_name}")])
+        .args([
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            target,
+            &format!("rm -f ~/{staging_name}"),
+        ])
         .kill_on_drop(true)
-        .status().await;
+        .status()
+        .await;
 }

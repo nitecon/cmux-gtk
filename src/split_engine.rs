@@ -26,12 +26,14 @@ pub enum PaneSurface {
 }
 
 impl PaneSurface {
+    /// Return the stable tab identity shared by persistence and socket commands.
     fn uuid(&self) -> Uuid {
         match self {
             Self::Terminal { uuid, .. } | Self::Browser { uuid, .. } => *uuid,
         }
     }
 
+    /// Clone the GTK page widget without transferring native terminal ownership.
     fn widget(&self) -> gtk4::Widget {
         match self {
             Self::Terminal { gl_area, .. } => gl_area.clone().upcast(),
@@ -39,6 +41,7 @@ impl PaneSurface {
         }
     }
 
+    /// Select the default notebook title for a terminal or browser tab.
     fn tab_title(&self) -> &'static str {
         match self {
             Self::Terminal { .. } => "Terminal",
@@ -46,6 +49,7 @@ impl PaneSurface {
         }
     }
 
+    /// Clone a terminal's GLArea; browser tabs deliberately have no terminal widget.
     fn terminal_area(&self) -> Option<gtk4::GLArea> {
         match self {
             Self::Terminal { gl_area, .. } => Some(gl_area.clone()),
@@ -53,6 +57,7 @@ impl PaneSurface {
         }
     }
 
+    /// Clone the browser's address entry for navigation or focus, excluding terminal tabs.
     fn url_entry(&self) -> Option<gtk4::Entry> {
         match self {
             Self::Browser { widgets, .. } => Some(widgets.url_entry.clone()),
@@ -61,6 +66,7 @@ impl PaneSurface {
     }
 }
 
+/// Resolve a realized terminal handle without reading application-owned GTK object data.
 fn surface_for_area(area: &gtk4::GLArea) -> Option<ffi::ghostty_surface_t> {
     crate::ghostty::callbacks::GL_TO_SURFACE
         .lock()
@@ -139,6 +145,7 @@ pub enum CloseSurfaceResult {
     NotFound,
 }
 
+/// Route tab-close controls through the window action that owns safe native teardown.
 fn request_surface_tab_close(widget: &impl IsA<gtk4::Widget>, uuid: Uuid) {
     let _ = widget.activate_action(
         "win.close-surface-tab",
@@ -146,6 +153,7 @@ fn request_surface_tab_close(widget: &impl IsA<gtk4::Widget>, uuid: Uuid) {
     );
 }
 
+/// Build a tab label and close affordance with weak widget captures to avoid ownership cycles.
 fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
     let uuid = surface.uuid();
     let tab = gtk4::Box::new(gtk4::Orientation::Horizontal, 4);
@@ -196,6 +204,7 @@ fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
     tab
 }
 
+/// Append a reorderable notebook page and its model entry, optionally selecting it.
 fn append_pane_surface(
     notebook: &gtk4::Notebook,
     surfaces: &std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>,
@@ -212,6 +221,7 @@ fn append_pane_surface(
     page
 }
 
+/// Construct a tabbed pane and synchronize native focus when its selected page changes.
 fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
     let notebook = gtk4::Notebook::new();
     notebook.add_css_class("surface-tabs");
@@ -641,6 +651,8 @@ impl SplitEngine {
         }
     }
 
+    /// Rebuild a saved tree with fresh pane IDs and the supplied launch context.
+    /// Preserve surface UUIDs; reject excessive nesting and fall back to the first pane for focus.
     pub fn from_data_with_command(
         app: gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
@@ -684,6 +696,8 @@ impl SplitEngine {
         })
     }
 
+    /// Recursively construct GTK panes from legacy or tabbed snapshots, limiting depth to 16.
+    /// Native terminals initialize on realization; caller launch settings override saved defaults.
     fn node_from_data(
         app: &gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
@@ -879,24 +893,6 @@ impl SplitEngine {
         }
     }
 
-    /// Sync null surface pointers in the tree from GL_TO_SURFACE registry.
-    /// Called after restore to wire surfaces that were created during GLArea realize.
-    pub fn sync_surfaces_from_registry(&mut self) {
-        Self::sync_surfaces_recursive(&mut self.root);
-    }
-
-    fn sync_surfaces_recursive(node: &mut SplitNode) {
-        match node {
-            SplitNode::Leaf { .. } => {
-                // Surface handles live in GL_TO_SURFACE and are resolved per tab.
-            }
-            SplitNode::Split { start, end, .. } => {
-                Self::sync_surfaces_recursive(start);
-                Self::sync_surfaces_recursive(end);
-            }
-        }
-    }
-
     /// Returns the root widget of this workspace's split tree.
     pub fn root_widget(&self) -> gtk4::Widget {
         self.root.widget()
@@ -984,6 +980,8 @@ impl SplitEngine {
         self.split_active(gtk4::Orientation::Vertical)
     }
 
+    /// Split the active pane, inherit a terminal's config and focus the newly allocated pane.
+    /// Return None when no terminal can supply the inherited context.
     pub fn split_active(&mut self, orientation: gtk4::Orientation) -> Option<u64> {
         let active_id = self.active_pane_id;
         let new_pane_id = self.next_pane_id;
@@ -1468,6 +1466,7 @@ impl SplitEngine {
         }
     }
 
+    /// Prefer the selected terminal, then fall back to any registered terminal in the pane.
     fn find_surface(&self, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
         find_surface_in_tree(&self.root, pane_id).or_else(|| {
             crate::ghostty::registry::first_surface(pane_id)
@@ -1475,6 +1474,7 @@ impl SplitEngine {
         })
     }
 
+    /// Resolve the pane's selected terminal widget for focus and rendering operations.
     fn find_gl_area(&self, pane_id: u64) -> Option<gtk4::GLArea> {
         find_gl_area_in_tree(&self.root, pane_id)
     }
@@ -1525,6 +1525,7 @@ pub fn first_browser_picture(node: &SplitNode) -> Option<gtk4::Picture> {
     }
 }
 
+/// Collect browser widgets with their stable surface IDs across the pane tree.
 fn collect_browser_tabs(node: &SplitNode, out: &mut Vec<crate::browser::PreviewPaneWidgets>) {
     match node {
         SplitNode::Leaf { surfaces, .. } => {
@@ -1688,6 +1689,7 @@ fn first_pane_id(node: &SplitNode) -> u64 {
     }
 }
 
+/// Find a pane once and clone its notebook/model handles for selected-tab operations.
 fn find_pane_tabs(
     node: &SplitNode,
     pane_id: u64,
@@ -1709,6 +1711,7 @@ fn find_pane_tabs(
     }
 }
 
+/// Find a realized terminal for inheritance even when the pane currently shows a browser tab.
 fn find_any_terminal_surface(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
     let (_, surfaces) = find_pane_tabs(node, pane_id)?;
     let found = surfaces
@@ -1719,67 +1722,31 @@ fn find_any_terminal_surface(node: &SplitNode, pane_id: u64) -> Option<ffi::ghos
     found
 }
 
+/// Resolve the selected terminal's native handle, excluding browser and unrealized tabs.
 fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
-    match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            notebook,
-            surfaces,
-            ..
-        } if *id == pane_id => notebook
-            .current_page()
-            .and_then(|page| {
-                surfaces
-                    .borrow()
-                    .get(page as usize)
-                    .and_then(PaneSurface::terminal_area)
-            })
-            .and_then(|area| surface_for_area(&area)),
-        SplitNode::Leaf { .. } => None,
-        SplitNode::Split { start, end, .. } => {
-            find_surface_in_tree(start, pane_id).or_else(|| find_surface_in_tree(end, pane_id))
-        }
-    }
+    find_gl_area_in_tree(node, pane_id).and_then(|area| surface_for_area(&area))
 }
 
+/// Return the selected terminal widget in a pane located through the shared tree lookup.
 fn find_gl_area_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::GLArea> {
-    match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            notebook,
-            surfaces,
-            ..
-        } if *id == pane_id => notebook.current_page().and_then(|page| {
-            surfaces
-                .borrow()
-                .get(page as usize)
-                .and_then(PaneSurface::terminal_area)
-        }),
-        SplitNode::Leaf { .. } => None,
-        SplitNode::Split { start, end, .. } => {
-            find_gl_area_in_tree(start, pane_id).or_else(|| find_gl_area_in_tree(end, pane_id))
-        }
-    }
+    let (notebook, surfaces) = find_pane_tabs(node, pane_id)?;
+    let page = notebook.current_page()?;
+    let area = surfaces
+        .borrow()
+        .get(page as usize)
+        .and_then(PaneSurface::terminal_area);
+    area
 }
 
+/// Return the selected browser's address entry, excluding terminal tabs.
 fn find_url_entry_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::Entry> {
-    match node {
-        SplitNode::Leaf {
-            pane_id: id,
-            notebook,
-            surfaces,
-            ..
-        } if *id == pane_id => notebook.current_page().and_then(|page| {
-            surfaces
-                .borrow()
-                .get(page as usize)
-                .and_then(PaneSurface::url_entry)
-        }),
-        SplitNode::Leaf { .. } => None,
-        SplitNode::Split { start, end, .. } => {
-            find_url_entry_in_tree(start, pane_id).or_else(|| find_url_entry_in_tree(end, pane_id))
-        }
-    }
+    let (notebook, surfaces) = find_pane_tabs(node, pane_id)?;
+    let page = notebook.current_page()?;
+    let entry = surfaces
+        .borrow()
+        .get(page as usize)
+        .and_then(PaneSurface::url_entry);
+    entry
 }
 
 /// Find the pane adjacent to `active_id` in `direction`.
@@ -1920,6 +1887,7 @@ fn restore_active_pane_focus() {
     }
 }
 
+/// Collect pane IDs in split traversal order for directional focus and restore fallback.
 fn collect_leaves_in_order(node: &SplitNode, out: &mut Vec<u64>) {
     match node {
         SplitNode::Leaf { pane_id, .. } => out.push(*pane_id),
@@ -1976,10 +1944,12 @@ pub enum PaneSurfaceData {
     },
 }
 
+/// Supply a blank page when an older saved browser tab lacks its URL.
 fn default_browser_url() -> String {
     "about:blank".to_string()
 }
 
+/// Restore equal pane sizes when a saved split omits its divider ratio.
 fn default_ratio() -> f64 {
     0.5
 }
@@ -2057,6 +2027,7 @@ impl SplitNode {
 mod tests {
     use super::*;
 
+    /// Verify legacy leaf JSON retains the stable surface identity.
     #[test]
     fn split_node_data_leaf_has_surface_uuid() {
         // Build a minimal SplitNodeData::Leaf directly and verify surface_uuid field exists.
@@ -2080,6 +2051,7 @@ mod tests {
         }
     }
 
+    /// Preserve a legacy terminal leaf through JSON serialization.
     #[test]
     fn split_node_data_roundtrip_json() {
         // Verify SplitNodeData serializes and deserializes via serde_json.
@@ -2111,6 +2083,7 @@ mod tests {
         }
     }
 
+    /// Preserve mixed terminal/browser tab order, URLs and selection through serialization.
     #[test]
     fn pane_tabs_roundtrip_preserves_browser_url_and_active_surface() {
         let terminal_uuid = Uuid::new_v4();
@@ -2147,6 +2120,7 @@ mod tests {
         ));
     }
 
+    /// Preserve split orientation, divider ratio and child identities in saved layouts.
     #[test]
     fn split_node_data_split_roundtrip_json() {
         // Verify nested SplitNodeData serializes correctly with ratio field.

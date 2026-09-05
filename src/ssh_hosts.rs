@@ -102,35 +102,41 @@ pub fn workspace_name_from_target(target: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Return no selectable hosts for empty SSH configuration.
     #[test]
     fn test_parse_empty() {
         assert_eq!(parse_ssh_config_hosts(""), Vec::<String>::new());
     }
 
+    /// Expand multiple aliases on one Host directive while retaining order.
     #[test]
     fn test_parse_multi_host_line() {
         let input = "Host foo bar\nHost baz\n";
         assert_eq!(parse_ssh_config_hosts(input), vec!["foo", "bar", "baz"]);
     }
 
+    /// Exclude pattern-only Host entries from selectable destinations.
     #[test]
     fn test_parse_wildcard_filtered() {
         let input = "Host *\nHost dev-?server\nHost good\n";
         assert_eq!(parse_ssh_config_hosts(input), vec!["good"]);
     }
 
+    /// Accept indented Host directives and surrounding whitespace.
     #[test]
     fn test_parse_whitespace_handling() {
         let input = "  Host   spaced  \n";
         assert_eq!(parse_ssh_config_hosts(input), vec!["spaced"]);
     }
 
+    /// Distinguish Host aliases from HostName connection settings.
     #[test]
     fn test_parse_hostname_ignored() {
         let input = "HostName not-a-host\nHost real\n";
         assert_eq!(parse_ssh_config_hosts(input), vec!["real"]);
     }
 
+    /// Preserve saved host order through TOML serialization.
     #[test]
     fn test_round_trip() {
         let file = SshHostsFile {
@@ -141,12 +147,14 @@ mod tests {
         assert_eq!(deserialized.hosts, vec!["a", "b"]);
     }
 
+    /// Accept a saved-host file without a hosts field.
     #[test]
     fn test_empty_file_default() {
         let file: SshHostsFile = toml::from_str("").unwrap();
         assert!(file.hosts.is_empty());
     }
 
+    /// Remove the login user from the default workspace title.
     #[test]
     fn test_workspace_name_user_at_host() {
         assert_eq!(
@@ -155,6 +163,7 @@ mod tests {
         );
     }
 
+    /// Preserve a bare hostname as the workspace title.
     #[test]
     fn test_workspace_name_host_only() {
         assert_eq!(
@@ -163,16 +172,19 @@ mod tests {
         );
     }
 
+    /// Remove login user and port from the display title.
     #[test]
     fn test_workspace_name_with_port() {
         assert_eq!(workspace_name_from_target("user@host:2222"), "host");
     }
 
+    /// Keep SSH aliases readable without rewriting them.
     #[test]
     fn test_workspace_name_alias() {
         assert_eq!(workspace_name_from_target("dev-server"), "dev-server");
     }
 
+    /// Persist distinct destinations once and reload them in insertion order.
     #[test]
     fn test_save_and_load_roundtrip() {
         let dir = std::env::temp_dir().join(format!("cmux-ssh-hosts-test-{}", std::process::id()));

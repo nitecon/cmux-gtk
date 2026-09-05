@@ -320,6 +320,7 @@ impl ShortcutMap {
 mod tests {
     use super::*;
 
+    /// Resolve configuration under an explicitly set XDG directory.
     #[test]
     fn test_config_path_xdg() {
         // Temporarily set XDG_CONFIG_HOME and verify config_path() uses it.
@@ -329,6 +330,7 @@ mod tests {
         std::env::remove_var("XDG_CONFIG_HOME");
     }
 
+    /// Use built-in defaults when no configuration file exists.
     #[test]
     fn test_load_config_missing_file() {
         // Point to a nonexistent dir so load_config returns defaults silently.
@@ -339,6 +341,7 @@ mod tests {
         std::env::remove_var("XDG_CONFIG_HOME");
     }
 
+    /// Accept an empty configuration without losing shortcut defaults.
     #[test]
     fn test_load_config_empty_file() {
         let dir = std::env::temp_dir().join(format!("cmux-cfg-empty-{}", std::process::id()));
@@ -354,6 +357,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Read a configured accelerator from the real TOML file path.
     #[test]
     fn test_load_config_valid_shortcuts() {
         let dir = std::env::temp_dir().join(format!("cmux-cfg-valid-{}", std::process::id()));
@@ -369,6 +373,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Fall back to defaults when configuration syntax is invalid.
     #[test]
     fn test_load_config_invalid_toml() {
         let dir = std::env::temp_dir().join(format!("cmux-cfg-invalid-{}", std::process::id()));
@@ -385,12 +390,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Keep the GTK header visible when UI settings are omitted.
     #[test]
     fn test_ui_config_default() {
         let config: Config = toml::from_str("").unwrap();
         assert_eq!(config.ui.header_bar.style, "gtk");
     }
 
+    /// Accept the hidden-header setting alongside ignored legacy button keys.
     #[test]
     fn test_ui_config_hidden_header_accepts_legacy_keys() {
         let config: Config = toml::from_str(
@@ -408,6 +415,7 @@ buttons_right = ["split_right", "toggle_sidebar"]
     // Tests that require GTK4 initialization (accelerator_parse).
     // These will only work in environments with a display (or virtual display).
 
+    /// Resolve the built-in new-workspace accelerator through GTK parsing.
     #[test]
     fn test_shortcut_map_defaults() {
         if gtk4::init().is_err() {
@@ -420,6 +428,7 @@ buttons_right = ["split_right", "toggle_sidebar"]
         assert_eq!(result, Some(ShortcutAction::NewWorkspace));
     }
 
+    /// Replace the default accelerator when a configured shortcut overrides it.
     #[test]
     fn test_shortcut_map_custom() {
         if gtk4::init().is_err() {

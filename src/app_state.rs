@@ -102,6 +102,7 @@ impl AppState {
         self.create_local_workspace(Some(name), Some(working_directory), None)
     }
 
+    /// Validate the launch directory and readable script before creating a local GTK workspace.
     pub fn create_script_workspace(
         &mut self,
         name: String,
@@ -113,6 +114,7 @@ impl AppState {
         Ok(self.create_local_workspace(Some(name), Some(directory), Some(script)))
     }
 
+    /// Allocate identity, construct the pane tree and sidebar row, select and schedule persistence.
     fn create_local_workspace(
         &mut self,
         name: Option<String>,
@@ -488,6 +490,8 @@ impl AppState {
         true
     }
 
+    /// Apply a validated RGB color to model and sidebar, then schedule a session save.
+    /// Invalid colors and unknown workspace IDs leave state unchanged.
     pub fn set_workspace_color(&mut self, id: u64, color: Option<String>) {
         if color
             .as_deref()
@@ -526,10 +530,12 @@ impl AppState {
         self.switch_to_index(prev);
     }
 
+    /// Borrow the selected workspace's pane tree, or None when no workspace exists.
     pub fn active_split_engine(&self) -> Option<&SplitEngine> {
         self.split_engines.get(self.active_index)
     }
 
+    /// Mutably borrow the selected pane tree for GTK-thread workspace operations.
     pub fn active_split_engine_mut(&mut self) -> Option<&mut SplitEngine> {
         self.split_engines.get_mut(self.active_index)
     }
@@ -539,6 +545,7 @@ impl AppState {
         self.rename_workspace_at(self.active_index, new_name);
     }
 
+    /// Update the workspace name and sidebar label, then schedule persistence; ignore invalid indices.
     pub fn rename_workspace_at(&mut self, index: usize, new_name: String) {
         if let Some(ws) = self.workspaces.get_mut(index) {
             ws.rename(new_name.clone());

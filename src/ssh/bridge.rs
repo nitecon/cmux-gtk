@@ -239,6 +239,7 @@ pub unsafe extern "C" fn ssh_io_write_cb(
 }
 
 impl IoWriteContext {
+    /// Clamp terminal dimensions, coalesce unchanged sizes and enqueue a remote resize when connected.
     pub fn resize(&self, columns: u16, rows: u16) {
         let size = (columns.max(1), rows.max(1));
         let mut previous = self.size.lock().unwrap();
@@ -261,6 +262,7 @@ impl IoWriteContext {
 mod lifecycle_tests {
     use super::*;
 
+    /// Route input through the replacement sender and close only the retired remote stream.
     #[test]
     fn remote_contexts_keep_separate_streams_and_use_reconnected_sender() {
         let bridge = SshBridge::new();
