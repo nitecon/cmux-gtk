@@ -38,6 +38,19 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // win.focus-pane — keep pointer-selected pane state aligned with GTK focus.
+    let action = gio::SimpleAction::new("focus-pane", Some(&u64::static_variant_type()));
+    action.connect_activate({
+        let state = state.clone();
+        move |_, parameter| {
+            let Some(pane_id) = parameter.and_then(|value| value.get::<u64>()) else {
+                return;
+            };
+            crate::shortcuts::handle_focus_pane(&state, pane_id);
+        }
+    });
+    window.add_action(&action);
+
     // win.new-browser-tab — sibling surface in the focused pane.
     let action = gio::SimpleAction::new("new-browser-tab", None);
     action.set_enabled(crate::browser::agent_browser_available());
@@ -166,20 +179,15 @@ pub fn register_actions(
     action.set_enabled(false);
     window.add_action(&action);
 
-    // win.preferences (D-13) -- open config.toml in $EDITOR
+    // win.preferences — terminal appearance settings.
     let action = gio::SimpleAction::new("preferences", None);
-    action.connect_activate(move |_, _| {
-        let editor = std::env::var("EDITOR").unwrap_or_else(|_| "xdg-open".to_string());
-        let config_path = crate::config::config_path();
-        if let Some(parent) = config_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+    action.connect_activate({
+        let window = window.downgrade();
+        move |_, _| {
+            if let Some(window) = window.upgrade() {
+                crate::preferences::show(&window);
+            }
         }
-        if !config_path.exists() {
-            let _ = std::fs::write(&config_path, "# cmux configuration\n# See documentation for options\n");
-        }
-        let _ = std::process::Command::new(&editor)
-            .arg(&config_path)
-            .spawn();
     });
     window.add_action(&action);
 

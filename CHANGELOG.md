@@ -2,13 +2,19 @@
 
 All notable changes to cmux GTK are documented here.
 
-## Unreleased
+## [0.1.7] - 2026-09-05
 
 ### Added
+
+- Remembered normal window size and maximized state, plus window position on X11. Wayland placement remains controlled by the compositor.
+
+- Added a Preferences dialog with a persistent terminal font size that applies to existing and new tabs.
 
 - Added persistent lifecycle diagnostics and panic backtraces at `$XDG_STATE_HOME/cmux/cmux.log`.
 
 ### Fixed
+
+- Restored terminal keyboard focus when clicking back from the browser URL bar and prevented stale browser callbacks from stealing focus.
 
 - Deferred browser URL restoration when closing a terminal tab synchronously reveals a browser tab, preventing a re-entrant state borrow from aborting cmux.
 

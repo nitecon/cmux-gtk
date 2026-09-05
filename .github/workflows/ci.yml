@@ -74,7 +74,7 @@ jobs:
         run: cargo build --workspace --bins
 
       - name: Install headless UI test dependencies
-        run: sudo apt-get install -y xvfb dbus-x11
+        run: sudo apt-get install -y xvfb dbus-x11 openbox xdotool wmctrl
 
       - name: Test terminal pane close lifecycle
         run: dbus-run-session -- xvfb-run -a ./tests/test_linux_terminal_pane_close.sh
@@ -84,3 +84,6 @@ jobs:
 
       - name: Run unit tests
         run: cargo test --workspace --bins
+
+      - name: Test window state restoration
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_window_state.py

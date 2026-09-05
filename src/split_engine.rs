@@ -226,9 +226,15 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
                     }
                 } else if is_active_pane && index == page as usize {
                     if let Some(entry) = surface.url_entry() {
+                        let notebook = notebook.downgrade();
                         glib::idle_add_local_once(move || {
-                            entry.grab_focus();
-                            entry.select_region(0, -1);
+                            let Some(notebook) = notebook.upgrade() else { return };
+                            if notebook.has_css_class("active-pane")
+                                && notebook.current_page() == Some(page)
+                            {
+                                entry.grab_focus();
+                                entry.select_region(0, -1);
+                            }
                         });
                     }
                 }
@@ -815,6 +821,17 @@ impl SplitEngine {
                 }
             }
         }
+    }
+
+    /// Mark a pane active without changing GTK focus. Pointer handlers use this
+    /// before focusing the exact child that was clicked.
+    pub fn activate_pane(&mut self, pane_id: u64) -> bool {
+        if self.root.find_node(pane_id).is_none() {
+            return false;
+        }
+        self.active_pane_id = pane_id;
+        self.root.update_focus_css(pane_id);
+        true
     }
 
     /// Split the active pane to the right (Ctrl+D per D-10).

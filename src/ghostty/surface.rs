@@ -116,6 +116,9 @@ fn initialize_surface(
             "cmux: initializing Ghostty surface at {}x{} logical pixels",
             logical_width, logical_height
         );
+        if let Some(size) = crate::preferences::saved_font_size() {
+            config.font_size = size;
+        }
         let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
         if surface.is_null() {
             eprintln!("cmux: FATAL — ghostty_surface_new returned null");
@@ -466,7 +469,13 @@ pub fn create_surface(
     click_gesture.set_button(0); // 0 = listen to all mouse buttons
     click_gesture.connect_pressed({
         let cell = surface_cell.clone();
+        let area = gl_area.clone();
         move |gesture, _n_press, _x, _y| {
+            let _ = area.activate_action(
+                "win.focus-pane",
+                Some(&pane_id.to_variant()),
+            );
+            area.grab_focus();
             let surface = match *cell.borrow() {
                 Some(s) => s,
                 None => return,
@@ -542,6 +551,7 @@ pub fn create_surface(
         let cell = surface_cell.clone();
         let gl_area_for_focus = gl_area.clone();
         move |_ctrl| {
+            crate::diagnostics::event(format_args!("terminal focus entered pane={pane_id}"));
             if let Some(surface) = *cell.borrow() {
                 unsafe {
                     ffi::ghostty_surface_set_focus(surface, true);

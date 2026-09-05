@@ -178,7 +178,19 @@ A `CLAUDE.md` at `/usr/share/cmux/CLAUDE.md` references skill paths so Claude Co
 
 Shortcuts are configurable via TOML config file.
 
+## Terminal preferences
+
+Open the window menu → **Preferences** to set the terminal font size (6–72
+points). **Apply** updates existing terminals and saves the size for new tabs
+and future launches in `~/.config/cmux/preferences.json` (respecting
+`XDG_CONFIG_HOME`). Until a size is saved, terminals use their Ghostty configuration.
+
 ## Diagnostics
+
+Window size and maximized state are restored on launch. X11 also restores the
+last position when that monitor is still available; Wayland controls placement
+through the compositor. Window state is saved beside the session in
+`$XDG_DATA_HOME/cmux/window-state.json` (normally `~/.local/share/cmux/`).
 
 cmux records startup, pane/tab lifecycle events, and panic backtraces in
 `$XDG_STATE_HOME/cmux/cmux.log` (normally `~/.local/state/cmux/cmux.log`). Set

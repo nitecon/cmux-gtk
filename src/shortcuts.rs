@@ -248,6 +248,20 @@ pub fn handle_focus_direction(state: &Rc<RefCell<AppState>>, direction: FocusDir
     }
 }
 
+/// Synchronize cmux's active-pane model with pointer-driven GTK focus changes.
+pub fn handle_focus_pane(state: &Rc<RefCell<AppState>>, pane_id: u64) {
+    let Ok(mut app_state) = state.try_borrow_mut() else {
+        let state = state.clone();
+        glib::idle_add_local_once(move || handle_focus_pane(&state, pane_id));
+        return;
+    };
+    if let Some(engine) = app_state.active_split_engine_mut() {
+        if engine.activate_pane(pane_id) {
+            crate::diagnostics::event(format_args!("pane activated by pointer pane={pane_id}"));
+        }
+    }
+}
+
 /// Create a sibling terminal tab inside the currently focused pane.
 pub fn handle_new_terminal_tab(state: &Rc<RefCell<AppState>>) {
     let created = state
@@ -321,6 +335,7 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
 
 fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::PreviewPaneWidgets) {
     let surface_uuid = widgets.uuid;
+    let pane_id = widgets.pane_id;
     let picture = widgets.picture.clone();
     let url_entry = widgets.url_entry.clone();
     let picture_ref = picture.clone();
@@ -353,6 +368,16 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
 
     // Step 3b: Wire nav button signals (D-06, D-07)
     {
+        let focus_controller = gtk4::EventControllerFocus::new();
+        let entry_for_focus = url_entry.clone();
+        focus_controller.connect_enter(move |_| {
+            let _ = entry_for_focus.activate_action(
+                "win.focus-pane",
+                Some(&pane_id.to_variant()),
+            );
+        });
+        url_entry.add_controller(focus_controller);
+
         // Back button
         let state_for_back = state.clone();
         let entry_for_back = url_entry.clone();
@@ -437,6 +462,10 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
         let state_for_click = state.clone();
         let picture_for_click = picture_ref.clone();
         click_ctrl.connect_released(move |_gesture, _n_press, x, y| {
+            let _ = picture_for_click.activate_action(
+                "win.focus-pane",
+                Some(&pane_id.to_variant()),
+            );
             // Keep browser-page keystrokes scoped to the picture. In particular,
             // this must not steal typing from the sibling URL GtkEntry.
             picture_for_click.grab_focus();
@@ -666,10 +695,6 @@ fn wire_browser_tab(state: &Rc<RefCell<AppState>>, widgets: crate::browser::Prev
 
     crate::diagnostics::event(format_args!("browser tab wiring complete uuid={surface_uuid}"));
     state.borrow().trigger_session_save();
-    glib::idle_add_local_once(move || {
-        url_entry.grab_focus();
-        url_entry.select_region(0, -1);
-    });
 }
 
 /// A notebook page can be mapped synchronously while another GTK callback is

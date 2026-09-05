@@ -20,6 +20,8 @@ mod header_bar;
 mod ssh_hosts;
 mod ssh_dialog;
 mod diagnostics;
+mod preferences;
+mod window_state;
 #[allow(dead_code)]
 mod updater;
 
@@ -558,6 +560,7 @@ fn build_ui(
     crate::shortcuts::install_shortcuts(&window, state.clone(), &sidebar_box, app, shortcut_map);
 
     // 8. Present the window
+    crate::window_state::install(&window);
     window.present();
 
     // Browser widgets are part of the saved pane tree; reconnect them only after
