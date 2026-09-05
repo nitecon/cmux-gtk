@@ -111,7 +111,7 @@ async fn handle_connection(
     stream: tokio::net::UnixStream,
     cmd_tx: tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
 ) {
-    use tokio::io::{AsyncWriteExt, BufReader};
+    use tokio::io::BufReader;
 
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
@@ -129,10 +129,13 @@ async fn handle_connection(
             }
         };
         let response = dispatch_line(&line, &cmd_tx).await;
-        if writer.write_all(response.as_bytes()).await.is_err() {
-            break;
-        }
-        if writer.write_all(b"\n").await.is_err() {
+        if let Err(error) = framing::write_response(&mut writer, &response).await {
+            crate::diagnostics::record(
+                "rpc.response.failed",
+                serde_json::json!({
+                    "error_kind": format!("{:?}", error.kind()), "response_bytes": response.len()
+                }),
+            );
             break;
         }
     }

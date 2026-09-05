@@ -238,3 +238,7 @@ Extracted the existing diagnostic JSON-line encoder into a neutral module shared
 ## Server request framing boundary
 
 Extracted socket request framing from connection dispatch into a documented module. It limits incoming lines to 4 MiB, applies a ten-second completion deadline after first bytes arrive, accepts CRLF and rejects incomplete EOF/invalid UTF-8 before JSON parsing or GTK dispatch. Idle connections remain supported. Rejections emit bounded structured error categories. CI Unix socket-pair tests cover byte-fragmented Unicode, coalesced lines, exact bounds, overflow, stalled partial requests and truncated EOF. Workspace all-target checking and diff validation pass; no local tests run.
+
+## Bounded server response delivery
+
+The framing component now owns response writes as well as request reads. It caps serialized response bodies at 4 MiB and applies one ten-second deadline across body/newline writes. Errors close the connection and record a structured delivery failure. Added a bounded in-memory transport CI test for exact framing and a non-reading peer; all-target Cargo checking and diff validation pass. No local tests run. Handler-side response allocation and failure trace correlation remain outstanding.
