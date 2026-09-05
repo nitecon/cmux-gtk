@@ -4,6 +4,7 @@
 import argparse
 import json
 import math
+import os
 import platform
 from pathlib import Path
 import statistics
@@ -24,33 +25,59 @@ def percentile(samples, fraction):
 
 
 def measure(binary, socket, iterations, warmup):
-    """Warm the command path, then retain individual round trips and resource deltas."""
-    for _ in range(warmup):
-        call(binary, socket, "ping")
-    before = call(binary, socket, "diagnostics")
-    if before.get("build_profile") != "release":
-        raise ValueError("benchmark requires an optimized cmux-app build")
+    """Retain successful samples and phase/error metadata even when a workload fails."""
     samples = []
-    started = time.monotonic()
-    for _ in range(iterations):
-        tick = time.perf_counter_ns()
-        result = call(binary, socket, "ping")
-        samples.append((time.perf_counter_ns() - tick) / 1000)
-        if not result.get("pong"):
-            raise ValueError("ping did not reach the application")
-    elapsed = time.monotonic() - started
-    after = call(binary, socket, "diagnostics")
-    return {
-        "schema": 1, "workload": "sequential_cli_ping",
+    report = {
+        "schema": 1, "workload": "sequential_cli_ping", "status": "failed",
         "includes": "CLI process startup, socket dispatch, GTK execution and response",
-        "iterations": iterations, "warmup": warmup,
-        "elapsed_seconds": elapsed, "operations_per_second": iterations / elapsed,
-        "latency_us": {"median": statistics.median(samples),
-                       "p95": percentile(samples, 0.95), "p99": percentile(samples, 0.99),
-                       "samples": samples},
+        "iterations": iterations, "warmup": warmup, "completed_iterations": 0,
         "host": {"platform": platform.platform(), "machine": platform.machine()},
-        "before": before, "after": after,
+        "before": None, "after": None,
     }
+    started = None
+    elapsed = None
+    phase = "warmup"
+    try:
+        for _ in range(warmup):
+            if not call(binary, socket, "ping").get("pong"):
+                raise ValueError("warmup ping did not reach the application")
+        phase = "initial_diagnostics"
+        report["before"] = call(binary, socket, "diagnostics")
+        if type(report["before"].get("pid")) is not int or report["before"]["pid"] <= 0:
+            raise ValueError("diagnostics omitted a valid process ID")
+        if report["before"].get("build_profile") != "release":
+            raise ValueError("benchmark requires an optimized cmux-app build")
+        phase = "measurement"
+        started = time.monotonic()
+        for _ in range(iterations):
+            tick = time.perf_counter_ns()
+            result = call(binary, socket, "ping")
+            duration = (time.perf_counter_ns() - tick) / 1000
+            if not result.get("pong"):
+                raise ValueError("ping did not reach the application")
+            samples.append(duration)
+        elapsed = time.monotonic() - started
+        phase = "final_diagnostics"
+        report["after"] = call(binary, socket, "diagnostics")
+        if report["after"].get("pid") != report["before"].get("pid"):
+            raise ValueError("application process changed during measurement")
+        report["status"] = "passed"
+    except Exception as error:
+        # Keep terminal output, command arguments and server messages out of artifacts.
+        report["failure"] = {"phase": phase, "error_kind": type(error).__name__}
+    finally:
+        if started is not None and elapsed is None:
+            elapsed = time.monotonic() - started
+        report["completed_iterations"] = len(samples)
+        report["elapsed_seconds"] = elapsed
+        report["operations_per_second"] = len(samples) / elapsed if elapsed else None
+        report["latency_us"] = {
+            "median": statistics.median(samples) if samples else None,
+            "p95": percentile(samples, 0.95) if samples else None,
+            "p99": percentile(samples, 0.99) if samples else None,
+            "samples": samples,
+        }
+    return report
 
 
 def main():
@@ -64,12 +91,17 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.iterations <= 100000 or not 0 <= args.warmup <= 10000:
         parser.error("iterations must be 1..100000 and warmup 0..10000")
-    report = measure(args.binary, args.socket, args.iterations, args.warmup)
-    revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
-    report["revision"] = revision.stdout.strip()
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                              check=True, timeout=10)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"wrote {args.output}: median={report['latency_us']['median']:.0f} us")
+    descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        report = measure(args.binary, args.socket, args.iterations, args.warmup)
+        report["revision"] = revision.stdout.strip()
+        output.write(json.dumps(report, indent=2) + "\n")
+    print(f"wrote {args.output}: {report['status']}, {report['completed_iterations']} completed pings")
+    if report["status"] != "passed":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
