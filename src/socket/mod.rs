@@ -6,6 +6,9 @@ pub mod handlers;
 
 use std::path::PathBuf;
 
+/// Maximum commands waiting for GTK, independently of connection admission.
+pub(crate) const COMMAND_CAPACITY: usize = 64;
+
 /// Compute the Unix socket path per D-06.
 /// $XDG_RUNTIME_DIR/cmux/cmux.sock, fallback /run/user/{uid}/cmux/cmux.sock.
 pub fn socket_path() -> PathBuf {
@@ -34,7 +37,7 @@ fn last_socket_path_marker() -> PathBuf {
 pub fn start_socket_server(
     runtime: &tokio::runtime::Handle,
     _state: crate::app_state::AppStateRef,
-    cmd_tx: tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
+    cmd_tx: tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) {
     let sock_path = socket_path();
     let dir = socket_dir();
@@ -114,7 +117,7 @@ pub fn start_socket_server(
 /// Reads newline-delimited JSON requests, dispatches via mpsc channel, writes responses.
 async fn handle_connection(
     stream: tokio::net::UnixStream,
-    cmd_tx: tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
+    cmd_tx: tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) {
     use tokio::io::BufReader;
 
@@ -151,7 +154,7 @@ async fn handle_connection(
 /// Returns the JSON response string (without trailing newline).
 async fn dispatch_line(
     line: String,
-    cmd_tx: &tokio::sync::mpsc::UnboundedSender<commands::SocketCommand>,
+    cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) -> String {
     let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
@@ -505,11 +508,25 @@ async fn dispatch_line(
         trace_id: operation.id,
         queued_at: std::time::Instant::now(),
     };
-    if cmd_tx.send(observed).is_err() {
+    if let Err(error) = cmd_tx.try_send(observed) {
+        let (code, message) = match error {
+            tokio::sync::mpsc::error::TrySendError::Full(_) => {
+                ("overloaded", "GTK command queue is full")
+            }
+            tokio::sync::mpsc::error::TrySendError::Closed(_) => {
+                ("internal_error", "handler channel closed")
+            }
+        };
+        crate::diagnostics::record(
+            "rpc.queue.rejected",
+            serde_json::json!({
+                "trace_id": operation.id, "code": code, "capacity": cmd_tx.max_capacity(),
+            }),
+        );
         return serde_json::json!({
             "id": req_id,
             "ok": false,
-            "error": {"code": "internal_error", "message": "handler channel closed"}
+            "error": {"code": code, "message": message}
         })
         .to_string();
     }
@@ -535,6 +552,62 @@ async fn dispatch_line(
 mod tests {
     use super::*;
 
+    /// Saturation fails promptly with the original ID and allows dispatch after draining.
+    #[tokio::test]
+    async fn queue_overload_recovers_after_drain() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (resp_tx, _resp_rx) = tokio::sync::oneshot::channel();
+        assert!(tx
+            .try_send(commands::SocketCommand::Ping {
+                req_id: serde_json::json!(0),
+                resp_tx,
+            })
+            .is_ok());
+        let rejected = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            dispatch_line(r#"{"id":9,"method":"system.ping"}"#.into(), &tx),
+        )
+        .await
+        .expect("full queue must not await GTK");
+        let rejected: serde_json::Value = serde_json::from_str(&rejected).unwrap();
+        assert_eq!(rejected["id"], 9);
+        assert_eq!(rejected["error"]["code"], "overloaded");
+        drop(rx.try_recv().unwrap());
+        assert!(rx.try_recv().is_err(), "rejected request entered queue");
+
+        let dispatch = dispatch_line(r#"{"id":10,"method":"system.ping"}"#.into(), &tx);
+        let consume = async {
+            let commands::SocketCommand::Observed { command, .. } = rx.recv().await.unwrap() else {
+                panic!("missing observed request");
+            };
+            let commands::SocketCommand::Ping { req_id, resp_tx } = *command else {
+                panic!("wrong command");
+            };
+            resp_tx
+                .send(serde_json::json!({"id": req_id, "ok": true, "result": {"pong": true}}))
+                .unwrap();
+        };
+        let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            tokio::join!(dispatch, consume)
+        })
+        .await
+        .unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["id"], 10);
+        assert_eq!(response["result"]["pong"], true);
+    }
+
+    /// A vanished GTK receiver reports closure rather than overload or waiting forever.
+    #[tokio::test]
+    async fn closed_queue_reports_handler_loss() {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        drop(rx);
+        let response = dispatch_line(r#"{"id":11,"method":"system.ping"}"#.into(), &tx).await;
+        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        assert_eq!(response["id"], 11);
+        assert_eq!(response["error"]["code"], "internal_error");
+    }
+
     /// SOCK-01: Socket path must be under XDG_RUNTIME_DIR/cmux/.
     #[test]
     fn test_socket_path_creation() {
@@ -549,7 +622,7 @@ mod tests {
     /// Reject an invalid directory through the real dispatcher before any command reaches GTK.
     #[tokio::test]
     async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
         let response = dispatch_line(
             r#"{"id":7,"method":"workspace.create","params":{"working_directory":"/definitely/not/a/cmux/directory"}}"#.into(),
             &tx,

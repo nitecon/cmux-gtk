@@ -114,3 +114,5 @@ the current ping producer. Memory-churn comparison remains a separate unfinished
 workload; this command rejects that report type.
 
 Benchmark comparison also requires valid host/workload metadata, integer counts and a positive application PID, plus stable runtime settings and terminal counts between each run's before/after snapshots. Identically malformed reports are rejected. Unrepresentable numeric results produce a command error with no partial JSON output.
+
+The socket-to-GTK bridge holds at most 64 waiting commands. Dispatch uses immediate admission: a full queue returns `overloaded`, and a closed receiver returns `internal_error`. `rpc.queue.rejected` records trace ID, error code and queue capacity without command content. This is an explicit boundary in addition to the existing 64-connection limit and serial per-connection dispatch; it does not establish a previous unbounded-growth bug or impose a byte-exact heap ceiling. Accepted requests still wait for GTK completion, so a stalled GTK thread remains a separate responsiveness concern.

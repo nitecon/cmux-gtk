@@ -131,11 +131,12 @@ fn main() {
 
     // glib::MainContext::channel pattern: event-driven bridge from tokio to GTK main thread.
     // NOTE: glib::MainContext::channel was removed in glib 0.18+. We replicate its semantics
-    // using tokio::sync::mpsc::unbounded_channel + glib::MainContext::default().spawn_local()
+    // using tokio::sync::mpsc::channel + glib::MainContext::default().spawn_local()
     // in build_ui. The Sender is Send+Clone — tokio tasks hold it. The Receiver is consumed by
     // a spawn_local future that processes commands on the GTK main thread.
-    let (cmd_tx, cmd_rx) =
-        tokio::sync::mpsc::unbounded_channel::<crate::socket::commands::SocketCommand>();
+    let (cmd_tx, cmd_rx) = tokio::sync::mpsc::channel::<crate::socket::commands::SocketCommand>(
+        crate::socket::COMMAND_CAPACITY,
+    );
 
     let app = Application::builder()
         .application_id(APP_ID)
@@ -226,8 +227,8 @@ fn main() {
 fn build_ui(
     app: &Application,
     runtime_handle: tokio::runtime::Handle,
-    cmd_tx: tokio::sync::mpsc::UnboundedSender<crate::socket::commands::SocketCommand>,
-    mut cmd_rx: tokio::sync::mpsc::UnboundedReceiver<crate::socket::commands::SocketCommand>,
+    cmd_tx: tokio::sync::mpsc::Sender<crate::socket::commands::SocketCommand>,
+    mut cmd_rx: tokio::sync::mpsc::Receiver<crate::socket::commands::SocketCommand>,
     save_notify: std::sync::Arc<tokio::sync::Notify>,
     session_tx: tokio::sync::watch::Sender<Option<crate::session::SessionData>>,
     saved_session: Option<crate::session::SessionData>,
@@ -386,7 +387,7 @@ fn build_ui(
     // Attach command receiver to GTK main loop via glib::MainContext::default().spawn_local.
     // This replaces the old glib::MainContext::channel pattern (removed in glib 0.18+).
     // The spawn_local future runs on the GTK main thread, receiving SocketCommands sent from
-    // tokio tasks via the UnboundedSender (cmd_tx). All AppState mutations happen here.
+    // tokio tasks via the Sender (cmd_tx). All AppState mutations happen here.
     // Full handler dispatch is wired in Plan 03. For now, just attach with stub dispatch.
     {
         let state = state.clone();

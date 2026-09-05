@@ -44,6 +44,7 @@ content:
       transport: Unix JSON socket
       description: Schedule a redraw of the exact terminal UUID, or selected terminal when id is omitted. Do not focus or select. Missing terminal widgets return not_found.
   safety:
+    - GTK command dispatch has a fixed 64-command waiting queue. Full queues reject before mutation with overloaded; a closed handler reports internal_error. Rejections carry the request trace identity in rpc.queue.rejected diagnostics.
     - Pane references are valid only in the current application lifetime, not persisted identities.
     - Release model and registry locks before GTK callbacks or native input and render calls.
     - Read buffers are freed through RAII and worst-case JSON escaping fits the four-MiB response limit.
