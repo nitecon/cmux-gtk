@@ -475,3 +475,21 @@ registry retain their distinct routing and diagnostics responsibilities.
 
 Workspace binary and test-target compilation passed. No local tests ran; runtime
 clipboard/lifecycle verification remains in GitHub Actions.
+
+
+### Bounded native event handoff
+
+Replaced separate pending-bit/last-pane atomic pairs for bells and new-terminal
+actions with `src/ghostty/events.rs`. The former representation silently overwrote
+other panes and repeated terminal requests between GTK timer ticks. The shared
+queue preserves accepted event order, coalesces redundant bell attention, bounds
+retained events and GTK batch size, and reports overflow through structured
+diagnostics. Queue locks are released before model mutation; closed-pane requests
+are ignored by existing ownership lookup. Session persistence is scheduled once
+per batch that creates terminals.
+
+CI unit cases cover multi-pane bells, repeated terminal requests, FIFO ordering,
+capacity rejection, bounded draining and restored admission. Workspace binary and
+test-target compilation passed locally; executable verification remains pending.
+This refactors existing attention handling, without starting the deferred agent
+notification or session-resume feature task.

@@ -13,16 +13,6 @@ pub static WAKEUP_PENDING: AtomicBool = AtomicBool::new(false);
 /// Safety: ghostty_app_t is opaque void* and only called from the GLib main thread.
 pub static APP_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// Phase 4: Pane ID that most recently received a bell. Read by wakeup_cb to update attention state.
-pub static BELL_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-/// Phase 4: Flag indicating a bell is pending processing.
-pub static BELL_PENDING: AtomicBool = AtomicBool::new(false);
-
-/// Pane requesting Ghostty's native new-tab action. The callback can run while
-/// Ghostty is ticking, so GTK mutation is deferred to the main-loop timer.
-pub static NEW_TAB_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-pub static NEW_TAB_PENDING: AtomicBool = AtomicBool::new(false);
-
 /// Wakeup count for diagnostic logging (only logs occasionally to avoid spam)
 static WAKEUP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -96,14 +86,13 @@ pub unsafe extern "C" fn action_cb(
         return true;
     }
 
-    // Phase 4: Handle bell action — set BELL_PENDING for wakeup_cb to dispatch to AppState.
+    // Defer attention mutation until GTK is outside the native callback.
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_RING_BELL {
         if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
             let surface_ptr = unsafe { _target.target.surface } as usize;
             let pane_id = crate::ghostty::registry::pane_id(surface_ptr);
             if let Some(pane_id) = pane_id {
-                BELL_PANE_ID.store(pane_id, std::sync::atomic::Ordering::SeqCst);
-                BELL_PENDING.store(true, std::sync::atomic::Ordering::SeqCst);
+                return super::events::push(super::events::Event::Bell(pane_id));
             }
         }
         return true;
@@ -113,8 +102,7 @@ pub unsafe extern "C" fn action_cb(
         if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
             let surface_ptr = unsafe { _target.target.surface } as usize;
             if let Some(pane_id) = crate::ghostty::registry::pane_id(surface_ptr) {
-                NEW_TAB_PANE_ID.store(pane_id, Ordering::SeqCst);
-                NEW_TAB_PENDING.store(true, Ordering::SeqCst);
+                return super::events::push(super::events::Event::NewTerminalTab(pane_id));
             }
         }
         return true;

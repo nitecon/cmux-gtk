@@ -85,3 +85,10 @@ Socket response delivery now has a ten-second total write deadline, including th
 ### Browser history activities
 
 Back/forward/reload and explicit URL-entry navigation emit `browser.activity.begin` and `browser.activity.complete` for the GTK navigation lifetime and its `cli_command` / `cli_url_refresh` subprocess stages. A shared `trace_id` links them; completion includes microsecond duration and a fixed outcome category. `browser.navigation.admission` distinguishes admitted work from overlap rejection. Timeout, output limit, I/O error, command/protocol failure, cancellation and stale widget results are distinguishable without capturing URLs, CLI arguments or pipe contents. These records use the existing bounded diagnostic writer. Correlation currently stops at the public CLI process boundary; it does not trace the external browser internals.
+
+
+Native callback handoff uses a 128-event FIFO and drains at most 16 events per
+100 ms GTK dispatch. Repeated pending bells for the same pane coalesce; terminal
+creation requests remain distinct. `native.events.overflow` records the number
+of capacity-rejected events since the previous drain, without command or terminal
+content. This is a loss indicator, not proof that all requested actions completed.
