@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Manual visual report: terminal caret blink + single-character typing visibility.
+Legacy debug-API visual report: caret blink and typing visibility.
+Requires panel_snapshot and render_stats; not a current GTK benchmark.
 
 This generates a self-contained HTML report (base64-embedded PNGs) so you can
 open it locally and visually confirm:
@@ -23,7 +24,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmux, cmuxError
@@ -35,15 +35,19 @@ HTML_REPORT = Path(__file__).parent / "terminal_input_report.html"
 
 @dataclass
 class Shot:
+    """Reference a server-owned snapshot and its reported pixel-change count."""
+
     path: Path
     label: str
     changed_pixels: int
 
     def to_base64(self) -> str:
+        """Read the entire snapshot for embedding; propagate file-read failures."""
         return base64.b64encode(self.path.read_bytes()).decode("utf-8")
 
 
 def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
+    """Poll using a wall-clock budget without bounding individual predicate calls."""
     start = time.time()
     while time.time() - start < timeout_s:
         if pred():
@@ -53,6 +57,7 @@ def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
 
 
 def _focused_panel_id(c: cmux) -> str:
+    """Return the selected surface UUID, falling back to the first listed surface."""
     surfaces = c.list_surfaces()
     if not surfaces:
         raise cmuxError("Expected at least 1 surface")
@@ -60,6 +65,7 @@ def _focused_panel_id(c: cmux) -> str:
 
 
 def _snap_panel(c: cmux, panel_id: str, label: str) -> Shot:
+    """Request a legacy snapshot and retain its path; the server owns image creation."""
     info = c.panel_snapshot(panel_id, label)
     return Shot(
         path=Path(info["path"]),
@@ -69,6 +75,11 @@ def _snap_panel(c: cmux, panel_id: str, label: str) -> Shot:
 
 
 def _panel_sequence_blink_and_type(c: cmux, panel_id: str, prefix: str, typed_char: str = "x") -> tuple[list[Shot], dict]:
+    """Activate the app, capture blink/type frames and submit the single character.
+
+    Returns snapshot references and before/after render counters for manual review;
+    submitting the character executes shell input. Snapshot cleanup is external.
+    """
     shots: list[Shot] = []
 
     # Keep the app key/active while we probe focus + rendering; on a host machine the
@@ -109,9 +120,14 @@ def _panel_sequence_blink_and_type(c: cmux, panel_id: str, prefix: str, typed_ch
 
 
 def _write_report(cases: list[dict]) -> None:
+    """Overwrite the adjacent HTML report with embedded snapshots and escaped metadata.
+
+    Image reads and the complete HTML document are unbounded in this legacy tool.
+    """
     generated = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     def esc(s: str) -> str:
+        """Escape text and double-quoted HTML attribute values."""
         return (
             s.replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -240,6 +256,11 @@ def _write_report(cases: list[dict]) -> None:
 
 
 def main() -> int:
+    """Collect two legacy rendering cases and write a report for human inspection.
+
+    Requires debug snapshot APIs; leaves its workspace, snapshots and report behind.
+    Successful generation does not assert rendering correctness.
+    """
     cases: list[dict] = []
 
     with cmux(SOCKET_PATH) as c:

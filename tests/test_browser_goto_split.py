@@ -175,6 +175,11 @@ def test_goto_split_roundtrip_loaded_browser(client: cmux) -> tuple[bool, str]:
 
 
 def run_tests() -> int:
+    """Run both legacy browser-focus cases and report failures without aborting the suite.
+
+    Requires WKWebView debug APIs; cases alter shortcuts and use example.com.
+    Workspace cleanup is partial and does not restore shortcut overrides.
+    """
     print("=" * 60)
     print("cmux Browser goto_split Regression Test")
     print("=" * 60)

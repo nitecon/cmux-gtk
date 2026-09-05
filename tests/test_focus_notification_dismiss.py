@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-E2E: focusing a panel clears its notification and triggers a flash.
+Legacy debug-API scenario: focusing a panel marks its notification read and flashes.
+Requires focus overrides, flash counters and upstream notification state;
+this is not evidence that the deferred Linux notification features exist.
 
 Note: This uses the socket focus command (no assistive access needed).
 """
@@ -15,6 +17,10 @@ from cmux import cmux, cmuxError
 
 
 def wait_for_notification(client: cmux, surface_id: str, is_read: bool, timeout: float = 2.0) -> bool:
+    """Poll for a matching notification state, returning false on wall-clock expiry.
+
+    Client failures propagate and individual calls can exceed the budget.
+    """
     deadline = time.time() + timeout
     while time.time() < deadline:
         items = client.list_notifications()
@@ -26,6 +32,7 @@ def wait_for_notification(client: cmux, surface_id: str, is_read: bool, timeout:
 
 
 def surface_id_for_index(client: cmux, index: int) -> str:
+    """Resolve a listed surface index or raise when the current list has no match."""
     surfaces = client.list_surfaces()
     for entry in surfaces:
         if entry[0] == index:
@@ -34,12 +41,14 @@ def surface_id_for_index(client: cmux, index: int) -> str:
 
 
 def ensure_two_surfaces(client: cmux) -> None:
+    """Create one right split when fewer than two surfaces exist; do not verify readiness."""
     surfaces = client.list_surfaces()
     if len(surfaces) < 2:
         client.new_split("right")
         time.sleep(0.2)
 
 def first_two_terminal_indices(client: cmux) -> tuple[int, int]:
+    """Return the first two terminal indices from legacy health rows or fail."""
     health = client.surface_health()
     terms = [h["index"] for h in health if h.get("type") == "terminal"]
     if len(terms) < 2:
@@ -48,6 +57,11 @@ def first_two_terminal_indices(client: cmux) -> tuple[int, int]:
 
 
 def main() -> int:
+    """Exercise legacy notification read/flash state through focus and text input.
+
+    Overrides app focus and clears notifications globally. Cleanup is best-effort
+    on success; early failures can leave the workspace and focus override active.
+    """
     try:
         with cmux() as client:
             # Socket-driven tests may run while the app isn't frontmost/key.

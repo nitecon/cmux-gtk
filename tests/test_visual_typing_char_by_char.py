@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Visual regression test: typing must visibly update the terminal as each character is entered.
+Legacy debug-API visual scenario for per-character terminal updates.
+Requires upstream panel_snapshot and simulate_shortcut; not current GTK coverage.
 
 Bug: the terminal can appear "frozen" where typed characters do not show up until Enter
 or a focus toggle (unfocus/refocus, pane switch, alt-tab).
@@ -22,6 +23,10 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
+    """Poll until true using a wall-clock budget; propagate predicate failures.
+
+    An individual predicate call can exceed the budget.
+    """
     start = time.time()
     while time.time() - start < timeout_s:
         if pred():
@@ -31,6 +36,11 @@ def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
 
 
 def main() -> int:
+    """Create a workspace and assert snapshot changes after four debug keystrokes.
+
+    Requires legacy snapshot/focus APIs and leaves workspace cleanup to the caller.
+    Pixel changes alone cannot distinguish glyph rendering from cursor blinking.
+    """
     with cmux(SOCKET_PATH) as c:
         c.activate_app()
         time.sleep(0.25)

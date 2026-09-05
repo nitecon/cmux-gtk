@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Regression: splitting inside an existing split must not make sibling panes disappear.
+"""Legacy debug-API scenario for nested split visibility.
+
+Requires upstream panel_snapshot and in_window health fields; migrate to the
+isolated Linux harness before treating it as current GTK coverage.
 
 User report:
   - Start with a left/right split.
@@ -29,6 +32,7 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _assert_all_panels_visible(c: cmux, panel_ids: list[str], *, min_wh: int = 80) -> None:
+    """Require legacy attachment health and snapshots at least min_wh in each axis."""
     health = {row["id"].lower(): row for row in c.surface_health()}
     for pid in panel_ids:
         h = health.get(pid.lower())
@@ -43,6 +47,10 @@ def _assert_all_panels_visible(c: cmux, panel_ids: list[str], *, min_wh: int = 8
 
 
 def _wait_until_all_panels_visible(c: cmux, panel_ids: list[str], timeout_s: float) -> None:
+    """Retry attachment assertions within a wall-clock budget, reporting the last error.
+
+    Only cmuxError is retried; individual RPCs can exceed the polling budget.
+    """
     deadline = time.time() + timeout_s
     last_err = ""
     while time.time() < deadline:
@@ -56,6 +64,11 @@ def _wait_until_all_panels_visible(c: cmux, panel_ids: list[str], timeout_s: flo
 
 
 def main() -> int:
+    """Create eight workspaces and check nested splits settle into visible bounds.
+
+    Transient failures may recover before the last sample; this does not prove
+    every intermediate frame is correct. Caller owns workspace/snapshot cleanup.
+    """
     with cmux(SOCKET_PATH) as c:
         c.activate_app()
 
