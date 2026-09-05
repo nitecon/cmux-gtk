@@ -76,7 +76,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         subprocess.check_call(["xdotool", "windowsize", windows[-1], "1800", "1000"])
         marker = root / "render-complete"
         program = ("import sys,time,pathlib; "
-                   "[(sys.stdout.write('\\x1b[H' + (str(i%10)*160+'\\r\\n')*50), "
+                   "[(sys.stdout.write('\\x1b[H' + (str(i%10)*100+'\\r\\n')*20), "
                    "sys.stdout.flush(),time.sleep(1/30)) for i in range(1800)]; "
                    f"pathlib.Path({str(marker)!r}).touch()")
         cli("send-text", "python3 -u -c " + shlex.quote(program))

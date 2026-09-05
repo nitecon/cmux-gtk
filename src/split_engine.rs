@@ -583,6 +583,7 @@ impl SplitEngine {
                 uuid: Uuid::new_v4(),
             },
         );
+        root.update_focus_css(pane_id);
         SplitEngine {
             root,
             active_pane_id: pane_id,
@@ -649,6 +650,7 @@ impl SplitEngine {
                 collect_leaves_in_order(&root, &mut leaves);
                 leaves.first().copied().unwrap_or(1)
             });
+        root.update_focus_css(active_id);
         Some(SplitEngine {
             root,
             active_pane_id: active_id,

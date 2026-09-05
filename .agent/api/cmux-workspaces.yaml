@@ -43,6 +43,8 @@ content:
   safety:
     - Validate workspace paths before creating surfaces. Quote shell paths as one POSIX argument.
     - Never route asynchronous clipboard or remote output using the last focused or initialized surface pointer.
+    - Resolve untargeted terminal input through the split engine active pane ID, not CSS classes. Restore initializes both model and visual active state.
+    - Keep the C launch-command allocation alive with its terminal widget until Ghostty has freed the surface; the embedded shell argv borrows it.
     - PRIMARY selection and the standard clipboard are separate. Ctrl+Shift+C/V applies to terminal widgets; selection and middle-click use Ghostty selection semantics.
     - Replaceable browser frames and session snapshots use latest-value channels. SSH output uses bounded backpressure and must not drop terminal bytes.
     - Closing a terminal clears GTK callback handles before freeing Ghostty and unregisters its remote context. Closing a workspace cancels its SSH process and routing tasks.

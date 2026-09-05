@@ -453,8 +453,7 @@ pub fn handle_socket_command(
                     if let Some(ref uuid_str) = id {
                         engine.find_surface_by_uuid(uuid_str)
                     } else {
-                        engine.root.find_active_pane_id()
-                            .and_then(|pid| engine.root.find_surface_for_pane(pid))
+                        engine.root.find_surface_for_pane(engine.active_pane_id)
                     }
                 } else { None }
             };
@@ -483,8 +482,7 @@ pub fn handle_socket_command(
                     if let Some(ref uuid_str) = id {
                         engine.find_surface_by_uuid(uuid_str)
                     } else {
-                        engine.root.find_active_pane_id()
-                            .and_then(|pid| engine.root.find_surface_for_pane(pid))
+                        engine.root.find_surface_for_pane(engine.active_pane_id)
                     }
                 } else { None }
             };
