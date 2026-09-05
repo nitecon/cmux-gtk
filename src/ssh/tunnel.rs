@@ -71,6 +71,10 @@ pub async fn run_ssh_lifecycle(
                 let backoff = backoff_duration(attempt);
                 tokio::time::sleep(backoff).await;
                 attempt += 1;
+                if attempt >= MAX_RETRIES {
+                    eprintln!("cmux: SSH deployment exhausted retries");
+                    break;
+                }
                 continue;
             }
             deployed = true;
