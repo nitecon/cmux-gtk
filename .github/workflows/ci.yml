@@ -125,6 +125,9 @@ jobs:
       - name: Test idle browser preview widget cleanup
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app destroyed_picture_releases_delivery -- --ignored --test-threads=1
 
+      - name: Test asynchronous DevTools snapshot delivery and cancellation
+        run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app devtools_snapshot_delivery_and_cancellation -- --ignored --test-threads=1
+
       - name: Test divider recovery mapping and lifetime
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app divider_recovery_mapping_and_lifetime -- --ignored --test-threads=1
       - name: Test window state restoration

@@ -355,34 +355,12 @@ pub(crate) fn wire_browser_tab(
             return;
         };
         if btn.is_active() {
-            // Fetch DOM snapshot from daemon
-            let snapshot_text = {
-                let s = state_for_devtools.borrow();
-                if let Some(ref bm) = s.browser_manager {
-                    match bm.send_command("snapshot", serde_json::json!({})) {
-                        Ok(result) => {
-                            if let Some(text) = result.get("data").and_then(|d| d.as_str()) {
-                                text.to_string()
-                            } else if let Some(text) = result.get("result").and_then(|d| d.as_str())
-                            {
-                                text.to_string()
-                            } else {
-                                serde_json::to_string_pretty(&result).unwrap_or_default()
-                            }
-                        }
-                        Err(e) => format!("Snapshot error: {e}"),
-                    }
-                } else {
-                    "No browser session active".to_string()
-                }
-            };
-
             // Create scrollable text overlay on the Picture's parent Overlay
             if let Some(overlay) = picture_for_devtools
                 .parent()
                 .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
             {
-                let label = gtk4::Label::new(Some(&snapshot_text));
+                let label = gtk4::Label::new(Some("Loading snapshot…"));
                 label.set_selectable(true);
                 label.set_wrap(true);
                 label.set_xalign(0.0);
@@ -394,6 +372,7 @@ pub(crate) fn wire_browser_tab(
                 scrolled.set_vexpand(true);
                 scrolled.add_css_class("devtools-overlay");
                 overlay.add_overlay(&scrolled);
+                load_devtools_snapshot(&state_for_devtools, &label);
             }
         } else {
             // Remove the DevTools overlay
@@ -419,6 +398,77 @@ pub(crate) fn wire_browser_tab(
         "browser tab wiring complete uuid={surface_uuid}"
     ));
     state.borrow().trigger_session_save();
+}
+
+/// Start bounded snapshot I/O on Tokio without holding application state across execution.
+/// The overlay label owns result delivery and cancels the exchange when destroyed.
+fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
+    let mut activity = crate::browser::metrics::Activity::begin("devtools_snapshot", None);
+    let task = {
+        let state = state.borrow();
+        let (Some(browser), Some(runtime)) = (
+            state.browser_manager.as_ref(),
+            state.runtime_handle.as_ref(),
+        ) else {
+            activity.finish("unavailable");
+            label.set_text("No browser session active");
+            return;
+        };
+        runtime.spawn(browser.send_command_async("snapshot", serde_json::json!({})))
+    };
+    finish_devtools_snapshot(label, task, activity);
+}
+
+/// Update a surviving snapshot label on GTK, cancelling worker I/O when its overlay is removed.
+/// Weak ownership prevents the pending request from retaining a closed browser tab.
+fn finish_devtools_snapshot(
+    label: &gtk4::Label,
+    mut task: tokio::task::JoinHandle<Result<serde_json::Value, String>>,
+    mut activity: crate::browser::metrics::Activity,
+) {
+    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
+    let destruction = label.add_weak_ref_notify_local(move || {
+        let _ = destroyed_tx.send(());
+    });
+    let label = label.downgrade();
+    glib::MainContext::default().spawn_local(async move {
+        let result = tokio::select! {
+            biased;
+            _ = &mut destroyed_rx => {
+                task.abort();
+                let _ = task.await;
+                destruction.disconnect();
+                activity.finish("cancelled");
+                return;
+            }
+            result = &mut task => result,
+        };
+        destruction.disconnect();
+        let Some(label) = label.upgrade() else {
+            activity.finish("stale_widget");
+            return;
+        };
+        let text = match result {
+            Ok(Ok(result)) => {
+                activity.finish("success");
+                result
+                    .get("data")
+                    .and_then(serde_json::Value::as_str)
+                    .or_else(|| result.get("result").and_then(serde_json::Value::as_str))
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| serde_json::to_string_pretty(&result).unwrap_or_default())
+            }
+            Ok(Err(error)) => {
+                activity.finish("error");
+                format!("Snapshot error: {error}")
+            }
+            Err(error) => {
+                activity.finish("task_error");
+                format!("Snapshot task error: {error}")
+            }
+        };
+        label.set_text(&text);
+    });
 }
 
 /// A notebook page can be mapped synchronously while another GTK callback is
@@ -551,5 +601,79 @@ pub fn handle_browser_close(state: &Rc<RefCell<AppState>>) {
     if let Some(ref mut bm) = s.browser_manager {
         bm.shutdown();
         s.browser_manager = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Delayed snapshot delivery leaves GTK responsive; destroying the label aborts owned work.
+    #[test]
+    #[ignore = "requires GTK display; run in headless Linux CI"]
+    fn devtools_snapshot_delivery_and_cancellation() {
+        gtk4::init().unwrap();
+        let context = glib::MainContext::default();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        for (response, expected) in [
+            (
+                Ok(serde_json::json!({"data": "DOM snapshot"})),
+                "DOM snapshot",
+            ),
+            (Ok(serde_json::json!({"result": "alternate"})), "alternate"),
+            (
+                Err("peer unavailable".to_string()),
+                "Snapshot error: peer unavailable",
+            ),
+        ] {
+            let label = gtk4::Label::new(Some("Loading snapshot…"));
+            let (reply, receiver) = tokio::sync::oneshot::channel();
+            let task = runtime.spawn(async move { receiver.await.unwrap() });
+            finish_devtools_snapshot(
+                &label,
+                task,
+                crate::browser::metrics::Activity::begin("devtools_test", None),
+            );
+            context.block_on(async {
+                // A GTK timer must run while the worker still awaits its reply.
+                glib::timeout_future(std::time::Duration::from_millis(20)).await;
+                assert_eq!(label.text(), "Loading snapshot…");
+                reply.send(response).unwrap();
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                while label.text() != expected {
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "snapshot result was not delivered"
+                    );
+                    glib::timeout_future(std::time::Duration::from_millis(10)).await;
+                }
+            });
+        }
+
+        let label = gtk4::Label::new(Some("Loading snapshot…"));
+        let weak = label.downgrade();
+        let (reply, receiver) =
+            tokio::sync::oneshot::channel::<Result<serde_json::Value, String>>();
+        let task = runtime.spawn(async move { receiver.await.unwrap() });
+        finish_devtools_snapshot(
+            &label,
+            task,
+            crate::browser::metrics::Activity::begin("devtools_test", None),
+        );
+        drop(label);
+        context.block_on(async {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !reply.is_closed() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "closed overlay retained snapshot task"
+                );
+                glib::timeout_future(std::time::Duration::from_millis(10)).await;
+            }
+        });
+        assert!(
+            weak.upgrade().is_none(),
+            "worker retained the destroyed label"
+        );
     }
 }

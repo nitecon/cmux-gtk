@@ -13,3 +13,5 @@
   - src/browser/pixels.rs
 019df63f-14af-76e3-9bdf-a2641131368e:
   - src/socket/dispatch.rs
+019df63f-151e-7a11-aa4c-be114fa39c76:
+  - src/browser/ui.rs
