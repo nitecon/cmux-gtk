@@ -8,6 +8,7 @@ if [[ $# -gt 0 ]]; then
     exit 2
 fi
 
+# Print the first executable browser adapter, honoring the explicit override; return nonzero if unavailable.
 resolve_agent_browser() {
     local candidate
 

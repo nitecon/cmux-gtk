@@ -35,6 +35,7 @@ if [[ ! "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
+# Replace the root package version with NEW_VERSION, failing if its manifest field is absent.
 update_manifest() {
   local temp_file
   temp_file="$(mktemp "${TMPDIR:-/tmp}/cmux-version.XXXXXX")"
@@ -53,6 +54,7 @@ update_manifest() {
   mv "$temp_file" Cargo.toml
 }
 
+# Replace the cmux-gtk lockfile version with NEW_VERSION, leaving dependency versions unchanged.
 update_lockfile() {
   local temp_file
   temp_file="$(mktemp "${TMPDIR:-/tmp}/cmux-lock-version.XXXXXX")"

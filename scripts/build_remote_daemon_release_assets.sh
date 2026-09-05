@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Print required release arguments and the asset files produced by this script.
 usage() {
   cat <<'EOF'
 Usage: scripts/build_remote_daemon_release_assets.sh \

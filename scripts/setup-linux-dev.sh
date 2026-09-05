@@ -3,6 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Install required development packages with the detected package manager; use sudo outside root.
 install_system_dependencies() {
     local elevate=()
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -31,6 +32,7 @@ install_system_dependencies() {
     fi
 }
 
+# Verify or download Ghostty's pinned Zig toolchain; print only its install directory to stdout.
 install_zig() {
     local zig_version zig_root platform metadata archive_name url checksum temp_dir archive
     zig_version="$(sed -n 's/.*\.minimum_zig_version = "\([^"]*\)".*/\1/p' \
@@ -54,7 +56,7 @@ install_zig() {
     esac
 
     zig_root="$REPO_ROOT/.tools/zig-$zig_version"
-    if [[ -x "$zig_root/zig" ]] && [[ "$($zig_root/zig version)" == "$zig_version" ]]; then
+    if [[ -x "$zig_root/zig" ]] && [[ "$("$zig_root/zig" version)" == "$zig_version" ]]; then
         echo "==> Reusing repo-local Zig $zig_version" >&2
         printf '%s\n' "$zig_root"
         return
