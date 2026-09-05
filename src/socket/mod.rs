@@ -2,6 +2,8 @@ pub(crate) mod admission;
 pub mod auth;
 pub mod commands;
 mod framing;
+mod response;
+use response::{err, ok};
 pub mod handlers;
 
 use std::path::PathBuf;
@@ -168,21 +170,17 @@ async fn dispatch_line(
     let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
         Err(_) => {
-            return serde_json::json!({
-                "id": null,
-                "ok": false,
-                "error": {"code": "parse_error", "message": "invalid JSON"}
-            })
-            .to_string();
+            return err(serde_json::Value::Null, "parse_error", "invalid JSON").to_string();
         }
     };
 
     drop(line);
     if !req.is_object() {
-        return serde_json::json!({
-            "id": null, "ok": false,
-            "error": {"code": "invalid_request", "message": "request must be an object"}
-        })
+        return err(
+            serde_json::Value::Null,
+            "invalid_request",
+            "request must be an object",
+        )
         .to_string();
     }
     let req_id = req
@@ -191,13 +189,7 @@ async fn dispatch_line(
         .unwrap_or(serde_json::Value::Null);
     let method = match req.get_mut("method").map(serde_json::Value::take) {
         Some(serde_json::Value::String(method)) => method,
-        _ => {
-            return serde_json::json!({
-                "id": req_id, "ok": false,
-                "error": {"code": "invalid_request", "message": "method must be a string"}
-            })
-            .to_string()
-        }
+        _ => return err(req_id, "invalid_request", "method must be a string").to_string(),
     };
     let mut params = req
         .get_mut("params")
@@ -216,11 +208,7 @@ async fn dispatch_line(
     if params.is_null() {
         params = serde_json::json!({});
     } else if !params.is_object() {
-        return serde_json::json!({
-            "id": req_id, "ok": false,
-            "error": {"code": "invalid_params", "message": "params must be an object or null"}
-        })
-        .to_string();
+        return err(req_id, "invalid_params", "params must be an object or null").to_string();
     }
 
     if method == "system.diagnostics" {
@@ -229,14 +217,11 @@ async fn dispatch_line(
         return match tokio::task::spawn_blocking(crate::diagnostics::snapshot).await {
             Ok(snapshot) => {
                 operation.finish(true);
-                serde_json::json!({"id": req_id, "ok": true, "result": snapshot}).to_string()
+                ok(req_id, snapshot).to_string()
             }
             Err(_) => {
                 operation.finish(false);
-                serde_json::json!({"id": req_id, "ok": false, "error": {
-                    "code": "internal_error", "message": "diagnostic sampling failed"
-                }})
-                .to_string()
+                err(req_id, "internal_error", "diagnostic sampling failed").to_string()
             }
         };
     }
@@ -253,13 +238,7 @@ async fn dispatch_line(
     ) {
         match optional_target(&params) {
             Ok(target) => target,
-            Err(message) => {
-                return serde_json::json!({
-                    "id": req_id, "ok": false,
-                    "error": {"code": "invalid_params", "message": message}
-                })
-                .to_string()
-            }
+            Err(message) => return err(req_id, "invalid_params", message).to_string(),
         }
     } else {
         None
@@ -313,12 +292,7 @@ async fn dispatch_line(
                             Some(path)
                         }
                         Err(message) => {
-                            return serde_json::json!({
-                                "id": req_id,
-                                "ok": false,
-                                "error": {"code": "invalid_directory", "message": message}
-                            })
-                            .to_string();
+                            return err(req_id, "invalid_directory", &message).to_string();
                         }
                     },
                     None => None,
@@ -384,10 +358,12 @@ async fn dispatch_line(
                 .and_then(|value| value.as_u64())
                 .and_then(|value| usize::try_from(value).ok())
             else {
-                return serde_json::json!({
-                    "id": req_id, "ok": false,
-                    "error": {"code": "invalid_params", "message": "position must be a nonnegative integer within the native index range"}
-                }).to_string();
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "position must be a nonnegative integer within the native index range",
+                )
+                .to_string();
             };
             commands::SocketCommand::WorkspaceReorder {
                 req_id: req_id.clone(),
@@ -408,12 +384,20 @@ async fn dispatch_line(
         "surface.split" => {
             let direction = match params.get("direction") {
                 None => commands::SplitDirection::Horizontal,
-                Some(serde_json::Value::String(value)) if value == "horizontal" => commands::SplitDirection::Horizontal,
-                Some(serde_json::Value::String(value)) if value == "vertical" => commands::SplitDirection::Vertical,
-                _ => return serde_json::json!({
-                    "id": req_id, "ok": false,
-                    "error": {"code": "invalid_params", "message": "direction must be horizontal or vertical"}
-                }).to_string(),
+                Some(serde_json::Value::String(value)) if value == "horizontal" => {
+                    commands::SplitDirection::Horizontal
+                }
+                Some(serde_json::Value::String(value)) if value == "vertical" => {
+                    commands::SplitDirection::Vertical
+                }
+                _ => {
+                    return err(
+                        req_id,
+                        "invalid_params",
+                        "direction must be horizontal or vertical",
+                    )
+                    .to_string()
+                }
             };
             commands::SocketCommand::SurfaceSplit {
                 req_id: req_id.clone(),
@@ -598,22 +582,13 @@ async fn dispatch_line(
                 "trace_id": operation.id, "code": code, "capacity": cmd_tx.max_capacity(),
             }),
         );
-        return serde_json::json!({
-            "id": req_id,
-            "ok": false,
-            "error": {"code": code, "message": message}
-        })
-        .to_string();
+        return err(req_id, code, message).to_string();
     }
 
     operation.pending();
-    let response = resp_rx.await.unwrap_or_else(|_| {
-        serde_json::json!({
-            "id": req_id,
-            "ok": false,
-            "error": {"code": "internal_error", "message": "handler dropped response"}
-        })
-    });
+    let response = resp_rx
+        .await
+        .unwrap_or_else(|_| err(req_id, "internal_error", "handler dropped response"));
     operation.finish(
         response
             .get("ok")

@@ -856,3 +856,7 @@ Centralized nullable target parsing across seven socket commands. Numeric, boole
 ### Request envelope validation (2026-09-05)
 
 The dispatcher now rejects non-object request containers and non-string/missing methods as invalid_request. Parameters must be objects; omission/null retain empty-parameter semantics, while strings, numbers, booleans and arrays return invalid_params before command defaults or background diagnostic sampling can run. This closes the enclosing-container bypass of strict optional target parsing. Added real-dispatch cases for malformed envelopes across mutating and observational methods with response correlation and empty GTK queue assertions. All-target compilation, formatting and whitespace checks pass; tests remain CI-only.
+
+### Shared socket response envelopes (2026-09-05)
+
+Moved success/error response construction from GTK handlers into a small socket-owned module usable by worker validation. Replaced eleven duplicated error envelopes plus diagnostic success construction; browser lookup errors reuse the same envelope and preserve their available-target field. Existing dispatcher tests exercise these public outcomes without adding tests that mirror JSON construction. All-target compilation, formatting and whitespace checks pass; executable validation remains with Actions. This is a behavior-preserving consolidation, not completion of the remaining socket cancellation/serialization audit.

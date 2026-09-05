@@ -4,15 +4,7 @@ use crate::socket::commands::SocketCommand;
 use gtk4::prelude::*;
 use serde_json::{json, Value};
 
-/// Build a success response with the given result payload.
-fn ok(req_id: Value, result: Value) -> Value {
-    json!({"id": req_id, "ok": true, "result": result})
-}
-
-/// Build an error response.
-fn err(req_id: Value, code: &str, message: &str) -> Value {
-    json!({"id": req_id, "ok": false, "error": {"code": code, "message": message}})
-}
+use super::response::{err, ok};
 
 /// Snapshot one workspace's identity and layout counts without changing focus or retaining widgets.
 /// Return None for an absent index; missing engines produce unknown counts rather than fabricated zeroes.
@@ -1026,12 +1018,9 @@ fn handle_socket_command_traced(
                             }
                         }
                         Err((msg, available)) => {
-                            let _ = resp_tx.send(json!({
-                                "id": req_id,
-                                "ok": false,
-                                "error": {"code": "surface_not_found", "message": msg},
-                                "available": available,
-                            }));
+                            let mut response = err(req_id, "surface_not_found", &msg);
+                            response["available"] = json!(available);
+                            let _ = resp_tx.send(response);
                             return;
                         }
                     }
