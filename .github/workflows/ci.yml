@@ -94,6 +94,7 @@ jobs:
           python3 tests/test_socket_transport.py
           python3 tests/test_python_client.py
           python3 tests/test_benchmark_report.py
+          python3 tests/test_diagnostic_collector.py
 
       - name: Test prompt probe cleanup
         run: python3 tests/test_prompt_probe.py

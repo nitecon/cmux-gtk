@@ -4,6 +4,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -40,6 +41,40 @@ def sample(binary, socket):
     return record
 
 
+def cpu_percent(previous, current):
+    """Estimate interval CPU usage from adjacent successful samples of the same process.
+
+    One fully occupied CPU is 100%; missing/regressing counters or nonpositive
+    time intervals return None. Sampling and CLI overhead remain in the interval.
+    """
+    if "error" in previous or "error" in current:
+        return None
+    before, after = previous.get("snapshot"), current.get("snapshot")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return None
+    pid = before.get("pid")
+    if type(pid) is not int or pid <= 0 or type(after.get("pid")) is not int or after["pid"] != pid:
+        return None
+    counters = []
+    for snapshot in (before, after):
+        resources = snapshot.get("resources")
+        if not isinstance(resources, dict):
+            return None
+        values = [resources.get(key) for key in ("cpu_user_us", "cpu_system_us")]
+        if any(type(value) is not int or value < 0 for value in values):
+            return None
+        counters.append(values)
+    if any(end < start for start, end in zip(*counters)):
+        return None
+    start, end = previous.get("elapsed_seconds"), current.get("elapsed_seconds")
+    if not all(type(value) in (int, float) and math.isfinite(value) for value in (start, end)):
+        return None
+    elapsed = end - start
+    if elapsed <= 0:
+        return None
+    return (sum(counters[1]) - sum(counters[0])) / (elapsed * 1_000_000) * 100
+
+
 def collect(binary, socket, samples, interval):
     """Retain a bounded time series without reading terminal content or application files."""
     report = {
@@ -55,6 +90,7 @@ def collect(binary, socket, samples, interval):
             time.sleep(interval)
         record = sample(binary, socket)
         record["elapsed_seconds"] = time.monotonic() - started
+        record["cpu_percent"] = cpu_percent(report["samples"][-1], record) if index else None
         report["samples"].append(record)
     return report
 
