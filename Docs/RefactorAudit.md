@@ -352,3 +352,7 @@ A tracked-file declaration scan outside Ghostty found three remaining shell func
 ### Shared Linux application fixture lifetime
 
 Replaced test_linux_terminal_pane_close.sh with a Python scenario using tests/linux_app.py. The shared fixture owns isolated XDG paths, bounded CLI calls, monotonic condition waits, thread-aware child discovery and process_support termination/reaping; failure-log output is capped at 64 KiB. The pane-close scenario retains real CLI split/close and native assertion checks while strengthening verification to preserve exact surviving surface identities and the original terminal child. Main CI now invokes the Python scenario. Python syntax and diff checks passed; executable verification remains CI-only. The browser-map shell fixture still needs migration to the same bounded ownership path.
+
+### Browser-map fixture uses bounded application cleanup
+
+Replaced the reentrant browser-map shell scenario with Python using the same running_app helper as pane close. It retains actual terminal close, responsive ping, deferred-mapping and panic checks, and additionally requires the browser UUID to be the sole surviving surface. Diagnostic polling reads at most 1 MiB. The session-aware browser mock now exits and removes its endpoint/metadata after a close command; the fixture retains explicit signalling for failed-startup paths because the detached mock is not its direct child. Both maintained shell application fixtures now use shared bounded app termination/reaping. Python syntax and diff checks passed; behavior runs only in CI.

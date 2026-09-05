@@ -33,6 +33,12 @@ def run_daemon(session):
                 request = reader.readline(4 * 1024 * 1024 + 1)
             if request:
                 connection.sendall(b'{"success":true,"data":{}}\n')
+                if json.loads(request).get("action") == "close":
+                    server.close()
+                    socket_path.unlink(missing_ok=True)
+                    (root / f"{session}.stream").unlink(missing_ok=True)
+                    (root / "mock.pid").unlink(missing_ok=True)
+                    return
 
 
 def ensure_daemon(session):
