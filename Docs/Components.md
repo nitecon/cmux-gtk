@@ -13,7 +13,7 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Diagnostics | Bounded structured logs, request correlation, resource snapshots, collection and optimized benchmarks | `src/diagnostics`, `src/diagnostics.rs`, `scripts/collect-cmux-diagnostics.py`, `scripts/benchmark-cmux.py` |
 | Session/configuration | Serializable state, compatibility, atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
 | Remote transport | SSH deployment, reconnect, stream and PTY ownership | `src/ssh`, `daemon/remote` |
-| Linux services | XDG locations, atomic file replacement, peer credentials, process resources, installation ownership, desktop notifications and optional GTK/X11 placement; remaining native services are pending extraction | `crates/cmux-platform` |
+| Linux services | XDG locations, atomic file replacement, peer credentials, process resources, installation ownership, desktop notifications and optional GTK/X11 placement and OpenGL callbacks; remaining native services are pending extraction | `crates/cmux-platform` |
 | Distribution | Dependency setup, linking, packages and release publishing | `build.rs`, `scripts`, `packaging`, `.github/workflows` |
 
 The Linux library exposes small typed functions, with no dependency on workspace state. CLI use must not require GTK initialization. GTK-specific services can be an optional feature. Keep Unix transport and Linux kernel details at this boundary as extraction progresses. A future platform provides equivalent services; the current refactor does not implement unsupported platforms.

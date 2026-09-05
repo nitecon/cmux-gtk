@@ -31,7 +31,6 @@ fn main() {
 
     // Modern Ghostty archives bundle their third-party static dependencies.
     // Only platform libraries are linked separately here.
-    println!("cargo:rustc-link-lib=dylib=GL");
     println!("cargo:rustc-link-lib=dylib=c++");
     println!("cargo:rustc-link-lib=dylib=c++abi");
     println!("cargo:rustc-link-lib=dylib=stdc++");

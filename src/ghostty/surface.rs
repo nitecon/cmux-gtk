@@ -20,38 +20,6 @@ pub enum SurfaceIoMode {
     },
 }
 
-unsafe extern "C" fn opengl_make_current(userdata: *mut std::ffi::c_void) -> bool {
-    if userdata.is_null() {
-        return false;
-    }
-    let area = userdata.cast();
-    let context = gtk4::ffi::gtk_gl_area_get_context(area);
-    if !context.is_null() && gtk4::gdk::ffi::gdk_gl_context_get_current() == context {
-        return true;
-    }
-    gtk4::ffi::gtk_gl_area_make_current(area);
-    gtk4::ffi::gtk_gl_area_get_error(area).is_null()
-}
-
-unsafe extern "C" fn opengl_clear_current(_userdata: *mut std::ffi::c_void) {
-    // GtkGLArea owns the context for the full render callback. Clearing it
-    // here breaks GTK's post-render compositing and libepoxy dispatch.
-}
-
-unsafe extern "C" fn opengl_get_proc_address(
-    _userdata: *mut std::ffi::c_void,
-    name: *const std::ffi::c_char,
-) -> *mut std::ffi::c_void {
-    extern "C" {
-        fn glXGetProcAddressARB(name: *const u8) -> *mut std::ffi::c_void;
-    }
-    glXGetProcAddressARB(name.cast())
-}
-
-unsafe extern "C" fn opengl_swap_buffers(_userdata: *mut std::ffi::c_void) {
-    // GtkGLArea presents its framebuffer after the render signal returns.
-}
-
 struct SurfaceInit {
     ghostty_app: ffi::ghostty_app_t,
     inherited_config: Option<ffi::ghostty_surface_config_s>,
@@ -74,7 +42,9 @@ fn initialize_surface(
     use gtk4::prelude::*;
     use std::sync::atomic::Ordering;
 
-    if init.retired.get() { return None; }
+    if init.retired.get() {
+        return None;
+    }
     if let Some(surface) = *cell.borrow() {
         return Some(surface);
     }
@@ -93,10 +63,10 @@ fn initialize_surface(
         let platform = ffi::ghostty_platform_u {
             opengl: ffi::ghostty_platform_opengl_s {
                 userdata: area.as_ptr() as *mut std::ffi::c_void,
-                make_current: Some(opengl_make_current),
-                clear_current: Some(opengl_clear_current),
-                get_proc_address: Some(opengl_get_proc_address),
-                swap_buffers: Some(opengl_swap_buffers),
+                make_current: Some(cmux_platform::opengl::make_current),
+                clear_current: Some(cmux_platform::opengl::clear_current),
+                get_proc_address: Some(cmux_platform::opengl::get_proc_address),
+                swap_buffers: Some(cmux_platform::opengl::swap_buffers),
             },
         };
         let mut config = init
@@ -118,8 +88,13 @@ fn initialize_surface(
             SurfaceIoMode::Command(command) => std::ffi::CString::new(command.as_str()).ok(),
             _ => None,
         };
-        if let Some(command) = &command_c { config.command = command.as_ptr(); }
-        if let SurfaceIoMode::Manual { ref io_write_ctx, .. } = init.io_mode {
+        if let Some(command) = &command_c {
+            config.command = command.as_ptr();
+        }
+        if let SurfaceIoMode::Manual {
+            ref io_write_ctx, ..
+        } = init.io_mode
+        {
             config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
             config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
             config.io_write_userdata =
@@ -165,8 +140,14 @@ fn initialize_surface(
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);
     }
-    if let SurfaceIoMode::Manual { bridge, io_write_ctx } = &init.io_mode {
-        io_write_ctx.surface_ptr.store(surface as usize, Ordering::Release);
+    if let SurfaceIoMode::Manual {
+        bridge,
+        io_write_ctx,
+    } = &init.io_mode
+    {
+        io_write_ctx
+            .surface_ptr
+            .store(surface as usize, Ordering::Release);
         let size = unsafe { ffi::ghostty_surface_size(surface) };
         io_write_ctx.resize(size.columns, size.rows);
         bridge.register_pane_placeholder(io_write_ctx.pane_id);
@@ -219,19 +200,35 @@ pub fn create_surface(
     // non-zero allocation exist, then used by the remaining callbacks.
     // Rc<RefCell<...>> is safe here: all callbacks run on the GLib main thread.
     let surface_cell: Rc<RefCell<Option<ffi::ghostty_surface_t>>> = Rc::new(RefCell::new(None));
-    unsafe { gl_area.set_data("cmux-surface-cell", surface_cell.clone()); }
+    unsafe {
+        gl_area.set_data("cmux-surface-cell", surface_cell.clone());
+    }
     let io_mode = match io_mode {
         SurfaceIoMode::Remote { bridge, ssh_tx } => {
             let io_write_ctx = bridge.create_context(ssh_tx);
-            SurfaceIoMode::Manual { bridge, io_write_ctx }
+            SurfaceIoMode::Manual {
+                bridge,
+                io_write_ctx,
+            }
         }
         other => other,
     };
-    if let SurfaceIoMode::Manual { bridge, io_write_ctx } = &io_mode {
-        unsafe { gl_area.set_data("cmux-remote-context", (bridge.clone(), io_write_ctx.clone())); }
+    if let SurfaceIoMode::Manual {
+        bridge,
+        io_write_ctx,
+    } = &io_mode
+    {
+        unsafe {
+            gl_area.set_data(
+                "cmux-remote-context",
+                (bridge.clone(), io_write_ctx.clone()),
+            );
+        }
     }
     let retired = Rc::new(std::cell::Cell::new(false));
-    unsafe { gl_area.set_data("cmux-surface-retired", retired.clone()); }
+    unsafe {
+        gl_area.set_data("cmux-surface-retired", retired.clone());
+    }
     let surface_init = Rc::new(SurfaceInit {
         ghostty_app,
         inherited_config,
@@ -454,17 +451,27 @@ pub fn create_surface(
             };
 
             // Handle Linux clipboard shortcuts at the terminal, leaving entries alone.
-            let modifiers = state & (gtk4::gdk::ModifierType::CONTROL_MASK
-                | gtk4::gdk::ModifierType::SHIFT_MASK | gtk4::gdk::ModifierType::ALT_MASK
-                | gtk4::gdk::ModifierType::SUPER_MASK);
-            if modifiers == (gtk4::gdk::ModifierType::CONTROL_MASK | gtk4::gdk::ModifierType::SHIFT_MASK) {
+            let modifiers = state
+                & (gtk4::gdk::ModifierType::CONTROL_MASK
+                    | gtk4::gdk::ModifierType::SHIFT_MASK
+                    | gtk4::gdk::ModifierType::ALT_MASK
+                    | gtk4::gdk::ModifierType::SUPER_MASK);
+            if modifiers
+                == (gtk4::gdk::ModifierType::CONTROL_MASK | gtk4::gdk::ModifierType::SHIFT_MASK)
+            {
                 let action: Option<&[u8]> = match keyval.to_lower() {
                     gtk4::gdk::Key::c => Some(b"copy_to_clipboard"),
                     gtk4::gdk::Key::v => Some(b"paste_from_clipboard"),
                     _ => None,
                 };
                 if let Some(action) = action {
-                    unsafe { ffi::ghostty_surface_binding_action(surface, action.as_ptr().cast(), action.len()); }
+                    unsafe {
+                        ffi::ghostty_surface_binding_action(
+                            surface,
+                            action.as_ptr().cast(),
+                            action.len(),
+                        );
+                    }
                     return gtk4::glib::Propagation::Stop;
                 }
             }
@@ -530,11 +537,10 @@ pub fn create_surface(
         let cell = surface_cell.clone();
         let area = gl_area.downgrade();
         move |gesture, _n_press, _x, _y| {
-            let Some(area) = area.upgrade() else { return; };
-            let _ = area.activate_action(
-                "win.focus-pane",
-                Some(&pane_id.to_variant()),
-            );
+            let Some(area) = area.upgrade() else {
+                return;
+            };
+            let _ = area.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
             area.grab_focus();
             let surface = match *cell.borrow() {
                 Some(s) => s,
@@ -622,7 +628,9 @@ pub fn create_surface(
                     // before the message is processed show the stale (invisible) cursor.
                     ffi::ghostty_surface_refresh(surface);
                 }
-                if let Some(area) = gl_area_for_focus.upgrade() { area.queue_render(); }
+                if let Some(area) = gl_area_for_focus.upgrade() {
+                    area.queue_render();
+                }
             }
         }
     });
@@ -674,6 +682,11 @@ pub fn create_surface(
 
 // ── Clipboard callbacks ──────────────────────────────────────────────────────
 
+/// Read the requested clipboard asynchronously, completing only for the same live surface.
+///
+/// # Safety
+/// Ghostty must call on the GTK thread with a live GLArea as userdata and its own
+/// outstanding request token. Surface teardown must unregister the area before freeing it.
 pub(crate) unsafe extern "C" fn read_clipboard_cb(
     userdata: *mut std::ffi::c_void,
     clipboard_type: crate::ghostty::ffi::ghostty_clipboard_e,
@@ -681,9 +694,15 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
 ) -> bool {
     use gtk4::prelude::*;
     let area_key = userdata as usize;
-    let Some(surface_ptr) = clipboard_surface(area_key) else { return false; };
-    let area: glib::translate::Borrowed<gtk4::GLArea> = glib::translate::from_glib_borrow(userdata.cast::<gtk4::ffi::GtkGLArea>());
-    let Some(cell) = area.data::<Rc<RefCell<Option<ffi::ghostty_surface_t>>>>("cmux-surface-cell") else { return false; };
+    let Some(surface_ptr) = clipboard_surface(area_key) else {
+        return false;
+    };
+    let area: glib::translate::Borrowed<gtk4::GLArea> =
+        glib::translate::from_glib_borrow(userdata.cast::<gtk4::ffi::GtkGLArea>());
+    let Some(cell) = area.data::<Rc<RefCell<Option<ffi::ghostty_surface_t>>>>("cmux-surface-cell")
+    else {
+        return false;
+    };
     let cell = cell.as_ref().clone();
 
     let display = match gtk4::gdk::Display::default() {
@@ -700,29 +719,51 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
         let result = clipboard.read_text_future().await;
         // The requesting pane may have closed while the clipboard owner replied.
         if cell.borrow().map(|surface| surface as usize) != Some(surface_ptr)
-            || clipboard_surface(area_key) != Some(surface_ptr) { return; }
-        let text = result.ok().flatten().map(|s| s.to_string()).unwrap_or_default();
+            || clipboard_surface(area_key) != Some(surface_ptr)
+        {
+            return;
+        }
+        let text = result
+            .ok()
+            .flatten()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
         let text = std::ffi::CString::new(text.replace('\0', "")).unwrap();
         unsafe {
             ffi::ghostty_surface_complete_clipboard_request(
-                surface_ptr as ffi::ghostty_surface_t, text.as_ptr(), request, true,
+                surface_ptr as ffi::ghostty_surface_t,
+                text.as_ptr(),
+                request,
+                true,
             );
         }
     });
     true
 }
 
+/// Resolve a registered live surface without dereferencing its GLArea pointer.
 fn clipboard_surface(area_key: usize) -> Option<usize> {
-    crate::ghostty::callbacks::GL_TO_SURFACE.lock().ok()?.get(&area_key).copied()
+    crate::ghostty::callbacks::GL_TO_SURFACE
+        .lock()
+        .ok()?
+        .get(&area_key)
+        .copied()
 }
 
+/// Complete Ghostty's confirmation callback using the application's existing allow policy.
+///
+/// # Safety
+/// Call on GTK's thread with Ghostty's readable C value and outstanding request token;
+/// userdata identifies the registered surface that owns that request.
 pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(
     userdata: *mut std::ffi::c_void,
     value: *const std::os::raw::c_char,
     request: *mut std::ffi::c_void,
     _request_type: crate::ghostty::ffi::ghostty_clipboard_request_e,
 ) {
-    let Some(surface_ptr) = clipboard_surface(userdata as usize) else { return; };
+    let Some(surface_ptr) = clipboard_surface(userdata as usize) else {
+        return;
+    };
     unsafe {
         crate::ghostty::ffi::ghostty_surface_complete_clipboard_request(
             surface_ptr as crate::ghostty::ffi::ghostty_surface_t,
@@ -733,16 +774,21 @@ pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(
     }
 }
 
+/// Copy the first UTF-8 content item to the regular or primary selection clipboard.
+///
+/// # Safety
+/// Call on GTK's thread. Non-null content must reference `len` readable entries;
+/// each non-null data pointer must be a readable NUL-terminated string for this call.
 pub(crate) unsafe extern "C" fn write_clipboard_cb(
     _userdata: *mut std::ffi::c_void,
     clipboard_type: crate::ghostty::ffi::ghostty_clipboard_e,
     content: *const crate::ghostty::ffi::ghostty_clipboard_content_s,
-    _len: usize,
+    len: usize,
     _confirm: bool,
 ) {
     use gtk4::prelude::*;
 
-    if content.is_null() {
+    if content.is_null() || len == 0 {
         return;
     }
     let item = &*content;
@@ -773,25 +819,38 @@ mod clipboard_integration_tests {
     use gtk4::prelude::*;
     use std::sync::atomic::Ordering;
 
+    /// Service GTK until the asserted asynchronous state arrives or its deadline expires.
     fn pump_until(mut ready: impl FnMut() -> bool) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         while !ready() {
-            assert!(std::time::Instant::now() < deadline, "GTK clipboard condition timed out");
-            while glib::MainContext::default().pending() { glib::MainContext::default().iteration(false); }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "GTK clipboard condition timed out"
+            );
+            while glib::MainContext::default().pending() {
+                glib::MainContext::default().iteration(false);
+            }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
+    /// Give X11 input and clipboard events time to reach the application.
     fn settle() {
         let until = std::time::Instant::now() + std::time::Duration::from_millis(300);
         pump_until(|| std::time::Instant::now() >= until);
     }
 
+    /// Inject real X11 input and drain the resulting GTK events.
     fn xdo(args: &[&str]) {
-        assert!(std::process::Command::new("xdotool").args(args).status().unwrap().success());
+        assert!(std::process::Command::new("xdotool")
+            .args(args)
+            .status()
+            .unwrap()
+            .success());
         settle();
     }
 
+    /// Verify shortcut, primary selection and asynchronous paste routing across live panes.
     #[test]
     #[ignore = "real X11/Ghostty clipboard integration; run under Xvfb in CI"]
     fn linux_clipboard_shortcuts_primary_and_surface_routing() {
@@ -809,10 +868,16 @@ mod clipboard_integration_tests {
             ffi::ghostty_init(1, args.as_mut_ptr());
             let config = ffi::ghostty_config_new();
             let text = b"font-size = 12\nshell-integration = none\ncopy-on-select = true\n";
-            ffi::ghostty_config_load_string(config, text.as_ptr().cast(), text.len(), c"test".as_ptr());
+            ffi::ghostty_config_load_string(
+                config,
+                text.as_ptr().cast(),
+                text.len(),
+                c"test".as_ptr(),
+            );
             ffi::ghostty_config_finalize(config);
             let runtime = ffi::ghostty_runtime_config_s {
-                userdata: std::ptr::null_mut(), supports_selection_clipboard: true,
+                userdata: std::ptr::null_mut(),
+                supports_selection_clipboard: true,
                 wakeup_cb: Some(crate::ghostty::callbacks::wakeup_cb),
                 action_cb: Some(crate::ghostty::callbacks::action_cb),
                 read_clipboard_cb: Some(read_clipboard_cb),
@@ -827,19 +892,48 @@ mod clipboard_integration_tests {
             crate::ghostty::callbacks::APP_PTR.store(ghostty as usize, Ordering::SeqCst);
             ghostty
         };
-        let (left, left_cell) = create_surface(&app, ghostty, None, Some(first.clone()), 900001,
-            SurfaceIoMode::Command("/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into()));
-        let (right, right_cell) = create_surface(&app, ghostty, None, Some(second.clone()), 900002, SurfaceIoMode::Exec);
+        let (left, left_cell) = create_surface(
+            &app,
+            ghostty,
+            None,
+            Some(first.clone()),
+            900001,
+            SurfaceIoMode::Command(
+                "/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into(),
+            ),
+        );
+        let (right, right_cell) = create_surface(
+            &app,
+            ghostty,
+            None,
+            Some(second.clone()),
+            900002,
+            SurfaceIoMode::Exec,
+        );
         let content = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         content.set_homogeneous(true);
         content.append(&left);
         content.append(&right);
-        let window = gtk4::Window::builder().title("cmux-clipboard-integration").default_width(900).default_height(400).decorated(false).child(&content).build();
+        let window = gtk4::Window::builder()
+            .title("cmux-clipboard-integration")
+            .default_width(900)
+            .default_height(400)
+            .decorated(false)
+            .child(&content)
+            .build();
         window.present();
         pump_until(|| left_cell.borrow().is_some() && right_cell.borrow().is_some());
         settle();
-        let window_id = std::process::Command::new("xdotool").args(["search", "--name", "^cmux-clipboard-integration$"]).output().unwrap();
-        let id = String::from_utf8(window_id.stdout).unwrap().lines().next().unwrap().to_string();
+        let window_id = std::process::Command::new("xdotool")
+            .args(["search", "--name", "^cmux-clipboard-integration$"])
+            .output()
+            .unwrap();
+        let id = String::from_utf8(window_id.stdout)
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap()
+            .to_string();
         xdo(&["windowfocus", &id]);
         let display = gtk4::gdk::Display::default().unwrap();
         unsafe {
@@ -847,36 +941,70 @@ mod clipboard_integration_tests {
             let mut text: ffi::ghostty_text_s = std::mem::zeroed();
             if ffi::ghostty_surface_read_screen_clipboard_text(surface, 0, 20, 4096, &mut text) {
                 if !text.text.is_null() {
-                    eprintln!("clipboard fixture screen: {}", String::from_utf8_lossy(std::slice::from_raw_parts(text.text.cast(), text.text_len)));
+                    eprintln!(
+                        "clipboard fixture screen: {}",
+                        String::from_utf8_lossy(std::slice::from_raw_parts(
+                            text.text.cast(),
+                            text.text_len
+                        ))
+                    );
                 }
                 ffi::ghostty_surface_free_text(surface, &mut text);
             }
         }
         // Select a printed word with real X11 mouse events. PRIMARY must update without Copy.
-        xdo(&["mousemove", "--window", &id, "45", "10", "click", "--repeat", "2", "--delay", "150", "1"]);
-        let selected = glib::MainContext::default().block_on(display.primary_clipboard().read_text_future()).unwrap().unwrap();
+        xdo(&[
+            "mousemove",
+            "--window",
+            &id,
+            "45",
+            "10",
+            "click",
+            "--repeat",
+            "2",
+            "--delay",
+            "150",
+            "1",
+        ]);
+        let selected = glib::MainContext::default()
+            .block_on(display.primary_clipboard().read_text_future())
+            .unwrap()
+            .unwrap();
         assert_eq!(selected.as_str(), "CMUXPRIMARY");
         xdo(&["key", "--clearmodifiers", "ctrl+shift+c"]);
-        let copied = glib::MainContext::default().block_on(display.clipboard().read_text_future()).unwrap().unwrap();
+        let copied = glib::MainContext::default()
+            .block_on(display.clipboard().read_text_future())
+            .unwrap()
+            .unwrap();
         assert_eq!(copied.as_str(), "CMUXPRIMARY");
         // Simulate another surface being the last registered one. Paste must still
         // complete against the surface which made the request.
-        crate::ghostty::callbacks::SURFACE_PTR.store(right_cell.borrow().unwrap() as usize, Ordering::SeqCst);
-        display.clipboard().set_text("printf standard > standard-result");
+        crate::ghostty::callbacks::SURFACE_PTR
+            .store(right_cell.borrow().unwrap() as usize, Ordering::SeqCst);
+        display
+            .clipboard()
+            .set_text("printf standard > standard-result");
         xdo(&["key", "--clearmodifiers", "ctrl+shift+v"]);
         xdo(&["key", "Return"]);
         pump_until(|| first.join("standard-result").exists());
         assert!(!second.join("standard-result").exists());
-        display.primary_clipboard().set_text("printf primary > primary-result");
+        display
+            .primary_clipboard()
+            .set_text("printf primary > primary-result");
         xdo(&["mousemove", "--window", &id, "150", "70", "click", "2"]);
         xdo(&["key", "Return"]);
         pump_until(|| first.join("primary-result").exists());
-        assert_eq!(std::fs::read_to_string(first.join("primary-result")).unwrap(), "primary");
+        assert_eq!(
+            std::fs::read_to_string(first.join("primary-result")).unwrap(),
+            "primary"
+        );
         crate::split_engine::destroy_terminal_area(&left);
         crate::split_engine::destroy_terminal_area(&right);
         window.destroy();
         crate::ghostty::callbacks::APP_PTR.store(0, Ordering::SeqCst);
-        unsafe { ffi::ghostty_app_free(ghostty); }
+        unsafe {
+            ffi::ghostty_app_free(ghostty);
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 }
