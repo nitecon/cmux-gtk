@@ -4,6 +4,7 @@
 //! stream modules own worker I/O; remaining synchronous callbacks are tracked in
 //! the architecture refactor audit.
 
+use super::input::{cdp_modifiers, gdk_keyval_to_cdp, picture_point, viewport_size};
 use crate::app_state::AppState;
 use gtk4::prelude::*;
 use std::cell::RefCell;
@@ -223,21 +224,9 @@ pub(crate) fn wire_browser_tab(
             // Keep browser-page keystrokes scoped to the picture. In particular,
             // this must not steal typing from the sibling URL GtkEntry.
             picture_for_click.grab_focus();
-            // Scale widget coordinates to viewport coordinates
-            let pic_w = picture_for_click.width() as f64;
-            let pic_h = picture_for_click.height() as f64;
-            if pic_w <= 0.0 || pic_h <= 0.0 {
+            let Some((cx, cy)) = picture_point(&picture_for_click, x, y) else {
                 return;
-            }
-            // Get the current viewport size from the texture paintable
-            let (vp_w, vp_h) = picture_for_click
-                .paintable()
-                .map(|p| (p.intrinsic_width() as f64, p.intrinsic_height() as f64))
-                .unwrap_or((pic_w, pic_h));
-            let scale_x = vp_w / pic_w;
-            let scale_y = vp_h / pic_h;
-            let cx = (x * scale_x) as i64;
-            let cy = (y * scale_y) as i64;
+            };
 
             let s = state_for_click.borrow();
             if let Some(ref bm) = s.browser_manager {
@@ -268,19 +257,9 @@ pub(crate) fn wire_browser_tab(
                 let Some(picture_for_motion) = picture_for_motion.upgrade() else {
                     return;
                 };
-                let pic_w = picture_for_motion.width() as f64;
-                let pic_h = picture_for_motion.height() as f64;
-                if pic_w <= 0.0 || pic_h <= 0.0 {
+                let Some((mx, my)) = picture_point(&picture_for_motion, x, y) else {
                     return;
-                }
-                let (vp_w, vp_h) = picture_for_motion
-                    .paintable()
-                    .map(|p| (p.intrinsic_width() as f64, p.intrinsic_height() as f64))
-                    .unwrap_or((pic_w, pic_h));
-                let scale_x = vp_w / pic_w;
-                let scale_y = vp_h / pic_h;
-                let mx = (x * scale_x) as i64;
-                let my = (y * scale_y) as i64;
+                };
                 let _ = mtx.send((mx, my));
             });
         }
@@ -299,16 +278,10 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_scroll) = state_for_scroll.upgrade() else {
                 return gtk4::glib::Propagation::Proceed;
             };
-            let pic_w = picture_for_scroll.width() as f64;
-            let pic_h = picture_for_scroll.height() as f64;
-            if pic_w <= 0.0 || pic_h <= 0.0 {
+            let Some((vp_w, vp_h)) = viewport_size(&picture_for_scroll) else {
                 return gtk4::glib::Propagation::Proceed;
-            }
-            // Scroll at center of viewport; dy is in discrete scroll units
-            let (vp_w, vp_h) = picture_for_scroll
-                .paintable()
-                .map(|p| (p.intrinsic_width() as f64, p.intrinsic_height() as f64))
-                .unwrap_or((pic_w, pic_h));
+            };
+            // Scroll at the center of the rendered viewport.
             let cx = (vp_w / 2.0) as i64;
             let cy = (vp_h / 2.0) as i64;
             // CDP mouseWheel uses pixel delta; ~120px per scroll tick
@@ -596,72 +569,6 @@ fn finish_browser_navigation(
             }
         }
     });
-}
-
-/// Map GDK keyval to (CDP key name, CDP code name).
-/// Returns empty strings for unmapped keys.
-fn gdk_keyval_to_cdp(keyval: gtk4::gdk::Key) -> (String, String) {
-    use gtk4::gdk::Key;
-    match keyval {
-        Key::Return | Key::KP_Enter => ("Enter".into(), "Enter".into()),
-        Key::Tab => ("Tab".into(), "Tab".into()),
-        Key::Escape => ("Escape".into(), "Escape".into()),
-        Key::BackSpace => ("Backspace".into(), "Backspace".into()),
-        Key::Delete => ("Delete".into(), "Delete".into()),
-        Key::Home => ("Home".into(), "Home".into()),
-        Key::End => ("End".into(), "End".into()),
-        Key::Page_Up => ("PageUp".into(), "PageUp".into()),
-        Key::Page_Down => ("PageDown".into(), "PageDown".into()),
-        Key::Left => ("ArrowLeft".into(), "ArrowLeft".into()),
-        Key::Right => ("ArrowRight".into(), "ArrowRight".into()),
-        Key::Up => ("ArrowUp".into(), "ArrowUp".into()),
-        Key::Down => ("ArrowDown".into(), "ArrowDown".into()),
-        Key::space => (" ".into(), "Space".into()),
-        Key::F1 => ("F1".into(), "F1".into()),
-        Key::F2 => ("F2".into(), "F2".into()),
-        Key::F3 => ("F3".into(), "F3".into()),
-        Key::F4 => ("F4".into(), "F4".into()),
-        Key::F5 => ("F5".into(), "F5".into()),
-        Key::F6 => ("F6".into(), "F6".into()),
-        Key::F7 => ("F7".into(), "F7".into()),
-        Key::F8 => ("F8".into(), "F8".into()),
-        Key::F9 => ("F9".into(), "F9".into()),
-        Key::F10 => ("F10".into(), "F10".into()),
-        Key::F11 => ("F11".into(), "F11".into()),
-        Key::F12 => ("F12".into(), "F12".into()),
-        other => {
-            // For printable characters, use the unicode value
-            if let Some(ch) = other.to_unicode() {
-                let s = ch.to_string();
-                let code = if ch.is_ascii_alphabetic() {
-                    format!("Key{}", ch.to_ascii_uppercase())
-                } else if ch.is_ascii_digit() {
-                    format!("Digit{}", ch)
-                } else {
-                    s.clone()
-                };
-                (s, code)
-            } else {
-                (String::new(), String::new())
-            }
-        }
-    }
-}
-
-/// Convert GDK modifier flags to CDP modifier bitmask.
-/// CDP: Alt=1, Ctrl=2, Meta=4, Shift=8
-fn cdp_modifiers(mods: gtk4::gdk::ModifierType) -> i32 {
-    let mut m = 0;
-    if mods.contains(gtk4::gdk::ModifierType::ALT_MASK) {
-        m |= 1;
-    }
-    if mods.contains(gtk4::gdk::ModifierType::CONTROL_MASK) {
-        m |= 2;
-    }
-    if mods.contains(gtk4::gdk::ModifierType::SHIFT_MASK) {
-        m |= 8;
-    }
-    m
 }
 
 /// Close the browser preview and shut down the daemon (Ctrl+Shift+Q).

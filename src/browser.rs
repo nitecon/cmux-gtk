@@ -3,6 +3,7 @@ use serde_json::Value;
 mod cli;
 mod discovery;
 mod frames;
+mod input;
 pub(crate) mod metrics;
 mod motion;
 mod pixels;
@@ -355,6 +356,7 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
     let picture = gtk4::Picture::new();
     picture.add_css_class("browser-preview");
     picture.set_can_shrink(true);
+    picture.set_content_fit(gtk4::ContentFit::Contain);
     picture.set_hexpand(true);
     picture.set_vexpand(true);
 
