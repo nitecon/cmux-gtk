@@ -505,10 +505,16 @@ fn handle_socket_command_traced(
         }
 
         SocketCommand::SurfaceSendKey { req_id, id, key, resp_tx } => {
-            // Literal characters use the text path. Named key combinations require
+            // Literal characters use typed input. Named key combinations require
             // native key translation; never report them as successfully delivered.
-            let result = if key.chars().count() == 1 {
-                send_terminal_text(state, id.as_deref(), &key)
+            let mut characters = key.chars();
+            let result = if let (Some(character), None) = (characters.next(), characters.next()) {
+                terminal_target(state, id.as_deref()).and_then(|surface| {
+                    // SAFETY: resolution releases the model borrow and returns a
+                    // live GTK-owned terminal; no teardown occurs before input.
+                    unsafe { crate::ghostty::text::send_character(surface, character) }
+                        .map_err(|message| ("invalid_params", message))
+                })
             } else {
                 Err(("not_supported", "send-key currently accepts one literal character"))
             };

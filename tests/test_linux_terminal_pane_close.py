@@ -70,7 +70,10 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
         assert json.loads(app.cli("health", "--id", new_id, "--json"))["alive"]
         assert not json.loads(app.cli("health", "--id",
             "00000000-0000-4000-8000-000000000000", "--json"))["alive"]
-        app.cli("send-text", "printf '%s%s\n' CMUX READCHECK\r", "--id", new_id)
+        # Paste the command, then type Enter separately: bracketed paste is not
+        # an instruction to execute newlines embedded in pasted text.
+        app.cli("send-text", "printf '%s%s\\n' CMUX READCHECK", "--id", new_id)
+        app.cli("send-key", "\r", "--id", new_id)
         app.wait_for(lambda: "CMUXREADCHECK" in json.loads(
             app.cli("read-text", "--id", new_id, "--json"))["text"], "unfocused terminal output")
         assert "CMUXREADCHECK" not in json.loads(

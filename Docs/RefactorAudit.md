@@ -774,3 +774,7 @@ and diff checks passed; no tests or benchmark workloads ran locally.
 
 Comparison of memory, browser, remote and other workloads remains incomplete,
 as does richer hardware/renderer metadata for fully controlled comparisons.
+
+### Typed input versus paste (2026-09-05)
+
+Actions run 33993016898 failed the unfocused terminal read scenario: the command was delivered through Ghostty's paste API, including its attempted Enter. Native API inspection confirms that this path uses bracketed paste, while ghostty_surface_text_input delivers committed typed input. The one-character send-key implementation now uses a documented typed-input adapter, preserving target resolution and focus. The CI scenario pastes a command with a literal escaped newline format and submits a separate carriage return through send-key. Named-key translation remains unfinished. Cargo check and git diff --check pass; cargo fmt --all -- --check exposes existing formatting drift in multiple owned modules, which remains to be normalized. Executable verification is delegated to Actions. The comparison-tool run 33993392449 was still running when inspected; no cumulative green result is claimed.

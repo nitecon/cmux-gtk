@@ -30,10 +30,10 @@ content:
       description: Optional id selects the surface to split in the active workspace; absent id uses the active pane. Unknown id returns not_found without mutation. A successful split focuses the new terminal.
     - method: surface.send_text
       transport: Unix JSON socket
-      description: Deliver text to optional id or the selected terminal without changing focus. Missing native terminals return not_found; NUL bytes return invalid_params.
+      description: Paste text to optional id or the selected terminal without changing focus. Bracketed paste can keep newlines from submitting shell commands; send a literal carriage return through surface.send_key to submit separately. Missing native terminals return not_found; NUL bytes return invalid_params.
     - method: surface.send_key
       transport: Unix JSON socket
-      description: Accept one literal Unicode character through the text path. Named key descriptors return not_supported; full key translation remains unfinished.
+      description: Type one literal Unicode character without bracketed paste and without changing focus. Newline becomes carriage return; NUL returns invalid_params. Named key descriptors return not_supported; full key translation remains unfinished.
     - method: surface.read_text
       transport: Unix JSON socket
       description: Return plain clipboard-formatted current viewport text from optional id without changing focus or selection. Native output is bounded to 256 KiB and 65536 cells. Missing terminals return not_found; failed or oversized captures return read_failed. This is a best-effort snapshot during concurrent output.

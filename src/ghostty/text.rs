@@ -20,7 +20,8 @@ impl Drop for NativeText {
     }
 }
 
-/// Deliver literal UTF-8 text, rejecting embedded NUL bytes before native input.
+/// Paste literal UTF-8 text, rejecting embedded NUL bytes before native input.
+/// Bracketed paste mode can keep a trailing newline from submitting a shell command.
 /// The native call borrows the converted string only until it returns.
 ///
 /// # Safety
@@ -34,6 +35,27 @@ pub(crate) unsafe fn send_literal(
     // SAFETY: the caller guarantees surface lifetime; the CString remains live
     // throughout the synchronous input call, including its trailing NUL.
     unsafe { ffi::ghostty_surface_text(surface, text.as_ptr(), text.as_bytes().len()) };
+    Ok(())
+}
+
+/// Type one Unicode scalar without bracketed paste; newline becomes carriage return.
+/// Reject NUL before delivery. This does not translate named keys or modifiers.
+///
+/// # Safety
+/// The caller must keep the surface live on its owning GTK thread, with model
+/// borrows released and no teardown or event-loop iteration during this call.
+pub(crate) unsafe fn send_character(
+    surface: ffi::ghostty_surface_t,
+    character: char,
+) -> Result<(), &'static str> {
+    if character == '\0' {
+        return Err("terminal key contains a NUL byte");
+    }
+    let mut buffer = [0; 4];
+    let text = character.encode_utf8(&mut buffer);
+    // SAFETY: the caller guarantees a live surface; native typed input borrows
+    // the explicit-length UTF-8 buffer only for this synchronous call.
+    unsafe { ffi::ghostty_surface_text_input(surface, text.as_ptr().cast(), text.len()) };
     Ok(())
 }
 
