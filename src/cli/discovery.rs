@@ -27,16 +27,14 @@ pub fn discover_socket() -> Option<String> {
     }
 
     // 2. $XDG_RUNTIME_DIR/cmux/cmux.sock (fallback /run/user/{uid}/cmux/cmux.sock)
-    let xdg_base = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| {
-        format!("/run/user/{}", unsafe { libc::getuid() })
-    });
-    let xdg_socket = format!("{}/cmux/cmux.sock", xdg_base);
+    let runtime_dir = cmux_platform::paths::runtime_dir();
+    let xdg_socket = cmux_platform::paths::socket_path().to_string_lossy().into_owned();
     if Path::new(&xdg_socket).exists() {
         return Some(xdg_socket);
     }
 
     // 3. $XDG_RUNTIME_DIR/cmux/last-socket-path marker file
-    let marker = format!("{}/cmux/last-socket-path", xdg_base);
+    let marker = runtime_dir.join("last-socket-path");
     if let Ok(contents) = std::fs::read_to_string(&marker) {
         let path = contents.trim().to_string();
         if !path.is_empty() && Path::new(&path).exists() {

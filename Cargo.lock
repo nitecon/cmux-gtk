@@ -296,10 +296,10 @@ dependencies = [
  "anyhow",
  "base64",
  "bindgen",
- "cc",
  "clap",
  "clap_complete",
  "clap_mangen",
+ "cmux-platform",
  "flate2",
  "futures-util",
  "glib",
@@ -315,6 +315,15 @@ dependencies = [
  "tokio-tungstenite",
  "toml 0.8.23",
  "uuid",
+]
+
+[[package]]
+name = "cmux-platform"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "gtk4",
+ "libc",
 ]
 
 [[package]]

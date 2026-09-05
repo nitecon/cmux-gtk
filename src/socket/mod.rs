@@ -8,9 +8,7 @@ use std::path::PathBuf;
 /// Compute the Unix socket path per D-06.
 /// $XDG_RUNTIME_DIR/cmux/cmux.sock, fallback /run/user/{uid}/cmux/cmux.sock.
 pub fn socket_path() -> PathBuf {
-    let base = std::env::var("XDG_RUNTIME_DIR")
-        .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::getuid() }));
-    PathBuf::from(base).join("cmux").join("cmux.sock")
+    cmux_platform::paths::socket_path()
 }
 
 /// Returns the directory containing the socket file.

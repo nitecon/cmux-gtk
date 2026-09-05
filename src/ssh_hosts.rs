@@ -10,11 +10,7 @@ pub struct SshHostsFile {
 /// Returns the path to the SSH hosts file.
 /// Respects $XDG_CONFIG_HOME/cmux/ssh_hosts.toml; falls back to ~/.config/cmux/ssh_hosts.toml.
 pub fn ssh_hosts_path() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{home}/.config")
-    });
-    PathBuf::from(base).join("cmux").join("ssh_hosts.toml")
+    cmux_platform::paths::config_dir().join("ssh_hosts.toml")
 }
 
 /// Parse SSH config text content and extract Host aliases.

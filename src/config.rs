@@ -132,11 +132,7 @@ const MOD_MASK: ModifierType = ModifierType::from_bits_truncate(
 /// Returns the config file path.
 /// Respects $XDG_CONFIG_HOME/cmux/config.toml; falls back to ~/.config/cmux/config.toml (CFG-04).
 pub fn config_path() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{home}/.config")
-    });
-    PathBuf::from(base).join("cmux").join("config.toml")
+    cmux_platform::paths::config_dir().join("config.toml")
 }
 
 /// Load config from disk. Always returns a usable Config (D-10).

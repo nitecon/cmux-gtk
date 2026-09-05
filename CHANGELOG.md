@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Document the architecture, component boundaries, language standards and observability requirements for the ongoing refactor.
+- Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
+- Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
+
 ## [0.1.8] - 2026-09-05
 
 ### Added

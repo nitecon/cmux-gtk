@@ -1,5 +1,5 @@
 [workspace]
-members = ["."]
+members = [".", "crates/cmux-platform"]
 
 [package]
 name = "cmux-gtk"
@@ -15,6 +15,7 @@ name = "cmux"
 path = "src/bin/cmux.rs"
 
 [dependencies]
+cmux-platform = { path = "crates/cmux-platform", features = ["gtk"] }
 gtk4 = { version = "0.10.3", features = ["v4_8"] }
 tokio = { version = "1", features = ["full"] }
 glib = "0.21.5"
@@ -42,4 +43,3 @@ path = "src/bin/generate.rs"
 
 [build-dependencies]
 bindgen = "0.72.1"
-cc = "1.2.57"

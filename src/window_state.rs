@@ -16,10 +16,6 @@ impl Default for WindowState {
     }
 }
 
-extern "C" {
-    fn cmux_window_position(surface: *mut gtk4::gdk::ffi::GdkSurface,
-        x: *mut i32, y: *mut i32, restore: i32) -> i32;
-}
 
 fn path() -> PathBuf {
     crate::session::session_path().with_file_name("window-state.json")
@@ -44,9 +40,8 @@ fn capture(window: &gtk4::ApplicationWindow, previous: &Rc<RefCell<WindowState>>
             state.height = height;
         }
         if let Some(surface) = window.surface() {
-            let (mut x, mut y) = (0, 0);
-            if unsafe { cmux_window_position(surface.as_ptr(), &mut x, &mut y, 0) } != 0 {
-                state.position = Some((x, y));
+            if let Some(position) = cmux_platform::window::position(&surface) {
+                state.position = Some(position);
             }
         }
     }
@@ -72,7 +67,6 @@ pub fn install(window: &gtk4::ApplicationWindow) {
     if let Some((x, y)) = saved.position {
         window.connect_realize(move |window| {
             let Some(surface) = window.surface() else { return };
-            let (mut x, mut y) = (x, y);
             // Ignore stale coordinates if the monitor layout has changed.
             let monitors = gtk4::prelude::WidgetExt::display(window).monitors();
             let visible = (0..monitors.n_items()).any(|i| {
@@ -84,7 +78,7 @@ pub fn install(window: &gtk4::ApplicationWindow) {
                     }).unwrap_or(false)
             });
             if visible {
-                unsafe { cmux_window_position(surface.as_ptr(), &mut x, &mut y, 1); }
+                cmux_platform::window::restore_position(&surface, x, y);
             }
         });
     }

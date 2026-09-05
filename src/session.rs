@@ -36,11 +36,7 @@ pub struct SessionData {
 /// Returns the session file path.
 /// Respects $XDG_DATA_HOME/cmux/session.json; falls back to ~/.local/share/cmux/session.json.
 pub fn session_path() -> PathBuf {
-    let base = std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{home}/.local/share")
-    });
-    PathBuf::from(base).join("cmux").join("session.json")
+    cmux_platform::paths::data_dir().join("session.json")
 }
 
 /// Save session data atomically.

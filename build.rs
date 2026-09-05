@@ -4,17 +4,6 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    println!("cargo:rerun-if-changed=src/window_position.c");
-    let flags = Command::new("pkg-config").args(["--cflags", "gtk4-x11", "x11"])
-        .output().expect("pkg-config is required");
-    assert!(flags.status.success(), "GTK4 X11 development headers are required");
-    let mut bridge = cc::Build::new();
-    bridge.file("src/window_position.c");
-    for flag in String::from_utf8_lossy(&flags.stdout).split_whitespace() {
-        bridge.flag(flag);
-    }
-    bridge.compile("cmux_window_position");
-    println!("cargo:rustc-link-lib=X11");
     let version =
         env::var("CMUX_VERSION").unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap());
     println!(

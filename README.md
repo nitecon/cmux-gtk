@@ -182,6 +182,8 @@ A `CLAUDE.md` at `/usr/share/cmux/CLAUDE.md` references skill paths so Claude Co
 
 ## Architecture
 
+See [Architecture](Docs/Architecture.md), [Components](Docs/Components.md), and the linked coding standards for implementation boundaries and contributor guidance.
+
 - **Language:** Rust
 - **UI toolkit:** GTK4 via gtk4-rs
 - **Terminal engine:** Ghostty (manaflow-ai fork) via libghostty C FFI

@@ -1,0 +1,15 @@
+[package]
+name = "cmux-platform"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+gtk = ["dep:gtk4", "dep:cc"]
+
+[dependencies]
+libc = "0.2"
+gtk4 = { version = "0.10.3", features = ["v4_8"], optional = true }
+
+[build-dependencies]
+cc = { version = "1.2.57", optional = true }

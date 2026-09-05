@@ -29,24 +29,6 @@ jobs:
       - name: Validate remote daemon release assets
         run: ./tests/test_remote_daemon_release_assets.sh
 
-  web-typecheck:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Typecheck
-        run: bun tsc --noEmit
-
   linux-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -93,6 +75,9 @@ jobs:
       - name: Check workspace
         run: cargo check --workspace --bins
 
+      - name: Check platform services without GTK
+        run: cargo check -p cmux-platform --no-default-features
+
       - name: Clippy correctness and suspicious lints
         run: cargo clippy --workspace --bins -- -D clippy::correctness -D clippy::suspicious
 
@@ -110,7 +95,7 @@ jobs:
         run: dbus-run-session -- xvfb-run -a ./tests/test_linux_surface_tab_reentrant_close.sh
 
       - name: Run unit tests
-        run: cargo test --workspace --bins
+        run: cargo test --workspace
 
       - name: Test window state restoration
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_window_state.py
