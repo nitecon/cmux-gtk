@@ -95,3 +95,20 @@ content. This is a loss indicator, not proof that all requested actions complete
 
 
 [CI baseline e08b976f](Benchmarks/e08b976f/README.md) preserves raw release CLI and debug terminal-churn reports with provenance, measured values and scope limits.
+
+
+Compare completed CLI ping reports with:
+
+```bash
+python3 scripts/compare-cmux-benchmarks.py Docs/Benchmarks/e08b976f/cli-round-trip.json /path/to/candidate.json
+```
+
+The comparison reads at most four MiB per report, requires completed successful
+schema-1 ping workloads, checks raw sample counts and finite positive durations,
+and matches recorded host, build, GTK, backend, terminal count, iterations and
+warmup settings. It recomputes median/p95/p99 from samples and prints JSON values,
+deltas and percentages. Positive changes are slower. It does not infer statistical
+significance or impose a regression threshold. Matching metadata cannot establish
+identical hardware; CPU model and software-rendering identity are not recorded by
+the current ping producer. Memory-churn comparison remains a separate unfinished
+workload; this command rejects that report type.

@@ -759,3 +759,18 @@ ping measured median 1.657496 ms and p95 1.737285 ms. Debug post-warmup churn RS
 samples went from 354636 to 360820 KiB, and the sampled redraw interval from 376200
 to 376228 KiB. These are workload-specific baselines, not universal leak-freedom
 or verification of later commits. No local runtime tests were executed.
+
+
+### Guarded CLI benchmark comparison
+
+Added `scripts/compare-cmux-benchmarks.py` for completed CLI ping evidence. File
+size, sample validity, workload completion and recorded environment compatibility
+are checked before recalculating latency summaries. Output includes revisions,
+matched settings and delta/percentage values without claiming significance or
+inventing thresholds. CI tests use the preserved e08b976f report, simulate slower
+raw samples with stale summaries, and reject partial, mismatched and nonfinite
+inputs. Added the test to the existing Python tooling CI step. Local Python syntax
+and diff checks passed; no tests or benchmark workloads ran locally.
+
+Comparison of memory, browser, remote and other workloads remains incomplete,
+as does richer hardware/renderer metadata for fully controlled comparisons.
