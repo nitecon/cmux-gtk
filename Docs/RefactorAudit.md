@@ -4,13 +4,13 @@ Status: in progress. This document is a completion checklist, not a claim that t
 
 ## Current requirement status
 
-This table supersedes the historical checkpoint notes below. Inventory refreshed from `cb6584f5` plus the removal of three absent-Resources wrapper suites on 2026-09-05. Counts include tracked, existing owned files and exclude the Ghostty submodule; this is not a completion claim.
+This table supersedes the historical checkpoint notes below. Inventory refreshed from `d47c34dc` plus the removal of five absent-Resources shell-integration suites on 2026-09-05. Counts include tracked, existing owned files and exclude the Ghostty submodule; this is not a completion claim.
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 70 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and five maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 333 undocumented declarations among 596 functions in 79 `tests` files, and 659 among 853 functions in 91 `tests_v2` files. All 17 functions in the five maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and five maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 316 undocumented declarations among 579 functions in 74 `tests` files, and 659 among 853 functions in 91 `tests_v2` files. All 17 functions in the five maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -524,3 +524,24 @@ The requirement matrix now reports current recursive AST counts and the verified
 failure boundary of run 33991217679. Parsing the retained Python files exposed two
 existing invalid-escape warnings in the PR polling fixture; syntax still parses.
 No runtime tests were executed locally; diff validation passed.
+
+
+### Removed missing-target shell integration suites
+
+Deleted five tests that skip missing `Resources/shell-integration` scripts and
+return success: PR polling (#1138), shell-integration disablement (#734), bundled
+zsh integration precedence, scrollback color replay and minimal-PATH scrollback
+replay. The polling harness skips both shells and still prints PASS. None of these
+suite filenames is referenced by a remaining workflow or source file. No production
+integration or Ghostty submodule content was removed.
+
+Their useful requirements remain distinct from current coverage: native Ghostty
+shell configuration must be tested against shipped Ghostty resources; future
+session replay needs byte-preserving output and cleanup tests against its actual
+Linux implementation. PR metadata polling needs a current implementation and
+failure/recovery scenario before any coverage claim. Scrollback/resume work stays
+deferred. The maintained prompt-probe cleanup fixture targets an existing script
+and remains. Removing the stale PR fixture also removes its invalid Python escape
+warnings; no escaping workaround was added to an absent-target test.
+
+Diff validation passed; no runtime tests were run locally.
