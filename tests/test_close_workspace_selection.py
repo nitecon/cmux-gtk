@@ -28,6 +28,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-close-selection-") as directory:
         ids = [row["uuid"] for row in rows]
         app.cli("select-workspace", ids[1])
         assert selected(app) == ids[1]
+        app.cli("reorder-workspace", ids[0], "99")
+        assert [row["uuid"] for row in workspaces(app)] == ids[1:] + [ids[0]]
+        assert selected(app) == ids[1], "reorder must preserve selected identity"
+        app.cli("reorder-workspace", ids[0], "0")
+        assert [row["uuid"] for row in workspaces(app)] == ids
+        assert selected(app) == ids[1]
         app.cli("close-workspace", ids[1])
         assert selected(app) == ids[2], "closing middle must select the next workspace"
         assert [row["uuid"] for row in workspaces(app)] == [ids[0], ids[2], ids[3]]

@@ -844,3 +844,7 @@ Actions run 33994475960 at 7ae37a73 completed successfully, including SIGINT thr
 ### Shared legacy terminal readiness probes (2026-09-05)
 
 Inspected the v1/v2 tab-dragging differences rather than replacing one suite with the other: v2 uses adapter methods and adds attachment/focus preparation in several scenarios. Extracted only the five byte-identical setup, health polling, marker and responsiveness helpers into legacy_terminal_support.py, shared through the v2 entry link. Documented best-effort setup, caller-owned markers, wall-clock polling and legacy health/input assumptions. Corrected the suite introduction: filesystem marker success is not pixel rendering or drag-gesture evidence. Distinct scenario assertions remain for further migration. Static parsing and whitespace checks pass; no local tests ran.
+
+### Reorder parameter boundary (2026-09-05)
+
+Workspace reorder no longer turns missing, negative, fractional, boolean or string positions into index zero. The dispatcher requires a nonnegative integer and checked conversion to usize before GTK admission. Existing positive out-of-list clamping and no-op success semantics are preserved and documented. Added real-dispatch invalid-input tests and a Linux CLI reorder-out-and-back scenario checking exact order and selected UUID preservation. All-target compilation, formatting and Python syntax checks pass; runtime execution remains CI-only.

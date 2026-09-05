@@ -322,16 +322,28 @@ async fn dispatch_line(
             req_id: req_id.clone(),
             resp_tx,
         },
-        "workspace.reorder" => commands::SocketCommand::WorkspaceReorder {
-            req_id: req_id.clone(),
-            id: params
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            position: params.get("position").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
-            resp_tx,
-        },
+        "workspace.reorder" => {
+            let Some(position) = params
+                .get("position")
+                .and_then(|value| value.as_u64())
+                .and_then(|value| usize::try_from(value).ok())
+            else {
+                return serde_json::json!({
+                    "id": req_id, "ok": false,
+                    "error": {"code": "invalid_params", "message": "position must be a nonnegative integer within the native index range"}
+                }).to_string();
+            };
+            commands::SocketCommand::WorkspaceReorder {
+                req_id: req_id.clone(),
+                id: params
+                    .get("id")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                position,
+                resp_tx,
+            }
+        }
 
         "surface.list" => commands::SocketCommand::SurfaceList {
             req_id: req_id.clone(),
@@ -558,6 +570,32 @@ async fn dispatch_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Missing or malformed reorder positions cannot silently move a workspace to index zero.
+    #[tokio::test]
+    async fn invalid_reorder_positions_never_reach_gtk() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+        for position in [
+            None,
+            Some(serde_json::json!(-1)),
+            Some(serde_json::json!(true)),
+            Some(serde_json::json!("0")),
+            Some(serde_json::json!(1.5)),
+            Some(serde_json::json!(null)),
+        ] {
+            let mut params = serde_json::json!({"id": "test-workspace"});
+            if let Some(position) = position {
+                params["position"] = position;
+            }
+            let request =
+                serde_json::json!({"id": 13, "method": "workspace.reorder", "params": params});
+            let response = dispatch_line(request.to_string(), &tx).await;
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(response["id"], 13);
+            assert_eq!(response["error"]["code"], "invalid_params");
+            assert!(rx.try_recv().is_err());
+        }
+    }
 
     /// Malformed directions fail before GTK admission, preserving request correlation.
     #[tokio::test]
