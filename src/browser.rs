@@ -2,7 +2,7 @@ use base64::Engine as _;
 use futures_util::StreamExt;
 use gtk4::prelude::*;
 use serde_json::Value;
-use std::io::{BufRead, BufReader, Write};
+mod transport;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
@@ -171,10 +171,6 @@ impl BrowserManager {
 
     /// Send a newline-delimited JSON command to the daemon socket.
     pub fn send_command(&self, action: &str, params: Value) -> Result<Value, String> {
-        let socket_path = self.daemon_socket_path();
-        let mut stream = std::os::unix::net::UnixStream::connect(&socket_path)
-            .map_err(|e| format!("Failed to connect to daemon socket: {}", e))?;
-
         let req_id = format!("cmux-{}", rand_u64());
         let mut request = if let Value::Object(map) = params {
             Value::Object(map)
@@ -190,20 +186,7 @@ impl BrowserManager {
             .unwrap()
             .insert("action".to_string(), Value::String(action.to_string()));
 
-        let mut json = serde_json::to_string(&request)
-            .map_err(|e| format!("Failed to serialize request: {}", e))?;
-        json.push('\n');
-        stream
-            .write_all(json.as_bytes())
-            .map_err(|e| format!("Failed to write to daemon socket: {}", e))?;
-
-        let mut reader = BufReader::new(stream);
-        let mut line = String::new();
-        reader
-            .read_line(&mut line)
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-
-        serde_json::from_str(&line).map_err(|e| format!("Failed to parse response: {}", e))
+        transport::request(&self.daemon_socket_path(), &request)
     }
 
     /// Read the stream port from the port file.
