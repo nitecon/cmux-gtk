@@ -318,3 +318,7 @@ The Go button and Enter handler now share address normalization and async viewpo
 ### Browser-manager cancellation ownership
 
 BrowserManager now owns a navigation stop signal as well as admission. Shutdown and Drop share stop_navigation: close admission and notify admitted futures, which stop their command sequence and drop any active kill-on-drop child future. A stopped manager cannot launch delayed navigation after teardown. Added executable coverage for an unpolled admitted operation after manager drop and a running real child that must be cancelled/reaped before its fifteen-second command deadline. All-target compilation passed; CI execution is pending. This controls application-owned CLI children, not detached browser-daemon descendants.
+
+### Browser UI component boundary
+
+Moved browser tab creation/restoration, widget wiring, navigation completion and CDP key translation out of shortcuts.rs into src/browser/ui.rs. The shortcut module retains workspace/pane actions and re-exports its existing browser entry points, preserving callers. The browser UI module documents GTK/AppState ownership separately from sibling worker transport/CLI/stream modules. Mapping, initial viewport, startup and input/devtools synchronous paths remain visible refactor targets; this structural move does not claim those paths asynchronous. All-target compilation and diff checks validate the move locally; behavior verification remains CI-only.

@@ -7,6 +7,7 @@ pub(crate) mod metrics;
 mod motion;
 mod pixels;
 mod stream;
+pub(crate) mod ui;
 pub use motion::spawn_motion_forwarder;
 pub(crate) mod transport;
 pub use discovery::agent_browser_available;
