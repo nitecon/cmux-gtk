@@ -36,7 +36,6 @@ pub struct AppState {
     pub runtime_handle: Option<tokio::runtime::Handle>,
     /// Handles to SSH lifecycle tasks, keyed by workspace id. Used for cleanup on close.
     pub ssh_task_handles: std::collections::HashMap<u64, tokio::task::JoinHandle<()>>,
-    /// Maps pane_id -> IoWriteContext for remote panes (needed to set stream_id after proxy.open).
     /// Maps workspace_id -> SshBridge for remote workspaces.
     pub workspace_bridges: std::collections::HashMap<u64, std::sync::Arc<crate::ssh::bridge::SshBridge>>,
     /// Browser preview daemon manager (Phase 8).
@@ -126,9 +125,6 @@ impl AppState {
         unsafe {
             row.set_data("workspace-id", id);
         }
-        if let Some(directory) = workspace.working_directory.as_ref() {
-            row.set_tooltip_text(Some(&directory.to_string_lossy()));
-        }
         self.sidebar_list.append(&row);
 
         // Create surface and split engine
@@ -205,9 +201,6 @@ impl AppState {
         row.set_child(Some(&hbox));
         crate::sidebar::style_workspace_row(&row, &workspace);
         unsafe { row.set_data("workspace-id", id); }
-        if let Some(directory) = workspace.working_directory.as_ref() {
-            row.set_tooltip_text(Some(&directory.to_string_lossy()));
-        }
 
         // Build split tree from session data (D-05)
         let engine = crate::split_engine::SplitEngine::from_data_with_command(

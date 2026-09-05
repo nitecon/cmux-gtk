@@ -149,9 +149,9 @@ pub fn handle_new_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Applicati
 /// Show close-workspace confirmation dialog. If confirmed, closes the active workspace.
 pub fn handle_close_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Application) {
     // Cannot close the last workspace.
-    let (active_index, workspace_count) = {
+    let (workspace_id, workspace_count) = {
         let s = state.borrow();
-        (s.active_index, s.workspaces.len())
+        (s.active_workspace().map(|ws| ws.id), s.workspaces.len())
     };
     if workspace_count <= 1 {
         return; // No-op: cannot close the last workspace
@@ -172,7 +172,10 @@ pub fn handle_close_workspace(state: &Rc<RefCell<AppState>>, app: &gtk4::Applica
         let state = state.clone();
         move |dialog, response| {
             if response == gtk4::ResponseType::Accept {
-                state.borrow_mut().close_workspace(active_index);
+                let mut s = state.borrow_mut();
+                if let Some(index) = s.workspaces.iter().position(|ws| Some(ws.id) == workspace_id) {
+                    s.close_workspace(index);
+                }
             }
             dialog.close();
         }

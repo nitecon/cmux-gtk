@@ -370,6 +370,9 @@ mod lifecycle_tests {
         let app = gtk4::Application::new(Some("io.cmux.WorkspaceTest"), Default::default());
         let list = gtk4::ListBox::new();
         let state = crate::app_state::AppState::new(gtk4::Stack::new(), list.clone(), std::ptr::null_mut(), app.clone());
+        let (snapshots, latest) = tokio::sync::watch::channel(None);
+        state.borrow_mut().session_tx = Some(snapshots);
+        state.borrow_mut().save_notify = Some(std::sync::Arc::new(tokio::sync::Notify::new()));
         for id in 1..=40 {
             let workspace = crate::workspace::Workspace::new_bound(id, id as usize, "Sample".into(), "/opt/team/repo".into());
             let row = gtk4::ListBoxRow::new();
@@ -380,6 +383,7 @@ mod lifecycle_tests {
             attach_sidebar_context_menu(&row, state.clone());
             row.activate_action("workspace.color-red", None).unwrap();
             assert_eq!(state.borrow().workspaces[0].color.as_deref(), Some("#703a40"));
+            assert_eq!(latest.borrow().as_ref().unwrap().workspaces[0].color.as_deref(), Some("#703a40"));
             row.activate_action("workspace.color-default", None).unwrap();
             assert_eq!(state.borrow().workspaces[0].color, None);
             let weak = row.downgrade();
@@ -397,6 +401,16 @@ mod lifecycle_tests {
             while glib::MainContext::default().pending() { glib::MainContext::default().iteration(false); }
             assert!(weak.upgrade().is_none(), "closed browser tree retained by its callbacks");
         }
+        for _ in 0..3 { state.borrow_mut().create_workspace(); }
+        let active = state.borrow().active_workspace().unwrap().uuid;
+        let first_id = state.borrow().workspaces[0].id;
+        assert!(state.borrow_mut().reorder_workspace(0, 2));
+        assert_eq!(state.borrow().active_workspace().unwrap().uuid, active);
+        let moved = list.row_at_index(2).unwrap();
+        assert_eq!(unsafe { *moved.data::<u64>("workspace-id").unwrap().as_ref() }, first_id);
+        assert_eq!(latest.borrow().as_ref().unwrap().workspaces[2].uuid, state.borrow().workspaces[2].uuid.to_string());
+        assert!(!state.borrow_mut().reorder_workspace(0, 99));
+        drop(moved);
         let weak_state = Rc::downgrade(&state);
         drop(state);
         assert!(weak_state.upgrade().is_none());

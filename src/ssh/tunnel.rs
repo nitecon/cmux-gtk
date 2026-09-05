@@ -252,6 +252,9 @@ async fn run_proxy_routing(
             for id in ids {
                 if let Err(error) = open_remote_stream(&open_writer, &open_bridge, id, &open_pending, &open_tx, 80, 24).await {
                     eprintln!("cmux: remote terminal launch failed: {error}");
+                    let message = format!("\r\n[Remote terminal failed: {error}]\r\n");
+                    let _ = open_tx.send(SshEvent::RemoteOutput { pane_id: id, data: message.into_bytes() }).await;
+                    let _ = open_tx.send(SshEvent::RemoteEof { pane_id: id }).await;
                     open_bridge.remove_pane(id);
                 }
             }

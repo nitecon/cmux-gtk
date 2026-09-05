@@ -416,7 +416,10 @@ fn build_ui(
                 }
             }
             // Process SSH events
-            while let Ok(event) = ssh_event_rx.try_recv() {
+            // Bound work per GTK turn as well as queue capacity, so sustained
+            // remote output cannot monopolize the main loop.
+            for _ in 0..128 {
+                let Ok(event) = ssh_event_rx.try_recv() else { break; };
                 match event {
                     crate::ssh::SshEvent::StateChanged { workspace_id, state: conn_state } => {
                         // Auto-save host on successful connection (D-04)
