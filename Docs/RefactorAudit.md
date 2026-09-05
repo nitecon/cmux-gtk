@@ -222,3 +222,7 @@ Diagnostics, memory-churn and surface-directory scenarios now use the same bound
 ## Bounded Rust CLI response reads
 
 Replaced unbounded BufRead::read_line in the Rust CLI with a documented newline reader capped at 4 MiB and one monotonic read deadline. It assembles bytes before JSON decoding, rejects premature EOF and leaves subsequent buffered replies intact. Per-read socket timeouts are reduced to the remaining budget, preventing continuous partial input from resetting the full timeout. CI Unix socket-pair tests cover byte-sized UTF-8 reads, coalesced lines, exact limits, overflow, idle peers and truncated replies. Workspace all-target checking and diff validation pass; no local tests run. Connection establishment, write budgeting and semantic response validation remain separate transport audit items.
+
+## Rust CLI envelope validation and retirement
+
+The CLI now validates response IDs, boolean ok fields and structured server errors in one documented decoder. Transport/framing/semantic protocol failures shut down and retire the connection, preventing buffered data from being reused as another request's response. Correctly framed server errors preserve the connection. Request-ID increment uses checked arithmetic. CI socket-pair tests cover malformed envelopes and a server error followed by a successful numbered response. Workspace all-target checking and diff validation pass; no local tests run.

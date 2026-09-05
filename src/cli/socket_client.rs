@@ -33,6 +33,7 @@ pub struct SocketClient {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
     next_id: u64,
+    usable: bool,
     timeout: Duration,
     last_trace_id: Option<uuid::Uuid>,
 }
@@ -55,6 +56,7 @@ impl SocketClient {
             reader: BufReader::new(stream),
             writer,
             next_id: 1,
+            usable: true,
             timeout,
             last_trace_id: None,
         })
@@ -74,8 +76,30 @@ impl SocketClient {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, CliError> {
+        if !self.usable {
+            return Err(CliError::ProtocolError(
+                "connection retired after a protocol failure".into(),
+            ));
+        }
+        let result = self.exchange(method, params);
+        if matches!(result, Err(CliError::ProtocolError(_))) {
+            self.usable = false;
+            let _ = self.writer.shutdown(std::net::Shutdown::Both);
+        }
+        result
+    }
+
+    /// Execute one exchange; the caller retires transport/protocol failures but preserves server errors.
+    fn exchange(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, CliError> {
         let id = self.next_id;
-        self.next_id += 1;
+        self.next_id = self
+            .next_id
+            .checked_add(1)
+            .ok_or_else(|| CliError::ProtocolError("request ID space exhausted".into()))?;
 
         let trace_id = uuid::Uuid::new_v4();
         self.last_trace_id = Some(trace_id);
@@ -94,23 +118,47 @@ impl SocketClient {
             .map_err(|e| CliError::ProtocolError(format!("write failed: {}", e)))?;
 
         let response = read_response(&mut self.reader, self.timeout, MAX_RESPONSE_BYTES)?;
-        let resp: serde_json::Value = serde_json::from_slice(&response)
-            .map_err(|e| CliError::ProtocolError(format!("invalid JSON response: {}", e)))?;
+        decode_response(&response, id)
+    }
+}
 
-        let ok = resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
-        if ok {
-            Ok(resp
-                .get("result")
-                .cloned()
-                .unwrap_or(serde_json::Value::Null))
-        } else {
-            let msg = resp
+/// Validate a numbered v2 envelope, distinguishing malformed replies from valid server errors.
+fn decode_response(response: &[u8], id: u64) -> Result<serde_json::Value, CliError> {
+    let resp: serde_json::Value = serde_json::from_slice(response)
+        .map_err(|error| CliError::ProtocolError(format!("invalid JSON response: {error}")))?;
+    if resp.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
+        return Err(CliError::ProtocolError(
+            "response ID does not match request".into(),
+        ));
+    }
+    match resp.get("ok").and_then(serde_json::Value::as_bool) {
+        Some(true) => Ok(resp
+            .get("result")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null)),
+        Some(false) => {
+            let error = resp
                 .get("error")
-                .and_then(|e| e.get("message"))
-                .and_then(|m| m.as_str())
+                .and_then(serde_json::Value::as_object)
+                .ok_or_else(|| {
+                    CliError::ProtocolError("failed response has no error object".into())
+                })?;
+            for key in ["code", "message"] {
+                if error.get(key).is_some_and(|value| !value.is_string()) {
+                    return Err(CliError::ProtocolError(format!(
+                        "error {key} must be a string"
+                    )));
+                }
+            }
+            let message = error
+                .get("message")
+                .and_then(serde_json::Value::as_str)
                 .unwrap_or("unknown error");
-            Err(CliError::CommandError(msg.to_string()))
+            Err(CliError::CommandError(message.to_owned()))
         }
+        None => Err(CliError::ProtocolError(
+            "response has no boolean ok field".into(),
+        )),
     }
 }
 
@@ -157,6 +205,58 @@ fn read_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Construct a client and peer socket without filesystem discovery for protocol behavior tests.
+    fn client_pair() -> (SocketClient, UnixStream) {
+        let (stream, peer) = UnixStream::pair().unwrap();
+        let client = SocketClient {
+            writer: stream.try_clone().unwrap(),
+            reader: BufReader::new(stream),
+            next_id: 1,
+            usable: true,
+            timeout: Duration::from_secs(1),
+            last_trace_id: None,
+        };
+        (client, peer)
+    }
+
+    /// Malformed envelopes retire the connection before a later response can be mistaken for success.
+    #[test]
+    fn malformed_reply_retires_connection() {
+        for reply in [
+            r#"[]"#,
+            r#"{"id":true,"ok":true}"#,
+            r#"{"id":2,"ok":true}"#,
+            r#"{"id":1,"ok":"true"}"#,
+            r#"{"id":1,"ok":false,"error":[]}"#,
+        ] {
+            let (mut client, mut peer) = client_pair();
+            writeln!(peer, "{reply}").unwrap();
+            assert!(matches!(
+                client.call("system.ping", serde_json::json!({})),
+                Err(CliError::ProtocolError(_))
+            ));
+            let error = client
+                .call("system.ping", serde_json::json!({}))
+                .unwrap_err();
+            assert!(error.to_string().contains("retired"));
+        }
+    }
+
+    /// A valid server error preserves response framing for the next numbered request.
+    #[test]
+    fn server_error_preserves_connection() {
+        let (mut client, mut peer) = client_pair();
+        peer.write_all(b"{\"id\":1,\"ok\":false,\"error\":{\"message\":\"missing\"}}\n{\"id\":2,\"ok\":true,\"result\":{\"pong\":true}}\n").unwrap();
+        assert!(matches!(
+            client.call("missing", serde_json::json!({})),
+            Err(CliError::CommandError(_))
+        ));
+        assert_eq!(
+            client.call("system.ping", serde_json::json!({})).unwrap(),
+            serde_json::json!({"pong": true})
+        );
+    }
 
     /// Preserve fragmented UTF-8 bytes and leave coalesced response lines for the next read.
     #[test]
