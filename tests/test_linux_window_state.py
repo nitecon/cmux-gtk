@@ -9,6 +9,7 @@ import time
 
 
 def eventually(check):
+    """Poll window state up to 100 times, raising if the expected state never appears."""
     for _ in range(100):
         if check():
             return
@@ -29,17 +30,20 @@ with tempfile.TemporaryDirectory(prefix="cmux-window-") as directory:
     log = (root / "app.log").open("w+")
 
     def state():
+        """Read persisted window geometry, returning an empty snapshot during missing or partial writes."""
         try:
             return json.loads(state_path.read_text())
         except (OSError, ValueError):
             return {}
 
     def start():
+        """Launch the isolated GTK process and wait for its first visible X11 window."""
         global app
         app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
         windows = []
 
         def found():
+            """Refresh the visible-window list for the owned application process."""
             result = subprocess.run(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)],
                                     capture_output=True, text=True)
             windows[:] = result.stdout.split()
@@ -49,10 +53,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-window-") as directory:
         return windows[0]
 
     def close(window):
+        """Ask the window manager to close the window and require application exit within ten seconds."""
         subprocess.run(["wmctrl", "-ic", hex(int(window))], check=True)
         app.wait(timeout=10)
 
     def geometry(window):
+        """Read X11 geometry as shell-style key/value fields for restart comparisons."""
         output = subprocess.check_output(["xdotool", "getwindowgeometry", "--shell", window], text=True)
         return dict(line.split("=", 1) for line in output.splitlines())
 

@@ -206,3 +206,7 @@ Ping benchmarking now retains completed samples and initial diagnostics when ord
 ## Linux CPU trends replace obsolete stack sampling
 
 Removed tests/test_cpu_usage.py and its tests_v2 counterpart, whose macOS app matching, sample command and SwiftUI stack regexes do not describe this GTK process. The existing diagnostic collector now calculates adjacent-sample CPU usage from platform counters, preserving unknown values for unavailable/reset samples and process changes. CI verifies interval arithmetic, multi-core percentages, zero usage and invalid samples. This does not claim coverage of the old SwiftUI stack patterns or establish an optimized idle benchmark. Syntax and diff checks pass; no local tests run.
+
+## Maintained Linux fixture contracts
+
+Documented the remaining fifteen helpers in the Linux window-state and SSH/workspace-launch scenarios, including owned process lifetimes, X11 discovery, persisted snapshots, bounded CLI calls and remote-directory proof. A syntax-tree audit now finds no undocumented functions in tests/test_linux*.py. Broader retained Python test documentation remains incomplete. These were documentation-only edits; syntax compilation and diff checking passed, with no local test execution.

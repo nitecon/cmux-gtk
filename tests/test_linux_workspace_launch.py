@@ -14,6 +14,7 @@ import uuid
 
 
 def eventually(check):
+    """Poll launch state up to 150 times, raising if the expected condition never appears."""
     for _ in range(150):
         if check():
             return
@@ -79,6 +80,7 @@ Subsystem sftp internal-sftp
     local_id, remote_id = str(uuid.uuid4()), str(uuid.uuid4())
 
     def workspace(identity, name, **fields):
+        """Construct one persisted workspace fixture with a fresh terminal surface and supplied launch fields."""
         return dict(uuid=identity, name=name, active_pane_uuid=None,
                     layout=dict(type="Leaf", pane_id=1, surface_uuid=str(uuid.uuid4()), shell="/bin/sh", cwd=""), **fields)
 
@@ -88,9 +90,11 @@ Subsystem sftp internal-sftp
     ])))
 
     def cli(*args):
+        """Run the debug CLI against this isolated application with a fifteen-second process timeout."""
         return subprocess.check_output(["target/debug/cmux", "--socket", str(socket_path), *args], env=env, text=True, timeout=15)
 
     def start():
+        """Remove a stale fixture socket, launch GTK and wait for its control socket to appear."""
         global app
         if socket_path.exists():
             socket_path.unlink()
@@ -99,20 +103,25 @@ Subsystem sftp internal-sftp
         time.sleep(0.5)
 
     def stop():
+        """Terminate the owned GTK process and require its exit within ten seconds."""
         app.terminate()
         app.wait(timeout=10)
 
     def session():
+        """Read the current persisted session for workspace and launch-state assertions."""
         return json.loads(session_path.read_text())
 
     def launches():
+        """Return directories recorded by the startup script, or no records before its first launch."""
         try:
             return (root / "launches").read_text().splitlines()
         except FileNotFoundError:
             return []
 
     def remote_write(name):
+        """Drive real terminal input until a marker proves execution in the remote working directory."""
         def written():
+            """Check the remote marker or send a shell command plus real Return key before retrying."""
             if (root / "remote" / name).exists():
                 return True
             cli("send-text", f"printf '%s' \"$PWD\" > {name}")
