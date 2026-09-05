@@ -123,7 +123,11 @@ pub fn format_pane_list(result: &Value, color: bool) -> String {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let id = pane.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let id_short = &id[..id.len().min(8)];
+        let id_short = if id.starts_with("pane:") {
+            id.to_owned()
+        } else {
+            id.chars().take(8).collect()
+        };
         let title = pane.get("title").and_then(|v| v.as_str()).unwrap_or("");
         let marker = if focused { "*" } else { " " };
         let line = if title.is_empty() {

@@ -1,0 +1,44 @@
+app: cmux-gtk
+title: Terminal and pane command ownership
+space: cmux-gtk
+slug: terminal-commands
+summary: Current Rust socket contracts for pane identity, terminal input and bounded viewport reads.
+kind: agent_context
+source_format: agent_context
+source_ref: src/socket/handlers.rs
+labels: [linux, gtk, terminal, socket, lifecycle]
+content:
+  purpose: Resolve targets through the workspace pane tree and preserve focus for observational commands.
+  endpoints:
+    - method: pane.list
+      transport: Unix JSON socket
+      description: One record per split pane across workspaces. id is a session-local pane:N reference. surface_ids preserves sibling order; active_surface_uuid is the selected tab. uuid remains the selected surface UUID for legacy clients. active and focused mark the focused pane of the active workspace.
+    - method: pane.focus
+      transport: Unix JSON socket
+      description: Accept id as pane:N or a legacy surface UUID in the active workspace. Focus the containing pane without changing its selected tab. Missing targets return not_found.
+    - method: surface.focus
+      transport: Unix JSON socket
+      description: Select the requested surface tab and its containing pane in the active workspace.
+    - method: surface.split
+      transport: Unix JSON socket
+      description: Optional id selects the surface to split in the active workspace; absent id uses the active pane. Unknown id returns not_found without mutation. A successful split focuses the new terminal.
+    - method: surface.send_text
+      transport: Unix JSON socket
+      description: Deliver text to optional id or the selected terminal without changing focus. Missing native terminals return not_found; NUL bytes return invalid_params.
+    - method: surface.send_key
+      transport: Unix JSON socket
+      description: Accept one literal Unicode character through the text path. Named key descriptors return not_supported; full key translation remains unfinished.
+    - method: surface.read_text
+      transport: Unix JSON socket
+      description: Return plain clipboard-formatted current viewport text from optional id without changing focus or selection. Native output is bounded to 256 KiB and 65536 cells. Missing terminals return not_found; failed or oversized captures return read_failed. This is a best-effort snapshot during concurrent output.
+    - method: surface.health
+      transport: Unix JSON socket
+      description: alive means a registered native terminal exists; it does not prove the shell process is alive. has_attention is the owning pane's attention state. Browser health is not implemented by this endpoint.
+    - method: surface.refresh
+      transport: Unix JSON socket
+      description: Schedule a redraw of the exact terminal UUID, or selected terminal when id is omitted. Do not focus or select. Missing terminal widgets return not_found.
+  safety:
+    - Pane references are valid only in the current application lifetime, not persisted identities.
+    - Release model and registry locks before GTK callbacks or native input and render calls.
+    - Read buffers are freed through RAII and worst-case JSON escaping fits the four-MiB response limit.
+    - Validate runtime behavior in GitHub Actions; do not run tests locally.

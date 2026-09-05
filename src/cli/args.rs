@@ -159,7 +159,7 @@ pub enum Commands {
     ListPanes,
     /// Focus a pane
     FocusPane {
-        /// Pane ID (default: next)
+        /// Pane reference (pane:N) or a surface UUID
         id: Option<String>,
     },
     /// Switch to last focused pane

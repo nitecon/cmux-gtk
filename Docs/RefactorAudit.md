@@ -669,3 +669,23 @@ unknown refresh rejection and unchanged selection across these operations. Local
 binary/test-target compilation, Python syntax parsing and diff validation passed;
 runtime verification remains pending CI. Pixel-level proof for refreshing a
 hidden sibling is still broader than this protocol regression's assertions.
+
+
+### Pane listings preserve the product hierarchy
+
+`pane.list` now returns one row per split pane instead of aliasing the surface
+list. Pane snapshots group ordered surface IDs and the notebook's selected tab.
+The new `id` is `pane:N`, valid for the current application lifetime; the legacy
+`uuid` remains the selected surface UUID. `pane.focus` accepts the new reference
+or a legacy surface UUID and preserves the selected tab. CLI formatting displays
+full pane references and the focused marker, without byte-slicing Unicode IDs.
+
+The existing GTK mixed-tab fixture checks one pane with two surfaces, stable pane
+identity across tab changes and pane focus preserving the selected tab. Local
+binary/test-target compilation, Python parsing and diff validation passed; runtime
+verification remains pending. Session-persistent pane IDs are not implied.
+
+Published `.agent/api/cmux-terminal-commands.yaml` after validation as gateway
+Documentation `01a07372-b5a2-7890-a7af-751bd3b5391a`. It records the current pane,
+input, read, health and refresh contracts and remaining named-key/browser-health
+limitations. Publication is complete for this API context change.

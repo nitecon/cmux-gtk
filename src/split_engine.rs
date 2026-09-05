@@ -8,6 +8,13 @@ use gtk4::prelude::*;
 use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
+/// Owned pane snapshot for protocol listings; numeric identity lasts for this application session.
+pub struct PaneInfo {
+    pub id: u64,
+    pub surface_ids: Vec<Uuid>,
+    pub selected_surface: Option<Uuid>,
+}
+
 /// Direction for pane focus navigation (Ctrl+Shift+arrows per D-10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusDirection {
@@ -1115,6 +1122,28 @@ impl SplitEngine {
         panes
     }
 
+    /// Snapshot split panes in traversal order, keeping sibling tabs grouped under their owner.
+    pub fn pane_info(&self) -> Vec<PaneInfo> {
+        let mut panes = Vec::new();
+        collect_pane_snapshots(&self.root, &mut panes);
+        panes
+    }
+
+    /// Focus a session-local pane reference or a legacy surface UUID without switching its tab.
+    pub fn focus_pane_ref(&mut self, reference: &str) -> bool {
+        let pane_id = if let Some(number) = reference.strip_prefix("pane:") {
+            number.parse::<u64>().ok()
+        } else {
+            self.find_pane_id_by_uuid(reference)
+        };
+        let Some(pane_id) = pane_id else { return false; };
+        if !self.activate_pane(pane_id) {
+            return false;
+        }
+        self.grab_active_focus();
+        true
+    }
+
     /// Clone a terminal widget by stable tab identity without changing notebook selection or focus.
     pub fn gl_area_for_surface(&self, uuid: &str) -> Option<gtk4::GLArea> {
         self.root.find_terminal_by_uuid(uuid)
@@ -1428,6 +1457,22 @@ fn remove_widget_from_parent(widget: &gtk4::Widget) {
         }
     } else if let Some(stack) = parent.downcast_ref::<gtk4::Stack>() {
         stack.remove(widget);
+    }
+}
+
+/// Copy pane/tab identities and notebook selection without retaining widgets or moving focus.
+fn collect_pane_snapshots(node: &SplitNode, panes: &mut Vec<PaneInfo>) {
+    match node {
+        SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+            let surface_ids: Vec<Uuid> = surfaces.borrow().iter().map(PaneSurface::uuid).collect();
+            let selected_surface = notebook.current_page()
+                .and_then(|index| surface_ids.get(index as usize)).copied();
+            panes.push(PaneInfo { id: *pane_id, surface_ids, selected_surface });
+        }
+        SplitNode::Split { start, end, .. } => {
+            collect_pane_snapshots(start, panes);
+            collect_pane_snapshots(end, panes);
+        }
     }
 }
 

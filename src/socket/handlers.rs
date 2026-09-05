@@ -573,15 +573,18 @@ fn handle_socket_command_traced(
 
         // ── pane.* ───────────────────────────────────────────────────────────
         SocketCommand::PaneList { req_id, resp_tx } => {
-            // SOCK-05: No focus side effects. Alias for surface.list.
             let s = state.borrow();
-            let mut panes: Vec<Value> = Vec::new();
-            for (ws_idx, (ws, engine)) in s.workspaces.iter().zip(s.split_engines.iter()).enumerate() {
-                for (pane_uuid, _pane_id, active) in engine.all_panes() {
+            let mut panes = Vec::new();
+            for (ws_idx, (ws, engine)) in s.workspaces.iter().zip(&s.split_engines).enumerate() {
+                for pane in engine.pane_info() {
                     panes.push(json!({
-                        "uuid": pane_uuid.to_string(),
-                        "workspace_uuid": ws.uuid.to_string(),
-                        "active": active && ws_idx == s.active_index,
+                        "id": format!("pane:{}", pane.id),
+                        "uuid": pane.selected_surface,
+                        "workspace_uuid": ws.uuid,
+                        "surface_ids": pane.surface_ids,
+                        "active_surface_uuid": pane.selected_surface,
+                        "focused": ws_idx == s.active_index && pane.id == engine.active_pane_id,
+                        "active": ws_idx == s.active_index && pane.id == engine.active_pane_id,
                     }));
                 }
             }
@@ -589,27 +592,19 @@ fn handle_socket_command_traced(
         }
 
         SocketCommand::PaneFocus { req_id, id, resp_tx } => {
-            // SOCK-05: pane.focus IS focus-intent — allowed to change focus.
-            let pane_id = {
-                let s = state.borrow();
-                if let Some(engine) = s.split_engines.get(s.active_index) {
-                    id.as_ref().and_then(|uuid_str| engine.find_pane_id_by_uuid(uuid_str))
-                } else { None }
+            let focused = {
+                let mut s = state.borrow_mut();
+                let idx = s.active_index;
+                s.split_engines.get_mut(idx).is_some_and(|engine| {
+                    id.as_deref().is_some_and(|reference| engine.focus_pane_ref(reference))
+                })
             };
-            match pane_id {
-                Some(pid) => {
-                    let mut s = state.borrow_mut();
-                    let idx = s.active_index;
-                    if let Some(engine) = s.split_engines.get_mut(idx) {
-                        engine.active_pane_id = pid;
-                        engine.root.update_focus_css(pid);
-                        engine.grab_active_focus();
-                    }
-                    drop(s);
-                    let _ = resp_tx.send(ok(req_id, json!({})));
-                }
-                None => { let _ = resp_tx.send(err(req_id, "not_found", "pane not found")); }
-            }
+            let response = if focused {
+                ok(req_id, json!({}))
+            } else {
+                err(req_id, "not_found", "pane not found")
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::PaneLast { req_id, resp_tx } => {
