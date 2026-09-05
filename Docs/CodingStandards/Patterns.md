@@ -9,6 +9,7 @@ Reviewed latest active gateway patterns on 2026-09-05. Retrieve full entries by 
 | `rust-concurrency-async` | Bounded queues, cancellation, no blocking I/O or sync guards across awaits | GTK owns its main context; Tokio owns asynchronous transport. No additional runtime. |
 | `rust-memory-ownership` | Borrow first, transfer ownership, avoid copies in hot loops | Add buffer pools or dependencies only when measurements justify them. |
 | `rust-workspace-architecture` | Acyclic dependencies and documented library APIs | Extract real component boundaries; retain package version/release policy and avoid speculative crate proliferation. |
+| `rust-dependencies` | Deliberate additions, minimal features and committed binary lockfile | Preview decoding uses `image` with only JPEG/PNG enabled for explicit resource limits; GTK still owns texture presentation. |
 | `rust-performance-awareness` | Optimized benchmarks, before/after data, hardware/workload metadata | CI runs tests and benchmarks; avoid arbitrary latency thresholds on shared runners. |
 | `go-observability-otel` | Correlation across process and asynchronous boundaries | Preserve CLI/socket/SSH protocol compatibility; no unrelated HTTP middleware, database or compulsory telemetry server. |
 | `go-logging-zerolog` | Structured fields, operation context, main-owned process exit | Choose one coherent logging implementation when instrumenting the daemon; keep diagnostics off protocol stdout. |

@@ -1,5 +1,5 @@
 //! Preview stream transport and GTK delivery with latest-frame ownership.
-use super::{frames, metrics};
+use super::{frames, metrics, pixels};
 use futures_util::StreamExt;
 use gtk4::prelude::*;
 
@@ -10,7 +10,7 @@ pub(super) fn start(
     picture: gtk4::Picture,
 ) -> tokio::task::JoinHandle<()> {
     let (frame_tx, frame_rx) = tokio::sync::watch::channel(None::<glib::Bytes>);
-    glib::MainContext::default().spawn_local(deliver(picture, frame_rx));
+    glib::MainContext::default().spawn_local(deliver(picture, frame_rx, runtime.clone()));
     runtime.spawn(receive(format!("ws://127.0.0.1:{port}"), frame_tx))
 }
 
@@ -82,6 +82,7 @@ async fn receive(url: String, frame_tx: tokio::sync::watch::Sender<Option<glib::
 async fn deliver(
     picture: gtk4::Picture,
     mut frame_rx: tokio::sync::watch::Receiver<Option<glib::Bytes>>,
+    runtime: tokio::runtime::Handle,
 ) {
     let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
     let destruction = picture.add_weak_ref_notify_local(move || {
@@ -96,37 +97,46 @@ async fn deliver(
             _ = &mut destroyed_rx => break,
             changed = frame_rx.changed() => { if changed.is_err() { break; } }
         }
-        let Some(picture_clone) = picture_weak.upgrade() else {
-            break;
-        };
         let Some(bytes) = frame_rx.borrow_and_update().clone() else {
             continue;
         };
-        match gtk4::gdk::Texture::from_bytes(&bytes) {
-            Ok(texture) => {
-                picture_clone.set_paintable(Some(&texture));
-                metrics::texture(true);
-                // Hide the "No browser preview" overlay label on first frame
-                if first_frame {
-                    first_frame = false;
-                    if let Some(overlay) = picture_clone
-                        .parent()
-                        .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
-                    {
-                        if let Some(child) = overlay.first_child() {
-                            let mut sibling = child.next_sibling();
-                            while let Some(widget) = sibling {
-                                let next = widget.next_sibling();
-                                if widget.has_css_class("preview-empty") {
-                                    widget.set_visible(false);
-                                }
-                                sibling = next;
-                            }
+        let decoded = tokio::select! {
+            _ = &mut destroyed_rx => break,
+            pixels = pixels::decode(&runtime, bytes) => pixels,
+        };
+        let Some(pixels) = decoded else {
+            continue;
+        };
+        let Some(picture_clone) = picture_weak.upgrade() else {
+            break;
+        };
+        let texture = gtk4::gdk::MemoryTexture::new(
+            pixels.width,
+            pixels.height,
+            gtk4::gdk::MemoryFormat::R8g8b8a8,
+            &pixels.bytes,
+            pixels.width as usize * 4,
+        );
+        picture_clone.set_paintable(Some(&texture));
+        metrics::texture(true);
+        // Hide the "No browser preview" overlay label on first frame
+        if first_frame {
+            first_frame = false;
+            if let Some(overlay) = picture_clone
+                .parent()
+                .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
+            {
+                if let Some(child) = overlay.first_child() {
+                    let mut sibling = child.next_sibling();
+                    while let Some(widget) = sibling {
+                        let next = widget.next_sibling();
+                        if widget.has_css_class("preview-empty") {
+                            widget.set_visible(false);
                         }
+                        sibling = next;
                     }
                 }
             }
-            Err(_) => metrics::texture(false),
         }
     }
     destruction.disconnect();
@@ -137,7 +147,7 @@ mod tests {
     use super::*;
     use futures_util::SinkExt;
 
-    /// Destroying an idle picture releases its receiver without waiting for another frame.
+    /// Verify idle destruction, background decode and GTK texture assignment in one GTK thread.
     #[test]
     #[ignore = "requires GTK display; run in headless Linux CI"]
     fn destroyed_picture_releases_delivery() {
@@ -145,7 +155,9 @@ mod tests {
         let context = glib::MainContext::default();
         let (sender, receiver) = tokio::sync::watch::channel(None);
         let picture = gtk4::Picture::new();
-        let task = context.spawn_local(deliver(picture.clone(), receiver));
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let task =
+            context.spawn_local(deliver(picture.clone(), receiver, runtime.handle().clone()));
         drop(picture);
         context.block_on(async {
             match futures_util::future::select(
@@ -157,6 +169,45 @@ mod tests {
                 futures_util::future::Either::Left((result, _)) => result.unwrap(),
                 futures_util::future::Either::Right(_) => {
                     panic!("destroyed picture retained idle delivery")
+                }
+            }
+        });
+        assert!(sender.is_closed());
+
+        use image::ImageEncoder;
+        let mut png = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut png)
+            .write_image(&[255, 0, 0, 128], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let (sender, receiver) = tokio::sync::watch::channel(None);
+        let picture = gtk4::Picture::new();
+        let task =
+            context.spawn_local(deliver(picture.clone(), receiver, runtime.handle().clone()));
+        sender.send(Some(glib::Bytes::from_owned(png))).unwrap();
+        context.block_on(async {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while picture.paintable().is_none() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "decoded frame was not assigned"
+                );
+                glib::timeout_future(std::time::Duration::from_millis(10)).await;
+            }
+            let paintable = picture.paintable().unwrap();
+            assert_eq!(
+                (paintable.intrinsic_width(), paintable.intrinsic_height()),
+                (1, 1)
+            );
+            drop(picture);
+            match futures_util::future::select(
+                Box::pin(task),
+                Box::pin(glib::timeout_future_seconds(5)),
+            )
+            .await
+            {
+                futures_util::future::Either::Left((result, _)) => result.unwrap(),
+                futures_util::future::Either::Right(_) => {
+                    panic!("displayed picture retained delivery")
                 }
             }
         });

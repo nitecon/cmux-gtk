@@ -7,3 +7,5 @@
   - crates/cmux-platform/Cargo.toml
 019df63f-9652-77d3-ad3c-fc585f4b1858:
   - Docs/Observability.md
+019df63f-3d1d-7a23-930b-3538dcaff23a:
+  - src/browser/pixels.rs

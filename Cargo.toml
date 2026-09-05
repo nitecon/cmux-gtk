@@ -36,6 +36,7 @@ tar = "0.4"
 clap = { version = "4", features = ["derive", "color", "env"] }
 clap_complete = "4.6"
 clap_mangen = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 
 [[bin]]
 name = "cmux-generate"

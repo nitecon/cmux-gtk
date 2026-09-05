@@ -6,6 +6,9 @@ static RECEIVED: AtomicU64 = AtomicU64::new(0);
 static BYTES: AtomicU64 = AtomicU64::new(0);
 static PRESENTED: AtomicU64 = AtomicU64::new(0);
 static BASE64_ERRORS: AtomicU64 = AtomicU64::new(0);
+static DECODE_OVERLOAD: AtomicU64 = AtomicU64::new(0);
+static DECODE_US: AtomicU64 = AtomicU64::new(0);
+static DECODE_COUNT: AtomicU64 = AtomicU64::new(0);
 static TEXTURE_ERRORS: AtomicU64 = AtomicU64::new(0);
 
 /// Track one running stream task, including connection setup, until exit or cancellation.
@@ -44,9 +47,26 @@ pub(super) fn texture(success: bool) {
     }
 }
 
+/// Count frames skipped when both blocking decoder slots are occupied.
+pub(super) fn decode_overload() {
+    DECODE_OVERLOAD.fetch_add(1, Relaxed);
+}
+
+/// Aggregate actual CPU decode completion and failures without per-frame log traffic.
+pub(super) fn decoded(duration: std::time::Duration, success: bool) {
+    DECODE_COUNT.fetch_add(1, Relaxed);
+    DECODE_US.fetch_add(duration.as_micros().min(u64::MAX as u128) as u64, Relaxed);
+    if !success {
+        TEXTURE_ERRORS.fetch_add(1, Relaxed);
+    }
+}
+
 /// Read independently sampled cumulative counters without blocking the browser or GTK thread.
 pub(crate) fn snapshot() -> serde_json::Value {
     serde_json::json!({
+        "decode_overload_drops": DECODE_OVERLOAD.load(Relaxed),
+        "decode_attempts": DECODE_COUNT.load(Relaxed),
+        "decode_total_us": DECODE_US.load(Relaxed),
         "active_stream_tasks": ACTIVE.load(Relaxed),
         "jpeg_payloads_received": RECEIVED.load(Relaxed),
         "jpeg_bytes_received": BYTES.load(Relaxed),

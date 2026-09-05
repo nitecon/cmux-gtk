@@ -4,6 +4,7 @@ mod discovery;
 mod frames;
 pub(crate) mod metrics;
 mod motion;
+mod pixels;
 mod stream;
 pub use motion::spawn_motion_forwarder;
 pub(crate) mod transport;
