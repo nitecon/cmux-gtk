@@ -689,3 +689,19 @@ Published `.agent/api/cmux-terminal-commands.yaml` after validation as gateway
 Documentation `01a07372-b5a2-7890-a7af-751bd3b5391a`. It records the current pane,
 input, read, health and refresh contracts and remaining named-key/browser-health
 limitations. Publication is complete for this API context change.
+
+
+### CLI identity formatting matches protocol records
+
+Pane and surface lists now share a documented identity formatter. It reads the
+current active/UUID fields with legacy focused/ID aliases, prefers explicit active
+state, and displays full identities for reuse in commands. This fixes surface
+list output showing `unknown` and omitting active markers when consuming the
+actual GTK server response. It also removes unsafe byte-index abbreviation for
+non-ASCII legacy IDs. JSON output remains the original structured response.
+
+CI unit cases cover current surface records, full UUIDs, ANSI selection markers,
+JSON preservation, long pane references, Unicode IDs and empty lists. The GTK
+terminal fixture checks human-readable output against its real JSON identities.
+Rust formatting, binary/test-target compilation, Python syntax and diff checks
+passed locally; runtime results remain pending CI.

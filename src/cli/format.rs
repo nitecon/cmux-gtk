@@ -71,77 +71,49 @@ pub fn format_workspace_list(result: &Value, color: bool) -> String {
     lines.join("\n")
 }
 
-/// Format a surface list response with focused marker.
+/// Format terminal/browser surface identities with the active-tab marker.
 pub fn format_surface_list(result: &Value, color: bool) -> String {
-    let surfaces = match result.get("surfaces").and_then(|v| v.as_array()) {
-        Some(arr) => arr,
-        None => return format_fallback(result),
-    };
-    if surfaces.is_empty() {
-        return "No surfaces".to_string();
-    }
-    let mut lines = Vec::new();
-    for surface in surfaces {
-        let focused = surface
-            .get("focused")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let id = surface
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
-        let id_short = &id[..id.len().min(8)];
-        let title = surface.get("title").and_then(|v| v.as_str()).unwrap_or("");
-        let marker = if focused { "*" } else { " " };
-        let line = if title.is_empty() {
-            format!("{} {}", marker, id_short)
-        } else {
-            format!("{} {} ({})", marker, id_short, title)
-        };
-        if focused && color {
-            lines.push(green(&line, true));
-        } else {
-            lines.push(line);
-        }
-    }
-    lines.join("\n")
+    format_identity_list(result, "surfaces", "No surfaces", color)
 }
 
-/// Format a pane list response with focused marker.
+/// Format session-local pane identities with the focused-pane marker.
 pub fn format_pane_list(result: &Value, color: bool) -> String {
-    let panes = match result.get("panes").and_then(|v| v.as_array()) {
-        Some(arr) => arr,
-        None => return format_fallback(result),
+    format_identity_list(result, "panes", "No panes", color)
+}
+
+/// Render ordered identity records using current protocol fields and their legacy aliases.
+/// Preserve full IDs so output can be passed back to focus/close commands without guessing.
+fn format_identity_list(result: &Value, field: &str, empty: &str, color: bool) -> String {
+    let Some(records) = result.get(field).and_then(Value::as_array) else {
+        return format_fallback(result);
     };
-    if panes.is_empty() {
-        return "No panes".to_string();
+    if records.is_empty() {
+        return empty.to_owned();
     }
-    let mut lines = Vec::new();
-    for pane in panes {
-        let focused = pane
-            .get("focused")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let id = pane.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let id_short = if id.starts_with("pane:") {
-            id.to_owned()
-        } else {
-            id.chars().take(8).collect()
-        };
-        let title = pane.get("title").and_then(|v| v.as_str()).unwrap_or("");
-        let marker = if focused { "*" } else { " " };
-        let line = if title.is_empty() {
-            format!("{} {}", marker, id_short)
-        } else {
-            format!("{} {} ({})", marker, id_short, title)
-        };
-        if focused && color {
-            lines.push(green(&line, true));
-        } else {
-            lines.push(line);
-        }
-    }
-    lines.join("\n")
+    records
+        .iter()
+        .map(|record| {
+            let focused = record
+                .get("active")
+                .and_then(Value::as_bool)
+                .or_else(|| record.get("focused").and_then(Value::as_bool))
+                .unwrap_or(false);
+            let id = record
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| record.get("uuid").and_then(Value::as_str))
+                .unwrap_or("unknown");
+            let title = record.get("title").and_then(Value::as_str).unwrap_or("");
+            let marker = if focused { "*" } else { " " };
+            let line = if title.is_empty() {
+                format!("{marker} {id}")
+            } else {
+                format!("{marker} {id} ({title})")
+            };
+            green(&line, focused && color)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Format a window list response.
@@ -349,4 +321,48 @@ pub fn format_browser_list(result: &Value, _color: bool) -> String {
 /// Fallback: pretty-print JSON.
 fn format_fallback(result: &Value) -> String {
     serde_json::to_string_pretty(result).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// Current surface records must produce reusable UUIDs and truthful selection markers.
+    #[test]
+    fn surface_protocol_identity_output() {
+        let id = "20000000-0000-4000-8000-000000000002";
+        let result = json!({"surfaces": [{"uuid": id, "active": true}]});
+        assert_eq!(
+            format_response("surface.list", &result, false, false),
+            format!("* {id}")
+        );
+        assert_eq!(
+            format_surface_list(&result, true),
+            format!("\x1b[1;32m* {id}\x1b[0m")
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&format_response("surface.list", &result, true, true))
+                .unwrap(),
+            result
+        );
+    }
+
+    /// Pane references and non-ASCII legacy IDs retain their full identities without byte slicing.
+    #[test]
+    fn pane_protocol_and_legacy_fields() {
+        let result = json!({"panes": [
+            {"id": "pane:100001", "active": false, "focused": true},
+            {"id": "ééééééééé", "focused": true, "title": "terminal"}
+        ]});
+        assert_eq!(
+            format_pane_list(&result, false),
+            "  pane:100001\n* ééééééééé (terminal)"
+        );
+        assert_eq!(
+            format_surface_list(&json!({"surfaces": []}), false),
+            "No surfaces"
+        );
+        assert_eq!(format_pane_list(&json!({"panes": []}), false), "No panes");
+    }
 }

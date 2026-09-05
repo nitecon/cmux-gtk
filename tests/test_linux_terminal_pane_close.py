@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
         before = app.surfaces()
         assert len(before) == 3, f"expected three surfaces: {before}"
         selected = next(surface["uuid"] for surface in before if surface["active"])
+        listing = app.cli("list-surfaces")
+        assert f"* {selected}" in listing
+        assert all(surface["uuid"] in listing for surface in before)
         app.wait_for(lambda: len(app.children()) == len(baseline_children) + 2, "split children")
         before_children = app.children()
         app.cli("close-surface", selected)
