@@ -814,14 +814,16 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
 /// Run history navigation on Tokio and update its surviving address widget on GTK.
 /// Widget destruction cancels the child operation; no AppState borrow crosses an await.
 fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
+    let mut activity = crate::browser::metrics::Activity::begin("history_navigation", None);
     let mut task = {
         let s = state.borrow();
         let (Some(browser), Some(runtime)) =
             (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
         else {
+            activity.finish("unavailable");
             return;
         };
-        runtime.spawn(browser.navigate_async(command.to_owned()))
+        runtime.spawn(browser.navigate_async(command.to_owned(), activity.id))
     };
     let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
     let destruction = entry.add_weak_ref_notify_local(move || {
@@ -845,15 +847,27 @@ fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, co
             Ok(Ok(Some(url))) => {
                 if let (Some(entry), Some(state)) = (entry.upgrade(), state.upgrade()) {
                     if !entry.is_mapped() || entry.text() != original_url {
+                        activity.finish("stale_widget");
                         return;
                     }
                     entry.set_text(&url);
                     state.borrow().trigger_session_save();
+                    activity.finish("success");
                 }
             }
-            Ok(Ok(None)) => {}
-            Ok(Err(error)) => eprintln!("cmux: browser navigation failed: {error}"),
-            Err(error) => eprintln!("cmux: browser navigation task failed: {error}"),
+            Ok(Ok(None)) => activity.finish("missing_url"),
+            Ok(Err(error)) => {
+                activity.finish("error");
+                eprintln!("cmux: browser navigation failed: {error}");
+            }
+            Err(error) => {
+                activity.finish(if error.is_cancelled() {
+                    "cancelled"
+                } else {
+                    "task_error"
+                });
+                eprintln!("cmux: browser navigation task failed: {error}");
+            }
         }
     });
 }

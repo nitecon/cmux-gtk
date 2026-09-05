@@ -75,3 +75,49 @@ pub(crate) fn snapshot() -> serde_json::Value {
         "texture_errors": TEXTURE_ERRORS.load(Relaxed),
     })
 }
+
+/// Correlate a browser navigation or CLI stage without retaining URLs, arguments or output.
+/// Unfinished drops report cancellation, including tasks aborted before their next poll.
+pub(crate) struct Activity {
+    pub(crate) id: uuid::Uuid,
+    stage: &'static str,
+    started: std::time::Instant,
+    outcome: &'static str,
+}
+
+impl Activity {
+    /// Begin a fixed-name stage, sharing its parent navigation ID when supplied.
+    pub(crate) fn begin(stage: &'static str, parent: Option<uuid::Uuid>) -> Self {
+        let id = parent.unwrap_or_else(uuid::Uuid::new_v4);
+        crate::diagnostics::record(
+            "browser.activity.begin",
+            serde_json::json!({
+                "trace_id": id, "stage": stage,
+            }),
+        );
+        Self {
+            id,
+            stage,
+            started: std::time::Instant::now(),
+            outcome: "cancelled",
+        }
+    }
+
+    /// Record a fixed outcome category for the completion emitted when this stage drops.
+    pub(crate) fn finish(&mut self, outcome: &'static str) {
+        self.outcome = outcome;
+    }
+}
+
+impl Drop for Activity {
+    /// Emit elapsed time on success, error, early return or cancellation through the bounded writer.
+    fn drop(&mut self) {
+        crate::diagnostics::record(
+            "browser.activity.complete",
+            serde_json::json!({
+                "trace_id": self.id, "stage": self.stage, "outcome": self.outcome,
+                "duration_us": self.started.elapsed().as_micros(),
+            }),
+        );
+    }
+}

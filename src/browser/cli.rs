@@ -10,17 +10,44 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 /// Run one public CLI command with bounded pipes and a fifteen-second deadline.
 /// Cancellation kills the direct child through Tokio; descendant daemon ownership
 /// remains with BrowserManager. Errors omit raw stdout and stderr.
-pub(super) async fn run(binary: &Path, session: &str, args: &[&str]) -> Result<Value, String> {
+pub(super) async fn run(
+    binary: &Path,
+    session: &str,
+    args: &[&str],
+    trace_id: uuid::Uuid,
+) -> Result<Value, String> {
+    let mut activity = super::metrics::Activity::begin(
+        if args == ["get", "url"] {
+            "cli_url_refresh"
+        } else {
+            "cli_command"
+        },
+        Some(trace_id),
+    );
     let mut command = tokio::process::Command::new(binary);
     command
         .arg("--session")
         .arg(session)
         .arg("--json")
         .args(args);
-    let output = execute(command, Duration::from_secs(15))
-        .await
-        .map_err(|error| format!("Browser CLI exchange failed: {error}"))?;
-    decode_output(output)
+    let output = match execute(command, Duration::from_secs(15)).await {
+        Ok(output) => output,
+        Err(error) => {
+            activity.finish(match error.kind() {
+                io::ErrorKind::TimedOut => "timeout",
+                io::ErrorKind::InvalidData => "output_limit",
+                _ => "io_error",
+            });
+            return Err(format!("Browser CLI exchange failed: {error}"));
+        }
+    };
+    let result = decode_output(output);
+    activity.finish(if result.is_ok() {
+        "success"
+    } else {
+        "command_or_protocol_error"
+    });
+    result
 }
 
 /// Decode the public CLI envelope shared by worker and remaining synchronous callers.

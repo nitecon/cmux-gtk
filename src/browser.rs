@@ -168,17 +168,25 @@ impl BrowserManager {
     pub fn navigate_async(
         &self,
         command: String,
+        trace_id: uuid::Uuid,
     ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
         let binary = self.binary_path.clone();
         let session = self.session_name.clone();
         let permit = self.navigation_gate.clone().try_acquire_owned();
+        crate::diagnostics::record(
+            "browser.navigation.admission",
+            serde_json::json!({
+                "trace_id": trace_id,
+                "outcome": if permit.is_ok() { "admitted" } else { "overlap_rejected" },
+            }),
+        );
         async move {
             let _permit =
                 permit.map_err(|_| "Browser navigation already in progress".to_string())?;
             let binary =
                 binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
-            cli::run(&binary, &session, &[&command]).await?;
-            let data = cli::run(&binary, &session, &["get", "url"]).await?;
+            cli::run(&binary, &session, &[&command], trace_id).await?;
+            let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
             Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
         }
     }
