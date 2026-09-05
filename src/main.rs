@@ -11,6 +11,7 @@ mod ghostty;
 mod header_bar;
 mod menus;
 mod preferences;
+mod selection;
 mod session;
 mod shortcuts;
 mod sidebar;

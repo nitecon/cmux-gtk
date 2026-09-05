@@ -378,13 +378,10 @@ impl AppState {
             self.stack.remove(&child);
         }
 
-        // Preserve the selected identity when removing before it; when closing
-        // the selected row, keep its slot and fall back only at the end.
-        if self.active_index >= self.workspaces.len() {
-            self.active_index = self.workspaces.len() - 1;
-        } else if index < self.active_index && self.active_index > 0 {
-            self.active_index -= 1;
-        }
+        // At least one workspace survives the guard above.
+        self.active_index =
+            crate::selection::after_removal(self.active_index, index, self.workspaces.len())
+                .expect("workspace close preserves a survivor");
 
         self.switch_to_index(self.active_index);
         self.trigger_session_save();

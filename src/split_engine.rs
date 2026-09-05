@@ -1043,12 +1043,24 @@ impl SplitEngine {
         if let Some(area) = surface.terminal_area() {
             destroy_terminal_area(&area);
         }
-        if let Some(page) = notebook.page_num(&widget) {
-            notebook.remove_page(Some(page));
-        }
+        let page = notebook.page_num(&widget);
+        let selected = notebook.current_page();
+        // Update the model before remove_page emits synchronous selection callbacks.
         surfaces.borrow_mut().remove(index);
-        self.active_pane_id = pane_id;
-        self.root.update_focus_css(pane_id);
+        if let Some(page) = page {
+            let next = selected.and_then(|selected| {
+                crate::selection::after_removal(
+                    selected as usize,
+                    page as usize,
+                    notebook.n_pages() as usize - 1,
+                )
+            });
+            notebook.remove_page(Some(page));
+            if let Some(next) = next {
+                notebook.set_current_page(Some(next as u32));
+            }
+        }
+        self.root.update_focus_css(self.active_pane_id);
         self.focus_active_surface();
         crate::diagnostics::event(format_args!(
             "surface-tab closed uuid={uuid} pane={pane_id}"

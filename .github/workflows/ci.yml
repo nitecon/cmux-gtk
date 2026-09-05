@@ -132,6 +132,8 @@ jobs:
       - name: Test per-terminal working directory reports
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_surface_directories.py
 
+      - name: Test sibling surface close selection
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_close_surface_selection.py
       - name: Test workspace close selection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_close_workspace_selection.py
       - name: Test workspace widget cleanup
