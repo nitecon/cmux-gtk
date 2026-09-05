@@ -35,7 +35,6 @@ import os
 import time
 import json
 import base64
-import re
 from typing import Optional, List, Tuple, Union
 
 
@@ -48,50 +47,21 @@ class cmuxError(Exception):
     pass
 
 
-_DEFAULT_DEBUG_BUNDLE_ID = "com.cmuxterm.app.debug"
-
-
-def _sanitize_bundle_suffix(raw: str) -> str:
-    # Must match scripts/reload.sh sanitize_bundle() so tagged tests can
-    # reliably target the correct app via AppleScript.
-    cleaned = re.sub(r"[^a-z0-9]+", ".", (raw or "").strip().lower())
-    cleaned = re.sub(r"\.+", ".", cleaned).strip(".")
-    return cleaned or "agent"
-
-
 def _quote_option_value(value: str) -> str:
-    # Must match TerminalController.parseOptions() quoting rules.
+    """Quote a legacy v1 option value by escaping backslashes and double quotes."""
     escaped = (value or "").replace("\\", "\\\\").replace('"', '\\"')
     return f"\"{escaped}\""
-
-
-def _default_bundle_id() -> str:
-    override = os.environ.get("CMUX_BUNDLE_ID")
-    if override:
-        return override
-
-    tag = os.environ.get("CMUX_TAG")
-    if tag:
-        suffix = _sanitize_bundle_suffix(tag)
-        return f"{_DEFAULT_DEBUG_BUNDLE_ID}.{suffix}"
-
-    return _DEFAULT_DEBUG_BUNDLE_ID
 
 
 class cmux:
     """Client for controlling cmux via Unix socket"""
 
     DEFAULT_SOCKET_PATH = _default_socket_path()
-    DEFAULT_BUNDLE_ID = _default_bundle_id()
 
     @staticmethod
     def default_socket_path() -> str:
         """Resolve the current Linux socket using shared client discovery rules."""
         return _default_socket_path()
-
-    @staticmethod
-    def default_bundle_id() -> str:
-        return _default_bundle_id()
 
     def __init__(self, socket_path: str = None):
         """Resolve discovery at construction time and initialize disconnected protocol state."""
