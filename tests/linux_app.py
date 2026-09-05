@@ -18,8 +18,9 @@ class Application:
 
     def cli(self, *arguments):
         """Run the production CLI with a fifteen-second subprocess deadline and captured stdout."""
+        binary_dir = Path(self.environment.get("CMUX_BIN_DIR", "target/debug"))
         return subprocess.check_output(
-            ["target/debug/cmux", "--socket", str(self.socket_path), *arguments],
+            [str(binary_dir / "cmux"), "--socket", str(self.socket_path), *arguments],
             env=self.environment, text=True, timeout=15,
         )
 
@@ -45,7 +46,7 @@ class Application:
 def running_app(root, extra_environment=None):
     """Start cmux in caller-owned temporary storage and always terminate/reap its direct child.
 
-    Overrides allow fixtures to install a browser mock before startup. Failure output
+    Overrides allow fixtures to install a browser mock or select CMUX_BIN_DIR before startup. Failure output
     is capped at 64 KiB; forced shutdown fails an otherwise successful scenario.
     """
     environment = dict(os.environ, XDG_DATA_HOME=str(root / "data"),
@@ -55,7 +56,8 @@ def running_app(root, extra_environment=None):
     environment.update(extra_environment or {})
     (root / "runtime").mkdir(mode=0o700, exist_ok=True)
     with (root / "app.log").open("w+b") as log:
-        process = subprocess.Popen(["target/debug/cmux-app"], env=environment, stdout=log, stderr=log)
+        binary_dir = Path(environment.get("CMUX_BIN_DIR", "target/debug"))
+        process = subprocess.Popen([str(binary_dir / "cmux-app")], env=environment, stdout=log, stderr=log)
         app = Application(process, environment, root / "runtime/cmux/cmux.sock")
         failed = False
         try:
