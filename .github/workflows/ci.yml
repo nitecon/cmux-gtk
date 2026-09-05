@@ -38,6 +38,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Test package validation helpers
+        run: bash tests/test_package_validation.sh
+
       - name: Identify Ghostty build cache
         id: ghostty_revision
         run: echo "revision=$(git rev-parse HEAD:ghostty)" >> "$GITHUB_OUTPUT"

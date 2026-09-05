@@ -2,19 +2,8 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PASS=0
-FAIL=0
-
-check() {
-    local desc="$1"; shift
-    if "$@" >/dev/null 2>&1; then
-        echo "PASS: $desc"
-        PASS=$((PASS + 1))
-    else
-        echo "FAIL: $desc"
-        FAIL=$((FAIL + 1))
-    fi
-}
+# shellcheck source=packaging/scripts/validation.sh
+source "$SCRIPT_DIR/validation.sh"
 
 # META-01: Reverse-DNS ID consistency
 check "META-01: .desktop has correct ID" \

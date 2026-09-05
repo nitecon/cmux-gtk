@@ -27,25 +27,16 @@ fi
 echo "Validating: $DEB"
 echo ""
 
-PASS=0
-FAIL=0
-
-check() {
-    local desc="$1" cmd="$2"
-    if eval "$cmd" &>/dev/null; then
-        echo "  PASS: $desc"
-        PASS=$((PASS + 1))
-    else
-        echo "  FAIL: $desc"
-        FAIL=$((FAIL + 1))
-    fi
-}
+# shellcheck source=packaging/scripts/validation.sh
+source "$SCRIPT_DIR/validation.sh"
 
 # Cache file listing and control output
-FILE_LIST=$(dpkg-deb -c "$DEB")
-CONTROL=$(dpkg-deb -f "$DEB")
 EXTRACTED_ROOT=$(mktemp -d)
 trap 'rm -rf "$EXTRACTED_ROOT"' EXIT
+FILE_LIST_FILE="$EXTRACTED_ROOT/file-list"
+CONTROL_FILE="$EXTRACTED_ROOT/control"
+dpkg-deb -c "$DEB" > "$FILE_LIST_FILE"
+dpkg-deb -f "$DEB" > "$CONTROL_FILE"
 dpkg-deb -x "$DEB" "$EXTRACTED_ROOT"
 DESKTOP_FILE="$EXTRACTED_ROOT/usr/share/applications/io.cmux.App.desktop"
 METAINFO_FILE="$EXTRACTED_ROOT/usr/share/metainfo/io.cmux.App.metainfo.xml"
@@ -54,133 +45,133 @@ METAINFO_FILE="$EXTRACTED_ROOT/usr/share/metainfo/io.cmux.App.metainfo.xml"
 echo "File listing:"
 
 check "usr/bin/cmux-app exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/bin/cmux-app"'
+    grep -q "\./usr/bin/cmux-app" "$FILE_LIST_FILE"
 
 # Anchored match to avoid matching cmux-app
 check "usr/bin/cmux exists" \
-    'echo "$FILE_LIST" | grep -qE "\./usr/bin/cmux([[:space:]]|$)"'
+    grep -qE "\./usr/bin/cmux([[:space:]]|$)" "$FILE_LIST_FILE"
 
 check "usr/lib/cmux/cmuxd-remote exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/lib/cmux/cmuxd-remote"'
+    grep -q "\./usr/lib/cmux/cmuxd-remote" "$FILE_LIST_FILE"
 
 check "usr/lib/cmux/agent-browser exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/lib/cmux/agent-browser"'
+    grep -q "\./usr/lib/cmux/agent-browser" "$FILE_LIST_FILE"
 
 check "usr/bin/agent-browser exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/bin/agent-browser"'
+    grep -q "\./usr/bin/agent-browser" "$FILE_LIST_FILE"
 
 check "desktop entry exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/applications/io.cmux.App.desktop"'
+    grep -q "\./usr/share/applications/io.cmux.App.desktop" "$FILE_LIST_FILE"
 
 check "metainfo exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/metainfo/io.cmux.App.metainfo.xml"'
+    grep -q "\./usr/share/metainfo/io.cmux.App.metainfo.xml" "$FILE_LIST_FILE"
 
 check "48x48 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/48x48/apps/io.cmux.App.png"'
+    grep -q "\./usr/share/icons/hicolor/48x48/apps/io.cmux.App.png" "$FILE_LIST_FILE"
 
 check "128x128 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/128x128/apps/io.cmux.App.png"'
+    grep -q "\./usr/share/icons/hicolor/128x128/apps/io.cmux.App.png" "$FILE_LIST_FILE"
 
 check "256x256 icon exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/icons/hicolor/256x256/apps/io.cmux.App.png"'
+    grep -q "\./usr/share/icons/hicolor/256x256/apps/io.cmux.App.png" "$FILE_LIST_FILE"
 
 echo ""
 echo "Desktop integration:"
 
 check "desktop entry is valid" \
-    'desktop-file-validate "$DESKTOP_FILE"'
+    desktop-file-validate "$DESKTOP_FILE"
 
 check "desktop entry launches cmux-app" \
-    'grep -qx "Exec=cmux-app" "$DESKTOP_FILE"'
+    grep -qx "Exec=cmux-app" "$DESKTOP_FILE"
 
 check "desktop icon matches GTK application ID" \
-    'grep -qx "Icon=io.cmux.App" "$DESKTOP_FILE"'
+    grep -qx "Icon=io.cmux.App" "$DESKTOP_FILE"
 
 check "desktop window class matches GTK application ID" \
-    'grep -qx "StartupWMClass=io.cmux.App" "$DESKTOP_FILE"'
+    grep -qx "StartupWMClass=io.cmux.App" "$DESKTOP_FILE"
 
 check "AppStream metadata is valid" \
-    'appstreamcli validate --no-net "$METAINFO_FILE"'
+    appstreamcli validate --no-net "$METAINFO_FILE"
 
 check "bash completion exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/bash-completion/completions/cmux"'
+    grep -q "\./usr/share/bash-completion/completions/cmux" "$FILE_LIST_FILE"
 
 check "zsh completion exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/zsh/vendor-completions/_cmux"'
+    grep -q "\./usr/share/zsh/vendor-completions/_cmux" "$FILE_LIST_FILE"
 
 check "fish completion exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/fish/vendor_completions.d/cmux.fish"'
+    grep -q "\./usr/share/fish/vendor_completions.d/cmux.fish" "$FILE_LIST_FILE"
 
 check "man page exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/man/man1/cmux.1.gz"'
+    grep -q "\./usr/share/man/man1/cmux.1.gz" "$FILE_LIST_FILE"
 
 # --- Skills & CLAUDE.md checks (Phase 12.1) ---
 echo ""
 echo "Skills:"
 
 check "cmux skill SKILL.md exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/cmux/skills/cmux/SKILL.md"'
+    grep -q "\./usr/share/cmux/skills/cmux/SKILL.md" "$FILE_LIST_FILE"
 
 check "cmux-browser skill SKILL.md exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/cmux/skills/cmux-browser/SKILL.md"'
+    grep -q "\./usr/share/cmux/skills/cmux-browser/SKILL.md" "$FILE_LIST_FILE"
 
 check "cmux-browser commands.md exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/cmux/skills/cmux-browser/references/commands.md"'
+    grep -q "\./usr/share/cmux/skills/cmux-browser/references/commands.md" "$FILE_LIST_FILE"
 
 check "CLAUDE.md exists" \
-    'echo "$FILE_LIST" | grep -q "\./usr/share/cmux/CLAUDE.md"'
+    grep -q "\./usr/share/cmux/CLAUDE.md" "$FILE_LIST_FILE"
 
 check "no cmux-debug-windows skill packaged (D-13)" \
-    '! echo "$FILE_LIST" | grep -q "cmux-debug-windows"'
+    absent "cmux-debug-windows" "$FILE_LIST_FILE"
 
 check "no release skill packaged (D-13)" \
-    '! echo "$FILE_LIST" | grep -q "skills/release"'
+    absent "skills/release" "$FILE_LIST_FILE"
 
 # --- Metadata checks ---
 echo ""
 echo "Metadata:"
 
 check "Package: cmux-gtk" \
-    'echo "$CONTROL" | grep -q "^Package: cmux-gtk$"'
+    grep -q "^Package: cmux-gtk$" "$CONTROL_FILE"
 
 check "Architecture: amd64" \
-    'echo "$CONTROL" | grep -q "^Architecture: amd64$"'
+    grep -q "^Architecture: amd64$" "$CONTROL_FILE"
 
 check "Version is non-empty" \
-    'echo "$CONTROL" | grep -qP "^Version: .+"'
+    grep -qE "^Version: .+" "$CONTROL_FILE"
 
 check "Depends contains libgtk-4-1" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libgtk-4-1"'
+    grep -q "^Depends:.*libgtk-4-1" "$CONTROL_FILE"
 
 check "Depends contains libfontconfig1" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libfontconfig1"'
+    grep -q "^Depends:.*libfontconfig1" "$CONTROL_FILE"
 
 check "Depends contains libfreetype6" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libfreetype6"'
+    grep -q "^Depends:.*libfreetype6" "$CONTROL_FILE"
 
 check "Depends contains libonig5" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libonig5"'
+    grep -q "^Depends:.*libonig5" "$CONTROL_FILE"
 
 check "Depends contains libgl1" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libgl1"'
+    grep -q "^Depends:.*libgl1" "$CONTROL_FILE"
 
 check "Depends contains libharfbuzz0b" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libharfbuzz0b"'
+    grep -q "^Depends:.*libharfbuzz0b" "$CONTROL_FILE"
 
 check "Depends contains libglib2.0-0" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libglib2.0-0"'
+    grep -q "^Depends:.*libglib2.0-0" "$CONTROL_FILE"
 
 check "Depends contains libc++1" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libc++1"'
+    grep -q "^Depends:.*libc++1" "$CONTROL_FILE"
 
 check "Depends contains libc++abi1" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libc++abi1"'
+    grep -q "^Depends:.*libc++abi1" "$CONTROL_FILE"
 
 check "Depends contains libxml2" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libxml2"'
+    grep -q "^Depends:.*libxml2" "$CONTROL_FILE"
 
 check "Depends contains libcairo2" \
-    'echo "$CONTROL" | grep "^Depends:" | grep -q "libcairo2"'
+    grep -q "^Depends:.*libcairo2" "$CONTROL_FILE"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

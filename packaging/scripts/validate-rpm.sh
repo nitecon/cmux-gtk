@@ -34,19 +34,8 @@ fi
 echo "Validating: $RPM"
 echo ""
 
-PASS=0
-FAIL=0
-
-check() {
-    local desc="$1"; shift
-    if "$@" >/dev/null 2>&1; then
-        echo "  PASS: $desc"
-        PASS=$((PASS + 1))
-    else
-        echo "  FAIL: $desc"
-        FAIL=$((FAIL + 1))
-    fi
-}
+# shellcheck source=packaging/scripts/validation.sh
+source "$SCRIPT_DIR/validation.sh"
 
 # Cache query outputs to temp files for grep compatibility
 FILE_LIST_FILE=$(mktemp)
@@ -82,8 +71,8 @@ check "cmux skill SKILL.md" grep -q '/usr/share/cmux/skills/cmux/SKILL.md' "$FIL
 check "cmux-browser skill SKILL.md" grep -q '/usr/share/cmux/skills/cmux-browser/SKILL.md' "$FILE_LIST_FILE"
 check "cmux-browser commands.md" grep -q '/usr/share/cmux/skills/cmux-browser/references/commands.md' "$FILE_LIST_FILE"
 check "CLAUDE.md" grep -q '/usr/share/cmux/CLAUDE.md' "$FILE_LIST_FILE"
-check "no cmux-debug-windows (D-13)" bash -c '! grep -q "cmux-debug-windows" "'"$FILE_LIST_FILE"'"'
-check "no release skill (D-13)" bash -c '! grep -q "skills/release" "'"$FILE_LIST_FILE"'"'
+check "no cmux-debug-windows (D-13)" absent "cmux-debug-windows" "$FILE_LIST_FILE"
+check "no release skill (D-13)" absent "skills/release" "$FILE_LIST_FILE"
 
 # --- Metadata checks (RPM-01, RPM-02) ---
 echo ""

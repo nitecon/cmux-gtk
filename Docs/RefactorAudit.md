@@ -280,3 +280,7 @@ The Linux churn fixture now includes nine real GTK Ctrl-D exits among its 45 spl
 ### Filesystem permission boundary
 
 Moved socket-directory, socket-file and updater-executable access policies into documented cmux-platform filesystem functions. Private directories are created with restrictive creation modes and existing final directories are corrected to 0700; file/socket restriction and executable staging use 0600 and 0755 respectively. Socket startup now stops on required permission failures instead of continuing after a chmod warning. Helpers retain ordinary symlink-following filesystem semantics; this does not claim adversarial path-race protection. Added executable filesystem tests for existing-directory tightening, file access transitions and missing-path errors. All-target Cargo check passed; tests run only in Actions.
+
+### Shared packaging validation
+
+All three package validators now source documented argument-based reporting from packaging/scripts/validation.sh. DEB checks no longer use eval: dpkg listing/control output is cached in temporary files and checks invoke validators and grep directly. RPM negative checks no longer interpolate paths into bash command strings. A shared absence check distinguishes no match from input errors. Added a main-CI shell behavior scenario for literal arguments, paths containing spaces, counters, negative matching and missing-file failures. Shell syntax checks and git diff --check passed; behavior tests remain CI-only. Existing package-format assertions remain release-workflow checks.
