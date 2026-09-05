@@ -50,6 +50,7 @@ content:
       transport: Unix JSON socket
       description: Schedule a redraw of the exact terminal UUID, or selected terminal when id is omitted. Do not focus or select. Missing terminal widgets return not_found.
   safety:
+    - Request envelopes must be objects with a string method. Omitted or null params normalize to an empty object; other non-object params return invalid_params before dispatch, including background diagnostics.
     - Optional target IDs for split, terminal input/read/health/refresh and pane focus accept only strings or null; omitted/null retain the documented default behavior. Other types return invalid_params before GTK admission and never fall back to the active terminal.
     - GTK command dispatch has a fixed 64-command waiting queue. Full queues reject before mutation with overloaded; a closed handler reports internal_error. Rejections carry the request trace identity in rpc.queue.rejected diagnostics.
     - Pane references are valid only in the current application lifetime, not persisted identities.

@@ -852,3 +852,7 @@ Workspace reorder no longer turns missing, negative, fractional, boolean or stri
 ### Optional target validation (2026-09-05)
 
 Centralized nullable target parsing across seven socket commands. Numeric, boolean, array and object IDs previously disappeared through as_str/map and could route an explicitly targeted input/split to the active terminal. They now return invalid_params before GTK admission. Omitted/null targets keep their prior command-specific defaults; valid string targets retain exact lookup semantics. Added dispatcher coverage across all seven commands and four malformed value classes. All-target compilation, formatting and whitespace checks pass; executable tests remain CI-only. Other malformed request-envelope fields still require review.
+
+### Request envelope validation (2026-09-05)
+
+The dispatcher now rejects non-object request containers and non-string/missing methods as invalid_request. Parameters must be objects; omission/null retain empty-parameter semantics, while strings, numbers, booleans and arrays return invalid_params before command defaults or background diagnostic sampling can run. This closes the enclosing-container bypass of strict optional target parsing. Added real-dispatch cases for malformed envelopes across mutating and observational methods with response correlation and empty GTK queue assertions. All-target compilation, formatting and whitespace checks pass; tests remain CI-only.

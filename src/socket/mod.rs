@@ -178,13 +178,26 @@ async fn dispatch_line(
     };
 
     drop(line);
+    if !req.is_object() {
+        return serde_json::json!({
+            "id": null, "ok": false,
+            "error": {"code": "invalid_request", "message": "request must be an object"}
+        })
+        .to_string();
+    }
     let req_id = req
         .get_mut("id")
         .map(serde_json::Value::take)
         .unwrap_or(serde_json::Value::Null);
     let method = match req.get_mut("method").map(serde_json::Value::take) {
         Some(serde_json::Value::String(method)) => method,
-        _ => String::new(),
+        _ => {
+            return serde_json::json!({
+                "id": req_id, "ok": false,
+                "error": {"code": "invalid_request", "message": "method must be a string"}
+            })
+            .to_string()
+        }
     };
     let mut params = req
         .get_mut("params")
@@ -199,6 +212,16 @@ async fn dispatch_line(
     // Early validation failures below are errors; cancellation while awaiting
     // execution is reset explicitly before yielding to the response channel.
     operation.finish(false);
+
+    if params.is_null() {
+        params = serde_json::json!({});
+    } else if !params.is_object() {
+        return serde_json::json!({
+            "id": req_id, "ok": false,
+            "error": {"code": "invalid_params", "message": "params must be an object or null"}
+        })
+        .to_string();
+    }
 
     if method == "system.diagnostics" {
         drop(params);
@@ -603,6 +626,49 @@ async fn dispatch_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Non-object parameters cannot erase explicit targets and activate command defaults.
+    #[tokio::test]
+    async fn malformed_envelopes_never_reach_gtk() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+        let mut cases = vec![
+            (serde_json::json!([]), "invalid_request"),
+            (serde_json::json!(null), "invalid_request"),
+            (serde_json::json!({"id": 15}), "invalid_request"),
+            (
+                serde_json::json!({"id": 15, "method": false}),
+                "invalid_request",
+            ),
+        ];
+        for method in [
+            "surface.split",
+            "surface.send_text",
+            "workspace.create",
+            "system.diagnostics",
+        ] {
+            for params in [
+                serde_json::json!([]),
+                serde_json::json!(false),
+                serde_json::json!(3),
+                serde_json::json!("target"),
+            ] {
+                cases.push((
+                    serde_json::json!({"id": 15, "method": method, "params": params}),
+                    "invalid_params",
+                ));
+            }
+        }
+        for (request, code) in cases {
+            let response = dispatch_line(request.to_string(), &tx).await;
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(response["error"]["code"], code);
+            assert_eq!(
+                response["id"],
+                request.get("id").cloned().unwrap_or_default()
+            );
+            assert!(rx.try_recv().is_err());
+        }
+    }
 
     /// Malformed explicit targets never become implicit active-terminal operations.
     #[tokio::test]
