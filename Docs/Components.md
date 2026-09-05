@@ -9,7 +9,8 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Pane tree | Splits, sibling tabs, selection and surface lifecycle | `src/split_engine.rs` |
 | Terminal adapter | Ghostty configuration, input, clipboard and rendering through its C ABI | `src/ghostty` |
 | Browser adapter | Optional browser daemon, commands, previews and navigation | `src/browser.rs` |
-| Command interface | CLI argument contract, protocol validation and dispatch | `src/cli`, `src/socket` |
+| Command interface | Shared CLI argument schema, protocol validation and dispatch; completion generation imports the schema alone | `src/cli/args.rs`, `src/cli`, `src/socket` |
+| Diagnostics | Bounded structured logs, request correlation, resource snapshots, collection and optimized benchmarks | `src/diagnostics`, `src/diagnostics.rs`, `scripts/collect-cmux-diagnostics.py`, `scripts/benchmark-cmux.py` |
 | Session/configuration | Serializable state, compatibility, atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
 | Remote transport | SSH deployment, reconnect, stream and PTY ownership | `src/ssh`, `daemon/remote` |
 | Linux services | XDG locations, atomic file replacement, peer credentials, process resources, installation ownership, desktop notifications and optional GTK/X11 placement; remaining native services are pending extraction | `crates/cmux-platform` |

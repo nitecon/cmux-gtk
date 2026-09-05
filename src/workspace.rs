@@ -39,10 +39,12 @@ pub enum ConnectionState {
 }
 
 impl ConnectionState {
+    /// Distinguish SSH workspaces even while disconnected or reconnecting.
     pub fn is_remote(&self) -> bool {
         !matches!(self, ConnectionState::Local)
     }
 
+    /// Return sidebar status text; local workspaces have no connection indicator.
     pub fn display_text(&self) -> &str {
         match self {
             ConnectionState::Local => "",
@@ -52,6 +54,7 @@ impl ConnectionState {
         }
     }
 
+    /// Select the connection indicator style without encoding retry counts.
     pub fn css_class(&self) -> &str {
         match self {
             ConnectionState::Local => "",
@@ -73,9 +76,6 @@ pub struct Workspace {
     pub name: String,
     /// The name key used with GtkStack::add_named / set_visible_child_name.
     pub stack_page_name: String,
-    /// Sequential number used for default naming ("Workspace N").
-    /// Preserved even after renames so we don't reuse numbers.
-    pub display_number: usize,
     /// Stable UUID for session persistence and v2 socket protocol identity.
     pub uuid: Uuid,
     /// Phase 4 NOTF-01: true when any pane in this workspace has unread bell activity.
@@ -102,7 +102,6 @@ impl Workspace {
             id,
             name,
             stack_page_name,
-            display_number,
             uuid: Uuid::new_v4(),
             has_attention: false,
             last_notification: None,
@@ -116,27 +115,46 @@ impl Workspace {
     }
 
     /// Create a local workspace bound to a directory.
-    pub fn new_bound(id: u64, display_number: usize, name: String, working_directory: PathBuf) -> Self {
+    pub fn new_bound(
+        id: u64,
+        display_number: usize,
+        name: String,
+        working_directory: PathBuf,
+    ) -> Self {
         let mut workspace = Self::new(id, display_number);
         workspace.name = name;
         workspace.working_directory = Some(working_directory);
         workspace
     }
 
+    /// Describe the complete launch location for tooltips and workspace metadata.
     pub fn location(&self) -> String {
         if let Some(target) = &self.remote_target {
-            format!("ssh://{}{}", target, self.remote_directory.as_deref().unwrap_or(""))
+            format!(
+                "ssh://{}{}",
+                target,
+                self.remote_directory.as_deref().unwrap_or("")
+            )
         } else if let Some(script) = &self.startup_script {
             format!("script: {}", script.display())
         } else {
-            self.working_directory.as_ref().map(|p| p.display().to_string()).unwrap_or_default()
+            self.working_directory
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
         }
     }
 
+    /// Compact local paths and script names while preserving the SSH destination.
     pub fn subtitle(&self) -> String {
-        if self.remote_target.is_some() { return self.location(); }
+        if self.remote_target.is_some() {
+            return self.location();
+        }
         if let Some(script) = &self.startup_script {
-            return format!("script: {}", script.file_name().unwrap_or_default().to_string_lossy());
+            return format!(
+                "script: {}",
+                script.file_name().unwrap_or_default().to_string_lossy()
+            );
         }
         compact_local_path(self.working_directory.as_deref())
     }
@@ -148,23 +166,11 @@ impl Workspace {
 
     /// Create a new remote SSH workspace targeting the given host.
     pub fn new_remote(id: u64, display_number: usize, target: String) -> Self {
-        let name = crate::ssh_hosts::workspace_name_from_target(&target);
-        let stack_page_name = format!("workspace-{}", id);
-        Self {
-            id,
-            name,
-            stack_page_name,
-            display_number,
-            uuid: Uuid::new_v4(),
-            has_attention: false,
-            last_notification: None,
-            color: None,
-            startup_script: None,
-            remote_directory: None,
-            remote_target: Some(target),
-            working_directory: None,
-            connection_state: ConnectionState::Reconnecting(0),
-        }
+        let mut workspace = Self::new(id, display_number);
+        workspace.name = crate::ssh_hosts::workspace_name_from_target(&target);
+        workspace.remote_target = Some(target);
+        workspace.connection_state = ConnectionState::Reconnecting(0);
+        workspace
     }
 }
 
@@ -172,13 +178,19 @@ impl Workspace {
 mod tests {
     use super::*;
 
+    /// Require a persisted workspace identity even before it is inserted into GTK state.
     #[test]
     fn workspace_new_has_uuid() {
         let w = Workspace::new(1, 1);
         // uuid must not be nil (all-zeros)
-        assert_ne!(w.uuid, Uuid::nil(), "Workspace::new() must generate a non-nil UUID");
+        assert_ne!(
+            w.uuid,
+            Uuid::nil(),
+            "Workspace::new() must generate a non-nil UUID"
+        );
     }
 
+    /// Ensure independent workspaces cannot alias each other in session or socket lookup.
     #[test]
     fn workspace_uuids_are_unique() {
         let w1 = Workspace::new(1, 1);
@@ -186,33 +198,52 @@ mod tests {
         assert_ne!(w1.uuid, w2.uuid, "Two workspaces must have distinct UUIDs");
     }
 
+    /// Verify directory normalization, explicit name trimming and basename defaults.
     #[test]
     fn local_workspace_inputs_bind_an_existing_directory() {
-        let directory = std::env::temp_dir().join(format!("cmux-workspace-binding-{}", std::process::id()));
+        let directory =
+            std::env::temp_dir().join(format!("cmux-workspace-binding-{}", std::process::id()));
         std::fs::create_dir_all(&directory).unwrap();
-        let (name, bound_directory) = prepare_local_workspace("  Project Alpha  ", &directory).unwrap();
+        let (name, bound_directory) =
+            prepare_local_workspace("  Project Alpha  ", &directory).unwrap();
         assert_eq!(name, "Project Alpha");
         assert_eq!(bound_directory, directory.canonicalize().unwrap());
         let (default_name, _) = prepare_local_workspace("", &directory).unwrap();
-        assert_eq!(default_name, directory.file_name().unwrap().to_string_lossy());
+        assert_eq!(
+            default_name,
+            directory.file_name().unwrap().to_string_lossy()
+        );
         let _ = std::fs::remove_dir_all(directory);
     }
 
+    /// Reject a regular file before it can become a terminal working directory.
     #[test]
     fn local_workspace_inputs_reject_a_file() {
-        let file = std::env::temp_dir().join(format!("cmux-workspace-binding-file-{}", std::process::id()));
+        let file = std::env::temp_dir().join(format!(
+            "cmux-workspace-binding-file-{}",
+            std::process::id()
+        ));
         std::fs::write(&file, b"not a directory").unwrap();
-        assert_eq!(prepare_local_workspace("Project", &file).unwrap_err(), "Choose a folder, not a file.");
+        assert_eq!(
+            prepare_local_workspace("Project", &file).unwrap_err(),
+            "Choose a folder, not a file."
+        );
         let _ = std::fs::remove_file(file);
     }
 }
 
 /// Retain the root directory and basename, with the full path in the tooltip.
 pub fn compact_local_path(path: Option<&std::path::Path>) -> String {
-    let Some(path) = path else { return String::new(); };
-    let parts: Vec<_> = path.components().filter_map(|c| match c {
-        std::path::Component::Normal(v) => Some(v.to_string_lossy()), _ => None,
-    }).collect();
+    let Some(path) = path else {
+        return String::new();
+    };
+    let parts: Vec<_> = path
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(v) => Some(v.to_string_lossy()),
+            _ => None,
+        })
+        .collect();
     match parts.as_slice() {
         [] => "/".into(),
         [one] => format!("/{one}"),
@@ -221,6 +252,7 @@ pub fn compact_local_path(path: Option<&std::path::Path>) -> String {
     }
 }
 
+/// Accept only six-digit RGB hex colors before interpolating into GTK CSS.
 pub fn valid_workspace_color(color: &str) -> bool {
     color.len() == 7 && color.starts_with('#') && color[1..].bytes().all(|b| b.is_ascii_hexdigit())
 }
@@ -230,21 +262,34 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+/// Resolve a readable regular script file, returning a user-facing validation error.
 pub fn prepare_startup_script(path: &std::path::Path) -> Result<PathBuf, String> {
-    let path = path.canonicalize().map_err(|e| format!("Cannot open startup script: {e}"))?;
-    if !path.is_file() { return Err("Choose a startup script file.".into()); }
+    let path = path
+        .canonicalize()
+        .map_err(|e| format!("Cannot open startup script: {e}"))?;
+    if !path.is_file() {
+        return Err("Choose a startup script file.".into());
+    }
     std::fs::File::open(&path).map_err(|e| format!("Cannot read startup script: {e}"))?;
     Ok(path)
 }
 
+/// Source the quoted script in sh, then inherit its directory and exports in a login shell.
 pub fn startup_command(path: &std::path::Path) -> String {
     // Source in sh so exported variables and cd remain available to the login shell.
-    let body = format!(". {} && exec \"${{SHELL:-/bin/sh}}\" -l", shell_quote(&path.to_string_lossy()));
+    let body = format!(
+        ". {} && exec \"${{SHELL:-/bin/sh}}\" -l",
+        shell_quote(&path.to_string_lossy())
+    );
     format!("/bin/sh -c {}", shell_quote(&body))
 }
 
+/// Reject empty destinations, option injection, whitespace and control characters.
 pub fn validate_ssh_target(target: &str) -> Result<(), String> {
-    if target.is_empty() || target.starts_with('-') || target.chars().any(|c| c.is_whitespace() || c.is_control()) {
+    if target.is_empty()
+        || target.starts_with('-')
+        || target.chars().any(|c| c.is_whitespace() || c.is_control())
+    {
         return Err("Enter an SSH alias or user@host without command-line options.".into());
     }
     Ok(())
@@ -254,6 +299,7 @@ pub fn validate_ssh_target(target: &str) -> Result<(), String> {
 mod workflow_tests {
     use super::*;
 
+    /// Check local, script and SSH labels against their complete launch locations.
     #[test]
     fn workspace_locations_describe_launch_context() {
         let mut ws = Workspace::new_bound(1, 1, "Project".into(), "/opt/team/repo".into());
@@ -264,25 +310,43 @@ mod workflow_tests {
         ws.remote_target = Some("alice@host".into());
         ws.remote_directory = Some("/srv/project".into());
         assert_eq!(ws.subtitle(), "ssh://alice@host/srv/project");
-        assert_eq!(compact_local_path(Some(PathBuf::from("/opt/repo").as_path())), "/opt/repo");
+        assert_eq!(
+            compact_local_path(Some(PathBuf::from("/opt/repo").as_path())),
+            "/opt/repo"
+        );
         assert_eq!(compact_local_path(Some(PathBuf::from("/").as_path())), "/");
     }
 
+    /// Execute a script with shell-sensitive filename characters in its bound directory.
     #[test]
     fn startup_command_preserves_quoted_paths_and_environment() {
         let directory = std::env::temp_dir().join(format!("cmux-script-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&directory).unwrap();
         let script = directory.join("startup 'quoted' $name.sh");
         let result = directory.join("result");
-        std::fs::write(&script, format!("printf '%s' \"$PWD\" > {}\nexit 0\n", shell_quote(&result.to_string_lossy()))).unwrap();
+        std::fs::write(
+            &script,
+            format!(
+                "printf '%s' \"$PWD\" > {}\nexit 0\n",
+                shell_quote(&result.to_string_lossy())
+            ),
+        )
+        .unwrap();
         let script = prepare_startup_script(&script).unwrap();
-        let status = std::process::Command::new("/bin/sh").args(["-c", &startup_command(&script)])
-            .current_dir(&directory).status().unwrap();
+        let status = std::process::Command::new("/bin/sh")
+            .args(["-c", &startup_command(&script)])
+            .current_dir(&directory)
+            .status()
+            .unwrap();
         assert!(status.success());
-        assert_eq!(std::fs::read_to_string(result).unwrap(), directory.to_string_lossy());
+        assert_eq!(
+            std::fs::read_to_string(result).unwrap(),
+            directory.to_string_lossy()
+        );
         std::fs::remove_dir_all(directory).unwrap();
     }
 
+    /// Reject option/CSS injection while accepting supported host and RGB values.
     #[test]
     fn invalid_ssh_options_and_css_are_rejected() {
         for target in ["", "-oProxyCommand=bad", "host command", "host\ncommand"] {

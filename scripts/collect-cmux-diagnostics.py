@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Collect resource trends and correlated CLI timings from a running cmux instance."""
+
+import argparse
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import subprocess
+import time
+
+
+def sample(binary, socket):
+    """Capture a read-only snapshot and its correlation ID, retaining bounded failures."""
+    command = [binary, "--json", "--verbose"]
+    if socket:
+        command.extend(["--socket", socket])
+    started = time.perf_counter_ns()
+    try:
+        result = subprocess.run(command + ["diagnostics"], capture_output=True,
+                                text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return {"error": "command_timeout"}
+    except OSError as error:
+        return {"error": "command_unavailable", "errno": error.errno}
+    record = {"round_trip_us": (time.perf_counter_ns() - started) / 1000,
+              "exit_code": result.returncode}
+    trace = re.search(r"trace_id=([0-9a-f-]{36})", result.stderr)
+    if trace:
+        record["trace_id"] = trace.group(1)
+    if result.returncode:
+        record["error"] = "command_failed"
+        return record
+    try:
+        record["snapshot"] = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        record["error"] = "invalid_response"
+    return record
+
+
+def collect(binary, socket, samples, interval):
+    """Retain a bounded time series without reading terminal content or application files."""
+    report = {
+        "schema": 1,
+        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "host": {"system": platform.system(), "release": platform.release(),
+                 "machine": platform.machine()},
+        "requested_samples": samples, "interval_seconds": interval, "samples": [],
+    }
+    started = time.monotonic()
+    for index in range(samples):
+        if index:
+            time.sleep(interval)
+        record = sample(binary, socket)
+        record["elapsed_seconds"] = time.monotonic() - started
+        report["samples"].append(record)
+    return report
+
+
+def main():
+    """Validate collection bounds and create a private report without overwriting files."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--binary", default="cmux")
+    parser.add_argument("--socket", help="override normal cmux socket discovery")
+    parser.add_argument("--samples", type=int, default=12)
+    parser.add_argument("--interval", type=float, default=5)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if not 1 <= args.samples <= 120 or not 0.01 <= args.interval <= 60:
+        parser.error("samples must be 1..120 and interval must be 0.01..60 seconds")
+    try:
+        descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except OSError as error:
+        parser.error(f"cannot create report: {error}")
+    with os.fdopen(descriptor, "w") as output:
+        report = collect(args.binary, args.socket, args.samples, args.interval)
+        json.dump(report, output, indent=2)
+        output.write("\n")
+    failures = sum("error" in sample for sample in report["samples"])
+    print(f"wrote {args.output}: {args.samples} samples, {failures} failed")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

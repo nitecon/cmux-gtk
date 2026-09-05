@@ -74,10 +74,16 @@ fn surface_for_area(area: &gtk4::GLArea) -> Option<ffi::ghostty_surface_t> {
 /// `ghostty_surface_free`, so the shell is gone before GTK destroys the pane.
 pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
     unsafe {
-        if let Some(retired) = area.data::<std::rc::Rc<std::cell::Cell<bool>>>("cmux-surface-retired") {
+        if let Some(retired) =
+            area.data::<std::rc::Rc<std::cell::Cell<bool>>>("cmux-surface-retired")
+        {
             retired.as_ref().set(true);
         }
-        if let Some((bridge, ctx)) = area.steal_data::<(std::sync::Arc<crate::ssh::bridge::SshBridge>, std::sync::Arc<crate::ssh::bridge::IoWriteContext>)>("cmux-remote-context") {
+        if let Some((bridge, ctx)) = area.steal_data::<(
+            std::sync::Arc<crate::ssh::bridge::SshBridge>,
+            std::sync::Arc<crate::ssh::bridge::IoWriteContext>,
+        )>("cmux-remote-context")
+        {
             ctx.surface_ptr.store(0, Ordering::Release);
             bridge.remove_context(ctx.pane_id);
         }
@@ -86,12 +92,18 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
     // Controllers may receive focus/resize signals during GTK teardown.
     // Clear their shared handle before freeing Ghostty, avoiding callbacks into freed memory.
     unsafe {
-        if let Some(cell) = area.data::<std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>>("cmux-surface-cell") {
+        if let Some(cell) = area
+            .data::<std::rc::Rc<std::cell::RefCell<Option<ffi::ghostty_surface_t>>>>(
+                "cmux-surface-cell",
+            )
+        {
             *cell.as_ref().borrow_mut() = None;
         }
     }
     // GtkGLArea does not dispose application-owned popover children for us.
-    while let Some(child) = area.first_child() { child.unparent(); }
+    while let Some(child) = area.first_child() {
+        child.unparent();
+    }
     let surface = crate::ghostty::callbacks::GL_TO_SURFACE
         .lock()
         .ok()
@@ -175,10 +187,10 @@ fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
     gesture.connect_released({
         let popover = popover.downgrade();
         move |_, _, x, y| {
-            let Some(popover) = popover.upgrade() else { return };
-            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                x as i32, y as i32, 1, 1,
-            )));
+            let Some(popover) = popover.upgrade() else {
+                return;
+            };
+            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
             popover.popup();
         }
     });
@@ -229,7 +241,9 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
     notebook.connect_switch_page({
         let surfaces = std::rc::Rc::downgrade(&surfaces);
         move |notebook, _, page| {
-            let Some(surfaces) = surfaces.upgrade() else { return; };
+            let Some(surfaces) = surfaces.upgrade() else {
+                return;
+            };
             let is_active_pane = notebook.has_css_class("active-pane");
             for (index, surface) in surfaces.borrow().iter().enumerate() {
                 if let Some(area) = surface.terminal_area() {
@@ -247,7 +261,9 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
                     if let Some(entry) = surface.url_entry() {
                         let notebook = notebook.downgrade();
                         glib::idle_add_local_once(move || {
-                            let Some(notebook) = notebook.upgrade() else { return };
+                            let Some(notebook) = notebook.upgrade() else {
+                                return;
+                            };
                             if notebook.has_css_class("active-pane")
                                 && notebook.current_page() == Some(page)
                             {
@@ -304,7 +320,9 @@ impl SplitNode {
     /// Find the pane_id of the active (focused) leaf by checking CSS class.
     pub fn find_active_pane_id(&self) -> Option<u64> {
         match self {
-            SplitNode::Leaf { pane_id, notebook, .. } => {
+            SplitNode::Leaf {
+                pane_id, notebook, ..
+            } => {
                 if notebook.has_css_class("active-pane") {
                     Some(*pane_id)
                 } else {
@@ -320,18 +338,25 @@ impl SplitNode {
     /// Find the UUID for a pane by pane_id. Returns None if not found.
     pub fn find_uuid_for_pane(&self, target_id: u64) -> Option<String> {
         match self {
-            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+            SplitNode::Leaf {
+                pane_id,
+                notebook,
+                surfaces,
+                ..
+            } => {
                 if *pane_id == target_id {
                     let index = notebook.current_page().unwrap_or(0) as usize;
-                    surfaces.borrow().get(index).map(|surface| surface.uuid().to_string())
+                    surfaces
+                        .borrow()
+                        .get(index)
+                        .map(|surface| surface.uuid().to_string())
                 } else {
                     None
                 }
             }
-            SplitNode::Split { start, end, .. } => {
-                start.find_uuid_for_pane(target_id)
-                    .or_else(|| end.find_uuid_for_pane(target_id))
-            }
+            SplitNode::Split { start, end, .. } => start
+                .find_uuid_for_pane(target_id)
+                .or_else(|| end.find_uuid_for_pane(target_id)),
         }
     }
 
@@ -339,7 +364,12 @@ impl SplitNode {
     /// Removes the class from all other leaves.
     pub fn update_focus_css(&self, active_pane_id: u64) {
         match self {
-            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+            SplitNode::Leaf {
+                pane_id,
+                notebook,
+                surfaces,
+                ..
+            } => {
                 if *pane_id == active_pane_id {
                     notebook.add_css_class("active-pane");
                 } else {
@@ -367,22 +397,15 @@ impl SplitNode {
     pub fn find_node(&self, target_id: u64) -> Option<&SplitNode> {
         match self {
             SplitNode::Leaf { pane_id, .. } => {
-                if *pane_id == target_id { Some(self) } else { None }
+                if *pane_id == target_id {
+                    Some(self)
+                } else {
+                    None
+                }
             }
-            SplitNode::Split { start, end, .. } => {
-                start.find_node(target_id).or_else(|| end.find_node(target_id))
-            }
-        }
-    }
-
-    /// Collect all leaf pane_ids into a Vec (for cleanup on workspace close).
-    pub fn collect_pane_ids(&self, out: &mut Vec<u64>) {
-        match self {
-            SplitNode::Leaf { pane_id, .. } => out.push(*pane_id),
-            SplitNode::Split { start, end, .. } => {
-                start.collect_pane_ids(out);
-                end.collect_pane_ids(out);
-            }
+            SplitNode::Split { start, end, .. } => start
+                .find_node(target_id)
+                .or_else(|| end.find_node(target_id)),
         }
     }
 
@@ -408,29 +431,44 @@ impl SplitNode {
     /// Used by debug.type to send text to a specific pane's surface.
     pub fn find_surface_for_pane(&self, target_id: u64) -> Option<ffi::ghostty_surface_t> {
         match self {
-            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+            SplitNode::Leaf {
+                pane_id,
+                notebook,
+                surfaces,
+                ..
+            } => {
                 if *pane_id != target_id {
                     return None;
                 }
                 let index = notebook.current_page().unwrap_or(0) as usize;
-                surfaces.borrow().get(index)
+                surfaces
+                    .borrow()
+                    .get(index)
                     .and_then(PaneSurface::terminal_area)
                     .and_then(|area| surface_for_area(&area))
             }
-            SplitNode::Split { start, end, .. } => {
-                start.find_surface_for_pane(target_id)
-                    .or_else(|| end.find_surface_for_pane(target_id))
-            }
+            SplitNode::Split { start, end, .. } => start
+                .find_surface_for_pane(target_id)
+                .or_else(|| end.find_surface_for_pane(target_id)),
         }
     }
 
     /// Collect (uuid, pane_id, active) for all leaves in this subtree.
     pub fn collect_pane_info(&self, out: &mut Vec<(Uuid, u64, bool)>, active_id: u64) {
         match self {
-            SplitNode::Leaf { pane_id, notebook, surfaces, .. } => {
+            SplitNode::Leaf {
+                pane_id,
+                notebook,
+                surfaces,
+                ..
+            } => {
                 let selected = notebook.current_page().unwrap_or(0) as usize;
                 for (index, surface) in surfaces.borrow().iter().enumerate() {
-                    out.push((surface.uuid(), *pane_id, *pane_id == active_id && index == selected));
+                    out.push((
+                        surface.uuid(),
+                        *pane_id,
+                        *pane_id == active_id && index == selected,
+                    ));
                 }
             }
             SplitNode::Split { start, end, .. } => {
@@ -451,30 +489,36 @@ impl SplitNode {
                     _ => None,
                 })
             }
-            SplitNode::Split { start, end, .. } => {
-                start.find_by_uuid(target_uuid).or_else(|| end.find_by_uuid(target_uuid))
-            }
+            SplitNode::Split { start, end, .. } => start
+                .find_by_uuid(target_uuid)
+                .or_else(|| end.find_by_uuid(target_uuid)),
         }
     }
 
     /// Find the pane_id for the leaf matching target_uuid (UUID string).
     pub fn find_pane_id_by_uuid(&self, target_uuid: &str) -> Option<u64> {
         match self {
-            SplitNode::Leaf { surfaces, pane_id, .. } => {
-                surfaces.borrow().iter().any(|surface| surface.uuid().to_string() == target_uuid)
-                    .then_some(*pane_id)
-            }
-            SplitNode::Split { start, end, .. } => {
-                start.find_pane_id_by_uuid(target_uuid)
-                    .or_else(|| end.find_pane_id_by_uuid(target_uuid))
-            }
+            SplitNode::Leaf {
+                surfaces, pane_id, ..
+            } => surfaces
+                .borrow()
+                .iter()
+                .any(|surface| surface.uuid().to_string() == target_uuid)
+                .then_some(*pane_id),
+            SplitNode::Split { start, end, .. } => start
+                .find_pane_id_by_uuid(target_uuid)
+                .or_else(|| end.find_pane_id_by_uuid(target_uuid)),
         }
     }
 
     /// Set has_attention on the leaf matching pane_id. Returns true if found.
     pub fn set_attention(&mut self, target_pane_id: u64, value: bool) -> bool {
         match self {
-            SplitNode::Leaf { pane_id, has_attention, .. } => {
+            SplitNode::Leaf {
+                pane_id,
+                has_attention,
+                ..
+            } => {
                 if *pane_id == target_pane_id {
                     *has_attention = value;
                     true
@@ -483,7 +527,8 @@ impl SplitNode {
                 }
             }
             SplitNode::Split { start, end, .. } => {
-                start.set_attention(target_pane_id, value) || end.set_attention(target_pane_id, value)
+                start.set_attention(target_pane_id, value)
+                    || end.set_attention(target_pane_id, value)
             }
         }
     }
@@ -499,9 +544,11 @@ impl SplitNode {
     /// Check if a specific pane has attention.
     pub fn pane_has_attention(&self, target_pane_id: u64) -> bool {
         match self {
-            SplitNode::Leaf { pane_id, has_attention, .. } => {
-                *pane_id == target_pane_id && *has_attention
-            }
+            SplitNode::Leaf {
+                pane_id,
+                has_attention,
+                ..
+            } => *pane_id == target_pane_id && *has_attention,
             SplitNode::Split { start, end, .. } => {
                 start.pane_has_attention(target_pane_id) || end.pane_has_attention(target_pane_id)
             }
@@ -533,10 +580,10 @@ fn attach_terminal_context_menu(gl_area: &gtk4::GLArea) {
     gesture.connect_released({
         let popover = popover.downgrade();
         move |_, _, x, y| {
-            let Some(popover) = popover.upgrade() else { return; };
-            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                x as i32, y as i32, 1, 1,
-            )));
+            let Some(popover) = popover.upgrade() else {
+                return;
+            };
+            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
             popover.popup();
         }
     });
@@ -596,40 +643,6 @@ impl SplitEngine {
         }
     }
 
-    /// Update the surface pointer for a leaf after realize.
-    /// Recursively searches the tree (D-10: works for ALL leaves, not just root).
-    pub fn set_initial_surface(&mut self, pane_id: u64, surface: ffi::ghostty_surface_t) {
-        Self::set_surface_recursive(&mut self.root, pane_id, surface);
-    }
-
-    fn set_surface_recursive(node: &mut SplitNode, target_pane_id: u64, surface: ffi::ghostty_surface_t) {
-        match node {
-            SplitNode::Leaf { pane_id, .. } => {
-                let _ = (target_pane_id, surface, pane_id);
-                // Surface handles are resolved from GL_TO_SURFACE so multiple
-                // terminal tabs can share a pane ID safely.
-            }
-            SplitNode::Split { start, end, .. } => {
-                Self::set_surface_recursive(start, target_pane_id, surface);
-                Self::set_surface_recursive(end, target_pane_id, surface);
-            }
-        }
-    }
-
-    /// Reconstruct a SplitEngine from serialized SplitNodeData (D-05).
-    /// Creates GTK widgets (GLArea for leaves, Paned for splits) and Ghostty surfaces.
-    /// Fresh pane_ids are generated (D-06), but UUIDs are preserved from session.
-    /// Returns None if tree_depth > 16 (D-14).
-    pub fn from_data(
-        app: gtk4::Application,
-        ghostty_app: ffi::ghostty_app_t,
-        data: &SplitNodeData,
-        active_pane_uuid: Option<&str>,
-        working_directory: Option<std::path::PathBuf>,
-    ) -> Option<Self> {
-        Self::from_data_with_command(app, ghostty_app, data, active_pane_uuid, working_directory, None, None)
-    }
-
     pub fn from_data_with_command(
         app: gtk4::Application,
         ghostty_app: ffi::ghostty_app_t,
@@ -639,9 +652,19 @@ impl SplitEngine {
         launch_command: Option<String>,
         remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
     ) -> Option<Self> {
-        static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 24);
+        static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(1 << 24);
         let mut next_pane_id = NEXT_RESTORE_BASE.fetch_add(1 << 18, Ordering::Relaxed);
-        let root = Self::node_from_data(&app, ghostty_app, data, &mut next_pane_id, 0, working_directory.as_deref(), launch_command.as_deref(), remote_launch.as_ref())?;
+        let root = Self::node_from_data(
+            &app,
+            ghostty_app,
+            data,
+            &mut next_pane_id,
+            0,
+            working_directory.as_deref(),
+            launch_command.as_deref(),
+            remote_launch.as_ref(),
+        )?;
         // Find active pane by saved UUID, or fall back to first leaf
         let active_id = active_pane_uuid
             .and_then(|uuid_str| root.find_pane_id_by_uuid(uuid_str))
@@ -678,15 +701,27 @@ impl SplitEngine {
             return None;
         }
         match data {
-            SplitNodeData::Leaf { surface_uuid, cwd, .. } => {
+            SplitNodeData::Leaf {
+                surface_uuid, cwd, ..
+            } => {
                 let pane_id = *next_pane_id;
                 *next_pane_id += 1;
                 let pane_directory = working_directory
                     .map(std::path::Path::to_path_buf)
                     .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
                 // Create surface — realize callback will create Ghostty surface and wire registries
-                let (gl_area, _surface_cell) =
-                    crate::ghostty::surface::create_surface(app, ghostty_app, None, pane_directory, pane_id, remote_launch.cloned().unwrap_or_else(|| launch_command.map(|c| crate::ghostty::surface::SurfaceIoMode::Command(c.to_string())).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)));
+                let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
+                    app,
+                    ghostty_app,
+                    None,
+                    pane_directory,
+                    pane_id,
+                    remote_launch.cloned().unwrap_or_else(|| {
+                        launch_command
+                            .map(|c| crate::ghostty::surface::SurfaceIoMode::Command(c.to_string()))
+                            .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+                    }),
+                );
                 // Phase 9: Attach right-click context menu (D-08)
                 attach_terminal_context_menu(&gl_area);
                 // D-06: preserve UUID from session
@@ -696,11 +731,16 @@ impl SplitEngine {
                     PaneSurface::Terminal { gl_area, uuid },
                 ))
             }
-            SplitNodeData::Pane { active_surface_uuid, surfaces } => {
+            SplitNodeData::Pane {
+                active_surface_uuid,
+                surfaces,
+            } => {
                 let pane_id = *next_pane_id;
                 *next_pane_id += 1;
                 let mut restored = surfaces.iter().map(|surface| match surface {
-                    PaneSurfaceData::Terminal { surface_uuid, cwd, .. } => {
+                    PaneSurfaceData::Terminal {
+                        surface_uuid, cwd, ..
+                    } => {
                         let pane_directory = working_directory
                             .map(std::path::Path::to_path_buf)
                             .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
@@ -710,16 +750,30 @@ impl SplitEngine {
                             None,
                             pane_directory,
                             pane_id,
-                            remote_launch.cloned().unwrap_or_else(|| launch_command.map(|c| crate::ghostty::surface::SurfaceIoMode::Command(c.to_string())).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)),
+                            remote_launch.cloned().unwrap_or_else(|| {
+                                launch_command
+                                    .map(|c| {
+                                        crate::ghostty::surface::SurfaceIoMode::Command(
+                                            c.to_string(),
+                                        )
+                                    })
+                                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+                            }),
                         );
                         attach_terminal_context_menu(&gl_area);
-                        PaneSurface::Terminal { gl_area, uuid: *surface_uuid }
+                        PaneSurface::Terminal {
+                            gl_area,
+                            uuid: *surface_uuid,
+                        }
                     }
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
                         widgets.uuid = *surface_uuid;
                         widgets.url_entry.set_text(url);
-                        PaneSurface::Browser { widgets, uuid: *surface_uuid }
+                        PaneSurface::Browser {
+                            widgets,
+                            uuid: *surface_uuid,
+                        }
                     }
                 });
                 let initial = restored.next().unwrap_or_else(|| {
@@ -729,27 +783,68 @@ impl SplitEngine {
                         None,
                         working_directory.map(std::path::Path::to_path_buf),
                         pane_id,
-                        remote_launch.cloned().unwrap_or_else(|| launch_command.map(|c| crate::ghostty::surface::SurfaceIoMode::Command(c.to_string())).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)),
+                        remote_launch.cloned().unwrap_or_else(|| {
+                            launch_command
+                                .map(|c| {
+                                    crate::ghostty::surface::SurfaceIoMode::Command(c.to_string())
+                                })
+                                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+                        }),
                     );
                     attach_terminal_context_menu(&gl_area);
-                    PaneSurface::Terminal { gl_area, uuid: Uuid::new_v4() }
+                    PaneSurface::Terminal {
+                        gl_area,
+                        uuid: Uuid::new_v4(),
+                    }
                 });
                 let node = create_pane(pane_id, initial);
-                if let SplitNode::Leaf { notebook, surfaces: pane_surfaces, .. } = &node {
+                if let SplitNode::Leaf {
+                    notebook,
+                    surfaces: pane_surfaces,
+                    ..
+                } = &node
+                {
                     for surface in restored {
                         append_pane_surface(notebook, pane_surfaces, surface, false);
                     }
                     if let Some(active_uuid) = active_surface_uuid {
-                        if let Some(index) = pane_surfaces.borrow().iter().position(|surface| surface.uuid() == *active_uuid) {
+                        if let Some(index) = pane_surfaces
+                            .borrow()
+                            .iter()
+                            .position(|surface| surface.uuid() == *active_uuid)
+                        {
                             notebook.set_current_page(Some(index as u32));
                         }
                     }
                 }
                 Some(node)
             }
-            SplitNodeData::Split { orientation, ratio, start, end } => {
-                let start_node = Self::node_from_data(app, ghostty_app, start, next_pane_id, depth + 1, working_directory, launch_command, remote_launch)?;
-                let end_node = Self::node_from_data(app, ghostty_app, end, next_pane_id, depth + 1, working_directory, launch_command, remote_launch)?;
+            SplitNodeData::Split {
+                orientation,
+                ratio,
+                start,
+                end,
+            } => {
+                let start_node = Self::node_from_data(
+                    app,
+                    ghostty_app,
+                    start,
+                    next_pane_id,
+                    depth + 1,
+                    working_directory,
+                    launch_command,
+                    remote_launch,
+                )?;
+                let end_node = Self::node_from_data(
+                    app,
+                    ghostty_app,
+                    end,
+                    next_pane_id,
+                    depth + 1,
+                    working_directory,
+                    launch_command,
+                    remote_launch,
+                )?;
                 let gtk_orientation = match orientation.as_str() {
                     "vertical" => gtk4::Orientation::Vertical,
                     _ => gtk4::Orientation::Horizontal,
@@ -945,7 +1040,12 @@ impl SplitEngine {
             Some(inherited_config),
             self.working_directory.clone(),
             new_pane_id,
-            self.remote_launch.clone().unwrap_or_else(|| self.launch_command.clone().map(crate::ghostty::surface::SurfaceIoMode::Command).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)),
+            self.remote_launch.clone().unwrap_or_else(|| {
+                self.launch_command
+                    .clone()
+                    .map(crate::ghostty::surface::SurfaceIoMode::Command)
+                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+            }),
         );
         // Phase 9: Attach right-click context menu (D-08)
         attach_terminal_context_menu(&new_gl_area);
@@ -979,13 +1079,6 @@ impl SplitEngine {
         Some(new_pane_id)
     }
 
-    /// Allocate the next available pane ID (used by browser preview pane creation).
-    pub fn allocate_pane_id(&mut self) -> u64 {
-        let id = self.next_pane_id;
-        self.next_pane_id += 1;
-        id
-    }
-
     /// Create and select a terminal surface tab in the focused pane.
     pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
         let pane_id = self.active_pane_id;
@@ -1004,7 +1097,12 @@ impl SplitEngine {
             inherited,
             self.working_directory.clone(),
             pane_id,
-            self.remote_launch.clone().unwrap_or_else(|| self.launch_command.clone().map(crate::ghostty::surface::SurfaceIoMode::Command).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)),
+            self.remote_launch.clone().unwrap_or_else(|| {
+                self.launch_command
+                    .clone()
+                    .map(crate::ghostty::surface::SurfaceIoMode::Command)
+                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+            }),
         );
         attach_terminal_context_menu(&gl_area);
         let uuid = Uuid::new_v4();
@@ -1302,7 +1400,10 @@ impl SplitEngine {
             ));
             return CloseSurfaceResult::NotFound;
         };
-        let index = surfaces.borrow().iter().position(|surface| surface.uuid() == uuid);
+        let index = surfaces
+            .borrow()
+            .iter()
+            .position(|surface| surface.uuid() == uuid);
         let Some(index) = index else {
             crate::diagnostics::event(format_args!(
                 "surface-tab close missing surface uuid={uuid} pane={pane_id}"
@@ -1369,12 +1470,6 @@ impl SplitEngine {
         }
     }
 
-    /// Update the surface pointer for a pane after its GLArea realize callback fires.
-    /// Called by Plan 04 wiring after SURFACE_REGISTRY is populated.
-    pub fn update_surface(&mut self, pane_id: u64, surface: ffi::ghostty_surface_t) {
-        update_surface_in_tree(&mut self.root, pane_id, surface);
-    }
-
     fn find_surface(&self, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
         find_surface_in_tree(&self.root, pane_id).or_else(|| {
             // Fallback: look up in global SURFACE_REGISTRY by scanning for pane_id.
@@ -1421,7 +1516,6 @@ impl SplitEngine {
         collect_browser_tabs(&self.root, &mut tabs);
         tabs
     }
-
 }
 
 /// Return the first browser picture in a subtree for socket-driven frames.
@@ -1525,11 +1619,7 @@ fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
                 remove_widget_from_parent(&surviving_widget);
                 // Find the paned's parent and replace it with the surviving widget.
                 if let Some(parent) = paned.parent() {
-                    replace_child_in_parent(
-                        &parent,
-                        &paned.clone().upcast(),
-                        &surviving_widget,
-                    );
+                    replace_child_in_parent(&parent, &paned.clone().upcast(), &surviving_widget);
                 }
                 let surviving_id = first_pane_id(&surviving);
                 *node = surviving;
@@ -1545,11 +1635,7 @@ fn remove_leaf_from_tree(node: &mut SplitNode, target_id: u64) -> Option<u64> {
                 let surviving_widget = surviving.widget();
                 remove_widget_from_parent(&surviving_widget);
                 if let Some(parent) = paned.parent() {
-                    replace_child_in_parent(
-                        &parent,
-                        &paned.clone().upcast(),
-                        &surviving_widget,
-                    );
+                    replace_child_in_parent(&parent, &paned.clone().upcast(), &surviving_widget);
                 }
                 let surviving_id = first_pane_id(&surviving);
                 *node = surviving;
@@ -1614,11 +1700,17 @@ fn first_pane_id(node: &SplitNode) -> u64 {
 fn find_pane_tabs(
     node: &SplitNode,
     pane_id: u64,
-) -> Option<(gtk4::Notebook, std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>)> {
+) -> Option<(
+    gtk4::Notebook,
+    std::rc::Rc<std::cell::RefCell<Vec<PaneSurface>>>,
+)> {
     match node {
-        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => {
-            Some((notebook.clone(), surfaces.clone()))
-        }
+        SplitNode::Leaf {
+            pane_id: id,
+            notebook,
+            surfaces,
+            ..
+        } if *id == pane_id => Some((notebook.clone(), surfaces.clone())),
         SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
             find_pane_tabs(start, pane_id).or_else(|| find_pane_tabs(end, pane_id))
@@ -1638,9 +1730,19 @@ fn find_any_terminal_surface(node: &SplitNode, pane_id: u64) -> Option<ffi::ghos
 
 fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
     match node {
-        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
+        SplitNode::Leaf {
+            pane_id: id,
+            notebook,
+            surfaces,
+            ..
+        } if *id == pane_id => notebook
             .current_page()
-            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::terminal_area))
+            .and_then(|page| {
+                surfaces
+                    .borrow()
+                    .get(page as usize)
+                    .and_then(PaneSurface::terminal_area)
+            })
             .and_then(|area| surface_for_area(&area)),
         SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
@@ -1651,9 +1753,17 @@ fn find_surface_in_tree(node: &SplitNode, pane_id: u64) -> Option<ffi::ghostty_s
 
 fn find_gl_area_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::GLArea> {
     match node {
-        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
-            .current_page()
-            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::terminal_area)),
+        SplitNode::Leaf {
+            pane_id: id,
+            notebook,
+            surfaces,
+            ..
+        } if *id == pane_id => notebook.current_page().and_then(|page| {
+            surfaces
+                .borrow()
+                .get(page as usize)
+                .and_then(PaneSurface::terminal_area)
+        }),
         SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
             find_gl_area_in_tree(start, pane_id).or_else(|| find_gl_area_in_tree(end, pane_id))
@@ -1663,22 +1773,20 @@ fn find_gl_area_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::GLArea> 
 
 fn find_url_entry_in_tree(node: &SplitNode, pane_id: u64) -> Option<gtk4::Entry> {
     match node {
-        SplitNode::Leaf { pane_id: id, notebook, surfaces, .. } if *id == pane_id => notebook
-            .current_page()
-            .and_then(|page| surfaces.borrow().get(page as usize).and_then(PaneSurface::url_entry)),
+        SplitNode::Leaf {
+            pane_id: id,
+            notebook,
+            surfaces,
+            ..
+        } if *id == pane_id => notebook.current_page().and_then(|page| {
+            surfaces
+                .borrow()
+                .get(page as usize)
+                .and_then(PaneSurface::url_entry)
+        }),
         SplitNode::Leaf { .. } => None,
         SplitNode::Split { start, end, .. } => {
             find_url_entry_in_tree(start, pane_id).or_else(|| find_url_entry_in_tree(end, pane_id))
-        }
-    }
-}
-
-fn update_surface_in_tree(node: &mut SplitNode, pane_id: u64, surface: ffi::ghostty_surface_t) {
-    match node {
-        SplitNode::Leaf { .. } => { let _ = (pane_id, surface); }
-        SplitNode::Split { start, end, .. } => {
-            update_surface_in_tree(start, pane_id, surface);
-            update_surface_in_tree(end, pane_id, surface);
         }
     }
 }
@@ -1941,28 +2049,42 @@ impl SplitNode {
     /// Falls back to empty strings if /proc is unavailable or the pid is unknown.
     pub fn to_data(&self) -> SplitNodeData {
         match self {
-            SplitNode::Leaf { notebook, surfaces, .. } => {
+            SplitNode::Leaf {
+                notebook, surfaces, ..
+            } => {
                 let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-                let surface_data = surfaces.borrow().iter().map(|surface| match surface {
-                    PaneSurface::Terminal { gl_area, uuid } => PaneSurfaceData::Terminal {
-                        surface_uuid: *uuid,
-                        shell: shell.clone(),
-                        cwd: surface_for_area(gl_area).map(get_surface_cwd).unwrap_or_default(),
-                    },
-                    PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
-                        surface_uuid: *uuid,
-                        url: widgets.url_entry.text().to_string(),
-                    },
-                }).collect();
-                let active_surface_uuid = notebook.current_page().and_then(|page| {
-                    surfaces.borrow().get(page as usize).map(PaneSurface::uuid)
-                });
+                let surface_data = surfaces
+                    .borrow()
+                    .iter()
+                    .map(|surface| match surface {
+                        PaneSurface::Terminal { gl_area, uuid } => PaneSurfaceData::Terminal {
+                            surface_uuid: *uuid,
+                            shell: shell.clone(),
+                            cwd: surface_for_area(gl_area)
+                                .map(get_surface_cwd)
+                                .unwrap_or_default(),
+                        },
+                        PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
+                            surface_uuid: *uuid,
+                            url: widgets.url_entry.text().to_string(),
+                        },
+                    })
+                    .collect();
+                let active_surface_uuid = notebook
+                    .current_page()
+                    .and_then(|page| surfaces.borrow().get(page as usize).map(PaneSurface::uuid));
                 SplitNodeData::Pane {
                     active_surface_uuid,
                     surfaces: surface_data,
                 }
-            },
-            SplitNode::Split { orientation, paned, start, end, .. } => {
+            }
+            SplitNode::Split {
+                orientation,
+                paned,
+                start,
+                end,
+                ..
+            } => {
                 let total_size = if *orientation == gtk4::Orientation::Horizontal {
                     paned.width()
                 } else {
@@ -1983,7 +2105,7 @@ impl SplitNode {
                     start: Box::new(start.to_data()),
                     end: Box::new(end.to_data()),
                 }
-            },
+            }
         }
     }
 }
@@ -2002,7 +2124,12 @@ mod tests {
             shell: "/bin/bash".to_string(),
             cwd: "/home/user".to_string(),
         };
-        if let SplitNodeData::Leaf { surface_uuid, pane_id, .. } = data {
+        if let SplitNodeData::Leaf {
+            surface_uuid,
+            pane_id,
+            ..
+        } = data
+        {
             assert_eq!(surface_uuid, id);
             assert_eq!(pane_id, 42);
         } else {
@@ -2022,8 +2149,16 @@ mod tests {
         let json = serde_json::to_string(&leaf).expect("serialize failed");
         let restored: SplitNodeData = serde_json::from_str(&json).expect("deserialize failed");
         if let (
-            SplitNodeData::Leaf { pane_id: p1, surface_uuid: u1, .. },
-            SplitNodeData::Leaf { pane_id: p2, surface_uuid: u2, .. },
+            SplitNodeData::Leaf {
+                pane_id: p1,
+                surface_uuid: u1,
+                ..
+            },
+            SplitNodeData::Leaf {
+                pane_id: p2,
+                surface_uuid: u2,
+                ..
+            },
         ) = (&leaf, &restored)
         {
             assert_eq!(p1, p2);
@@ -2054,7 +2189,11 @@ mod tests {
 
         let json = serde_json::to_string(&pane).expect("serialize pane tabs");
         let restored: SplitNodeData = serde_json::from_str(&json).expect("restore pane tabs");
-        let SplitNodeData::Pane { active_surface_uuid, surfaces } = restored else {
+        let SplitNodeData::Pane {
+            active_surface_uuid,
+            surfaces,
+        } = restored
+        else {
             panic!("expected Pane session node");
         };
         assert_eq!(active_surface_uuid, Some(browser_uuid));
@@ -2086,18 +2225,28 @@ mod tests {
         };
         let json = serde_json::to_string(&split).expect("serialize failed");
         let restored: SplitNodeData = serde_json::from_str(&json).expect("deserialize failed");
-        if let SplitNodeData::Split { orientation, ratio, .. } = restored {
+        if let SplitNodeData::Split {
+            orientation, ratio, ..
+        } = restored
+        {
             assert_eq!(orientation, "horizontal");
-            assert!((ratio - 0.35).abs() < f64::EPSILON, "ratio not preserved in roundtrip");
+            assert!(
+                (ratio - 0.35).abs() < f64::EPSILON,
+                "ratio not preserved in roundtrip"
+            );
         } else {
             panic!("Roundtrip changed variant to non-Split");
         }
 
         // Verify v1-compat: Split without ratio field deserializes with default 0.5
         let v1_json = r#"{"type":"Split","orientation":"vertical","start":{"type":"Leaf","pane_id":1,"surface_uuid":"00000000-0000-0000-0000-000000000000","shell":"","cwd":""},"end":{"type":"Leaf","pane_id":2,"surface_uuid":"00000000-0000-0000-0000-000000000000","shell":"","cwd":""}}"#;
-        let v1_restored: SplitNodeData = serde_json::from_str(v1_json).expect("v1 deserialize failed");
+        let v1_restored: SplitNodeData =
+            serde_json::from_str(v1_json).expect("v1 deserialize failed");
         if let SplitNodeData::Split { ratio, .. } = v1_restored {
-            assert!((ratio - 0.5).abs() < f64::EPSILON, "v1 missing ratio should default to 0.5");
+            assert!(
+                (ratio - 0.5).abs() < f64::EPSILON,
+                "v1 missing ratio should default to 0.5"
+            );
         } else {
             panic!("v1 deserialize changed variant");
         }

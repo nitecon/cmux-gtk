@@ -67,6 +67,18 @@ def main():
                         return True
 
                     wait_for(complete)
+                report_path = root / "diagnostic-report.json"
+                subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
+                                "--binary", str(binary_dir / "cmux"), "--socket", str(socket),
+                                "--samples", "2", "--interval", "0.01",
+                                "--output", str(report_path)], env=env, check=True, timeout=30)
+                report = json.loads(report_path.read_text())
+                assert len(report["samples"]) == 2
+                assert report_path.stat().st_mode & 0o777 == 0o600
+                for sample in report["samples"]:
+                    assert sample["snapshot"]["pid"] == app.pid
+                    assert sample["trace_id"]
+                    assert "error" not in sample
                 if output := os.environ.get("CMUX_BENCHMARK_OUT"):
                     subprocess.run([sys.executable, "scripts/benchmark-cmux.py",
                                     "--binary", str(binary_dir / "cmux"),

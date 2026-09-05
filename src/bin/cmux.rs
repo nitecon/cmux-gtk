@@ -8,6 +8,7 @@ mod cli;
 
 use clap::Parser;
 
+/// Parse arguments and translate command failures into the documented process exit codes.
 fn main() -> std::process::ExitCode {
     let cli_args = cli::Cli::parse();
     match cli::run(cli_args) {

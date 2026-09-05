@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Top-level config loaded from ~/.config/cmux/config.toml.
-/// Phase 5: shortcuts section only (D-07).
+/// Missing sections retain their built-in defaults.
 #[derive(serde::Deserialize, Default, Debug)]
 pub struct Config {
     #[serde(default)]
@@ -54,25 +54,21 @@ pub struct UiConfig {
 /// Requires app restart to take effect.
 #[derive(serde::Deserialize, Debug)]
 pub struct HeaderBarConfig {
-    /// "gtk" (default, full header bar), "custom" (user-specified buttons), "none" (no header bar)
+    /// "none" hides the header; "gtk" and other values use the standard GTK header.
     #[serde(default = "default_header_style")]
     pub style: String,
-    /// Button names for left side (only used when style="custom")
-    pub buttons_left: Option<Vec<String>>,
-    /// Button names for right side (only used when style="custom")
-    pub buttons_right: Option<Vec<String>>,
 }
 
+/// Supply the visible GTK header when the setting is omitted.
 fn default_header_style() -> String {
     "gtk".to_string()
 }
 
 impl Default for HeaderBarConfig {
+    /// Preserve a visible header for configurations without UI settings.
     fn default() -> Self {
         Self {
             style: default_header_style(),
-            buttons_left: None,
-            buttons_right: None,
         }
     }
 }
@@ -114,12 +110,31 @@ pub struct ShortcutMap {
 
 /// Known shortcut action names for unknown-key detection.
 const KNOWN_SHORTCUTS: &[&str] = &[
-    "new_workspace", "close_workspace", "next_workspace", "prev_workspace",
-    "rename_workspace", "toggle_sidebar", "split_right", "split_down",
-    "close_pane", "new_ssh_workspace", "focus_left", "focus_right", "focus_up", "focus_down",
-    "workspace_1", "workspace_2", "workspace_3", "workspace_4",
-    "workspace_5", "workspace_6", "workspace_7", "workspace_8", "workspace_9",
-    "browser_open", "browser_close",
+    "new_workspace",
+    "close_workspace",
+    "next_workspace",
+    "prev_workspace",
+    "rename_workspace",
+    "toggle_sidebar",
+    "split_right",
+    "split_down",
+    "close_pane",
+    "new_ssh_workspace",
+    "focus_left",
+    "focus_right",
+    "focus_up",
+    "focus_down",
+    "workspace_1",
+    "workspace_2",
+    "workspace_3",
+    "workspace_4",
+    "workspace_5",
+    "workspace_6",
+    "workspace_7",
+    "workspace_8",
+    "workspace_9",
+    "browser_open",
+    "browser_close",
 ];
 
 /// Modifier mask for lookup: ignore Caps Lock, Num Lock, etc.
@@ -170,7 +185,10 @@ fn warn_unknown_shortcuts(content: &str) {
     if let Some(shortcuts) = table.get("shortcuts").and_then(|v| v.as_table()) {
         for key in shortcuts.keys() {
             if !KNOWN_SHORTCUTS.contains(&key.as_str()) {
-                eprintln!("cmux: unknown shortcut action '{}' in config, ignoring", key);
+                eprintln!(
+                    "cmux: unknown shortcut action '{}' in config, ignoring",
+                    key
+                );
             }
         }
     }
@@ -180,31 +198,87 @@ impl ShortcutMap {
     /// Build lookup table from config, falling back to defaults for unset/invalid entries.
     pub fn from_config(config: &ShortcutConfig) -> Self {
         let entries: &[(ShortcutAction, &Option<String>, &str)] = &[
-            (ShortcutAction::NewWorkspace,    &config.new_workspace,    "<Ctrl>n"),
-            (ShortcutAction::CloseWorkspace,  &config.close_workspace,  "<Ctrl><Shift>w"),
-            (ShortcutAction::NextWorkspace,   &config.next_workspace,   "<Ctrl>bracketright"),
-            (ShortcutAction::PrevWorkspace,   &config.prev_workspace,   "<Ctrl>bracketleft"),
-            (ShortcutAction::RenameWorkspace, &config.rename_workspace, "<Ctrl><Shift>r"),
-            (ShortcutAction::ToggleSidebar,   &config.toggle_sidebar,   "<Ctrl>b"),
-            (ShortcutAction::SplitRight,      &config.split_right,      "<Ctrl>d"),
-            (ShortcutAction::SplitDown,       &config.split_down,       "<Ctrl><Shift>d"),
-            (ShortcutAction::ClosePane,       &config.close_pane,       "<Ctrl><Shift>x"),
-            (ShortcutAction::NewSshWorkspace, &config.new_ssh_workspace, "<Ctrl><Shift>s"),
-            (ShortcutAction::FocusLeft,       &config.focus_left,       "<Ctrl><Shift>Left"),
-            (ShortcutAction::FocusRight,      &config.focus_right,      "<Ctrl><Shift>Right"),
-            (ShortcutAction::FocusUp,         &config.focus_up,         "<Ctrl><Shift>Up"),
-            (ShortcutAction::FocusDown,       &config.focus_down,       "<Ctrl><Shift>Down"),
-            (ShortcutAction::Workspace1,      &config.workspace_1,      "<Ctrl>1"),
-            (ShortcutAction::Workspace2,      &config.workspace_2,      "<Ctrl>2"),
-            (ShortcutAction::Workspace3,      &config.workspace_3,      "<Ctrl>3"),
-            (ShortcutAction::Workspace4,      &config.workspace_4,      "<Ctrl>4"),
-            (ShortcutAction::Workspace5,      &config.workspace_5,      "<Ctrl>5"),
-            (ShortcutAction::Workspace6,      &config.workspace_6,      "<Ctrl>6"),
-            (ShortcutAction::Workspace7,      &config.workspace_7,      "<Ctrl>7"),
-            (ShortcutAction::Workspace8,      &config.workspace_8,      "<Ctrl>8"),
-            (ShortcutAction::Workspace9,      &config.workspace_9,      "<Ctrl>9"),
-            (ShortcutAction::BrowserOpen,     &config.browser_open,     "<Ctrl><Shift>b"),
-            (ShortcutAction::BrowserClose,    &config.browser_close,    "<Ctrl><Shift>q"),
+            (
+                ShortcutAction::NewWorkspace,
+                &config.new_workspace,
+                "<Ctrl>n",
+            ),
+            (
+                ShortcutAction::CloseWorkspace,
+                &config.close_workspace,
+                "<Ctrl><Shift>w",
+            ),
+            (
+                ShortcutAction::NextWorkspace,
+                &config.next_workspace,
+                "<Ctrl>bracketright",
+            ),
+            (
+                ShortcutAction::PrevWorkspace,
+                &config.prev_workspace,
+                "<Ctrl>bracketleft",
+            ),
+            (
+                ShortcutAction::RenameWorkspace,
+                &config.rename_workspace,
+                "<Ctrl><Shift>r",
+            ),
+            (
+                ShortcutAction::ToggleSidebar,
+                &config.toggle_sidebar,
+                "<Ctrl>b",
+            ),
+            (ShortcutAction::SplitRight, &config.split_right, "<Ctrl>d"),
+            (
+                ShortcutAction::SplitDown,
+                &config.split_down,
+                "<Ctrl><Shift>d",
+            ),
+            (
+                ShortcutAction::ClosePane,
+                &config.close_pane,
+                "<Ctrl><Shift>x",
+            ),
+            (
+                ShortcutAction::NewSshWorkspace,
+                &config.new_ssh_workspace,
+                "<Ctrl><Shift>s",
+            ),
+            (
+                ShortcutAction::FocusLeft,
+                &config.focus_left,
+                "<Ctrl><Shift>Left",
+            ),
+            (
+                ShortcutAction::FocusRight,
+                &config.focus_right,
+                "<Ctrl><Shift>Right",
+            ),
+            (ShortcutAction::FocusUp, &config.focus_up, "<Ctrl><Shift>Up"),
+            (
+                ShortcutAction::FocusDown,
+                &config.focus_down,
+                "<Ctrl><Shift>Down",
+            ),
+            (ShortcutAction::Workspace1, &config.workspace_1, "<Ctrl>1"),
+            (ShortcutAction::Workspace2, &config.workspace_2, "<Ctrl>2"),
+            (ShortcutAction::Workspace3, &config.workspace_3, "<Ctrl>3"),
+            (ShortcutAction::Workspace4, &config.workspace_4, "<Ctrl>4"),
+            (ShortcutAction::Workspace5, &config.workspace_5, "<Ctrl>5"),
+            (ShortcutAction::Workspace6, &config.workspace_6, "<Ctrl>6"),
+            (ShortcutAction::Workspace7, &config.workspace_7, "<Ctrl>7"),
+            (ShortcutAction::Workspace8, &config.workspace_8, "<Ctrl>8"),
+            (ShortcutAction::Workspace9, &config.workspace_9, "<Ctrl>9"),
+            (
+                ShortcutAction::BrowserOpen,
+                &config.browser_open,
+                "<Ctrl><Shift>b",
+            ),
+            (
+                ShortcutAction::BrowserClose,
+                &config.browser_close,
+                "<Ctrl><Shift>q",
+            ),
         ];
 
         let mut map = HashMap::new();
@@ -315,20 +389,20 @@ mod tests {
     fn test_ui_config_default() {
         let config: Config = toml::from_str("").unwrap();
         assert_eq!(config.ui.header_bar.style, "gtk");
-        assert!(config.ui.header_bar.buttons_left.is_none());
     }
 
     #[test]
-    fn test_ui_config_custom_style() {
-        let config: Config = toml::from_str(r#"
+    fn test_ui_config_hidden_header_accepts_legacy_keys() {
+        let config: Config = toml::from_str(
+            r#"
 [ui.header_bar]
 style = "none"
 buttons_left = ["new_workspace"]
 buttons_right = ["split_right", "toggle_sidebar"]
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert_eq!(config.ui.header_bar.style, "none");
-        assert_eq!(config.ui.header_bar.buttons_left.as_ref().unwrap().len(), 1);
-        assert_eq!(config.ui.header_bar.buttons_right.as_ref().unwrap().len(), 2);
     }
 
     // Tests that require GTK4 initialization (accelerator_parse).
@@ -358,7 +432,10 @@ buttons_right = ["split_right", "toggle_sidebar"]
         };
         let smap = ShortcutMap::from_config(&config);
         // Ctrl+T should now map to NewWorkspace
-        assert_eq!(smap.lookup(ModifierType::CONTROL_MASK, Key::t), Some(ShortcutAction::NewWorkspace));
+        assert_eq!(
+            smap.lookup(ModifierType::CONTROL_MASK, Key::t),
+            Some(ShortcutAction::NewWorkspace)
+        );
         // Ctrl+N should no longer map to NewWorkspace
         assert_eq!(smap.lookup(ModifierType::CONTROL_MASK, Key::n), None);
     }

@@ -1,10 +1,10 @@
-use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use serde_json::Value;
 use base64::Engine as _;
 use futures_util::StreamExt;
 use gtk4::prelude::*;
+use serde_json::Value;
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use uuid::Uuid;
 
 /// Session name for the agent-browser daemon (one daemon per cmux instance).
@@ -14,12 +14,11 @@ const SESSION_NAME: &str = "cmux";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PreviewState {
     Empty,
-    Loading,
     Connected,
     Streaming,
-    Error(String),
 }
 
+/// Own daemon discovery and the preview stream task for this application session.
 pub struct BrowserManager {
     session_name: String,
     binary_path: Option<PathBuf>,
@@ -29,6 +28,7 @@ pub struct BrowserManager {
 }
 
 impl BrowserManager {
+    /// Create an idle manager; defer executable discovery and daemon startup until needed.
     pub fn new() -> Self {
         BrowserManager {
             session_name: SESSION_NAME.to_string(),
@@ -56,14 +56,17 @@ impl BrowserManager {
         std::env::temp_dir().join("agent-browser")
     }
 
+    /// Resolve the command socket for the selected agent-browser session.
     pub fn daemon_socket_path(&self) -> PathBuf {
         Self::agent_browser_socket_dir().join(format!("{}.sock", self.session_name))
     }
 
+    /// Locate the daemon's file advertising its dynamically allocated stream port.
     pub fn stream_port_path(&self) -> PathBuf {
         Self::agent_browser_socket_dir().join(format!("{}.stream", self.session_name))
     }
 
+    /// Probe socket acceptance synchronously without issuing a browser command.
     fn daemon_ready(&self) -> bool {
         std::os::unix::net::UnixStream::connect(self.daemon_socket_path()).is_ok()
     }
@@ -83,8 +86,13 @@ impl BrowserManager {
 
         // Create socket dir if needed.
         let socket_dir = Self::agent_browser_socket_dir();
-        std::fs::create_dir_all(&socket_dir)
-            .map_err(|e| format!("Failed to create socket dir {}: {}", socket_dir.display(), e))?;
+        std::fs::create_dir_all(&socket_dir).map_err(|e| {
+            format!(
+                "Failed to create socket dir {}: {}",
+                socket_dir.display(),
+                e
+            )
+        })?;
 
         // Use the public CLI to launch the browser and its daemon. The old
         // AGENT_BROWSER_DAEMON entry point is private and has changed between
@@ -146,7 +154,10 @@ impl BrowserManager {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let payload: Value = serde_json::from_str(stdout.trim()).map_err(|e| {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            format!("agent-browser returned invalid JSON ({e}): {}", stderr.trim())
+            format!(
+                "agent-browser returned invalid JSON ({e}): {}",
+                stderr.trim()
+            )
         })?;
         if !output.status.success() || payload.get("success") == Some(&Value::Bool(false)) {
             let message = payload
@@ -192,8 +203,7 @@ impl BrowserManager {
             .read_line(&mut line)
             .map_err(|e| format!("Failed to read response: {}", e))?;
 
-        serde_json::from_str(&line)
-            .map_err(|e| format!("Failed to parse response: {}", e))
+        serde_json::from_str(&line).map_err(|e| format!("Failed to parse response: {}", e))
     }
 
     /// Read the stream port from the port file.
@@ -210,10 +220,7 @@ impl BrowserManager {
     /// Shut down the daemon and clean up.
     pub fn shutdown(&mut self) {
         // Try to send close command (best-effort).
-        let _ = self.send_command(
-            "close",
-            serde_json::json!({"id": "cmux-shutdown"}),
-        );
+        let _ = self.send_command("close", serde_json::json!({"id": "cmux-shutdown"}));
 
         if let Some(task) = self.stream_task.take() {
             task.abort();
@@ -233,7 +240,9 @@ impl BrowserManager {
         let url = format!("ws://127.0.0.1:{}", port);
 
         // Only the latest frame matters; a slow GTK loop must not accumulate JPEGs.
-        if let Some(task) = self.stream_task.take() { task.abort(); }
+        if let Some(task) = self.stream_task.take() {
+            task.abort();
+        }
         let (frame_tx, mut frame_rx) = tokio::sync::watch::channel(None::<Vec<u8>>);
 
         // Spawn tokio task: WebSocket client that reads frames
@@ -259,8 +268,12 @@ impl BrowserManager {
                     if let Ok(frame) = serde_json::from_str::<serde_json::Value>(text) {
                         if frame.get("type").and_then(|t| t.as_str()) == Some("frame") {
                             if let Some(data_b64) = frame.get("data").and_then(|d| d.as_str()) {
-                                if let Ok(jpeg_bytes) = base64::engine::general_purpose::STANDARD.decode(data_b64) {
-                                    if frame_tx.send(Some(jpeg_bytes)).is_err() { break; }
+                                if let Ok(jpeg_bytes) =
+                                    base64::engine::general_purpose::STANDARD.decode(data_b64)
+                                {
+                                    if frame_tx.send(Some(jpeg_bytes)).is_err() {
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -275,8 +288,12 @@ impl BrowserManager {
         glib::MainContext::default().spawn_local(async move {
             let mut first_frame = true;
             while frame_rx.changed().await.is_ok() {
-                let Some(picture_clone) = picture_weak.upgrade() else { break; };
-                let Some(jpeg_bytes) = frame_rx.borrow_and_update().clone() else { continue; };
+                let Some(picture_clone) = picture_weak.upgrade() else {
+                    break;
+                };
+                let Some(jpeg_bytes) = frame_rx.borrow_and_update().clone() else {
+                    continue;
+                };
                 let bytes = glib::Bytes::from_owned(jpeg_bytes);
                 match gtk4::gdk::Texture::from_bytes(&bytes) {
                     Ok(texture) => {
@@ -284,7 +301,10 @@ impl BrowserManager {
                         // Hide the "No browser preview" overlay label on first frame
                         if first_frame {
                             first_frame = false;
-                            if let Some(overlay) = picture_clone.parent().and_then(|p| p.downcast::<gtk4::Overlay>().ok()) {
+                            if let Some(overlay) = picture_clone
+                                .parent()
+                                .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
+                            {
                                 if let Some(child) = overlay.first_child() {
                                     let mut sibling = child.next_sibling();
                                     while let Some(widget) = sibling {
@@ -404,50 +424,6 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
     }
 }
 
-/// Update the preview pane overlay to show the given state.
-/// Removes existing status overlays and adds the appropriate label.
-pub fn update_preview_overlay(overlay: &gtk4::Overlay, state: &PreviewState) {
-    // Remove existing overlay children (status labels).
-    // Walk siblings after the main child (Picture) and remove any status labels.
-    if let Some(child) = overlay.first_child() {
-        let mut sibling = child.next_sibling();
-        while let Some(widget) = sibling {
-            let next = widget.next_sibling();
-            if widget.has_css_class("preview-empty") || widget.has_css_class("preview-error") {
-                overlay.remove_overlay(&widget);
-            }
-            sibling = next;
-        }
-    }
-
-    match state {
-        PreviewState::Empty => {
-            let label = gtk4::Label::new(Some("No browser preview"));
-            label.add_css_class("preview-empty");
-            label.set_halign(gtk4::Align::Center);
-            label.set_valign(gtk4::Align::Center);
-            overlay.add_overlay(&label);
-        }
-        PreviewState::Loading => {
-            let label = gtk4::Label::new(Some("Starting browser..."));
-            label.add_css_class("preview-empty");
-            label.set_halign(gtk4::Align::Center);
-            label.set_valign(gtk4::Align::Center);
-            overlay.add_overlay(&label);
-        }
-        PreviewState::Connected | PreviewState::Streaming => {
-            // No overlay needed -- Picture shows frames or empty background
-        }
-        PreviewState::Error(msg) => {
-            let label = gtk4::Label::new(Some(msg.as_str()));
-            label.add_css_class("preview-error");
-            label.set_halign(gtk4::Align::Center);
-            label.set_valign(gtk4::Align::Center);
-            overlay.add_overlay(&label);
-        }
-    }
-}
-
 /// Spawn a tokio task that forwards mouse motion events to the agent-browser daemon.
 /// Events are throttled to ~16fps (60ms) to avoid flooding the daemon (D-08).
 /// The returned sender can be cloned into the GTK motion controller closure.
@@ -481,7 +457,8 @@ pub fn spawn_motion_forwarder(
                     msg.push('\n');
                     let _ = stream.write_all(msg.as_bytes());
                 }
-            }).await;
+            })
+            .await;
         }
     });
     tx
@@ -532,7 +509,10 @@ fn which_agent_browser() -> Option<PathBuf> {
             let mut candidates: Vec<(Vec<u64>, PathBuf)> = entries
                 .flatten()
                 .filter_map(|entry| {
-                    let version = entry.file_name().to_string_lossy().trim_start_matches('v')
+                    let version = entry
+                        .file_name()
+                        .to_string_lossy()
+                        .trim_start_matches('v')
                         .split('.')
                         .map(str::parse::<u64>)
                         .collect::<Result<Vec<_>, _>>()
@@ -550,10 +530,12 @@ fn which_agent_browser() -> Option<PathBuf> {
     None
 }
 
+/// Check executable discovery without launching the optional browser service.
 pub fn agent_browser_available() -> bool {
     which_agent_browser().is_some()
 }
 
+/// Prefer a system Chromium installation in the supported executable-name order.
 fn find_system_chrome() -> Option<PathBuf> {
     [
         "google-chrome-stable",
@@ -565,6 +547,7 @@ fn find_system_chrome() -> Option<PathBuf> {
     .find_map(|name| find_on_path(name))
 }
 
+/// Find the first regular file with this name on PATH; execution validates permissions.
 fn find_on_path(name: &str) -> Option<PathBuf> {
     std::env::var_os("PATH").and_then(|path| {
         std::env::split_paths(&path)

@@ -2,12 +2,11 @@
 //! Usage: cargo run --bin cmux-generate
 //! Outputs to packaging/completions/ and packaging/man/
 //!
-//! NOTE: Uses #[path] to include the CLI module directly instead of
-//! going through lib.rs. A lib.rs target breaks ghostty FFI linking
-//! for cmux-app (see commit fd436c5b).
+//! Only the command schema is shared; socket and update implementations are not
+//! compiled into this generator.
 
-#[path = "../cli/mod.rs"]
-mod cli;
+#[path = "../cli/args.rs"]
+mod args;
 
 use clap::CommandFactory;
 use clap_complete::{generate_to, Shell};
@@ -15,7 +14,7 @@ use clap_mangen::Man;
 use std::fs;
 use std::path::Path;
 
-use cli::Cli;
+use args::Cli;
 
 /// Generate CLI completions and normalized man-page output from the command schema.
 fn main() -> std::io::Result<()> {
@@ -39,7 +38,11 @@ fn main() -> std::io::Result<()> {
     man.render(&mut buf)?;
     let text = String::from_utf8(buf)
         .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
-    let normalized = text.lines().map(str::trim_end).collect::<Vec<_>>().join("\n");
+    let normalized = text
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n");
     fs::write(man_dir.join("cmux.1"), format!("{normalized}\n"))?;
     eprintln!("Generated: packaging/man/cmux.1");
 

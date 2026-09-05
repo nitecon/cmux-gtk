@@ -27,3 +27,15 @@ Run repeatable optimized workloads in CI for startup, command round trips, works
 Distinguish software-rendered CI measurements from physical GPU/Wayland measurements. Establish baselines before adding performance gates. Functional lifecycle bounds can be asserted; shared-runner timing thresholds need evidence to avoid flaky tests. Demonstrate correlation and bounded diagnostic overhead through executable tests, including failure/cancellation paths.
 
 The applicable gateway performance and logging principles are recorded in [Patterns](CodingStandards/Patterns.md). This scope does not require deploying a collector or external monitoring service to use cmux.
+
+## Collect an issue report
+
+While reproducing an issue, run from a checkout:
+
+```sh
+python3 scripts/collect-cmux-diagnostics.py --output cmux-diagnostics.json
+```
+
+The collector takes 12 resource snapshots five seconds apart using the installed `cmux`. Use `--binary target/release/cmux` for a local build and `--socket PATH` for a specific instance. Each sample includes CLI round-trip time and a trace UUID that can be matched against `rpc.complete` in the application's diagnostic log. Snapshot collection runs off GTK, so it can diagnose resource pressure even when GTK commands stall; use the ping benchmark to measure GTK dispatch responsiveness.
+
+The report is created with mode 0600 and refuses to overwrite an existing file. It contains process/build metadata, resource samples and logger health; it does not collect application logs, terminal contents, clipboard data, workspace paths or environment dumps. Failures are retained as error categories with exit status rather than raw command output, and the collector exits nonzero if any sample fails. The default collection takes about one minute plus command time. Review the report before attaching it to an issue. Diagnostic log collection and additional workload benchmarks remain pending.

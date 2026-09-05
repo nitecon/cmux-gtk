@@ -37,7 +37,8 @@ pub struct AppState {
     /// Handles to SSH lifecycle tasks, keyed by workspace id. Used for cleanup on close.
     pub ssh_task_handles: std::collections::HashMap<u64, tokio::task::JoinHandle<()>>,
     /// Maps workspace_id -> SshBridge for remote workspaces.
-    pub workspace_bridges: std::collections::HashMap<u64, std::sync::Arc<crate::ssh::bridge::SshBridge>>,
+    pub workspace_bridges:
+        std::collections::HashMap<u64, std::sync::Arc<crate::ssh::bridge::SshBridge>>,
     /// Browser preview daemon manager (Phase 8).
     pub browser_manager: Option<crate::browser::BrowserManager>,
     /// Next browser surface short-ref counter (monotonically increasing, per D-06).
@@ -86,7 +87,11 @@ impl AppState {
     }
 
     /// Create a local workspace bound to an existing directory.
-    pub fn create_workspace_in(&mut self, name: String, working_directory: &Path) -> Result<u64, String> {
+    pub fn create_workspace_in(
+        &mut self,
+        name: String,
+        working_directory: &Path,
+    ) -> Result<u64, String> {
         let (name, working_directory) =
             crate::workspace::prepare_local_workspace(&name, working_directory)?;
         Ok(self.create_workspace_bound(name, working_directory))
@@ -97,25 +102,40 @@ impl AppState {
         self.create_local_workspace(Some(name), Some(working_directory), None)
     }
 
-    pub fn create_script_workspace(&mut self, name: String, directory: &Path, script: &Path) -> Result<u64, String> {
+    pub fn create_script_workspace(
+        &mut self,
+        name: String,
+        directory: &Path,
+        script: &Path,
+    ) -> Result<u64, String> {
         let (name, directory) = crate::workspace::prepare_local_workspace(&name, directory)?;
         let script = crate::workspace::prepare_startup_script(script)?;
         Ok(self.create_local_workspace(Some(name), Some(directory), Some(script)))
     }
 
-    fn create_local_workspace(&mut self, name: Option<String>, working_directory: Option<PathBuf>, startup_script: Option<PathBuf>) -> u64 {
+    fn create_local_workspace(
+        &mut self,
+        name: Option<String>,
+        working_directory: Option<PathBuf>,
+        startup_script: Option<PathBuf>,
+    ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         let display_number = self.next_display_number;
         self.next_display_number += 1;
 
         let mut workspace = match (name, working_directory) {
-            (Some(name), Some(directory)) => Workspace::new_bound(id, display_number, name, directory),
+            (Some(name), Some(directory)) => {
+                Workspace::new_bound(id, display_number, name, directory)
+            }
             _ => Workspace::new(id, display_number),
         };
 
         workspace.startup_script = startup_script;
-        let launch_command = workspace.startup_script.as_deref().map(crate::workspace::startup_command);
+        let launch_command = workspace
+            .startup_script
+            .as_deref()
+            .map(crate::workspace::startup_command);
         // Phase 9: Use shared row builder for consistent layout including close button
         let hbox = crate::sidebar::workspace_row_content(&workspace);
 
@@ -134,8 +154,15 @@ impl AppState {
             id, pane_id
         );
         let (gl_area, surface_cell) = crate::ghostty::surface::create_surface(
-            &self.gtk_app, self.ghostty_app, None, workspace.working_directory.clone(), pane_id,
-            launch_command.clone().map(crate::ghostty::surface::SurfaceIoMode::Command).unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec),
+            &self.gtk_app,
+            self.ghostty_app,
+            None,
+            workspace.working_directory.clone(),
+            pane_id,
+            launch_command
+                .clone()
+                .map(crate::ghostty::surface::SurfaceIoMode::Command)
+                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec),
         );
         let mut engine = SplitEngine::new(
             self.gtk_app.clone(),
@@ -165,7 +192,7 @@ impl AppState {
     }
 
     /// Restore a workspace from a session snapshot (SESS-02).
-    /// Creates sidebar row, uses SplitEngine::from_data() for full tree restore.
+    /// Creates sidebar row, reconstructs the saved split tree with its launch context.
     /// Returns the workspace id, or None if tree is invalid (D-14 depth limit).
     pub fn restore_workspace(&mut self, ws: &crate::session::WorkspaceSession) -> Option<u64> {
         let id = self.next_id;
@@ -176,7 +203,10 @@ impl AppState {
         let mut workspace = Workspace::new(id, display_number);
         workspace.name = ws.name.clone();
         workspace.uuid = uuid::Uuid::parse_str(&ws.uuid).unwrap_or_else(|_| uuid::Uuid::new_v4());
-        workspace.color = ws.color.clone().filter(|c| crate::workspace::valid_workspace_color(c));
+        workspace.color = ws
+            .color
+            .clone()
+            .filter(|c| crate::workspace::valid_workspace_color(c));
         workspace.startup_script = ws.startup_script.clone();
         workspace.remote_directory = ws.remote_directory.clone();
         workspace.working_directory = ws.working_directory.clone();
@@ -188,9 +218,13 @@ impl AppState {
             workspace.connection_state = ConnectionState::Reconnecting(0);
             bridge
         });
-        let remote_launch = remote_bridge.as_ref().map(|bridge| crate::ghostty::surface::SurfaceIoMode::Remote {
-            bridge: bridge.clone(), ssh_tx: self.ssh_event_tx.clone().unwrap(),
-        });
+        let remote_launch =
+            remote_bridge
+                .as_ref()
+                .map(|bridge| crate::ghostty::surface::SurfaceIoMode::Remote {
+                    bridge: bridge.clone(),
+                    ssh_tx: self.ssh_event_tx.clone().unwrap(),
+                });
 
         // Phase 9: Use shared row builder for consistent layout including close button
         let hbox = crate::sidebar::workspace_row_content(&workspace);
@@ -198,7 +232,9 @@ impl AppState {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&hbox));
         crate::sidebar::style_workspace_row(&row, &workspace);
-        unsafe { row.set_data("workspace-id", id); }
+        unsafe {
+            row.set_data("workspace-id", id);
+        }
 
         // Build split tree from session data (D-05)
         let engine = crate::split_engine::SplitEngine::from_data_with_command(
@@ -207,22 +243,31 @@ impl AppState {
             &ws.layout,
             ws.active_pane_uuid.as_deref(),
             ws.working_directory.clone(),
-            ws.startup_script.as_deref().map(crate::workspace::startup_command),
+            ws.startup_script
+                .as_deref()
+                .map(crate::workspace::startup_command),
             remote_launch,
         )?;
 
         self.sidebar_list.append(&row);
         // Add to stack
         let page_name = format!("workspace-{}", id);
-        self.stack.add_named(&engine.root_widget(), Some(&page_name));
+        self.stack
+            .add_named(&engine.root_widget(), Some(&page_name));
         workspace.stack_page_name = page_name;
 
         self.workspaces.push(workspace);
         self.split_engines.push(engine);
 
         if let (Some(bridge), Some(target)) = (remote_bridge, ws.remote_target.clone()) {
-            if let (Some(rt), Some(tx)) = (self.runtime_handle.as_ref(), self.ssh_event_tx.clone()) {
-                let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(id, target, tx, bridge.clone()));
+            if let (Some(rt), Some(tx)) = (self.runtime_handle.as_ref(), self.ssh_event_tx.clone())
+            {
+                let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
+                    id,
+                    target,
+                    tx,
+                    bridge.clone(),
+                ));
                 self.ssh_task_handles.insert(id, handle);
             }
             self.workspace_bridges.insert(id, bridge);
@@ -235,7 +280,9 @@ impl AppState {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&crate::sidebar::workspace_row_content(workspace)));
         crate::sidebar::style_workspace_row(&row, workspace);
-        unsafe { row.set_data("workspace-id", workspace.id); }
+        unsafe {
+            row.set_data("workspace-id", workspace.id);
+        }
         row
     }
 
@@ -259,7 +306,10 @@ impl AppState {
         let pane_id = id * 1000;
         let remote_launch = crate::ghostty::surface::SurfaceIoMode::Remote {
             bridge: bridge.clone(),
-            ssh_tx: self.ssh_event_tx.clone().expect("SSH event channel initialized"),
+            ssh_tx: self
+                .ssh_event_tx
+                .clone()
+                .expect("SSH event channel initialized"),
         };
         let (gl_area, surface_cell) = crate::ghostty::surface::create_surface(
             &self.gtk_app,
@@ -412,7 +462,9 @@ impl AppState {
 
     /// Move a workspace and its engine together while retaining active identity and focus.
     pub fn reorder_workspace(&mut self, from: usize, to: usize) -> bool {
-        if from >= self.workspaces.len() || to >= self.workspaces.len() || from == to { return false; }
+        if from >= self.workspaces.len() || to >= self.workspaces.len() || from == to {
+            return false;
+        }
         let active_id = self.workspaces[self.active_index].id;
         let workspace = self.workspaces.remove(from);
         self.workspaces.insert(to, workspace);
@@ -422,14 +474,27 @@ impl AppState {
             self.sidebar_list.remove(&row);
             self.sidebar_list.insert(&row, to as i32);
         }
-        self.active_index = self.workspaces.iter().position(|w| w.id == active_id).unwrap();
-        self.sidebar_list.select_row(self.sidebar_list.row_at_index(self.active_index as i32).as_ref());
+        self.active_index = self
+            .workspaces
+            .iter()
+            .position(|w| w.id == active_id)
+            .unwrap();
+        self.sidebar_list.select_row(
+            self.sidebar_list
+                .row_at_index(self.active_index as i32)
+                .as_ref(),
+        );
         self.trigger_session_save();
         true
     }
 
     pub fn set_workspace_color(&mut self, id: u64, color: Option<String>) {
-        if color.as_deref().is_some_and(|c| !crate::workspace::valid_workspace_color(c)) { return; }
+        if color
+            .as_deref()
+            .is_some_and(|c| !crate::workspace::valid_workspace_color(c))
+        {
+            return;
+        }
         if let Some(index) = self.workspaces.iter().position(|w| w.id == id) {
             self.workspaces[index].color = color;
             if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
@@ -505,11 +570,14 @@ impl AppState {
                 self.update_sidebar_attention(idx);
 
                 // Desktop notification when window is unfocused (NOTF-03)
-                let window_focused = self.gtk_app.active_window()
+                let window_focused = self
+                    .gtk_app
+                    .active_window()
                     .map(|w| w.is_active())
                     .unwrap_or(false);
                 if !window_focused && self.workspaces[idx].has_attention {
-                    let should_notify = self.workspaces[idx].last_notification
+                    let should_notify = self.workspaces[idx]
+                        .last_notification
                         .map(|t| t.elapsed() >= std::time::Duration::from_secs(5))
                         .unwrap_or(true);
                     if should_notify {
@@ -536,7 +604,9 @@ impl AppState {
     /// Update the sidebar dot visibility for workspace at `index`.
     fn update_sidebar_attention(&self, index: usize) {
         if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
-            let has_attention = self.workspaces.get(index)
+            let has_attention = self
+                .workspaces
+                .get(index)
                 .map(|ws| ws.has_attention)
                 .unwrap_or(false);
             // Row layout: GtkBox(H) > [GtkBox(V) > [GtkLabel(name)], GtkLabel(dot)]
@@ -567,37 +637,42 @@ impl AppState {
                 let session = crate::session::SessionData {
                     version: 3, // Per-pane terminal/browser tabs and persisted URLs
                     active_index: self.active_index,
-                    workspaces: self.workspaces.iter().enumerate().map(|(i, ws)| {
-                        // D-02: save full split tree for ALL workspaces
-                        let layout = if i < self.split_engines.len() {
-                            self.split_engines[i].root.to_data()
-                        } else {
-                            // Fallback: shouldn't happen, but be safe
-                            crate::split_engine::SplitNodeData::Leaf {
-                                pane_id: 0,
-                                surface_uuid: uuid::Uuid::nil(),
-                                shell: String::new(),
-                                cwd: String::new(),
+                    workspaces: self
+                        .workspaces
+                        .iter()
+                        .enumerate()
+                        .map(|(i, ws)| {
+                            // D-02: save full split tree for ALL workspaces
+                            let layout = if i < self.split_engines.len() {
+                                self.split_engines[i].root.to_data()
+                            } else {
+                                // Fallback: shouldn't happen, but be safe
+                                crate::split_engine::SplitNodeData::Leaf {
+                                    pane_id: 0,
+                                    surface_uuid: uuid::Uuid::nil(),
+                                    shell: String::new(),
+                                    cwd: String::new(),
+                                }
+                            };
+                            // D-04: save active_pane_uuid per workspace
+                            let active_pane_uuid = if i < self.split_engines.len() {
+                                self.split_engines[i].active_pane_uuid()
+                            } else {
+                                None
+                            };
+                            crate::session::WorkspaceSession {
+                                uuid: ws.uuid.to_string(),
+                                name: ws.name.clone(),
+                                color: ws.color.clone(),
+                                startup_script: ws.startup_script.clone(),
+                                remote_target: ws.remote_target.clone(),
+                                remote_directory: ws.remote_directory.clone(),
+                                working_directory: ws.working_directory.clone(),
+                                active_pane_uuid,
+                                layout,
                             }
-                        };
-                        // D-04: save active_pane_uuid per workspace
-                        let active_pane_uuid = if i < self.split_engines.len() {
-                            self.split_engines[i].active_pane_uuid()
-                        } else {
-                            None
-                        };
-                        crate::session::WorkspaceSession {
-                            uuid: ws.uuid.to_string(),
-                            name: ws.name.clone(),
-                            color: ws.color.clone(),
-                            startup_script: ws.startup_script.clone(),
-                            remote_target: ws.remote_target.clone(),
-                            remote_directory: ws.remote_directory.clone(),
-                            working_directory: ws.working_directory.clone(),
-                            active_pane_uuid,
-                            layout,
-                        }
-                    }).collect(),
+                        })
+                        .collect(),
                 };
                 let _ = tx.send(Some(session));
             }
