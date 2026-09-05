@@ -442,3 +442,20 @@ A new explicit Xvfb CI step exercises mapping, selected-terminal GTK focus and
 owner release with pending recovery callbacks. It does not establish native pixel
 correctness or real pointer-divider gesture behavior. Local binary and test-target
 compilation passed; no tests ran locally. Full runtime verification remains pending.
+
+
+### Terminal-local resize and unlocked render dispatch
+
+A terminal resize now queues drawing only for its own mapped GLArea after the
+synchronous native size update and mailbox tick. Other terminals receive their own
+resize signals or targeted native render actions. This removes the per-resize
+application-wide widget scan. Native render dispatch now releases the mapping lock
+before inspecting or scheduling GTK widgets, avoiding the old nested global locks.
+Surface-specific requests allocate no snapshot; application-wide requests copy
+registered widget identities before dispatch. Mapping lifetime and GTK-thread
+preconditions are documented beside the conversion helper.
+
+Local workspace binary checking and diff validation passed. Existing headless
+terminal lifecycle, clipboard and sustained rendering CI scenarios provide runtime
+coverage, which is not yet confirmed for this commit. No benchmark improvement or
+OOM resolution is claimed from compilation alone.

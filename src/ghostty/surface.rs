@@ -363,7 +363,7 @@ pub fn create_surface(
     // Do NOT bounce focus (false→true) here. The cursor blink timer is
     // independent of resize — ghostty_surface_set_size only calls setScreenSize
     // on the renderer; it does not cancel the blink timer. A false→true bounce
-    // kills the timer via an async cancel race (see restore_active_pane_focus).
+    // can race the native renderer timer cancellation.
     {
         let cell = surface_cell.clone();
         let init = surface_init.clone();
@@ -400,15 +400,9 @@ pub fn create_surface(
                     ffi::ghostty_app_tick(app);
                 }
             }
-            if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-                for area_ptr in areas.iter() {
-                    let area: glib::translate::Borrowed<gtk4::GLArea> =
-                        unsafe { glib::translate::from_glib_borrow(area_ptr.0) };
-                    if area.is_realized() {
-                        area.queue_render();
-                        area.queue_draw(); // Gap 1B: repaints CSS border
-                    }
-                }
+            if area.is_mapped() {
+                area.queue_render();
+                area.queue_draw();
             }
         });
     }

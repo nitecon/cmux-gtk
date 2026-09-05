@@ -72,7 +72,7 @@ pub unsafe extern "C" fn wakeup_cb(_userdata: *mut std::ffi::c_void) {
 }
 
 /// Maps GLArea raw pointer (as usize) → surface pointer (as usize).
-/// Used by notify::position handler to restore Ghostty focus after divider drag.
+/// GTK-thread owners remove entries before freeing widgets or native surfaces.
 pub static GL_TO_SURFACE: LazyLock<Mutex<HashMap<usize, usize>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -144,28 +144,41 @@ pub unsafe extern "C" fn action_cb(
         } else {
             None
         };
-        let mappings = GL_TO_SURFACE.lock().ok();
-        if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
-            for area_ptr in areas.iter() {
-                if let Some(target) = target {
-                    if mappings
-                        .as_ref()
-                        .and_then(|map| map.get(&(area_ptr.0 as usize)))
-                        .copied()
-                        != Some(target)
-                    {
-                        continue;
-                    }
-                }
-                let area: glib::translate::Borrowed<gtk4::GLArea> =
-                    unsafe { glib::translate::from_glib_borrow(area_ptr.0) };
-                if area.is_mapped() {
-                    area.queue_render();
-                }
-            }
-        }
+        queue_render_target(target);
         return true;
     }
     // Phase 1 ignores all other actions — return false (unhandled)
     false
+}
+
+
+/// Route native redraws on the GTK thread without retaining registry locks during GTK calls.
+/// Surface requests avoid allocation; application requests snapshot the currently owned widgets.
+fn queue_render_target(target: Option<usize>) {
+    if let Some(target) = target {
+        let area = GL_TO_SURFACE.lock().ok().and_then(|mappings| {
+            mappings.iter().find(|(_, surface)| **surface == target).map(|(area, _)| *area)
+        });
+        if let Some(area) = area {
+            queue_mapped_area(area);
+        }
+    } else {
+        let areas: Vec<usize> = GL_TO_SURFACE.lock().ok()
+            .map(|mappings| mappings.keys().copied().collect()).unwrap_or_default();
+        for area in areas {
+            queue_mapped_area(area);
+        }
+    }
+}
+
+/// Schedule painting for a live registered widget on GTK; hidden tabs need no frame.
+fn queue_mapped_area(pointer: usize) {
+    // SAFETY: the caller obtained this pointer from the live registry on the GTK
+    // thread. No event-loop iteration or native callback occurs between lookup and
+    // use; widget teardown also runs on this thread. queue_render only schedules work.
+    let area: glib::translate::Borrowed<gtk4::GLArea> =
+        unsafe { glib::translate::from_glib_borrow(pointer as *mut ffi::GtkGLArea) };
+    if area.is_mapped() {
+        area.queue_render();
+    }
 }
