@@ -1,6 +1,5 @@
 //! Application shortcut installation and workspace/pane action entry points.
 
-pub(crate) use crate::browser::ui::wire_browser_tab;
 pub use crate::browser::ui::{handle_browser_close, handle_browser_open, restore_browser_tabs};
 
 use crate::app_state::AppState;
