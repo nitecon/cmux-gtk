@@ -67,7 +67,10 @@ pub fn start_socket_server(
     }
 
     // Write last-socket-path marker so cmux.py can discover the socket.
-    if let Err(e) = std::fs::write(last_socket_path_marker(), sock_path.to_string_lossy().as_bytes()) {
+    if let Err(e) = std::fs::write(
+        last_socket_path_marker(),
+        sock_path.to_string_lossy().as_bytes(),
+    ) {
         eprintln!("cmux: last-socket-path write failed: {e}");
     }
 
@@ -114,8 +117,12 @@ async fn handle_connection(
 
     while let Ok(Some(line)) = lines.next_line().await {
         let response = dispatch_line(&line, &cmd_tx).await;
-        if writer.write_all(response.as_bytes()).await.is_err() { break; }
-        if writer.write_all(b"\n").await.is_err() { break; }
+        if writer.write_all(response.as_bytes()).await.is_err() {
+            break;
+        }
+        if writer.write_all(b"\n").await.is_err() {
+            break;
+        }
     }
 }
 
@@ -132,45 +139,80 @@ async fn dispatch_line(
                 "id": null,
                 "ok": false,
                 "error": {"code": "parse_error", "message": "invalid JSON"}
-            }).to_string();
+            })
+            .to_string();
         }
     };
 
     let req_id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
-    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("").to_string();
-    let params = req.get("params").cloned().unwrap_or(serde_json::Value::Object(Default::default()));
+    let method = req
+        .get("method")
+        .and_then(|m| m.as_str())
+        .unwrap_or("")
+        .to_string();
+    let params = req
+        .get("params")
+        .cloned()
+        .unwrap_or(serde_json::Value::Object(Default::default()));
 
     let mut operation = crate::diagnostics::Operation::begin(
-        &method, req.get("trace_id").and_then(|id| id.as_str()),
+        &method,
+        req.get("trace_id").and_then(|id| id.as_str()),
     );
     // Early validation failures below are errors; cancellation while awaiting
     // execution is reset explicitly before yielding to the response channel.
     operation.finish(false);
 
     if method == "system.diagnostics" {
+        operation.pending();
         return match tokio::task::spawn_blocking(crate::diagnostics::snapshot).await {
             Ok(snapshot) => {
                 operation.finish(true);
                 serde_json::json!({"id": req_id, "ok": true, "result": snapshot}).to_string()
-            },
-            Err(_) => serde_json::json!({"id": req_id, "ok": false, "error": {
-                "code": "internal_error", "message": "diagnostic sampling failed"
-            }}).to_string(),
+            }
+            Err(_) => {
+                operation.finish(false);
+                serde_json::json!({"id": req_id, "ok": false, "error": {
+                    "code": "internal_error", "message": "diagnostic sampling failed"
+                }})
+                .to_string()
+            }
         };
     }
 
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
-        "system.ping" => commands::SocketCommand::Ping { req_id: req_id.clone(), resp_tx },
-        "system.identify" => commands::SocketCommand::Identify { req_id: req_id.clone(), resp_tx },
-        "system.capabilities" => commands::SocketCommand::Capabilities { req_id: req_id.clone(), resp_tx },
+        "system.ping" => commands::SocketCommand::Ping {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "system.identify" => commands::SocketCommand::Identify {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "system.capabilities" => commands::SocketCommand::Capabilities {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
 
-        "workspace.list" => commands::SocketCommand::WorkspaceList { req_id: req_id.clone(), resp_tx },
-        "workspace.current" => commands::SocketCommand::WorkspaceCurrent { req_id: req_id.clone(), resp_tx },
+        "workspace.list" => commands::SocketCommand::WorkspaceList {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "workspace.current" => commands::SocketCommand::WorkspaceCurrent {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
         "workspace.create" => {
-            let remote_target = params.get("remote_target").and_then(|v| v.as_str()).map(String::from);
-            let mut name = params.get("name").and_then(|v| v.as_str()).map(String::from);
+            let remote_target = params
+                .get("remote_target")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let mut name = params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             let working_directory = params
                 .get("working_directory")
                 .or_else(|| params.get("cwd"))
@@ -178,7 +220,8 @@ async fn dispatch_line(
             let working_directory = if remote_target.is_none() {
                 match working_directory {
                     Some(path) => match crate::workspace::prepare_local_workspace(
-                        name.as_deref().unwrap_or(""), std::path::Path::new(path),
+                        name.as_deref().unwrap_or(""),
+                        std::path::Path::new(path),
                     ) {
                         Ok((prepared_name, path)) => {
                             name = Some(prepared_name);
@@ -189,7 +232,8 @@ async fn dispatch_line(
                                 "id": req_id,
                                 "ok": false,
                                 "error": {"code": "invalid_directory", "message": message}
-                            }).to_string();
+                            })
+                            .to_string();
                         }
                     },
                     None => None,
@@ -198,62 +242,118 @@ async fn dispatch_line(
                 None
             };
             commands::SocketCommand::WorkspaceCreate {
-                req_id: req_id.clone(), remote_target, name, working_directory, resp_tx,
+                req_id: req_id.clone(),
+                remote_target,
+                name,
+                working_directory,
+                resp_tx,
             }
-        },
+        }
         "workspace.select" => commands::SocketCommand::WorkspaceSelect {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "workspace.close" => commands::SocketCommand::WorkspaceClose {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "workspace.rename" => commands::SocketCommand::WorkspaceRename {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            name: params.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            name: params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
-        "workspace.next" => commands::SocketCommand::WorkspaceNext { req_id: req_id.clone(), resp_tx },
-        "workspace.previous" => commands::SocketCommand::WorkspacePrev { req_id: req_id.clone(), resp_tx },
-        "workspace.last" => commands::SocketCommand::WorkspaceLast { req_id: req_id.clone(), resp_tx },
+        "workspace.next" => commands::SocketCommand::WorkspaceNext {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "workspace.previous" => commands::SocketCommand::WorkspacePrev {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "workspace.last" => commands::SocketCommand::WorkspaceLast {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
         "workspace.reorder" => commands::SocketCommand::WorkspaceReorder {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             position: params.get("position").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
             resp_tx,
         },
 
-        "surface.list" => commands::SocketCommand::SurfaceList { req_id: req_id.clone(), resp_tx },
+        "surface.list" => commands::SocketCommand::SurfaceList {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
         "surface.split" => commands::SocketCommand::SurfaceSplit {
             req_id: req_id.clone(),
             id: params.get("id").and_then(|v| v.as_str()).map(String::from),
-            direction: params.get("direction").and_then(|v| v.as_str()).unwrap_or("horizontal").to_string(),
+            direction: params
+                .get("direction")
+                .and_then(|v| v.as_str())
+                .unwrap_or("horizontal")
+                .to_string(),
             resp_tx,
         },
         "surface.focus" => commands::SocketCommand::SurfaceFocus {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "surface.close" => commands::SocketCommand::SurfaceClose {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "surface.send_text" => commands::SocketCommand::SurfaceSendText {
             req_id: req_id.clone(),
             id: params.get("id").and_then(|v| v.as_str()).map(String::from),
-            text: params.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            text: params
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "surface.send_key" => commands::SocketCommand::SurfaceSendKey {
             req_id: req_id.clone(),
             id: params.get("id").and_then(|v| v.as_str()).map(String::from),
-            key: params.get("key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            key: params
+                .get("key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
         "surface.read_text" => commands::SocketCommand::SurfaceReadText {
@@ -272,21 +372,40 @@ async fn dispatch_line(
             resp_tx,
         },
 
-        "pane.list" => commands::SocketCommand::PaneList { req_id: req_id.clone(), resp_tx },
+        "pane.list" => commands::SocketCommand::PaneList {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
         "pane.focus" => commands::SocketCommand::PaneFocus {
             req_id: req_id.clone(),
             id: params.get("id").and_then(|v| v.as_str()).map(String::from),
             resp_tx,
         },
-        "pane.last" => commands::SocketCommand::PaneLast { req_id: req_id.clone(), resp_tx },
+        "pane.last" => commands::SocketCommand::PaneLast {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
 
-        "window.list" => commands::SocketCommand::WindowList { req_id: req_id.clone(), resp_tx },
-        "window.current" => commands::SocketCommand::WindowCurrent { req_id: req_id.clone(), resp_tx },
+        "window.list" => commands::SocketCommand::WindowList {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "window.current" => commands::SocketCommand::WindowCurrent {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
 
-        "debug.layout" => commands::SocketCommand::DebugLayout { req_id: req_id.clone(), resp_tx },
+        "debug.layout" => commands::SocketCommand::DebugLayout {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
         "debug.type" => commands::SocketCommand::DebugType {
             req_id: req_id.clone(),
-            text: params.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            text: params
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
 
@@ -296,14 +415,25 @@ async fn dispatch_line(
         },
         "notification.clear" => commands::SocketCommand::NotificationClear {
             req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            id: params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
             resp_tx,
         },
 
         "browser.open" => commands::SocketCommand::BrowserOpen {
             req_id: req_id.clone(),
-            url: params.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            workspace: params.get("workspace").and_then(|v| v.as_str()).map(String::from),
+            url: params
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            workspace: params
+                .get("workspace")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             resp_tx,
         },
         "browser.stream.enable" => commands::SocketCommand::BrowserStreamEnable {
@@ -322,7 +452,10 @@ async fn dispatch_line(
         // Route all other browser.* methods to the generic proxy (P0/P1 parity)
         _ if method.starts_with("browser.") => {
             let action = method.strip_prefix("browser.").unwrap().to_string();
-            let surface_ref = params.get("surface_ref").and_then(|v| v.as_str()).map(String::from);
+            let surface_ref = params
+                .get("surface_ref")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             commands::SocketCommand::BrowserAction {
                 req_id: req_id.clone(),
                 action,
@@ -340,23 +473,33 @@ async fn dispatch_line(
     };
 
     let observed = commands::SocketCommand::Observed {
-        command: Box::new(cmd), trace_id: operation.id, queued_at: std::time::Instant::now(),
+        command: Box::new(cmd),
+        trace_id: operation.id,
+        queued_at: std::time::Instant::now(),
     };
     if cmd_tx.send(observed).is_err() {
         return serde_json::json!({
             "id": req_id,
             "ok": false,
             "error": {"code": "internal_error", "message": "handler channel closed"}
-        }).to_string();
+        })
+        .to_string();
     }
 
     operation.pending();
-    let response = resp_rx.await.unwrap_or_else(|_| serde_json::json!({
-        "id": req_id,
-        "ok": false,
-        "error": {"code": "internal_error", "message": "handler dropped response"}
-    }));
-    operation.finish(response.get("ok").and_then(|value| value.as_bool()).unwrap_or(false));
+    let response = resp_rx.await.unwrap_or_else(|_| {
+        serde_json::json!({
+            "id": req_id,
+            "ok": false,
+            "error": {"code": "internal_error", "message": "handler dropped response"}
+        })
+    });
+    operation.finish(
+        response
+            .get("ok")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false),
+    );
     response.to_string()
 }
 
@@ -369,15 +512,23 @@ mod tests {
     fn test_socket_path_creation() {
         unsafe { std::env::set_var("XDG_RUNTIME_DIR", "/tmp/test-xdg") };
         let path = socket_path();
-        assert_eq!(path, std::path::PathBuf::from("/tmp/test-xdg/cmux/cmux.sock"));
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("/tmp/test-xdg/cmux/cmux.sock")
+        );
     }
 
     /// SOCK-05: Focus policy whitelist is documented.
     #[test]
     fn test_focus_policy() {
         let focus_intent_methods = [
-            "workspace.select", "pane.focus", "pane.last", "surface.focus",
-            "workspace.next", "workspace.previous", "workspace.last",
+            "workspace.select",
+            "pane.focus",
+            "pane.last",
+            "surface.focus",
+            "workspace.next",
+            "workspace.previous",
+            "workspace.last",
         ];
         assert!(!focus_intent_methods.is_empty());
     }
@@ -393,6 +544,9 @@ mod tests {
         let response: serde_json::Value = serde_json::from_str(&response).unwrap();
         assert_eq!(response["ok"], false);
         assert_eq!(response["error"]["code"], "invalid_directory");
-        assert!(rx.try_recv().is_err(), "invalid request reached GTK dispatch");
+        assert!(
+            rx.try_recv().is_err(),
+            "invalid request reached GTK dispatch"
+        );
     }
 }

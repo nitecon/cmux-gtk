@@ -45,6 +45,20 @@ def main():
                 assert snapshot["resources"]["rss_kib"] > 0
                 assert snapshot["resources"]["threads"] > 0
                 assert snapshot["logging"]["active"]
+
+                def heartbeat_ready():
+                    """Observe the GTK heartbeat through the background snapshot command."""
+                    result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
+                                            capture_output=True, check=True, timeout=10)
+                    heartbeat = json.loads(result.stdout)["gtk_event_loop"]
+                    if not heartbeat["sampled"]:
+                        return False
+                    assert heartbeat["last_delay_us"] >= 0
+                    assert heartbeat["max_delay_us"] >= heartbeat["last_delay_us"]
+                    assert heartbeat["sample_age_ms"] >= 0
+                    return True
+
+                wait_for(heartbeat_ready)
                 for command in ("ping", "raw"):
                     arguments = [command] if command == "ping" else ["raw", "unsupported_method"]
                     result = subprocess.run(cli + ["--verbose"] + arguments, env=env,
@@ -67,6 +81,12 @@ def main():
                         return True
 
                     wait_for(complete)
+                result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
+                                        capture_output=True, check=True, timeout=10)
+                counters = json.loads(result.stdout)["rpc"]
+                assert counters["succeeded"] > snapshot["rpc"]["succeeded"]
+                assert counters["failed"] > snapshot["rpc"]["failed"]
+                assert counters["in_flight"] >= 1  # The snapshot includes its own request.
                 report_path = root / "diagnostic-report.json"
                 subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
                                 "--binary", str(binary_dir / "cmux"), "--socket", str(socket),
@@ -79,6 +99,13 @@ def main():
                     assert sample["snapshot"]["pid"] == app.pid
                     assert sample["trace_id"]
                     assert "error" not in sample
+                failed_report_path = root / "unavailable-report.json"
+                result = subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
+                                         "--binary", str(root / "missing-cmux"), "--samples", "1",
+                                         "--output", str(failed_report_path)], env=env, timeout=15)
+                assert result.returncode == 1
+                failed_report = json.loads(failed_report_path.read_text())
+                assert failed_report["samples"][0]["error"] == "command_unavailable"
                 if output := os.environ.get("CMUX_BENCHMARK_OUT"):
                     subprocess.run([sys.executable, "scripts/benchmark-cmux.py",
                                     "--binary", str(binary_dir / "cmux"),

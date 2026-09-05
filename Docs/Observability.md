@@ -6,6 +6,10 @@ Implemented first stage: `cmux diagnostics --json` returns procfs resource sampl
 
 The diagnostic worker has 128 queue slots, a 64 KiB record limit, and two files of up to 8 MiB for newly written logs (active file plus `.1`). Queue overflow drops records and increments the snapshot counter. Five-second resource sampling runs off GTK. Startup also trims oversized logs inherited from earlier versions, retaining complete trailing records within the same cap. Existing unstructured stderr output is still being audited; this change does not claim all output is structured or bounded.
 
+Formatting stops lifecycle messages at 4 KiB on a UTF-8 boundary and records a truncation flag. JSON serialization stops at the record limit instead of allocating an oversized serialized copy before rejecting it. Already-created caller payloads remain the caller's responsibility.
+
+A one-second GTK heartbeat reports the last and maximum scheduling delay, plus sample age. Its atomics remain readable by background diagnostics during a GTK stall; increasing sample age indicates that the main loop has not serviced the probe. The first sample is explicitly unavailable until GTK ticks. Delay includes OS scheduling and application work, so it is a symptom rather than a root-cause classification. Aggregate RPC counters report in-flight, successful, failed and cancelled operations; a diagnostics request counts itself as in-flight. Counters are process-local and sampled independently, not a transactional accounting snapshot.
+
 ## Operation correlation
 
 Trace an operation from CLI or UI entry through socket validation, queue wait, GTK dispatch and completion. Where it calls browser or SSH services, carry the correlation through that request and report transport versus execution time separately. Use stable operation names, request/trace IDs, workspace/surface identifiers, monotonic durations and explicit success/error/cancelled outcomes. Do not use user command text or URLs as metric labels.
@@ -21,6 +25,8 @@ Provide a discoverable CLI diagnostic snapshot and a repeatable collection workf
 ## Benchmark evidence
 
 The initial executable benchmark is `scripts/benchmark-cmux.py`. CI builds optimized binaries, launches an isolated application through the diagnostics fixture, warms ten CLI calls and measures 100 sequential pings. The revision-named artifact contains every latency sample, median/p95/p99, throughput, process resources before/after, GTK version, requested display backend and host metadata. No arbitrary latency gate is applied. This measures CLI startup plus transport/GTK response; sustained rendering, workspace churn and SSH/browser benchmark scenarios remain to be added.
+
+The first completed [CI baseline](https://github.com/nitecon/cmux-gtk/actions/runs/33980669281) at `a009f762` measured median 1,382.6 µs, p95 1,944.7 µs and p99 2,013.8 µs across 100 pings (712.3 operations/second). RSS changed from 246,076 to 246,084 KiB; descriptors stayed at 32 and threads at 34. This software-rendered CI sample establishes a reproducible artifact, not a sustained memory-leak or physical-GPU performance verdict.
 
 Run repeatable optimized workloads in CI for startup, command round trips, workspace/split churn, sustained redraw and representative SSH/browser operations. Record revision, build profile, hardware/runner, GTK/backend, workload, warmup and iteration counts. Report throughput, duration percentiles and memory before/after or slope. Preserve raw machine-readable results as artifacts so regressions can be compared across revisions.
 

@@ -1,29 +1,28 @@
-
 use gtk4::prelude::*;
-use gtk4::{Application, ApplicationWindow, gio, CssProvider};
+use gtk4::{gio, Application, ApplicationWindow, CssProvider};
 use std::ffi::CString;
 
-mod ghostty;
-mod workspace;
-mod workspace_dialog;
-mod split_engine;
 mod app_state;
-mod sidebar;
-mod shortcuts;
-mod socket;
-mod session;
-mod ssh;
-mod config;
 mod browser;
-mod menus;
-mod header_bar;
-mod ssh_hosts;
-mod ssh_dialog;
+mod config;
 mod diagnostics;
+mod ghostty;
+mod header_bar;
+mod menus;
 mod preferences;
-mod window_state;
+mod session;
+mod shortcuts;
+mod sidebar;
+mod socket;
+mod split_engine;
+mod ssh;
+mod ssh_dialog;
+mod ssh_hosts;
 #[allow(dead_code)]
 mod updater;
+mod window_state;
+mod workspace;
+mod workspace_dialog;
 
 const APP_ID: &str = "io.cmux.App";
 
@@ -104,6 +103,7 @@ popover.menu modelbutton:hover { background-color: #3a3a3a; }
 popover.menu accelerator { color: #5b8dd9; font-size: 12px; }
 ";
 
+/// Own logging, background workers and the GTK application through orderly exit.
 fn main() {
     if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
         println!("cmux-app {}", env!("CMUX_VERSION"));
@@ -124,8 +124,7 @@ fn main() {
     crate::ghostty::gtk_environment::configure();
 
     // Tokio runtime for socket I/O (kept alive for app lifetime).
-    let runtime = tokio::runtime::Runtime::new()
-        .expect("Failed to create tokio runtime");
+    let runtime = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     let runtime_handle = runtime.handle().clone();
     diagnostics::start_sampler(&runtime_handle);
 
@@ -134,7 +133,8 @@ fn main() {
     // using tokio::sync::mpsc::unbounded_channel + glib::MainContext::default().spawn_local()
     // in build_ui. The Sender is Send+Clone — tokio tasks hold it. The Receiver is consumed by
     // a spawn_local future that processes commands on the GTK main thread.
-    let (cmd_tx, cmd_rx) = tokio::sync::mpsc::unbounded_channel::<crate::socket::commands::SocketCommand>();
+    let (cmd_tx, cmd_rx) =
+        tokio::sync::mpsc::unbounded_channel::<crate::socket::commands::SocketCommand>();
 
     let app = Application::builder()
         .application_id(APP_ID)
@@ -147,7 +147,10 @@ fn main() {
     // load_session() returns None if file is missing or invalid -- that's fine.
     let saved_session = crate::session::load_session();
     if let Some(ref s) = saved_session {
-        eprintln!("cmux: restoring session ({} workspace(s))", s.workspaces.len());
+        eprintln!(
+            "cmux: restoring session ({} workspace(s))",
+            s.workspaces.len()
+        );
     }
 
     // Session save infrastructure: Notify for debounce, channel for session snapshots.
@@ -187,21 +190,38 @@ fn main() {
         let save_notify = save_notify.clone();
         let session_tx = session_tx.clone();
         move |app| {
-            let rx = cmd_rx.lock().unwrap().take().expect("activate called more than once");
+            let rx = cmd_rx
+                .lock()
+                .unwrap()
+                .take()
+                .expect("activate called more than once");
             let session = saved_session.lock().unwrap().take().flatten();
             let smap = crate::config::ShortcutMap::from_config(&config.shortcuts);
-            build_ui(app, runtime_handle.clone(), cmd_tx.clone(), rx, save_notify.clone(), session_tx.clone(), session, smap, &config);
+            build_ui(
+                app,
+                runtime_handle.clone(),
+                cmd_tx.clone(),
+                rx,
+                save_notify.clone(),
+                session_tx.clone(),
+                session,
+                smap,
+                &config,
+            );
         }
     });
 
     eprintln!("cmux: calling app.run()");
+    let gtk_probe = diagnostics::start_gtk_probe();
     let _exit_code = app.run();
+    gtk_probe.remove();
     eprintln!("cmux: app.run() returned");
 
     // Runtime drops here — tokio tasks are cancelled.
     drop(runtime);
 }
 
+/// Assemble the window, restore its model and connect GTK-side command/lifecycle handlers.
 fn build_ui(
     app: &Application,
     runtime_handle: tokio::runtime::Handle,
@@ -215,8 +235,8 @@ fn build_ui(
 ) {
     // 1. Initialize Ghostty once
     let ghostty_app = unsafe {
-        use crate::ghostty::ffi;
         use crate::ghostty::callbacks::APP_PTR;
+        use crate::ghostty::ffi;
         use std::sync::atomic::Ordering;
 
         let argv: Vec<CString> = std::env::args().map(|a| CString::new(a).unwrap()).collect();
@@ -308,7 +328,10 @@ fn build_ui(
 
     // Restore session if available (SESS-02), otherwise create default workspace.
     {
-        let has_session = saved_session.as_ref().map(|s| !s.workspaces.is_empty()).unwrap_or(false);
+        let has_session = saved_session
+            .as_ref()
+            .map(|s| !s.workspaces.is_empty())
+            .unwrap_or(false);
         if has_session {
             let session = saved_session.unwrap();
             if session.version >= 2 {
@@ -319,12 +342,18 @@ fn build_ui(
                         restored_count += 1;
                     } else {
                         // D-15: tree invalid or too deep, fall back to single pane
-                        eprintln!("cmux: workspace '{}' tree invalid, creating default", ws_session.name);
+                        eprintln!(
+                            "cmux: workspace '{}' tree invalid, creating default",
+                            ws_session.name
+                        );
                         state.borrow_mut().create_workspace();
                         state.borrow_mut().rename_active(ws_session.name.clone());
                     }
                 }
-                eprintln!("cmux: restored {} workspaces from session v{}", restored_count, session.version);
+                eprintln!(
+                    "cmux: restored {} workspaces from session v{}",
+                    restored_count, session.version
+                );
             } else {
                 // Version 1: name-only restore (auto-upgrade on next save per D-01)
                 for ws_session in &session.workspaces {
@@ -385,21 +414,29 @@ fn build_ui(
     {
         let state = state.clone();
         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-            if crate::ghostty::callbacks::NEW_TAB_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                let pane_id = crate::ghostty::callbacks::NEW_TAB_PANE_ID.load(std::sync::atomic::Ordering::SeqCst);
+            if crate::ghostty::callbacks::NEW_TAB_PENDING
+                .swap(false, std::sync::atomic::Ordering::SeqCst)
+            {
+                let pane_id = crate::ghostty::callbacks::NEW_TAB_PANE_ID
+                    .load(std::sync::atomic::Ordering::SeqCst);
                 let created = {
                     let mut app_state = state.borrow_mut();
-                    app_state.split_engines.iter_mut().find_map(|engine| {
-                        engine.new_terminal_tab_for_pane(pane_id)
-                    }).is_some()
+                    app_state
+                        .split_engines
+                        .iter_mut()
+                        .find_map(|engine| engine.new_terminal_tab_for_pane(pane_id))
+                        .is_some()
                 };
                 if created {
                     state.borrow().trigger_session_save();
                 }
             }
             // Process bell notifications
-            if crate::ghostty::callbacks::BELL_PENDING.swap(false, std::sync::atomic::Ordering::SeqCst) {
-                let pane_id = crate::ghostty::callbacks::BELL_PANE_ID.load(std::sync::atomic::Ordering::SeqCst);
+            if crate::ghostty::callbacks::BELL_PENDING
+                .swap(false, std::sync::atomic::Ordering::SeqCst)
+            {
+                let pane_id = crate::ghostty::callbacks::BELL_PANE_ID
+                    .load(std::sync::atomic::Ordering::SeqCst);
                 if pane_id != 0 {
                     state.borrow_mut().set_pane_attention(pane_id);
                 }
@@ -408,25 +445,36 @@ fn build_ui(
             // Bound work per GTK turn as well as queue capacity, so sustained
             // remote output cannot monopolize the main loop.
             for _ in 0..128 {
-                let Ok(event) = ssh_event_rx.try_recv() else { break; };
+                let Ok(event) = ssh_event_rx.try_recv() else {
+                    break;
+                };
                 match event {
-                    crate::ssh::SshEvent::StateChanged { workspace_id, state: conn_state } => {
+                    crate::ssh::SshEvent::StateChanged {
+                        workspace_id,
+                        state: conn_state,
+                    } => {
                         // Auto-save host on successful connection (D-04)
                         if conn_state == crate::workspace::ConnectionState::Connected {
-                            let remote_target = state.borrow().workspaces.iter()
+                            let remote_target = state
+                                .borrow()
+                                .workspaces
+                                .iter()
                                 .find(|ws| ws.id == workspace_id)
                                 .and_then(|ws| ws.remote_target.clone());
                             if let Some(target) = remote_target {
                                 crate::ssh_hosts::save_host(&target);
                             }
                         }
-                        state.borrow_mut().update_connection_state(workspace_id, conn_state);
+                        state
+                            .borrow_mut()
+                            .update_connection_state(workspace_id, conn_state);
                     }
                     crate::ssh::SshEvent::RemoteOutput { pane_id, data } => {
                         // Dispatch remote output to the Ghostty surface via process_output.
                         {
                             let surface_ptr = remote_context(&state, pane_id).and_then(|ctx| {
-                                let ptr = ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
+                                let ptr =
+                                    ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
                                 (ptr != 0).then_some(ptr as crate::ghostty::ffi::ghostty_surface_t)
                             });
                             if let Some(surface) = surface_ptr {
@@ -438,11 +486,16 @@ fn build_ui(
                                     );
                                 }
                                 // Queue render for the GLArea associated with this surface
-                                if let Ok(gl_areas) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
+                                if let Ok(gl_areas) =
+                                    crate::ghostty::callbacks::GL_TO_SURFACE.lock()
+                                {
                                     for (&gl_ptr, &s_ptr) in gl_areas.iter() {
                                         if s_ptr == surface as usize {
-                                            let area: glib::translate::Borrowed<gtk4::GLArea> =
-                                                unsafe { glib::translate::from_glib_borrow(gl_ptr as *mut gtk4::ffi::GtkGLArea) };
+                                            let area: glib::translate::Borrowed<gtk4::GLArea> = unsafe {
+                                                glib::translate::from_glib_borrow(
+                                                    gl_ptr as *mut gtk4::ffi::GtkGLArea,
+                                                )
+                                            };
                                             area.queue_render();
                                             break;
                                         }
@@ -455,7 +508,8 @@ fn build_ui(
                         // D-08: write exit message to surface, keep pane open for user to close
                         {
                             let surface_ptr = remote_context(&state, pane_id).and_then(|ctx| {
-                                let ptr = ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
+                                let ptr =
+                                    ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire);
                                 (ptr != 0).then_some(ptr as crate::ghostty::ffi::ghostty_surface_t)
                             });
                             if let Some(surface) = surface_ptr {
@@ -474,24 +528,35 @@ fn build_ui(
                             if let Ok(mut sid) = ctx.stream_id.lock() {
                                 *sid = None;
                             }
-                            ctx.eof_received.store(true, std::sync::atomic::Ordering::Relaxed);
+                            ctx.eof_received
+                                .store(true, std::sync::atomic::Ordering::Relaxed);
                         }
                     }
                     crate::ssh::SshEvent::ClosePaneRequest { pane_id } => {
-                        let surface = remote_context(&state, pane_id).map(|ctx| ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire));
+                        let surface = remote_context(&state, pane_id)
+                            .map(|ctx| ctx.surface_ptr.load(std::sync::atomic::Ordering::Acquire));
                         let target = surface.and_then(|ptr| {
                             let s = state.borrow();
-                            s.split_engines.iter().enumerate().find_map(|(index, engine)| {
-                                engine.all_panes().into_iter().find_map(|(uuid, _, _)| {
-                                    (engine.find_surface_by_uuid(&uuid.to_string()).map(|s| s as usize) == Some(ptr)).then_some((index, uuid))
+                            s.split_engines
+                                .iter()
+                                .enumerate()
+                                .find_map(|(index, engine)| {
+                                    engine.all_panes().into_iter().find_map(|(uuid, _, _)| {
+                                        (engine
+                                            .find_surface_by_uuid(&uuid.to_string())
+                                            .map(|s| s as usize)
+                                            == Some(ptr))
+                                        .then_some((index, uuid))
+                                    })
                                 })
-                            })
                         });
                         if let Some((index, uuid)) = target {
                             let mut s = state.borrow_mut();
                             match s.split_engines[index].close_surface_tab(uuid) {
                                 crate::split_engine::CloseSurfaceResult::LastSurfaceInPane => {
-                                    if s.split_engines[index].close_active().is_none() { s.close_workspace(index); }
+                                    if s.split_engines[index].close_active().is_none() {
+                                        s.close_workspace(index);
+                                    }
                                 }
                                 _ => {}
                             }
@@ -575,6 +640,13 @@ fn build_ui(
     }
 }
 
-fn remote_context(state: &crate::app_state::AppStateRef, id: u64) -> Option<std::sync::Arc<crate::ssh::bridge::IoWriteContext>> {
-    state.borrow().workspace_bridges.values().find_map(|bridge| bridge.contexts.lock().ok()?.get(&id).cloned())
+fn remote_context(
+    state: &crate::app_state::AppStateRef,
+    id: u64,
+) -> Option<std::sync::Arc<crate::ssh::bridge::IoWriteContext>> {
+    state
+        .borrow()
+        .workspace_bridges
+        .values()
+        .find_map(|bridge| bridge.contexts.lock().ok()?.get(&id).cloned())
 }

@@ -1,5 +1,7 @@
 //! Structured local diagnostics with bounded delivery, retention and resource samples.
 
+mod bounded;
+mod event_loop;
 mod writer;
 
 use std::backtrace::Backtrace;
@@ -13,9 +15,18 @@ static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 static WRITER: OnceLock<writer::Sender> = OnceLock::new();
 static STARTED: OnceLock<Instant> = OnceLock::new();
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static RPC_IN_FLIGHT: AtomicU64 = AtomicU64::new(0);
+static RPC_SUCCEEDED: AtomicU64 = AtomicU64::new(0);
+static RPC_FAILED: AtomicU64 = AtomicU64::new(0);
+static RPC_CANCELLED: AtomicU64 = AtomicU64::new(0);
 const MAX_RECORD_BYTES: usize = 64 * 1024;
 const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 const QUEUE_CAPACITY: usize = 128;
+
+/// Start the main-thread responsiveness probe and retain its removable source ID.
+pub fn start_gtk_probe() -> gtk4::glib::SourceId {
+    event_loop::start()
+}
 
 /// Start bounded off-thread logging; retain the returned guard until process exit.
 /// Failure leaves diagnostics on stderr and does not prevent application startup.
@@ -58,8 +69,11 @@ pub fn log_path() -> &'static Path {
 
 /// Record a bounded lifecycle message; do not pass terminal or clipboard contents.
 pub fn event(args: fmt::Arguments<'_>) {
-    let message: String = args.to_string().chars().take(4096).collect();
-    record("lifecycle", serde_json::json!({"message": message}));
+    let (message, truncated) = bounded::message(args, 4096);
+    record(
+        "lifecycle",
+        serde_json::json!({"message": message, "truncated": truncated}),
+    );
 }
 
 /// Write structured metadata without blocking GTK; each record has a common envelope.
@@ -75,16 +89,14 @@ pub fn record(event: &str, fields: serde_json::Value) {
         "pid": std::process::id(), "version": env!("CMUX_VERSION"),
         "event": event, "fields": fields,
     });
-    let Ok(mut bytes) = serde_json::to_vec(&record) else {
-        return;
-    };
-    bytes.push(b'\n');
-    if let Some(writer) = WRITER.get() {
-        if bytes.len() <= MAX_RECORD_BYTES {
-            writer.record(bytes);
-        } else {
+    let Some(bytes) = bounded::json_line(&record, MAX_RECORD_BYTES) else {
+        if let Some(writer) = WRITER.get() {
             writer.dropped.fetch_add(1, Ordering::Relaxed);
         }
+        return;
+    };
+    if let Some(writer) = WRITER.get() {
+        writer.record(bytes);
     } else {
         eprintln!(
             "cmux: {}",
@@ -111,6 +123,13 @@ pub fn snapshot() -> serde_json::Value {
         "requested_backend": std::env::var("GDK_BACKEND").unwrap_or_else(|_| "auto".into()),
         "uptime_ms": STARTED.get().map(|started| started.elapsed().as_millis()),
         "resources": resources,
+        "gtk_event_loop": event_loop::snapshot(),
+        "rpc": {
+            "in_flight": RPC_IN_FLIGHT.load(Ordering::Relaxed),
+            "succeeded": RPC_SUCCEEDED.load(Ordering::Relaxed),
+            "failed": RPC_FAILED.load(Ordering::Relaxed),
+            "cancelled": RPC_CANCELLED.load(Ordering::Relaxed),
+        },
         "logging": {
             "active": writer.is_some(),
             "dropped_records": writer.map(|writer| writer.dropped.load(Ordering::Relaxed)).unwrap_or(0),
@@ -154,6 +173,7 @@ pub struct Operation {
 impl Operation {
     /// Begin a request with a valid caller correlation ID or a newly generated ID.
     pub fn begin(method: &str, trace_id: Option<&str>) -> Self {
+        RPC_IN_FLIGHT.fetch_add(1, Ordering::Relaxed);
         Self {
             id: trace_id
                 .and_then(|id| uuid::Uuid::parse_str(id).ok())
@@ -186,6 +206,13 @@ impl Operation {
 impl Drop for Operation {
     /// Emit one outcome and duration even when dispatch is cancelled or returns early.
     fn drop(&mut self) {
+        RPC_IN_FLIGHT.fetch_sub(1, Ordering::Relaxed);
+        let counter = match self.outcome {
+            "success" => &RPC_SUCCEEDED,
+            "error" => &RPC_FAILED,
+            _ => &RPC_CANCELLED,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
         record(
             "rpc.complete",
             serde_json::json!({
