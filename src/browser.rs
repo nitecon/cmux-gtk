@@ -1,9 +1,9 @@
-use futures_util::StreamExt;
 use gtk4::prelude::*;
 use serde_json::Value;
 mod discovery;
 mod frames;
 pub(crate) mod metrics;
+mod stream;
 mod transport;
 pub use discovery::agent_browser_available;
 use discovery::{find_system_chrome, which_agent_browser};
@@ -247,110 +247,8 @@ impl BrowserManager {
         picture: gtk4::Picture,
     ) -> Result<(), String> {
         let port = self.read_stream_port()?;
-        let url = format!("ws://127.0.0.1:{}", port);
-
-        // Only the latest frame matters; a slow GTK loop must not accumulate JPEGs.
         self.stop_stream();
-        let (frame_tx, mut frame_rx) = tokio::sync::watch::channel(None::<glib::Bytes>);
-
-        // Spawn tokio task: WebSocket client that reads frames
-        let stream_task = runtime.spawn(async move {
-            let _stream_metrics = metrics::Stream::begin();
-            let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig {
-                max_message_size: Some(8 * 1024 * 1024),
-                max_frame_size: Some(8 * 1024 * 1024),
-                ..Default::default()
-            };
-            let ws_result = tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                tokio_tungstenite::connect_async_with_config(&url, Some(config), false),
-            )
-            .await;
-            let (ws_stream, _) = match ws_result {
-                Ok(Ok(conn)) => conn,
-                Ok(Err(_)) => {
-                    crate::diagnostics::record(
-                        "browser.stream.connect",
-                        serde_json::json!({"outcome": "error"}),
-                    );
-                    return;
-                }
-                Err(_) => {
-                    crate::diagnostics::record(
-                        "browser.stream.connect",
-                        serde_json::json!({"outcome": "timeout"}),
-                    );
-                    return;
-                }
-            };
-            crate::diagnostics::record(
-                "browser.stream.connect",
-                serde_json::json!({"outcome": "success"}),
-            );
-            let (_write, mut read) = ws_stream.split();
-            while let Some(msg_result) = read.next().await {
-                let msg = match msg_result {
-                    Ok(m) => m,
-                    Err(e) => {
-                        eprintln!("cmux: browser stream error: {}", e);
-                        break;
-                    }
-                };
-                if let tokio_tungstenite::tungstenite::Message::Text(text) = &msg {
-                    match frames::decode(text) {
-                        Ok(Some(bytes)) => {
-                            metrics::received(bytes.len());
-                            if frame_tx.send(Some(bytes)).is_err() {
-                                break;
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(_) => metrics::invalid_base64(),
-                    }
-                }
-            }
-        });
-        self.stream_task = Some(stream_task);
-
-        // Await the newest shared frame on GTK and update the Picture widget.
-        let picture_weak = picture.downgrade();
-        glib::MainContext::default().spawn_local(async move {
-            let mut first_frame = true;
-            while frame_rx.changed().await.is_ok() {
-                let Some(picture_clone) = picture_weak.upgrade() else {
-                    break;
-                };
-                let Some(bytes) = frame_rx.borrow_and_update().clone() else {
-                    continue;
-                };
-                match gtk4::gdk::Texture::from_bytes(&bytes) {
-                    Ok(texture) => {
-                        picture_clone.set_paintable(Some(&texture));
-                        metrics::texture(true);
-                        // Hide the "No browser preview" overlay label on first frame
-                        if first_frame {
-                            first_frame = false;
-                            if let Some(overlay) = picture_clone
-                                .parent()
-                                .and_then(|p| p.downcast::<gtk4::Overlay>().ok())
-                            {
-                                if let Some(child) = overlay.first_child() {
-                                    let mut sibling = child.next_sibling();
-                                    while let Some(widget) = sibling {
-                                        let next = widget.next_sibling();
-                                        if widget.has_css_class("preview-empty") {
-                                            widget.set_visible(false);
-                                        }
-                                        sibling = next;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => metrics::texture(false),
-                }
-            }
-        });
+        self.stream_task = Some(stream::start(runtime, port, picture));
 
         self.preview_state = PreviewState::Streaming;
         Ok(())
