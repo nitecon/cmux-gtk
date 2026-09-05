@@ -540,13 +540,10 @@ fn build_ui(
                         });
                         if let Some((index, uuid)) = target {
                             let mut s = state.borrow_mut();
-                            match s.split_engines[index].close_surface_tab(uuid) {
-                                crate::split_engine::CloseSurfaceResult::LastSurfaceInPane => {
-                                    if s.split_engines[index].close_active().is_none() {
-                                        s.close_workspace(index);
-                                    }
-                                }
-                                _ => {}
+                            if s.split_engines[index].close_surface_and_empty_pane(uuid)
+                                == crate::split_engine::CloseSurfaceResult::LastSurfaceInPane
+                            {
+                                s.close_workspace(index);
                             }
                             s.trigger_session_save();
                         }

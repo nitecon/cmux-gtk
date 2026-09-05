@@ -441,13 +441,8 @@ fn handle_socket_command_traced(
                 let mut s = state.borrow_mut();
                 let idx = s.active_index;
                 s.split_engines.get_mut(idx).map(|engine| {
-                    match engine.close_surface_tab(uuid) {
-                        crate::split_engine::CloseSurfaceResult::Closed => true,
-                        crate::split_engine::CloseSurfaceResult::LastSurfaceInPane => {
-                            engine.close_active().is_some()
-                        }
-                        crate::split_engine::CloseSurfaceResult::NotFound => false,
-                    }
+                    engine.close_surface_and_empty_pane(uuid)
+                        == crate::split_engine::CloseSurfaceResult::Closed
                 })
             };
             match closed {

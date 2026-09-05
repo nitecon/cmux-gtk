@@ -1381,6 +1381,17 @@ impl SplitEngine {
         Some(surviving_id)
     }
 
+    /// Close a tab and its pane when empty, leaving final-workspace policy to the caller.
+    /// LastSurfaceInPane means only the workspace's final pane remains; no workspace is removed here.
+    pub fn close_surface_and_empty_pane(&mut self, uuid: Uuid) -> CloseSurfaceResult {
+        match self.close_surface_tab(uuid) {
+            CloseSurfaceResult::LastSurfaceInPane if self.close_active().is_some() => {
+                CloseSurfaceResult::Closed
+            }
+            result => result,
+        }
+    }
+
     /// Close one sibling surface tab without removing its containing pane.
     /// Closing the final surface delegates to the existing pane-close flow.
     pub fn close_surface_tab(&mut self, uuid: Uuid) -> CloseSurfaceResult {

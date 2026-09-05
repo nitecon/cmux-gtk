@@ -230,7 +230,7 @@ pub fn handle_close_surface_tab(
     let result = state
         .borrow_mut()
         .active_split_engine_mut()
-        .map(|engine| engine.close_surface_tab(uuid));
+        .map(|engine| engine.close_surface_and_empty_pane(uuid));
     crate::diagnostics::event(format_args!(
         "surface-tab close result uuid={uuid} result={result:?}"
     ));
@@ -239,7 +239,7 @@ pub fn handle_close_surface_tab(
             state.borrow().trigger_session_save();
         }
         Some(crate::split_engine::CloseSurfaceResult::LastSurfaceInPane) => {
-            handle_close_pane(state, app);
+            handle_close_workspace(state, app);
         }
         Some(crate::split_engine::CloseSurfaceResult::NotFound) | None => {}
     }
