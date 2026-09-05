@@ -35,28 +35,42 @@ pub async fn deploy_remote(target: &str) -> Result<(), String> {
         return Err("Failed to create remote directory".to_string());
     }
 
-    // scp the binary
-    let remote_dest = format!("{target}:~/.local/bin/cmuxd-remote");
+    // A prior SSH session may still be running this executable. Never truncate
+    // its inode: publish a fully uploaded executable with an atomic rename.
+    let staging_name = format!(".local/bin/cmuxd-remote-{}.tmp", uuid::Uuid::new_v4());
+    let remote_dest = format!("{target}:~/{staging_name}");
     let scp_status = Command::new("scp")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", local_path.to_str().unwrap(), &remote_dest])
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"])
+        .arg(&local_path)
+        .arg(&remote_dest)
         .kill_on_drop(true)
         .status()
         .await
         .map_err(|e| format!("scp failed: {e}"))?;
     if !scp_status.success() {
+        remove_staged_daemon(target, &staging_name).await;
         return Err(format!("Failed to deploy remote daemon to {target}"));
     }
 
-    // Make executable
+    // staging_name contains only a fixed prefix and a generated UUID.
+    let install_command = format!("chmod 755 ~/{staging_name} && mv -f ~/{staging_name} ~/.local/bin/cmuxd-remote");
     let chmod_status = Command::new("ssh")
-        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, "chmod", "+x", "~/.local/bin/cmuxd-remote"])
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, &install_command])
         .kill_on_drop(true)
         .status()
         .await
         .map_err(|e| format!("SSH chmod failed: {e}"))?;
     if !chmod_status.success() {
-        return Err("Failed to set executable permissions".to_string());
+        remove_staged_daemon(target, &staging_name).await;
+        return Err("Failed to publish remote daemon executable".to_string());
     }
 
     Ok(())
+}
+
+async fn remove_staged_daemon(target: &str, staging_name: &str) {
+    let _ = Command::new("ssh")
+        .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, &format!("rm -f ~/{staging_name}")])
+        .kill_on_drop(true)
+        .status().await;
 }

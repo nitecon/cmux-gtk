@@ -144,7 +144,8 @@ Subsystem sftp internal-sftp
         start()
         remote_write("restored-result")
         surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
-        assert len(surfaces) == 2, surfaces
+        assert len([s for s in surfaces if s["workspace_uuid"] == remote_id]) == 2, surfaces
+        assert len([s for s in surfaces if s["workspace_uuid"] == local_id]) == 2, surfaces
         cli("select-workspace", local_id)
         eventually(lambda: len(launches()) >= 4)
         print("script and SSH launch contexts survive splits, reorder and restart")
