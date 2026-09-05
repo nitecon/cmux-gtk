@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
 
     def cli(*args):
-        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket), *args], env=env, text=True)
+        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket), *args], env=env, text=True, timeout=15)
 
     def rss():
         status = Path(f"/proc/{app.pid}/status").read_text()
@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         # The reported OOM happened without pane churn. Exercise thousands of
         # large frames as well, keeping terminal history bounded by repainting
         # the same screen. A frame-sized leak becomes visible within seconds.
-        windows = subprocess.check_output(["xdotool", "search", "--pid", str(app.pid)], text=True).split()
+        windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True).split()
         assert windows, "application has no X11 window"
         subprocess.check_call(["xdotool", "windowsize", windows[-1], "1800", "1000"])
         marker = root / "render-complete"
@@ -79,7 +79,9 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
                    "[(sys.stdout.write('\\x1b[H' + (str(i%10)*160+'\\r\\n')*50), "
                    "sys.stdout.flush(),time.sleep(1/30)) for i in range(1800)]; "
                    f"pathlib.Path({str(marker)!r}).touch()")
-        cli("send-text", "python3 -u -c " + shlex.quote(program) + "\n")
+        cli("send-text", "python3 -u -c " + shlex.quote(program))
+        # send-text uses bracketed paste. Enter is a separate keyboard action.
+        subprocess.check_call(["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "Return"])
         render_samples = []
         deadline = time.monotonic() + 90
         started = time.monotonic()

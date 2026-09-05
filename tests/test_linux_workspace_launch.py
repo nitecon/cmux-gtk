@@ -63,6 +63,7 @@ Subsystem sftp internal-sftp
         wrapper.write_text(f'#!/bin/sh\nexec /usr/bin/{command} -F {shlex.quote(str(config))} "$@"\n')
         wrapper.chmod(0o755)
     ssh_log = (root / "sshd.log").open("w+")
+    subprocess.run(["sudo", "mkdir", "-p", "/run/sshd"], check=True)
     sshd = subprocess.Popen(["sudo", "/usr/sbin/sshd", "-D", "-e", "-f", str(server_config)], stdout=ssh_log, stderr=ssh_log)
     app_log = (root / "app.log").open("w+")
     app = None
@@ -82,7 +83,7 @@ Subsystem sftp internal-sftp
     ])))
 
     def cli(*args):
-        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket_path), *args], env=env, text=True)
+        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket_path), *args], env=env, text=True, timeout=15)
 
     def start():
         global app
@@ -109,7 +110,9 @@ Subsystem sftp internal-sftp
         def written():
             if (root / "remote" / name).exists():
                 return True
-            cli("send-text", f"printf '%s' \"$PWD\" > {name}\n")
+            cli("send-text", f"printf '%s' \"$PWD\" > {name}")
+            windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True).split()
+            subprocess.check_call(["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "Return"])
             return False
         eventually(written)
         assert (root / "remote" / name).read_text() == str(root / "remote")

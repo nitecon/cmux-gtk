@@ -90,6 +90,8 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
             *cell.as_ref().borrow_mut() = None;
         }
     }
+    // GtkGLArea does not dispose application-owned popover children for us.
+    while let Some(child) = area.first_child() { child.unparent(); }
     let surface = crate::ghostty::callbacks::GL_TO_SURFACE
         .lock()
         .ok()

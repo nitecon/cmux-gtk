@@ -133,6 +133,12 @@ fn initialize_surface(
             config.font_size = size;
         }
         let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
+        // The embedded command is borrowed by Ghostty's shell argv. Keep its
+        // C allocation alive until this surface has been freed, including when
+        // the IO thread starts the subprocess after surface_new returns.
+        if let Some(command) = command_c {
+            area.set_data("cmux-launch-command", command);
+        }
         if surface.is_null() {
             eprintln!("cmux: FATAL — ghostty_surface_new returned null");
             std::process::exit(1);
@@ -822,7 +828,7 @@ mod clipboard_integration_tests {
             ghostty
         };
         let (left, left_cell) = create_surface(&app, ghostty, None, Some(first.clone()), 900001,
-            SurfaceIoMode::Command("/bin/sh -c 'printf \"CMUXPRIMARY\\n\"; exec /bin/sh'".into()));
+            SurfaceIoMode::Command("/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into()));
         let (right, right_cell) = create_surface(&app, ghostty, None, Some(second.clone()), 900002, SurfaceIoMode::Exec);
         let content = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         content.set_homogeneous(true);
@@ -836,6 +842,16 @@ mod clipboard_integration_tests {
         let id = String::from_utf8(window_id.stdout).unwrap().lines().next().unwrap().to_string();
         xdo(&["windowfocus", &id]);
         let display = gtk4::gdk::Display::default().unwrap();
+        unsafe {
+            let surface = left_cell.borrow().unwrap();
+            let mut text: ffi::ghostty_text_s = std::mem::zeroed();
+            if ffi::ghostty_surface_read_screen_clipboard_text(surface, 0, 20, 4096, &mut text) {
+                if !text.text.is_null() {
+                    eprintln!("clipboard fixture screen: {}", String::from_utf8_lossy(std::slice::from_raw_parts(text.text.cast(), text.text_len)));
+                }
+                ffi::ghostty_surface_free_text(surface, &mut text);
+            }
+        }
         // Select a printed word with real X11 mouse events. PRIMARY must update without Copy.
         xdo(&["mousemove", "--window", &id, "45", "10", "click", "--repeat", "2", "--delay", "150", "1"]);
         let selected = glib::MainContext::default().block_on(display.primary_clipboard().read_text_future()).unwrap().unwrap();
