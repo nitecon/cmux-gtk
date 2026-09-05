@@ -825,14 +825,18 @@ pub fn handle_socket_command(
                     "stream.disable" => "stream_disable",
                     _ => &action,
                 };
-                match bm.send_command(daemon_action, params) {
-                    Ok(result) => {
-                        let _ = resp_tx.send(ok(req_id, result));
+                let Some(runtime) = s.runtime_handle.clone() else {
+                    let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
+                    return;
+                };
+                let exchange = bm.send_command_async(daemon_action, params);
+                drop(s);
+                runtime.spawn(async move {
+                    match exchange.await {
+                        Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); }
+                        Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); }
                     }
-                    Err(e) => {
-                        let _ = resp_tx.send(err(req_id, "browser_error", &e));
-                    }
-                }
+                });
             } else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
             }

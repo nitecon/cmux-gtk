@@ -175,6 +175,25 @@ impl BrowserManager {
 
     /// Send a newline-delimited JSON command to the daemon socket.
     pub fn send_command(&self, action: &str, params: Value) -> Result<Value, String> {
+        transport::request(
+            &self.daemon_socket_path(),
+            &Self::command_request(action, params),
+        )
+    }
+
+    /// Prepare owned request data on GTK; perform socket I/O when polled on the async runtime.
+    pub fn send_command_async(
+        &self,
+        action: &str,
+        params: Value,
+    ) -> impl std::future::Future<Output = Result<Value, String>> + Send + 'static {
+        let path = self.daemon_socket_path();
+        let request = Self::command_request(action, params);
+        async move { transport::request_async(&path, &request).await }
+    }
+
+    /// Add a fresh protocol identity and action to caller-owned parameters.
+    fn command_request(action: &str, params: Value) -> Value {
         let req_id = format!("cmux-{}", Uuid::new_v4());
         let mut request = if let Value::Object(map) = params {
             Value::Object(map)
@@ -190,7 +209,7 @@ impl BrowserManager {
             .unwrap()
             .insert("action".to_string(), Value::String(action.to_string()));
 
-        transport::request(&self.daemon_socket_path(), &request)
+        request
     }
 
     /// Read the stream port from the port file.
