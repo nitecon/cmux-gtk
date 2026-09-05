@@ -11,23 +11,25 @@ const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 #[derive(Debug)]
 pub enum CliError {
     /// Could not connect to the socket.
-    ConnectionError(String),
+    Connection(String),
     /// The request was rejected locally or the server returned an error response.
-    CommandError(String),
+    Command(String),
     /// Unexpected protocol-level error (malformed response, timeout, etc).
-    ProtocolError(String),
+    Protocol(String),
 }
 
 impl std::fmt::Display for CliError {
     /// Render the underlying transport, protocol or application error for command-line output.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CliError::ConnectionError(msg) => write!(f, "{}", msg),
-            CliError::CommandError(msg) => write!(f, "{}", msg),
-            CliError::ProtocolError(msg) => write!(f, "{}", msg),
+            CliError::Connection(message)
+            | CliError::Command(message)
+            | CliError::Protocol(message) => f.write_str(message),
         }
     }
 }
+
+impl std::error::Error for CliError {}
 
 /// A synchronous Unix socket JSON-RPC client.
 pub struct SocketClient {
@@ -43,16 +45,16 @@ impl SocketClient {
     /// Connect to the cmux socket at the given path with the specified timeout.
     pub fn connect(path: &str, timeout: Duration) -> Result<Self, CliError> {
         let stream = UnixStream::connect(path)
-            .map_err(|e| CliError::ConnectionError(format!("cannot connect to {}: {}", path, e)))?;
+            .map_err(|e| CliError::Connection(format!("cannot connect to {}: {}", path, e)))?;
         stream
             .set_read_timeout(Some(timeout))
-            .map_err(|e| CliError::ConnectionError(format!("set_read_timeout: {}", e)))?;
+            .map_err(|e| CliError::Connection(format!("set_read_timeout: {}", e)))?;
         stream
             .set_write_timeout(Some(timeout))
-            .map_err(|e| CliError::ConnectionError(format!("set_write_timeout: {}", e)))?;
+            .map_err(|e| CliError::Connection(format!("set_write_timeout: {}", e)))?;
         let writer = stream
             .try_clone()
-            .map_err(|e| CliError::ConnectionError(format!("clone stream: {}", e)))?;
+            .map_err(|e| CliError::Connection(format!("clone stream: {}", e)))?;
         Ok(Self {
             reader: BufReader::new(stream),
             writer,
@@ -71,19 +73,19 @@ impl SocketClient {
     /// Send a JSON-RPC call and return the result value.
     ///
     /// On success (ok: true), returns the `result` field.
-    /// On error (ok: false), returns `Err(CliError::CommandError(...))`.
+    /// On error (ok: false), returns `Err(CliError::Command(...))`.
     pub fn call(
         &mut self,
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, CliError> {
         if !self.usable {
-            return Err(CliError::ProtocolError(
+            return Err(CliError::Protocol(
                 "connection retired after a protocol failure".into(),
             ));
         }
         let result = self.exchange(method, params);
-        if matches!(result, Err(CliError::ProtocolError(_))) {
+        if matches!(result, Err(CliError::Protocol(_))) {
             self.usable = false;
             let _ = self.writer.shutdown(std::net::Shutdown::Both);
         }
@@ -101,7 +103,7 @@ impl SocketClient {
         self.next_id = self
             .next_id
             .checked_add(1)
-            .ok_or_else(|| CliError::ProtocolError("request ID space exhausted".into()))?;
+            .ok_or_else(|| CliError::Protocol("request ID space exhausted".into()))?;
 
         let trace_id = uuid::Uuid::new_v4();
         self.last_trace_id = Some(trace_id);
@@ -113,7 +115,7 @@ impl SocketClient {
         });
 
         let line = super::bounded_json::json_line(&request, MAX_REQUEST_BYTES)
-            .ok_or_else(|| CliError::CommandError("request exceeds encoded byte limit".into()))?;
+            .ok_or_else(|| CliError::Command("request exceeds encoded byte limit".into()))?;
 
         write_request(
             &mut self.writer,
@@ -134,7 +136,7 @@ fn remaining_budget(started: Instant, timeout: Duration) -> Result<Duration, Cli
     timeout
         .checked_sub(started.elapsed())
         .filter(|value| !value.is_zero())
-        .ok_or_else(|| CliError::ProtocolError("exchange deadline exceeded".into()))
+        .ok_or_else(|| CliError::Protocol("exchange deadline exceeded".into()))
 }
 
 /// Write a complete request while reducing the socket timeout after each partial write.
@@ -147,16 +149,16 @@ fn write_request(
     while !bytes.is_empty() {
         stream
             .set_write_timeout(Some(remaining_budget(started, timeout)?))
-            .map_err(|error| CliError::ProtocolError(format!("set request timeout: {error}")))?;
+            .map_err(|error| CliError::Protocol(format!("set request timeout: {error}")))?;
         match stream.write(bytes) {
             Ok(0) => {
-                return Err(CliError::ProtocolError(
+                return Err(CliError::Protocol(
                     "server closed while writing request".into(),
                 ))
             }
             Ok(count) => bytes = &bytes[count..],
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(CliError::ProtocolError(format!("write failed: {error}"))),
+            Err(error) => return Err(CliError::Protocol(format!("write failed: {error}"))),
         }
     }
     Ok(())
@@ -165,9 +167,9 @@ fn write_request(
 /// Validate a numbered v2 envelope, distinguishing malformed replies from valid server errors.
 fn decode_response(response: &[u8], id: u64) -> Result<serde_json::Value, CliError> {
     let resp: serde_json::Value = serde_json::from_slice(response)
-        .map_err(|error| CliError::ProtocolError(format!("invalid JSON response: {error}")))?;
+        .map_err(|error| CliError::Protocol(format!("invalid JSON response: {error}")))?;
     if resp.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
-        return Err(CliError::ProtocolError(
+        return Err(CliError::Protocol(
             "response ID does not match request".into(),
         ));
     }
@@ -180,23 +182,19 @@ fn decode_response(response: &[u8], id: u64) -> Result<serde_json::Value, CliErr
             let error = resp
                 .get("error")
                 .and_then(serde_json::Value::as_object)
-                .ok_or_else(|| {
-                    CliError::ProtocolError("failed response has no error object".into())
-                })?;
+                .ok_or_else(|| CliError::Protocol("failed response has no error object".into()))?;
             for key in ["code", "message"] {
                 if error.get(key).is_some_and(|value| !value.is_string()) {
-                    return Err(CliError::ProtocolError(format!(
-                        "error {key} must be a string"
-                    )));
+                    return Err(CliError::Protocol(format!("error {key} must be a string")));
                 }
             }
             let message = error
                 .get("message")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("unknown error");
-            Err(CliError::CommandError(message.to_owned()))
+            Err(CliError::Command(message.to_owned()))
         }
-        None => Err(CliError::ProtocolError(
+        None => Err(CliError::Protocol(
             "response has no boolean ok field".into(),
         )),
     }
@@ -215,21 +213,19 @@ fn read_response(
         reader
             .get_ref()
             .set_read_timeout(Some(remaining))
-            .map_err(|error| CliError::ProtocolError(format!("set response timeout: {error}")))?;
+            .map_err(|error| CliError::Protocol(format!("set response timeout: {error}")))?;
         let available = reader
             .fill_buf()
-            .map_err(|error| CliError::ProtocolError(format!("read failed: {error}")))?;
+            .map_err(|error| CliError::Protocol(format!("read failed: {error}")))?;
         if available.is_empty() {
-            return Err(CliError::ProtocolError(
+            return Err(CliError::Protocol(
                 "server closed before response newline".into(),
             ));
         }
         let newline = available.iter().position(|byte| *byte == b'\n');
         let count = newline.unwrap_or(available.len());
         if count > limit.saturating_sub(response.len()) {
-            return Err(CliError::ProtocolError(
-                "response exceeds byte limit".into(),
-            ));
+            return Err(CliError::Protocol("response exceeds byte limit".into()));
         }
         response.extend_from_slice(&available[..count]);
         reader.consume(count + usize::from(newline.is_some()));
@@ -265,7 +261,7 @@ mod tests {
         let params = serde_json::json!({"text": "\n".repeat(MAX_REQUEST_BYTES / 2)});
         assert!(matches!(
             client.call("surface.send_text", params),
-            Err(CliError::CommandError(_))
+            Err(CliError::Command(_))
         ));
         peer.set_nonblocking(true).unwrap();
         assert_eq!(
@@ -295,7 +291,7 @@ mod tests {
             writeln!(peer, "{reply}").unwrap();
             assert!(matches!(
                 client.call("system.ping", serde_json::json!({})),
-                Err(CliError::ProtocolError(_))
+                Err(CliError::Protocol(_))
             ));
             let error = client
                 .call("system.ping", serde_json::json!({}))
@@ -311,7 +307,7 @@ mod tests {
         peer.write_all(b"{\"id\":1,\"ok\":false,\"error\":{\"message\":\"missing\"}}\n{\"id\":2,\"ok\":true,\"result\":{\"pong\":true}}\n").unwrap();
         assert!(matches!(
             client.call("missing", serde_json::json!({})),
-            Err(CliError::CommandError(_))
+            Err(CliError::Command(_))
         ));
         assert_eq!(
             client.call("system.ping", serde_json::json!({})).unwrap(),

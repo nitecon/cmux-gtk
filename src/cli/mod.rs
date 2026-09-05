@@ -21,7 +21,7 @@ use std::time::Duration;
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
     if matches!(cli.command, Commands::Update) {
-        updater::manual_update().map_err(|e| CliError::CommandError(format!("{e:#}")))?;
+        updater::manual_update().map_err(|e| CliError::Command(format!("{e:#}")))?;
         return Ok(());
     }
 
@@ -30,7 +30,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         path.clone()
     } else {
         discovery::discover_socket().ok_or_else(|| {
-            CliError::ConnectionError("no cmux socket found (is cmux-app running?)".into())
+            CliError::Connection("no cmux socket found (is cmux-app running?)".into())
         })?
     };
 
@@ -58,7 +58,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     } = cli.command
     {
         let params_val: serde_json::Value = serde_json::from_str(params)
-            .map_err(|e| CliError::ProtocolError(format!("invalid JSON params: {}", e)))?;
+            .map_err(|e| CliError::Protocol(format!("invalid JSON params: {}", e)))?;
         let result = client.call(method, params_val);
         (method.clone(), result)
     } else {

@@ -567,6 +567,22 @@ fn backoff_duration(attempt: u32) -> Duration {
     Duration::from_secs(secs)
 }
 
+struct AbortOnDrop(tokio::task::AbortHandle);
+impl Drop for AbortOnDrop {
+    /// Cancel the companion task when its owning operation leaves scope.
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+struct PendingRequest(PendingMap, u64);
+impl Drop for PendingRequest {
+    /// Remove an outstanding response slot on success, error or future cancellation.
+    fn drop(&mut self) {
+        self.0.lock().unwrap().remove(&self.1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,21 +597,5 @@ mod tests {
         assert_eq!(backoff_duration(4), Duration::from_secs(16));
         assert_eq!(backoff_duration(5), Duration::from_secs(30)); // capped
         assert_eq!(backoff_duration(10), Duration::from_secs(30)); // still capped
-    }
-}
-
-struct AbortOnDrop(tokio::task::AbortHandle);
-impl Drop for AbortOnDrop {
-    /// Cancel the companion task when its owning operation leaves scope.
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
-
-struct PendingRequest(PendingMap, u64);
-impl Drop for PendingRequest {
-    /// Remove an outstanding response slot on success, error or future cancellation.
-    fn drop(&mut self) {
-        self.0.lock().unwrap().remove(&self.1);
     }
 }

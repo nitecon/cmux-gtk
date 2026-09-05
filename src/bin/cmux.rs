@@ -13,15 +13,15 @@ fn main() -> std::process::ExitCode {
     let cli_args = cli::Cli::parse();
     match cli::run(cli_args) {
         Ok(()) => std::process::ExitCode::SUCCESS,
-        Err(cli::CliError::ConnectionError(msg)) => {
+        Err(cli::CliError::Connection(msg)) => {
             eprintln!("Error: {}", msg);
             std::process::ExitCode::from(2)
         }
-        Err(cli::CliError::CommandError(msg)) => {
+        Err(cli::CliError::Command(msg)) => {
             eprintln!("Error: {}", msg);
             std::process::ExitCode::from(1)
         }
-        Err(cli::CliError::ProtocolError(msg)) => {
+        Err(cli::CliError::Protocol(msg)) => {
             eprintln!("Error: {}", msg);
             std::process::ExitCode::from(1)
         }

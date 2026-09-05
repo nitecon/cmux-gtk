@@ -250,3 +250,7 @@ Added a 64-slot authenticated connection gate with immediate overload rejection.
 ## Request payload ownership during dispatch
 
 Socket dispatch now consumes its raw request string, takes ID/method/parameter fields from parsed JSON, and drops unused envelope/parameter storage before waiting for execution. Generic browser commands move their full parameter value into the command instead of retaining a cloned tree; diagnostics requests discard unused params before worker sampling. This reduces simultaneous retained representations without changing wire behavior. Existing request-validation coverage compiles with the owned input signature. All-target Cargo checking and diff validation pass; runtime verification remains CI-only.
+
+## Transport error and module style cleanup
+
+CLI error variants now use Connection/Command/Protocol within CliError, share one message-formatting arm and implement the standard Error trait. Binary exit-code routing is preserved. SSH cleanup guards precede the test module, removing the remaining module-order warning. All-target Clippy correctness/suspicious gates pass; remaining Rust style findings are the two large constructor signatures, plus native GTK deprecation warnings. No local tests run.
