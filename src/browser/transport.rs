@@ -72,6 +72,37 @@ fn exchange(mut stream: UnixStream, request: &Value, timeout: Duration) -> io::R
 mod tests {
     use super::*;
 
+    /// Aborting an in-flight exchange closes the real socket instead of retaining a waiting peer.
+    #[tokio::test]
+    async fn cancelled_exchange_closes_socket() {
+        use tokio::io::{AsyncBufReadExt, AsyncReadExt};
+        let path = std::env::temp_dir().join(format!("cmux-cancel-{}.sock", uuid::Uuid::new_v4()));
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let client_path = path.clone();
+        let client = tokio::spawn(async move {
+            request_async(&client_path, &serde_json::json!({"action": "ping"})).await
+        });
+        let (peer, _) = tokio::time::timeout(Duration::from_secs(5), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let _ = std::fs::remove_file(path);
+        let mut peer = tokio::io::BufReader::new(peer);
+        let mut command = String::new();
+        tokio::time::timeout(Duration::from_secs(5), peer.read_line(&mut command))
+            .await
+            .unwrap()
+            .unwrap();
+        client.abort();
+        assert!(client.await.unwrap_err().is_cancelled());
+        let mut byte = [0];
+        let read = tokio::time::timeout(Duration::from_secs(5), peer.read(&mut byte))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(read, 0, "cancelled exchange retained its socket");
+    }
+
     /// Exercise the async transport against a real Unix listener with a fragmented response.
     #[tokio::test]
     async fn async_response_roundtrip() {

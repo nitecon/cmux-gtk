@@ -832,9 +832,18 @@ pub fn handle_socket_command(
                 let exchange = bm.send_command_async(daemon_action, params);
                 drop(s);
                 runtime.spawn(async move {
-                    match exchange.await {
-                        Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); }
-                        Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); }
+                    let mut resp_tx = resp_tx;
+                    // Dropping the exchange closes its socket and releases its capacity permit.
+                    // Prefer cancellation when the caller has already stopped awaiting a response.
+                    tokio::select! {
+                        biased;
+                        _ = resp_tx.closed() => {}
+                        result = exchange => {
+                            match result {
+                                Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); }
+                                Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); }
+                            }
+                        }
                     }
                 });
             } else {
