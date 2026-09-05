@@ -50,8 +50,11 @@ def main():
                     """Observe the GTK heartbeat through the background snapshot command."""
                     result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
                                             capture_output=True, check=True, timeout=10)
-                    heartbeat = json.loads(result.stdout)["gtk_event_loop"]
+                    latest = json.loads(result.stdout)
+                    heartbeat = latest["gtk_event_loop"]
                     if not heartbeat["sampled"]:
+                        return False
+                    if latest["terminals"]["registered"] < 1:
                         return False
                     assert heartbeat["last_delay_us"] >= 0
                     assert heartbeat["max_delay_us"] >= heartbeat["last_delay_us"]

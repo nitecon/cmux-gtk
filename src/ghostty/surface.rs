@@ -126,9 +126,11 @@ fn initialize_surface(
         surface
     };
 
-    if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-        registry.insert(surface as usize, init.pane_id);
-    }
+    crate::ghostty::registry::register(
+        surface as usize,
+        init.pane_id,
+        init.working_directory.as_deref(),
+    );
     *cell.borrow_mut() = Some(surface);
     area.grab_focus();
     crate::ghostty::callbacks::SURFACE_PTR.store(surface as usize, Ordering::SeqCst);

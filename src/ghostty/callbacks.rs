@@ -30,10 +30,6 @@ pub static SURFACE_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::Atom
 /// dereferenced on the main thread inside glib::idle_add_once closures.
 pub static GL_AREA_REGISTRY: Mutex<Vec<GtkGLAreaPtr>> = Mutex::new(Vec::new());
 
-/// Maps surface_ptr (as usize) → pane_id for close_surface_cb routing.
-pub static SURFACE_REGISTRY: LazyLock<Mutex<HashMap<usize, u64>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-
 /// Phase 4: Pane ID that most recently received a bell. Read by wakeup_cb to update attention state.
 pub static BELL_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 /// Phase 4: Flag indicating a bell is pending processing.
@@ -44,11 +40,10 @@ pub static BELL_PENDING: AtomicBool = AtomicBool::new(false);
 pub static NEW_TAB_PANE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 pub static NEW_TAB_PENDING: AtomicBool = AtomicBool::new(false);
 
-/// Called by Ghostty from its renderer thread. Must not call any ghostty_* API inline.
-/// Instead, schedules ghostty_app_tick() on the GLib main loop (per D-04, GHOST-07).
 /// Wakeup count for diagnostic logging (only logs occasionally to avoid spam)
 static WAKEUP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Coalesce renderer-thread wakeups into a GTK-thread Ghostty tick without inline native calls.
 pub unsafe extern "C" fn wakeup_cb(_userdata: *mut std::ffi::c_void) {
     // Swap: if already pending, another idle task is queued — skip.
     if WAKEUP_PENDING.swap(true, Ordering::SeqCst) {
@@ -83,13 +78,8 @@ pub static GL_TO_SURFACE: LazyLock<Mutex<HashMap<usize, usize>>> =
 
 /// Called by Ghostty when a surface wants to close (e.g. shell exits).
 /// Runs on the GLib main thread (called during ghostty_app_tick).
-/// Per D-09: no GUI dialog — exit the process.
-/// The bool argument indicates whether the process was still active when closed.
+/// Records the notification; pane lifecycle code owns the actual surface teardown.
 pub unsafe extern "C" fn close_surface_cb(_userdata: *mut std::ffi::c_void, _process_alive: bool) {
-    // Do NOT call process::exit — Phase 2 handles per-pane close gracefully.
-    // Identify which pane closed via SURFACE_REGISTRY (populated at surface creation).
-    // Full AppState.close_pane() dispatch is wired in Plan 04.
-    // For now, log the event so the executor can verify routing works.
     eprintln!("cmux: close_surface_cb fired — per-pane close will be handled by AppState");
 }
 
@@ -105,17 +95,29 @@ pub unsafe extern "C" fn action_cb(
 ) -> bool {
     use crate::ghostty::ffi;
 
+    if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_PWD {
+        if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
+            // SAFETY: The discriminants above select these union members. Ghostty
+            // owns the NUL-terminated directory for this callback; copy it before returning.
+            unsafe {
+                let directory = action.action.pwd.pwd;
+                if !directory.is_null() {
+                    let directory = std::ffi::CStr::from_ptr(directory).to_string_lossy();
+                    crate::ghostty::registry::set_working_directory(
+                        _target.target.surface as usize,
+                        &directory,
+                    );
+                }
+            }
+        }
+        return true;
+    }
+
     // Phase 4: Handle bell action — set BELL_PENDING for wakeup_cb to dispatch to AppState.
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_RING_BELL {
         if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
             let surface_ptr = unsafe { _target.target.surface } as usize;
-            let pane_id = {
-                if let Ok(reg) = SURFACE_REGISTRY.lock() {
-                    reg.get(&surface_ptr).copied()
-                } else {
-                    None
-                }
-            };
+            let pane_id = crate::ghostty::registry::pane_id(surface_ptr);
             if let Some(pane_id) = pane_id {
                 BELL_PANE_ID.store(pane_id, std::sync::atomic::Ordering::SeqCst);
                 BELL_PENDING.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -127,11 +129,9 @@ pub unsafe extern "C" fn action_cb(
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_NEW_TAB {
         if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
             let surface_ptr = unsafe { _target.target.surface } as usize;
-            if let Ok(registry) = SURFACE_REGISTRY.lock() {
-                if let Some(pane_id) = registry.get(&surface_ptr) {
-                    NEW_TAB_PANE_ID.store(*pane_id, Ordering::SeqCst);
-                    NEW_TAB_PENDING.store(true, Ordering::SeqCst);
-                }
+            if let Some(pane_id) = crate::ghostty::registry::pane_id(surface_ptr) {
+                NEW_TAB_PANE_ID.store(pane_id, Ordering::SeqCst);
+                NEW_TAB_PENDING.store(true, Ordering::SeqCst);
             }
         }
         return true;
@@ -141,12 +141,19 @@ pub unsafe extern "C" fn action_cb(
         // Trigger a render on the GLArea — will call ghostty_surface_draw on main thread.
         let target = if _target.tag == ffi::ghostty_target_tag_e_GHOSTTY_TARGET_SURFACE {
             Some(unsafe { _target.target.surface } as usize)
-        } else { None };
+        } else {
+            None
+        };
         let mappings = GL_TO_SURFACE.lock().ok();
         if let Ok(areas) = crate::ghostty::callbacks::GL_AREA_REGISTRY.lock() {
             for area_ptr in areas.iter() {
                 if let Some(target) = target {
-                    if mappings.as_ref().and_then(|map| map.get(&(area_ptr.0 as usize))).copied() != Some(target) {
+                    if mappings
+                        .as_ref()
+                        .and_then(|map| map.get(&(area_ptr.0 as usize)))
+                        .copied()
+                        != Some(target)
+                    {
                         continue;
                     }
                 }

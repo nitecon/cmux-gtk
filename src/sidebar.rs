@@ -52,7 +52,9 @@ pub fn wire_sidebar_clicks(
     list_box.connect_row_activated({
         let state = Rc::downgrade(&state);
         move |_list, row| {
-            let Some(state) = state.upgrade() else { return; };
+            let Some(state) = state.upgrade() else {
+                return;
+            };
             let index = row.index() as usize;
             state.borrow_mut().switch_to_index(index);
             // SPLIT-07: call ghostty_surface_set_focus on the newly active pane.
@@ -62,13 +64,8 @@ pub fn wire_sidebar_clicks(
                 s.active_split_engine_mut()
                     .and_then(|engine| engine.root.find_active_pane_id())
                     .and_then(|pane_id| {
-                        if let Ok(reg) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                            reg.iter()
-                                .find(|(_, &pid)| pid == pane_id)
-                                .map(|(&ptr, _)| ptr as crate::ghostty::ffi::ghostty_surface_t)
-                        } else {
-                            None
-                        }
+                        crate::ghostty::registry::first_surface(pane_id)
+                            .map(|pointer| pointer as crate::ghostty::ffi::ghostty_surface_t)
                     })
             };
             if let Some(surface) = surface {
@@ -95,7 +92,9 @@ pub fn start_inline_rename(
 
     let (workspace_id, current_name) = {
         let s = state.borrow();
-        let Some(workspace) = s.workspaces.get(active_index) else { return; };
+        let Some(workspace) = s.workspaces.get(active_index) else {
+            return;
+        };
         (workspace.id, workspace.name.clone())
     };
     let entry = gtk4::Entry::new();
@@ -108,14 +107,22 @@ pub fn start_inline_rename(
         let row = row.downgrade();
         let state = Rc::downgrade(&state);
         move |commit| {
-            let Some(state) = state.upgrade() else { return; };
-            let (Some(row), Some(entry)) = (row.upgrade(), entry.upgrade()) else { return; };
-            if finished.replace(true) { return; }
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            let (Some(row), Some(entry)) = (row.upgrade(), entry.upgrade()) else {
+                return;
+            };
+            if finished.replace(true) {
+                return;
+            }
             {
                 let mut s = state.borrow_mut();
                 if let Some(workspace) = s.workspaces.iter_mut().find(|w| w.id == workspace_id) {
                     let name = entry.text();
-                    if commit && !name.trim().is_empty() { workspace.rename(name.trim().to_string()); }
+                    if commit && !name.trim().is_empty() {
+                        workspace.rename(name.trim().to_string());
+                    }
                     row.set_child(Some(&workspace_row_content(workspace)));
                     style_workspace_row(&row, workspace);
                 }
@@ -125,14 +132,24 @@ pub fn start_inline_rename(
             wire_row_close_button(&row, state.clone(), &app);
         }
     });
-    entry.connect_activate({ let finish = finish.clone(); move |_| finish(true) });
+    entry.connect_activate({
+        let finish = finish.clone();
+        move |_| finish(true)
+    });
     let focus = gtk4::EventControllerFocus::new();
-    focus.connect_leave({ let finish = finish.clone(); move |_| finish(true) });
+    focus.connect_leave({
+        let finish = finish.clone();
+        move |_| finish(true)
+    });
     entry.add_controller(focus);
     let key = gtk4::EventControllerKey::new();
     key.connect_key_pressed(move |_, key, _, _| {
-        if key == gtk4::gdk::Key::Escape { finish(false); glib::Propagation::Stop }
-        else { glib::Propagation::Proceed }
+        if key == gtk4::gdk::Key::Escape {
+            finish(false);
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
     });
     entry.add_controller(key);
 }
@@ -184,8 +201,12 @@ pub fn wire_row_close_button(
             let app = app.clone();
             let row = row.downgrade();
             move |_| {
-                let Some(state) = state.upgrade() else { return; };
-                let Some(row) = row.upgrade() else { return; };
+                let Some(state) = state.upgrade() else {
+                    return;
+                };
+                let Some(row) = row.upgrade() else {
+                    return;
+                };
                 let index = row.index() as usize;
                 let ws_count = state.borrow().workspaces.len();
                 if ws_count <= 1 {
@@ -213,25 +234,45 @@ pub fn attach_sidebar_context_menu(
     for (name, offset) in [("move-up", -1isize), ("move-down", 1)] {
         let action = gtk4::gio::SimpleAction::new(name, None);
         action.connect_activate({
-            let state = Rc::downgrade(&state); let row = row.downgrade();
+            let state = Rc::downgrade(&state);
+            let row = row.downgrade();
             move |_, _| {
-                let Some(state) = state.upgrade() else { return; };
-                let Some(row) = row.upgrade() else { return; };
+                let Some(state) = state.upgrade() else {
+                    return;
+                };
+                let Some(row) = row.upgrade() else {
+                    return;
+                };
                 let index = row.index() as usize;
-                if let Some(to) = index.checked_add_signed(offset) { state.borrow_mut().reorder_workspace(index, to); }
+                if let Some(to) = index.checked_add_signed(offset) {
+                    state.borrow_mut().reorder_workspace(index, to);
+                }
             }
         });
         group.add_action(&action);
     }
-    for (name, color) in [("Default", None), ("Blue", Some("#24466b")), ("Green", Some("#285943")), ("Purple", Some("#553b70")), ("Red", Some("#703a40")), ("Orange", Some("#74502e")), ("Gray", Some("#444444"))] {
+    for (name, color) in [
+        ("Default", None),
+        ("Blue", Some("#24466b")),
+        ("Green", Some("#285943")),
+        ("Purple", Some("#553b70")),
+        ("Red", Some("#703a40")),
+        ("Orange", Some("#74502e")),
+        ("Gray", Some("#444444")),
+    ] {
         let action_name = format!("color-{}", name.to_lowercase());
         colors.append(Some(name), Some(&format!("workspace.{action_name}")));
         let action = gtk4::gio::SimpleAction::new(&action_name, None);
         action.connect_activate({
-            let state = Rc::downgrade(&state); let row = row.downgrade();
+            let state = Rc::downgrade(&state);
+            let row = row.downgrade();
             move |_, _| {
-                let Some(state) = state.upgrade() else { return; };
-                let Some(row) = row.upgrade() else { return; };
+                let Some(state) = state.upgrade() else {
+                    return;
+                };
+                let Some(row) = row.upgrade() else {
+                    return;
+                };
                 let mut s = state.borrow_mut();
                 if let Some(id) = s.workspaces.get(row.index() as usize).map(|w| w.id) {
                     s.set_workspace_color(id, color.map(str::to_string));
@@ -253,14 +294,16 @@ pub fn attach_sidebar_context_menu(
         let state = Rc::downgrade(&state);
         let row = row.downgrade();
         move |_, _, x, y| {
-            let Some(state) = state.upgrade() else { return; };
-            let (Some(row), Some(popover)) = (row.upgrade(), popover.upgrade()) else { return; };
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            let (Some(row), Some(popover)) = (row.upgrade(), popover.upgrade()) else {
+                return;
+            };
             // Switch to this workspace first so context menu actions apply to it
             let index = row.index() as usize;
             state.borrow_mut().switch_to_index(index);
-            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(
-                x as i32, y as i32, 1, 1,
-            )));
+            popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
             popover.popup();
         }
     });
@@ -319,13 +362,19 @@ pub fn style_workspace_row(row: &gtk4::ListBoxRow, workspace: &crate::workspace:
             context.remove_provider(&previous);
         }
     }
-    if let Some(color) = workspace.color.as_deref().filter(|c| crate::workspace::valid_workspace_color(c)) {
+    if let Some(color) = workspace
+        .color
+        .as_deref()
+        .filter(|c| crate::workspace::valid_workspace_color(c))
+    {
         let provider = gtk4::CssProvider::new();
         provider.load_from_data(&format!(
             "row {{ background-color: {color}; color: white; }} row:selected, row.active-workspace {{ background-color: {color}; outline: 2px solid white; outline-offset: -2px; }}"
         ));
         context.add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
-        unsafe { row.set_data("workspace-color-provider", provider); }
+        unsafe {
+            row.set_data("workspace-color-provider", provider);
+        }
     }
 }
 
@@ -333,13 +382,16 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
     let source = gtk4::DragSource::new();
     source.set_actions(gtk4::gdk::DragAction::MOVE);
     source.connect_prepare({
-        let row = row.downgrade(); let state = Rc::downgrade(&state);
+        let row = row.downgrade();
+        let state = Rc::downgrade(&state);
         move |_, _, _| {
             let state = state.upgrade()?;
             let row = row.upgrade()?;
             let s = state.borrow();
             let workspace = s.workspaces.get(row.index() as usize)?;
-            Some(gtk4::gdk::ContentProvider::for_value(&format!("cmux-workspace:{}", workspace.id).to_value()))
+            Some(gtk4::gdk::ContentProvider::for_value(
+                &format!("cmux-workspace:{}", workspace.id).to_value(),
+            ))
         }
     });
     row.add_controller(source);
@@ -348,11 +400,22 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
         let state = Rc::downgrade(&state);
         let row = row.downgrade();
         move |_, value, _, _| {
-            let Some(state) = state.upgrade() else { return false; };
-            let Some(row) = row.upgrade() else { return false; };
-            let Some(id) = value.get::<String>().ok().and_then(|s| s.strip_prefix("cmux-workspace:").and_then(|s| s.parse::<u64>().ok())) else { return false; };
+            let Some(state) = state.upgrade() else {
+                return false;
+            };
+            let Some(row) = row.upgrade() else {
+                return false;
+            };
+            let Some(id) = value.get::<String>().ok().and_then(|s| {
+                s.strip_prefix("cmux-workspace:")
+                    .and_then(|s| s.parse::<u64>().ok())
+            }) else {
+                return false;
+            };
             let mut s = state.borrow_mut();
-            let Some(from) = s.workspaces.iter().position(|w| w.id == id) else { return false; };
+            let Some(from) = s.workspaces.iter().position(|w| w.id == id) else {
+                return false;
+            };
             s.reorder_workspace(from, row.index() as usize)
         }
     });
@@ -369,12 +432,22 @@ mod lifecycle_tests {
         gtk4::init().unwrap();
         let app = gtk4::Application::new(Some("io.cmux.WorkspaceTest"), Default::default());
         let list = gtk4::ListBox::new();
-        let state = crate::app_state::AppState::new(gtk4::Stack::new(), list.clone(), std::ptr::null_mut(), app.clone());
+        let state = crate::app_state::AppState::new(
+            gtk4::Stack::new(),
+            list.clone(),
+            std::ptr::null_mut(),
+            app.clone(),
+        );
         let (snapshots, latest) = tokio::sync::watch::channel(None);
         state.borrow_mut().session_tx = Some(snapshots);
         state.borrow_mut().save_notify = Some(std::sync::Arc::new(tokio::sync::Notify::new()));
         for id in 1..=40 {
-            let workspace = crate::workspace::Workspace::new_bound(id, id as usize, "Sample".into(), "/opt/team/repo".into());
+            let workspace = crate::workspace::Workspace::new_bound(
+                id,
+                id as usize,
+                "Sample".into(),
+                "/opt/team/repo".into(),
+            );
             let row = gtk4::ListBoxRow::new();
             row.set_child(Some(&workspace_row_content(&workspace)));
             list.append(&row);
@@ -382,15 +455,27 @@ mod lifecycle_tests {
             wire_row_close_button(&row, state.clone(), &app);
             attach_sidebar_context_menu(&row, state.clone());
             row.activate_action("workspace.color-red", None).unwrap();
-            assert_eq!(state.borrow().workspaces[0].color.as_deref(), Some("#703a40"));
-            assert_eq!(latest.borrow().as_ref().unwrap().workspaces[0].color.as_deref(), Some("#703a40"));
-            row.activate_action("workspace.color-default", None).unwrap();
+            assert_eq!(
+                state.borrow().workspaces[0].color.as_deref(),
+                Some("#703a40")
+            );
+            assert_eq!(
+                latest.borrow().as_ref().unwrap().workspaces[0]
+                    .color
+                    .as_deref(),
+                Some("#703a40")
+            );
+            row.activate_action("workspace.color-default", None)
+                .unwrap();
             assert_eq!(state.borrow().workspaces[0].color, None);
             let weak = row.downgrade();
             list.remove(&row);
             state.borrow_mut().workspaces.pop();
             drop(row);
-            assert!(weak.upgrade().is_none(), "closed workspace retained by a signal callback");
+            assert!(
+                weak.upgrade().is_none(),
+                "closed workspace retained by a signal callback"
+            );
         }
         state.borrow_mut().browser_manager = Some(crate::browser::BrowserManager::new());
         for id in 1..=20 {
@@ -398,17 +483,30 @@ mod lifecycle_tests {
             let weak = widgets.container.downgrade();
             crate::shortcuts::wire_browser_tab(&state, widgets);
             // Deferred viewport work is finite, but must be allowed to release its clone.
-            while glib::MainContext::default().pending() { glib::MainContext::default().iteration(false); }
-            assert!(weak.upgrade().is_none(), "closed browser tree retained by its callbacks");
+            while glib::MainContext::default().pending() {
+                glib::MainContext::default().iteration(false);
+            }
+            assert!(
+                weak.upgrade().is_none(),
+                "closed browser tree retained by its callbacks"
+            );
         }
-        for _ in 0..3 { state.borrow_mut().create_workspace(); }
+        for _ in 0..3 {
+            state.borrow_mut().create_workspace();
+        }
         let active = state.borrow().active_workspace().unwrap().uuid;
         let first_id = state.borrow().workspaces[0].id;
         assert!(state.borrow_mut().reorder_workspace(0, 2));
         assert_eq!(state.borrow().active_workspace().unwrap().uuid, active);
         let moved = list.row_at_index(2).unwrap();
-        assert_eq!(unsafe { *moved.data::<u64>("workspace-id").unwrap().as_ref() }, first_id);
-        assert_eq!(latest.borrow().as_ref().unwrap().workspaces[2].uuid, state.borrow().workspaces[2].uuid.to_string());
+        assert_eq!(
+            unsafe { *moved.data::<u64>("workspace-id").unwrap().as_ref() },
+            first_id
+        );
+        assert_eq!(
+            latest.borrow().as_ref().unwrap().workspaces[2].uuid,
+            state.borrow().workspaces[2].uuid.to_string()
+        );
         assert!(!state.borrow_mut().reorder_workspace(0, 99));
         drop(moved);
         let weak_state = Rc::downgrade(&state);

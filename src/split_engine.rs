@@ -129,9 +129,7 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
         }
     }
     unsafe { ffi::ghostty_surface_free(surface) };
-    if let Ok(mut registry) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-        registry.remove(&(surface as usize));
-    }
+    crate::ghostty::registry::unregister(surface as usize);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1472,15 +1470,8 @@ impl SplitEngine {
 
     fn find_surface(&self, pane_id: u64) -> Option<ffi::ghostty_surface_t> {
         find_surface_in_tree(&self.root, pane_id).or_else(|| {
-            // Fallback: look up in global SURFACE_REGISTRY by scanning for pane_id.
-            // SURFACE_REGISTRY maps surface_ptr (usize) → pane_id; need reverse lookup.
-            if let Ok(reg) = crate::ghostty::callbacks::SURFACE_REGISTRY.lock() {
-                reg.iter()
-                    .find(|(_, &pid)| pid == pane_id)
-                    .map(|(&ptr, _)| ptr as ffi::ghostty_surface_t)
-            } else {
-                None
-            }
+            crate::ghostty::registry::first_surface(pane_id)
+                .map(|pointer| pointer as ffi::ghostty_surface_t)
         })
     }
 
@@ -1950,7 +1941,7 @@ pub enum SplitNodeData {
         surface_uuid: Uuid,
         /// Shell executable path, e.g. "/bin/zsh" or "/bin/bash"
         shell: String,
-        /// Absolute working directory path (best-effort; may be empty if /proc unavailable)
+        /// Last known terminal directory; empty until a launch path or native report is known.
         cwd: String,
     },
     Pane {
@@ -1993,60 +1984,10 @@ fn default_ratio() -> f64 {
     0.5
 }
 
-/// Best-effort CWD capture for a Ghostty surface via /proc.
-/// Walks /proc looking for child processes of the current process (cmux),
-/// then reads /proc/{pid}/cwd for the foreground shell.
-/// Never panics — falls back to $HOME or empty string.
-fn get_surface_cwd(surface: ffi::ghostty_surface_t) -> String {
-    if surface.is_null() {
-        return String::new();
-    }
-    // Try to find child shell processes by scanning /proc for children of our PID.
-    // Each Ghostty surface spawns a child shell — we look for processes whose
-    // parent is the cmux process and read their CWD.
-    let our_pid = std::process::id();
-    if let Ok(entries) = std::fs::read_dir("/proc") {
-        // Collect candidate child PIDs (children of our process)
-        let mut candidates: Vec<u32> = Vec::new();
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            if let Ok(pid) = name.to_string_lossy().parse::<u32>() {
-                // Read /proc/{pid}/stat to check parent PID
-                if let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-                    // Format: pid (comm) state ppid ...
-                    // Find the closing paren then parse ppid
-                    if let Some(after_comm) = stat.rfind(')') {
-                        let fields: Vec<&str> = stat[after_comm + 2..].split_whitespace().collect();
-                        if fields.len() >= 2 {
-                            if let Ok(ppid) = fields[1].parse::<u32>() {
-                                if ppid == our_pid {
-                                    candidates.push(pid);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // Use the last (most recent) child process CWD as best guess.
-        // In practice, each surface has one direct child shell.
-        for pid in candidates.iter().rev() {
-            if let Ok(cwd) = std::fs::read_link(format!("/proc/{pid}/cwd")) {
-                let cwd_str = cwd.to_string_lossy().to_string();
-                if !cwd_str.is_empty() {
-                    return cwd_str;
-                }
-            }
-        }
-    }
-    // Fallback to $HOME
-    std::env::var("HOME").unwrap_or_default()
-}
-
 impl SplitNode {
     /// Produce a serializable snapshot of this node's tree structure.
-    /// `shell` and `cwd` are best-effort: Plan 05 fills these via /proc.
-    /// Falls back to empty strings if /proc is unavailable or the pid is unknown.
+    /// Directories come from each terminal's native reports or explicit launch path.
+    /// Unknown directories stay empty; the shell retains the configured environment default.
     pub fn to_data(&self) -> SplitNodeData {
         match self {
             SplitNode::Leaf {
@@ -2061,7 +2002,9 @@ impl SplitNode {
                             surface_uuid: *uuid,
                             shell: shell.clone(),
                             cwd: surface_for_area(gl_area)
-                                .map(get_surface_cwd)
+                                .map(|pointer| {
+                                    crate::ghostty::registry::working_directory(pointer as usize)
+                                })
                                 .unwrap_or_default(),
                         },
                         PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {

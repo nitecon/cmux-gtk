@@ -20,6 +20,8 @@ Structured records identify schema version, build version, process, component an
 
 Measure resident memory, threads, descriptors, live terminals, remote PTYs, browser frames received/rendered/dropped, render timing, event-loop delay, queue depth/backpressure and session-save duration. Sampling must be bounded and low overhead. Log transitions/errors; aggregate frequent events instead of writing every frame or keystroke. Diagnostic output needs bounded retention and an observable dropped-record counter.
 
+Snapshots now include `terminals.registered`, counted from the same registry that owns native surface routing and directory metadata. This counts realized local and remote terminal surfaces, excludes browser panes and not-yet-realized widgets, and becomes absent (`null`) if the registry lock is poisoned. Registry entries are removed after native teardown; compare this count with RSS and descriptors during churn rather than treating RSS alone as evidence of live-surface leaks.
+
 Provide a discoverable CLI diagnostic snapshot and a repeatable collection workflow for issue reports. Exclude terminal content, clipboard contents, secrets and full environment dumps. Configuration controls belong in persisted application settings with explicit overrides where needed.
 
 ## Benchmark evidence
