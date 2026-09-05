@@ -242,3 +242,7 @@ Extracted socket request framing from connection dispatch into a documented modu
 ## Bounded server response delivery
 
 The framing component now owns response writes as well as request reads. It caps serialized response bodies at 4 MiB and applies one ten-second deadline across body/newline writes. Errors close the connection and record a structured delivery failure. Added a bounded in-memory transport CI test for exact framing and a non-reading peer; all-target Cargo checking and diff validation pass. No local tests run. Handler-side response allocation and failure trace correlation remain outstanding.
+
+## Socket admission ownership
+
+Added a 64-slot authenticated connection gate with immediate overload rejection. Handler tasks own semaphore permits through idle/read/dispatch/write phases, and normal exit or cancellation releases them. Diagnostics expose capacity, active handlers and rejected connections without per-rejection log traffic. CI tests cover saturation, reuse, task cancellation and live diagnostic fields. Workspace all-target checking, Python syntax and diff validation pass; no local tests run. The limit is an initial resource bound, not a measured optimal capacity or complete GTK queue bound.

@@ -48,6 +48,9 @@ def main():
                 assert snapshot["resources"]["cpu_user_us"] >= 0
                 assert snapshot["resources"]["cpu_system_us"] >= 0
                 assert snapshot["logging"]["active"]
+                connections = snapshot["socket_connections"]
+                assert 1 <= connections["active"] <= connections["capacity"]
+                assert connections["rejected"] >= 0
 
                 def heartbeat_ready():
                     """Observe the GTK heartbeat through the background snapshot command."""

@@ -1,3 +1,4 @@
+pub(crate) mod admission;
 pub mod auth;
 pub mod commands;
 mod framing;
@@ -85,8 +86,14 @@ pub fn start_socket_server(
                     // Validate peer UID before reading any data.
                     match auth::validate_peer_uid(&stream) {
                         Ok(true) => {
+                            let Some(permit) = admission::admit() else {
+                                continue;
+                            };
                             let tx = cmd_tx.clone();
-                            tokio::spawn(handle_connection(stream, tx));
+                            tokio::spawn(async move {
+                                let _permit = permit;
+                                handle_connection(stream, tx).await;
+                            });
                         }
                         Ok(false) => {
                             eprintln!("cmux: socket connection rejected (UID mismatch)");
