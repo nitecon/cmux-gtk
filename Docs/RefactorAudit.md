@@ -721,3 +721,25 @@ is selected, verifies browser selection on return, then cleans up the temporary
 workspace. It does not directly inspect Ghostty's private focused flag. Local
 binary/test-target compilation, Python parsing and diff checks passed; runtime
 results remain pending CI.
+
+
+### Workspace metadata shares real layout counts
+
+Workspace listing and current-workspace responses now use one record builder,
+including compatible id/uuid and title/name aliases. Counts derive from pane
+snapshots: two sibling tabs in one pane count as one pane and two surfaces. Missing
+engine metadata is null rather than a fabricated zero, and CLI formatting labels
+that state unavailable. This fixes current-workspace output showing an unknown
+identity and list-workspaces reporting zero panes despite a populated layout.
+
+The mixed-tab GTK fixture verifies hierarchy counts, naming/identity aliases and
+human-readable CLI output. A formatter case covers known and unavailable counts.
+Local binary/test-target compilation, Python syntax and diff checks passed.
+Updated API context was validated and republished to gateway Documentation
+`01a07372-b5a2-7890-a7af-751bd3b5391a`.
+
+CI run 33992451759 at e08b976f confirms successful divider lifetime, terminal churn
+(including strict keyboard ancestry, EOF and sustained rendering), and SSH/script
+restore scenarios. Optimized benchmark build was still running when inspected.
+This verifies the earlier fixture corrections, not changes after that commit or
+the full refactor objective.

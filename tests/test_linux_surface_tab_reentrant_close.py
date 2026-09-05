@@ -43,6 +43,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             pane_id = panes[0]["id"]
             assert pane_id in app.cli("list-panes")
             assert panes[0]["surface_ids"] == [browser_id, terminal_id]
+            workspace = json.loads(app.cli("current-workspace", "--json"))
+            assert workspace["pane_count"] == 1 and workspace["surface_count"] == 2
+            assert workspace["id"] == workspace["uuid"]
+            assert workspace["title"] == workspace["name"]
+            assert "(1 pane)" in app.cli("list-workspaces")
+            assert workspace["id"] in app.cli("current-workspace")
             for target in [browser_id, terminal_id] * 3:
                 app.cli("focus-surface", target)
                 selected = {surface["uuid"] for surface in app.surfaces() if surface["active"]}

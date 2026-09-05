@@ -14,6 +14,28 @@ fn err(req_id: Value, code: &str, message: &str) -> Value {
     json!({"id": req_id, "ok": false, "error": {"code": code, "message": message}})
 }
 
+/// Snapshot one workspace's identity and layout counts without changing focus or retaining widgets.
+/// Return None for an absent index; missing engines produce unknown counts rather than fabricated zeroes.
+fn workspace_record(state: &crate::app_state::AppState, index: usize) -> Option<Value> {
+    let workspace = state.workspaces.get(index)?;
+    let counts = state.split_engines.get(index).map(|engine| {
+        let panes = engine.pane_info();
+        let surfaces: usize = panes.iter().map(|pane| pane.surface_ids.len()).sum();
+        (panes.len(), surfaces)
+    });
+    Some(json!({
+        "index": index,
+        "id": workspace.uuid,
+        "uuid": workspace.uuid,
+        "title": workspace.name,
+        "name": workspace.name,
+        "working_directory": workspace.working_directory.as_ref().map(|path| path.to_string_lossy()),
+        "selected": index == state.active_index,
+        "pane_count": counts.map(|(panes, _)| panes),
+        "surface_count": counts.map(|(_, surfaces)| surfaces),
+    }))
+}
+
 /// Resolve a live terminal in the current workspace without focus changes; GTK-thread callers only.
 fn terminal_target(
     state: &crate::app_state::AppStateRef,
@@ -170,33 +192,19 @@ fn handle_socket_command_traced(
         SocketCommand::WorkspaceList { req_id, resp_tx } => {
             // SOCK-05: No focus side effects.
             let s = state.borrow();
-            let list: Vec<Value> = s.workspaces.iter().enumerate().map(|(i, ws)| {
-                json!({
-                    "index": i,
-                    "id": ws.uuid.to_string(),
-                    "title": ws.name,
-                    "working_directory": ws.working_directory.as_ref().map(|path| path.to_string_lossy()),
-                    "selected": i == s.active_index,
-                })
-            }).collect();
+            let list: Vec<Value> = (0..s.workspaces.len())
+                .filter_map(|index| workspace_record(&s, index)).collect();
             let _ = resp_tx.send(ok(req_id, json!({"workspaces": list})));
         }
 
         SocketCommand::WorkspaceCurrent { req_id, resp_tx } => {
             // SOCK-05: No focus side effects.
             let s = state.borrow();
-            match s.active_workspace() {
-                Some(ws) => {
-                    let _ = resp_tx.send(ok(req_id, json!({
-                        "uuid": ws.uuid.to_string(),
-                        "name": ws.name,
-                        "working_directory": ws.working_directory.as_ref().map(|path| path.to_string_lossy()),
-                    })));
-                }
-                None => {
-                    let _ = resp_tx.send(err(req_id, "no_workspace", "no active workspace"));
-                }
-            }
+            let response = match workspace_record(&s, s.active_index) {
+                Some(workspace) => ok(req_id, workspace),
+                None => err(req_id, "no_workspace", "no active workspace"),
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::WorkspaceCreate { req_id, remote_target, name, working_directory, resp_tx } => {

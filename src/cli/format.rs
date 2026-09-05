@@ -52,16 +52,13 @@ pub fn format_workspace_list(result: &Value, color: bool) -> String {
             .get("title")
             .and_then(|v| v.as_str())
             .unwrap_or("untitled");
-        let pane_count = ws.get("pane_count").and_then(|v| v.as_u64()).unwrap_or(0);
+        let pane_count = match ws.get("pane_count").and_then(Value::as_u64) {
+            Some(1) => "1 pane".to_owned(),
+            Some(count) => format!("{count} panes"),
+            None => "pane count unavailable".to_owned(),
+        };
         let marker = if selected { "*" } else { " " };
-        let line = format!(
-            "{} {}: {} ({} pane{})",
-            marker,
-            i + 1,
-            title,
-            pane_count,
-            if pane_count == 1 { "" } else { "s" }
-        );
+        let line = format!("{} {}: {} ({})", marker, i + 1, title, pane_count);
         if selected && color {
             lines.push(green(&line, true));
         } else {
@@ -327,6 +324,19 @@ fn format_fallback(result: &Value) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// Missing layout metadata must not be rendered as a known zero-pane workspace.
+    #[test]
+    fn workspace_count_availability() {
+        let result = json!({"workspaces": [
+            {"title": "known", "pane_count": 2, "selected": true},
+            {"title": "unknown", "pane_count": null}
+        ]});
+        assert_eq!(
+            format_workspace_list(&result, false),
+            "* 1: known (2 panes)\n  2: unknown (pane count unavailable)"
+        );
+    }
 
     /// Current surface records must produce reusable UUIDs and truthful selection markers.
     #[test]

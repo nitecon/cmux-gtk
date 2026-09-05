@@ -10,6 +10,12 @@ labels: [linux, gtk, terminal, socket, lifecycle]
 content:
   purpose: Resolve targets through the workspace pane tree and preserve focus for observational commands.
   endpoints:
+    - method: workspace.list
+      transport: Unix JSON socket
+      description: Workspace records share identity and naming aliases with workspace.current. pane_count counts split panes; surface_count counts all sibling tabs. A missing layout engine yields null counts rather than fabricated zeroes.
+    - method: workspace.current
+      transport: Unix JSON socket
+      description: Return the active workspace using the same record builder as workspace.list, including id/uuid, title/name, working_directory, selected and layout counts. No focus mutation; absent active workspace returns no_workspace.
     - method: pane.list
       transport: Unix JSON socket
       description: One record per split pane across workspaces. id is a session-local pane:N reference. surface_ids preserves sibling order; active_surface_uuid is the selected tab. uuid remains the selected surface UUID for legacy clients. active and focused mark the focused pane of the active workspace.
