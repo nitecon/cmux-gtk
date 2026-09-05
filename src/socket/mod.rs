@@ -337,16 +337,23 @@ async fn dispatch_line(
             req_id: req_id.clone(),
             resp_tx,
         },
-        "surface.split" => commands::SocketCommand::SurfaceSplit {
-            req_id: req_id.clone(),
-            id: params.get("id").and_then(|v| v.as_str()).map(String::from),
-            direction: params
-                .get("direction")
-                .and_then(|v| v.as_str())
-                .unwrap_or("horizontal")
-                .to_string(),
-            resp_tx,
-        },
+        "surface.split" => {
+            let direction = match params.get("direction") {
+                None => commands::SplitDirection::Horizontal,
+                Some(serde_json::Value::String(value)) if value == "horizontal" => commands::SplitDirection::Horizontal,
+                Some(serde_json::Value::String(value)) if value == "vertical" => commands::SplitDirection::Vertical,
+                _ => return serde_json::json!({
+                    "id": req_id, "ok": false,
+                    "error": {"code": "invalid_params", "message": "direction must be horizontal or vertical"}
+                }).to_string(),
+            };
+            commands::SocketCommand::SurfaceSplit {
+                req_id: req_id.clone(),
+                id: params.get("id").and_then(|v| v.as_str()).map(String::from),
+                direction,
+                resp_tx,
+            }
+        }
         "surface.focus" => commands::SocketCommand::SurfaceFocus {
             req_id: req_id.clone(),
             id: params
@@ -551,6 +558,26 @@ async fn dispatch_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Malformed directions fail before GTK admission, preserving request correlation.
+    #[tokio::test]
+    async fn invalid_split_directions_never_reach_gtk() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(COMMAND_CAPACITY);
+        for direction in [
+            serde_json::json!("diagonal"),
+            serde_json::json!(false),
+            serde_json::json!(null),
+            serde_json::json!(3),
+        ] {
+            let request = serde_json::json!({"id": 12, "method": "surface.split",
+                                           "params": {"direction": direction}});
+            let response = dispatch_line(request.to_string(), &tx).await;
+            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            assert_eq!(response["id"], 12);
+            assert_eq!(response["error"]["code"], "invalid_params");
+            assert!(rx.try_recv().is_err());
+        }
+    }
 
     /// Saturation fails promptly with the original ID and allows dispatch after draining.
     #[tokio::test]

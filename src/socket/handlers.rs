@@ -546,10 +546,9 @@ fn handle_socket_command_traced(
         } => {
             // Split the requested surface in the active workspace, or its active pane.
             // Selecting/splitting is focus intent; invalid targets must not create a pane.
-            let orientation = if direction == "vertical" {
-                gtk4::Orientation::Vertical
-            } else {
-                gtk4::Orientation::Horizontal
+            let orientation = match direction {
+                super::commands::SplitDirection::Vertical => gtk4::Orientation::Vertical,
+                super::commands::SplitDirection::Horizontal => gtk4::Orientation::Horizontal,
             };
             let result = {
                 let mut s = state.borrow_mut();
@@ -617,20 +616,19 @@ fn handle_socket_command_traced(
             let closed = {
                 let mut s = state.borrow_mut();
                 let idx = s.active_index;
-                s.split_engines.get_mut(idx).map(|engine| {
-                    engine.close_surface_and_empty_pane(uuid)
-                        == crate::split_engine::CloseSurfaceResult::Closed
-                })
+                s.split_engines
+                    .get_mut(idx)
+                    .map(|engine| engine.close_surface_and_empty_pane(uuid))
             };
             match closed {
-                Some(true) => {
+                Some(crate::split_engine::CloseSurfaceResult::Closed) => {
                     state.borrow().trigger_session_save();
                     let _ = resp_tx.send(ok(req_id, json!({})));
                 }
-                Some(false) => {
+                Some(crate::split_engine::CloseSurfaceResult::LastSurfaceInPane) => {
                     let _ = resp_tx.send(err(req_id, "close_failed", "cannot close last surface"));
                 }
-                None => {
+                Some(crate::split_engine::CloseSurfaceResult::NotFound) | None => {
                     let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
                 }
             }

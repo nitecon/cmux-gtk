@@ -2,6 +2,13 @@ use serde_json::Value;
 
 pub type RespTx = tokio::sync::oneshot::Sender<Value>;
 
+/// Validated split direction, independent of GTK and invalid wire values.
+#[derive(Clone, Copy)]
+pub enum SplitDirection {
+    Horizontal,
+    Vertical,
+}
+
 /// Commands dispatched from tokio accept loop to GTK main thread.
 /// All variants carry `req_id` (echoed in response) and `resp_tx` (result channel).
 /// GTK/AppState reads and mutations happen ONLY in handlers.rs on the main thread.
@@ -87,7 +94,7 @@ pub enum SocketCommand {
     SurfaceSplit {
         req_id: Value,
         id: Option<String>,
-        direction: String,
+        direction: SplitDirection,
         resp_tx: RespTx,
     },
     SurfaceFocus {

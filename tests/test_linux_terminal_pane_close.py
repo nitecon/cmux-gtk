@@ -51,6 +51,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-terminal-close-") as directory:
             raise AssertionError("unknown split target unexpectedly succeeded")
         assert app.surfaces() == targeted, "failed split changed layout or selection"
         for arguments in [
+            ("split", "--direction", "diagonal", "--id", survivors[0]),
+            ("close-surface", "00000000-0000-4000-8000-000000000000"),
             ("send-text", "ignored", "--id", "00000000-0000-4000-8000-000000000000"),
             ("send-key", "ctrl+c", "--id", new_id),
             ("read-text", "--id", "00000000-0000-4000-8000-000000000000"),
