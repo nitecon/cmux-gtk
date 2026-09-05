@@ -994,69 +994,6 @@ class cmux:
         if not response.startswith("OK"):
             raise cmuxError(response)
 
-    def seed_drag_pasteboard_fileurl(self) -> None:
-        """Seed NSDrag pasteboard with public.file-url in the app process (debug builds only)."""
-        response = self._send_command("seed_drag_pasteboard_fileurl")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def seed_drag_pasteboard_tabtransfer(self) -> None:
-        """Seed NSDrag pasteboard with tab transfer type in the app process (debug builds only)."""
-        response = self._send_command("seed_drag_pasteboard_tabtransfer")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def seed_drag_pasteboard_sidebar_reorder(self) -> None:
-        """Seed NSDrag pasteboard with sidebar reorder type in the app process (debug builds only)."""
-        response = self._send_command("seed_drag_pasteboard_sidebar_reorder")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def seed_drag_pasteboard_types(self, types: List[str]) -> None:
-        """Seed NSDrag pasteboard with comma/space-separated types in app process."""
-        if not types:
-            raise cmuxError("seed_drag_pasteboard_types requires at least one type")
-        payload = ",".join(t.strip() for t in types if t and t.strip())
-        if not payload:
-            raise cmuxError("seed_drag_pasteboard_types requires at least one non-empty type")
-        response = self._send_command(f"seed_drag_pasteboard_types {payload}")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def clear_drag_pasteboard(self) -> None:
-        """Clear NSDrag pasteboard in the app process (debug builds only)."""
-        response = self._send_command("clear_drag_pasteboard")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def overlay_hit_gate(self, event_type: str) -> bool:
-        """Return whether FileDropOverlayView would capture hit-testing for event_type."""
-        response = self._send_command(f"overlay_hit_gate {event_type}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip().lower() == "true"
-
-    def overlay_drop_gate(self, source: str = "external") -> bool:
-        """Return whether FileDropOverlayView would capture drag-destination routing."""
-        response = self._send_command(f"overlay_drop_gate {source}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip().lower() == "true"
-
-    def portal_hit_gate(self, event_type: str) -> bool:
-        """Return whether terminal portal hit-testing should pass through to SwiftUI drag targets."""
-        response = self._send_command(f"portal_hit_gate {event_type}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip().lower() == "true"
-
-    def sidebar_overlay_gate(self, state: str = "active") -> bool:
-        """Return whether sidebar outside-drop overlay would capture for drag state."""
-        response = self._send_command(f"sidebar_overlay_gate {state}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip().lower() == "true"
-
     def drop_hit_test(self, x: float, y: float) -> Optional[str]:
         """Hit-test the file-drop overlay at normalised (0-1) coords.
 
@@ -1167,19 +1104,6 @@ class cmux:
             "height": int(height),
             "path": path,
         }
-
-    def bonsplit_underflow_count(self) -> int:
-        """Return bonsplit arranged-subview underflow counter."""
-        response = self._send_command("bonsplit_underflow_count")
-        if response.startswith("OK "):
-            return int(response.split(" ", 1)[1])
-        raise cmuxError(response)
-
-    def reset_bonsplit_underflow_count(self) -> None:
-        """Reset bonsplit arranged-subview underflow counter."""
-        response = self._send_command("reset_bonsplit_underflow_count")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
 
     def empty_panel_count(self) -> int:
         """Return the number of EmptyPanelView appearances."""

@@ -1,91 +1,38 @@
 #!/usr/bin/env python3
-"""
-Regression test: `cmux --version` should print version text without requiring a socket.
-"""
+"""Verify Linux version flags without a display, socket or application-state writes."""
 
-from __future__ import annotations
-
-import glob
 import os
+from pathlib import Path
 import re
-import shutil
 import subprocess
+import tempfile
 
 
-def resolve_cmux_cli() -> str:
-    explicit = os.environ.get("CMUX_CLI_BIN") or os.environ.get("CMUX_CLI")
-    if explicit and os.path.exists(explicit) and os.access(explicit, os.X_OK):
-        return explicit
-
-    candidates: list[str] = []
-    candidates.extend(glob.glob(os.path.expanduser("~/Library/Developer/Xcode/DerivedData/*/Build/Products/Debug/cmux")))
-    candidates.extend(glob.glob("/tmp/cmux-*/Build/Products/Debug/cmux"))
-    candidates = [p for p in candidates if os.path.exists(p) and os.access(p, os.X_OK)]
-    if candidates:
-        candidates.sort(key=os.path.getmtime, reverse=True)
-        return candidates[0]
-
-    in_path = shutil.which("cmux")
-    if in_path:
-        return in_path
-
-    raise RuntimeError("Unable to find cmux CLI binary. Set CMUX_CLI_BIN.")
-
-
-def run(cli_path: str, *args: str, timeout: float = 5.0) -> tuple[int, str, str]:
-    try:
-        proc = subprocess.run(
-            [cli_path, *args],
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        return 124, "", f"timed out after {timeout:.1f}s"
-    return proc.returncode, proc.stdout.strip(), proc.stderr.strip()
-
-
-def main() -> int:
-    try:
-        cli_path = resolve_cmux_cli()
-    except Exception as exc:
-        print(f"FAIL: {exc}")
-        return 1
-
-    code, out, err = run(cli_path, "--version")
-    if code != 0:
-        print("FAIL: `cmux --version` exited non-zero")
-        print(f"exit={code}")
-        print(f"stdout={out}")
-        print(f"stderr={err}")
-        return 1
-
-    if not out:
-        print("FAIL: `cmux --version` produced empty stdout")
-        return 1
-
-    if not re.search(r"\b\d+\.\d+\.\d+\b", out):
-        print(f"FAIL: version output missing semantic version: {out!r}")
-        return 1
-
-    code2, out2, err2 = run(cli_path, "version")
-    if code2 != 0:
-        print("FAIL: `cmux version` exited non-zero")
-        print(f"exit={code2}")
-        print(f"stdout={out2}")
-        print(f"stderr={err2}")
-        return 1
-
-    if out2 != out:
-        print("FAIL: `cmux --version` and `cmux version` differ")
-        print(f"--version: {out!r}")
-        print(f"version:   {out2!r}")
-        return 1
-
-    print(f"PASS: cmux version command works ({out})")
-    return 0
+def main():
+    """Exercise both executables and short/long flags against isolated unavailable services."""
+    binary_dir = Path(os.environ.get("CMUX_BIN_DIR", "target/debug")).resolve()
+    with tempfile.TemporaryDirectory(prefix="cmux-version-") as directory:
+        root = Path(directory)
+        env = dict(os.environ, CMUX_SOCKET=str(root / "missing.sock"))
+        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
+            env.pop(name, None)
+        for kind in ("CONFIG_HOME", "DATA_HOME", "STATE_HOME", "RUNTIME_DIR"):
+            env[f"XDG_{kind}"] = str(root / kind.lower())
+        versions = []
+        for binary in ("cmux", "cmux-app"):
+            for flag in ("--version", "-V"):
+                result = subprocess.run([str(binary_dir / binary), flag], env=env,
+                                        text=True, capture_output=True, check=True, timeout=5)
+                assert not result.stderr, result.stderr
+                prefix = f"{binary} "
+                assert result.stdout.startswith(prefix), result.stdout
+                version = result.stdout.removeprefix(prefix).strip()
+                assert re.fullmatch(r"\d+\.\d+\.\d+(?:[-+].+)?", version), version
+                versions.append(version)
+        assert len(set(versions)) == 1, versions
+        assert not list(root.iterdir()), "version flags initialized application state"
+    print(f"PASS: both executables report {versions[0]} without GTK or socket startup")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

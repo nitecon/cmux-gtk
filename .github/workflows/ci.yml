@@ -85,6 +85,9 @@ jobs:
         id: debug_build
         run: cargo build --workspace --bins
 
+      - name: Test version flags without a display or socket
+        run: python3 tests/test_cli_version_flag.py
+
       - name: Install headless UI test dependencies
         run: sudo apt-get install -y xvfb dbus-x11 openbox xdotool wmctrl x11-utils
 
