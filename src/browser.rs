@@ -164,10 +164,42 @@ impl BrowserManager {
     }
 
     /// Prepare history navigation and URL refresh for worker execution after daemon startup.
-    /// Admit one history operation per manager; reject overlaps without retaining a queue.
+    /// Navigation shares one admission slot with URL-entry operations.
     pub fn navigate_async(
         &self,
         command: String,
+        trace_id: uuid::Uuid,
+    ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
+        self.navigation_commands(vec![vec![command]], trace_id)
+    }
+
+    /// Prepare viewport sizing, URL navigation and address refresh as one admitted operation.
+    /// Skip unknown viewport sizes; a failed sizing command prevents partial navigation.
+    pub fn open_async(
+        &self,
+        url: String,
+        viewport: Option<(i32, i32)>,
+        trace_id: uuid::Uuid,
+    ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
+        let mut commands = Vec::new();
+        if let Some((width, height)) = viewport.filter(|(width, height)| *width > 0 && *height > 0)
+        {
+            commands.push(vec![
+                "set".into(),
+                "viewport".into(),
+                width.to_string(),
+                height.to_string(),
+            ]);
+        }
+        commands.push(vec!["open".into(), url]);
+        self.navigation_commands(commands, trace_id)
+    }
+
+    /// Execute ordered public CLI commands and refresh the URL while owning one admission permit.
+    /// Reject overlap before spawning children; dropping the future releases its slot.
+    fn navigation_commands(
+        &self,
+        commands: Vec<Vec<String>>,
         trace_id: uuid::Uuid,
     ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
         let binary = self.binary_path.clone();
@@ -185,7 +217,10 @@ impl BrowserManager {
                 permit.map_err(|_| "Browser navigation already in progress".to_string())?;
             let binary =
                 binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
-            cli::run(&binary, &session, &[&command], trace_id).await?;
+            for command in commands {
+                let args: Vec<&str> = command.iter().map(String::as_str).collect();
+                cli::run(&binary, &session, &args, trace_id).await?;
+            }
             let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
             Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
         }
@@ -428,6 +463,14 @@ case "$4" in
         [ "$5" = 'url' ] || exit 3
         printf '%s\n' '{"success":true,"data":{"url":"https://example.test/restored"}}'
         ;;
+    set)
+        [ "$5" = 'viewport' ] && [ "$6" = '800' ] && [ "$7" = '600' ] || exit 4
+        printf '%s\n' '{"success":true,"data":{}}'
+        ;;
+    open)
+        [ "$5" = 'https://example.test/a b?x=$(false)' ] || exit 5
+        printf '%s\n' '{"success":true,"data":{}}'
+        ;;
     fail) exit 7 ;;
     *) printf '%s\n' '{"success":true,"data":{}}' ;;
 esac
@@ -457,11 +500,30 @@ esac
             .await
             .unwrap()
             .is_some());
+        let url = "https://example.test/a b?x=$(false)".to_string();
+        let open = browser.open_async(url.clone(), Some((800, 600)), Uuid::new_v4());
+        assert!(browser
+            .navigate_async("overlap".into(), Uuid::new_v4())
+            .await
+            .is_err());
+        assert!(open.await.unwrap().is_some());
+        assert!(browser
+            .open_async(url.clone(), Some((0, 600)), Uuid::new_v4())
+            .await
+            .unwrap()
+            .is_some());
+        // A viewport failure must stop the sequence before open and URL refresh.
+        assert!(browser
+            .open_async(url, Some((640, 480)), Uuid::new_v4())
+            .await
+            .is_err());
         let calls =
             std::fs::read_to_string(binary.with_file_name("browser fixture.calls")).unwrap();
-        let expected = ["back", "get", "fail", "forward", "get"]
-            .map(|command| format!("{} {command}\n", browser.session_name))
-            .concat();
+        let expected = [
+            "back", "get", "fail", "forward", "get", "set", "open", "get", "open", "get", "set",
+        ]
+        .map(|command| format!("{} {command}\n", browser.session_name))
+        .concat();
         assert_eq!(calls, expected);
         std::fs::remove_dir_all(directory).unwrap();
     }

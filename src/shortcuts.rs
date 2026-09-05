@@ -442,28 +442,7 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_go) = state_for_go.upgrade() else {
                 return;
             };
-            let raw_url = url_entry_for_go.text().to_string();
-            if raw_url.is_empty() {
-                return;
-            }
-            let url = if raw_url.contains("://") {
-                raw_url
-            } else {
-                format!("https://{raw_url}")
-            };
-            url_entry_for_go.set_text(&url);
-            let mut s = state_for_go.borrow_mut();
-            if let Some(ref mut bm) = s.browser_manager {
-                let w = picture_for_go.width();
-                let h = picture_for_go.height();
-                if w > 0 && h > 0 {
-                    let width = w.to_string();
-                    let height = h.to_string();
-                    let _ = bm.run_cli(&["set", "viewport", &width, &height]);
-                }
-                let _ = bm.run_cli(&["open", &url]);
-            }
-            s.trigger_session_save();
+            navigate_browser_entry(&state_for_go, &url_entry_for_go, &picture_for_go);
         });
     }
 
@@ -693,30 +672,7 @@ pub(crate) fn wire_browser_tab(
         let Some(state_for_entry) = state_for_entry.upgrade() else {
             return;
         };
-        let raw_url = entry.text().to_string();
-        if raw_url.is_empty() {
-            return;
-        }
-        // Auto-prepend https:// if no scheme is present
-        let url = if raw_url.contains("://") {
-            raw_url
-        } else {
-            format!("https://{raw_url}")
-        };
-        entry.set_text(&url);
-        let mut s = state_for_entry.borrow_mut();
-        if let Some(ref mut bm) = s.browser_manager {
-            // Resize viewport to match current pane size before navigating
-            let w = picture_for_nav.width();
-            let h = picture_for_nav.height();
-            if w > 0 && h > 0 {
-                let width = w.to_string();
-                let height = h.to_string();
-                let _ = bm.run_cli(&["set", "viewport", &width, &height]);
-            }
-            let _ = bm.run_cli(&["open", &url]);
-        }
-        s.trigger_session_save();
+        navigate_browser_entry(&state_for_entry, entry, &picture_for_nav);
     });
 
     // Step 6: DevTools toggle (D-10)
@@ -815,7 +771,7 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
 /// Widget destruction cancels the child operation; no AppState borrow crosses an await.
 fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
     let mut activity = crate::browser::metrics::Activity::begin("history_navigation", None);
-    let mut task = {
+    let task = {
         let s = state.borrow();
         let (Some(browser), Some(runtime)) =
             (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
@@ -825,6 +781,51 @@ fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, co
         };
         runtime.spawn(browser.navigate_async(command.to_owned(), activity.id))
     };
+    finish_browser_navigation(state, entry, task, activity);
+}
+
+/// Normalize a typed address and submit viewport/open commands through the shared navigation gate.
+fn navigate_browser_entry(
+    state: &Rc<RefCell<AppState>>,
+    entry: &gtk4::Entry,
+    picture: &gtk4::Picture,
+) {
+    let raw_url = entry.text().to_string();
+    if raw_url.is_empty() {
+        return;
+    }
+    let url = if raw_url.contains("://") {
+        raw_url
+    } else {
+        format!("https://{raw_url}")
+    };
+    entry.set_text(&url);
+    let mut activity = crate::browser::metrics::Activity::begin("url_navigation", None);
+    let task = {
+        let s = state.borrow();
+        let (Some(browser), Some(runtime)) =
+            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
+        else {
+            activity.finish("unavailable");
+            return;
+        };
+        runtime.spawn(browser.open_async(
+            url,
+            Some((picture.width(), picture.height())),
+            activity.id,
+        ))
+    };
+    finish_browser_navigation(state, entry, task, activity);
+}
+
+/// Apply surviving navigation results on GTK and abort worker execution when its entry is destroyed.
+/// Share cancellation, stale-address checks and persistence across history and explicit URL entry.
+fn finish_browser_navigation(
+    state: &Rc<RefCell<AppState>>,
+    entry: &gtk4::Entry,
+    mut task: tokio::task::JoinHandle<Result<Option<String>, String>>,
+    mut activity: crate::browser::metrics::Activity,
+) {
     let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
     let destruction = entry.add_weak_ref_notify_local(move || {
         let _ = destroyed_tx.send(());
