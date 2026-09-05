@@ -1004,3 +1004,9 @@ The CLI discovery scenario now launches the Linux build against isolated real Un
 Removed two inactive claude-hook scenarios after confirming the Rust command enum has no such command and neither has a repository caller. Their session binding, targeted notification, completion cleanup and missing-socket regression requirements are preserved on deferred task 01a07268-438d-7231-bdbb-b584904023aa; original sources are recoverable at 93b6e48f. This does not activate hook implementation.
 
 Run 33999276864 at 381e317e completed with the known keyboard setup failure. Its terminal memory/PTY churn step passed, including inherited-directory return-to-baseline assertions. That is runtime evidence for this ownership fix under the fixture workload, not proof that all OOM causes are resolved. The newer keyboard setup correction and subsequent helper/discovery changes still require cumulative CI.
+
+### Move Linux socket discovery to the platform library
+
+The CLI now imports discovery directly from cmux-platform, removing its Linux filesystem implementation and the redundant adapter module. Environment precedence, XDG/fixed-debug fallback and first-enumerated timestamp ties remain unchanged. Marker reads consume at most 4097 bytes and reject contents over 4096 bytes; tagged debug scanning retains one newest candidate instead of collecting and sorting all matches. Connecting remains responsible for validating socket behavior.
+
+Added executable filesystem cases for Unicode/trimmed marker paths, invalid and oversized markers, missing targets and newest tagged candidates. The isolated real-CLI precedence scenario exercises the caller boundary in CI. Workspace all-target and platform-only compilation, formatting and diff checks passed; no local tests ran. Updated Components and the gateway terminal-command discovery contract. Full native transport isolation remains incomplete.

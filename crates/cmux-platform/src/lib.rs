@@ -8,6 +8,7 @@
 #[cfg(not(target_os = "linux"))]
 compile_error!("cmux-platform currently supports Linux only");
 
+pub mod discovery;
 pub mod filesystem;
 pub mod installation;
 pub mod notification;

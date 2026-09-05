@@ -8,6 +8,7 @@ source_format: agent_context
 source_ref: src/socket/handlers.rs
 labels: [linux, gtk, terminal, socket, lifecycle]
 content:
+  discovery: Linux control-socket discovery lives in crates/cmux-platform/src/discovery.rs. The CLI explicit --socket flag wins; otherwise nonempty CMUX_SOCKET then CMUX_SOCKET_PATH overrides win even for nonexistent paths. Filesystem discovery checks the XDG socket, a UTF-8 last-socket-path marker limited to 4096 bytes, the fixed debug socket and the newest tagged debug path. Marker whitespace is trimmed; invalid, oversized or missing targets are skipped. Debug scanning retains one candidate and preserves first-enumerated ties. Discovery checks path existence, while connection validates socket behavior. CMUX_TAG does not select a socket in this Rust CLI.
   purpose: Worker validation and typed command construction live in src/socket/dispatch.rs; GTK target resolution and mutations live in src/socket/handlers.rs. Resolve targets through the workspace pane tree and preserve focus for observational commands.
   endpoints:
     - method: workspace.list

@@ -5,7 +5,7 @@
 
 #[path = "../bounded_json.rs"]
 mod bounded_json;
-pub mod discovery;
+use cmux_platform::discovery;
 pub mod format;
 pub mod socket_client;
 #[path = "../updater.rs"]
