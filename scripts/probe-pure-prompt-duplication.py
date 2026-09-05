@@ -13,7 +13,7 @@ probes the prompt there, and restores your original workspace afterwards.
 from __future__ import annotations
 
 import argparse
-import os
+import math
 import sys
 import time
 from pathlib import Path
@@ -23,11 +23,13 @@ from cmux import cmux, cmuxError
 
 
 def _is_prompt_line(line: str) -> bool:
+    """Recognize the supported Pure and simple-shell prompt prefixes."""
     stripped = line.strip()
     return stripped.startswith("❯") or stripped.startswith(">") or stripped.startswith("$")
 
 
 def _prompt_block(text: str) -> tuple[list[str], str]:
+    """Extract the last prompt and its contiguous nonblank preprompt lines."""
     lines = text.splitlines()
     while lines and not lines[-1].strip():
         lines.pop()
@@ -50,6 +52,7 @@ def _prompt_block(text: str) -> tuple[list[str], str]:
 
 
 def _duplicate_run_length(preprompt: list[str]) -> int:
+    """Count identical trailing preprompt lines as the duplication signal."""
     if not preprompt:
         return 0
     last = preprompt[-1]
@@ -62,6 +65,7 @@ def _duplicate_run_length(preprompt: list[str]) -> int:
 
 
 def _read_text(client: cmux, workspace_id: str, surface_id: str) -> str:
+    """Read at most eighty lines of terminal text for this explicit diagnostic probe."""
     payload = client._call(
         "surface.read_text",
         {
@@ -81,11 +85,12 @@ def _wait_for_prompt_text(
     *,
     timeout: float,
 ) -> tuple[str, list[str], str]:
-    start = time.time()
+    """Poll for a recognized prompt until the monotonic timeout expires."""
+    start = time.monotonic()
     last_text = ""
     last_error = ""
 
-    while time.time() - start < timeout:
+    while time.monotonic() - start < timeout:
         last_text = _read_text(client, workspace_id, surface_id)
         try:
             preprompt, prompt = _prompt_block(last_text)
@@ -101,16 +106,24 @@ def _wait_for_prompt_text(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    """Probe a temporary workspace, cleaning up failures unless retention is requested."""
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--enters", type=int, default=3)
     parser.add_argument("--delay", type=float, default=0.8)
     parser.add_argument("--prompt-timeout", type=float, default=15.0)
     parser.add_argument("--keep-workspace", action="store_true")
     parser.add_argument(
         "--socket",
-        default=os.environ.get("CMUX_SOCKET") or os.environ.get("CMUX_SOCKET_PATH") or "/tmp/cmux-debug.sock",
+        default=None,
+        help="Socket path; defaults to shared client environment and Linux discovery",
     )
     args = parser.parse_args()
+    if args.enters < 1:
+        parser.error("--enters must be positive")
+    if not math.isfinite(args.delay) or args.delay < 0:
+        parser.error("--delay must be finite and nonnegative")
+    if not math.isfinite(args.prompt_timeout) or args.prompt_timeout <= 0:
+        parser.error("--prompt-timeout must be finite and positive")
 
     with cmux(args.socket) as client:
         current = client._call("workspace.current", {}) or {}
@@ -122,30 +135,30 @@ def main() -> int:
         workspace_id = str(created.get("workspace_id") or "")
         if not workspace_id:
             raise cmuxError(f"workspace.create returned no workspace_id: {created}")
-        client._call("workspace.select", {"workspace_id": workspace_id})
-
-        surface_id = ""
-        probe_text = ""
-
-        start = time.time()
-        while True:
-            try:
-                listed = client._call("surface.list", {"workspace_id": workspace_id}) or {}
-                surfaces = listed.get("surfaces") or []
-                if surfaces:
-                    surface_id = str(surfaces[0].get("id") or "")
-                if surface_id:
-                    baseline = _read_text(client, workspace_id, surface_id)
-                    probe_text = baseline
-                    break
-                raise cmuxError("surface not ready yet")
-            except Exception as exc:
-                probe_text = str(exc)
-                if time.time() - start > 10:
-                    raise cmuxError(f"Timed out waiting for readable terminal surface: {probe_text}")
-                time.sleep(0.2)
-
         try:
+            client._call("workspace.select", {"workspace_id": workspace_id})
+
+            surface_id = ""
+            probe_text = ""
+
+            start = time.monotonic()
+            while True:
+                try:
+                    listed = client._call("surface.list", {"workspace_id": workspace_id}) or {}
+                    surfaces = listed.get("surfaces") or []
+                    if surfaces:
+                        surface_id = str(surfaces[0].get("id") or "")
+                    if surface_id:
+                        baseline = _read_text(client, workspace_id, surface_id)
+                        probe_text = baseline
+                        break
+                    raise cmuxError("surface not ready yet")
+                except Exception as exc:
+                    probe_text = str(exc)
+                    if time.monotonic() - start > 10:
+                        raise cmuxError(f"Timed out waiting for readable terminal surface: {probe_text}")
+                    time.sleep(0.2)
+
             print(f"workspace={workspace_id}")
             print(f"surface={surface_id}")
 
