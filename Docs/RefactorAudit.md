@@ -304,3 +304,9 @@ Back/forward/reload now execute their public CLI command and URL refresh on Toki
 ### Browser navigation trace coverage
 
 Added a shared browser activity guard for correlated GTK history-operation and CLI-stage begin/completion records. Drop records cancellation; fixed outcomes identify subprocess timeout, output overflow, I/O failure, protocol/command failure and stale widget results. Admission records identify overlap rejection. Records use existing bounded diagnostics and contain no URLs, arguments or process output. All-target compilation passed. Actual browser trace integration and external-daemon propagation remain unverified/incomplete; subprocess tests cover the underlying execution lifecycle in CI.
+
+### History worker regression and EOF fixture correction
+
+Added a controlled executable browser CLI scenario that exercises production history navigation: session/argument routing, ordered history+URL commands, overlap rejection with no child invocation, nonzero-exit admission recovery and dropping an unpolled operation. All-target compilation passed; execution remains in CI.
+
+CI run 33989291802 failed the new EOF churn scenario because the default application Ctrl-D binding creates a split; the log showed an additional pane, not a child-exit failure. The isolated fixture now overrides split_right to Ctrl-Alt-D before application startup so Ctrl-D reaches canonical terminal input, and records that override in its artifact. Default product shortcuts are unchanged. Python syntax and diff checks pass; the corrected scenario still needs a successful CI run.

@@ -27,6 +27,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
                XDG_RUNTIME_DIR=str(root / "runtime"), GDK_BACKEND="x11",
                LIBGL_ALWAYS_SOFTWARE="1", CMUX_NO_UPDATE="1")
     (root / "runtime").mkdir(mode=0o700)
+    # Default Ctrl-D splits a pane. Isolate EOF coverage by moving that application
+    # shortcut so GTK forwards Ctrl-D to the terminal's canonical input reader.
+    (root / "config/cmux").mkdir(parents=True)
+    (root / "config/cmux/config.toml").write_text(
+        '[shortcuts]\nsplit_right = "<Ctrl><Alt>d"\n'
+    )
     socket = root / "runtime/cmux/cmux.sock"
     log = (root / "app.log").open("w+")
     app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
@@ -58,6 +64,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         "host": {"system": platform.system(), "release": platform.release(),
                  "machine": platform.machine()},
         "workload": {"split_close_cycles": 45, "child_eof_cycles": 9,
+                     "split_right_shortcut": "<Ctrl><Alt>d",
                      "redraw_iterations": 1800,
                      "redraw_target_hz": 30, "window_pixels": [1800, 1000]},
         "status": "running", "samples": [],

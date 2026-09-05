@@ -412,6 +412,60 @@ mod manager_tests {
         );
     }
 
+    /// Execute the public CLI path to verify ordered history commands and admission cleanup.
+    #[tokio::test]
+    async fn history_operations_are_ordered_and_release_capacity() {
+        let directory = std::env::temp_dir().join(format!("cmux-navigation-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let binary = directory.join("browser fixture");
+        std::fs::write(
+            &binary,
+            br#"#!/bin/sh
+[ "$1" = '--session' ] && [ "$3" = '--json' ] || exit 2
+printf '%s %s\n' "$2" "$4" >> "$0.calls"
+case "$4" in
+    get)
+        [ "$5" = 'url' ] || exit 3
+        printf '%s\n' '{"success":true,"data":{"url":"https://example.test/restored"}}'
+        ;;
+    fail) exit 7 ;;
+    *) printf '%s\n' '{"success":true,"data":{}}' ;;
+esac
+"#,
+        )
+        .unwrap();
+        cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        let mut browser = BrowserManager::new();
+        browser.binary_path = Some(binary.clone());
+        let first = browser.navigate_async("back".into(), Uuid::new_v4());
+        assert!(browser
+            .navigate_async("overlap".into(), Uuid::new_v4())
+            .await
+            .is_err());
+        assert_eq!(
+            first.await.unwrap().as_deref(),
+            Some("https://example.test/restored")
+        );
+        assert!(browser
+            .navigate_async("fail".into(), Uuid::new_v4())
+            .await
+            .is_err());
+        // An unpolled operation still owns admission and must release it on drop.
+        drop(browser.navigate_async("cancelled".into(), Uuid::new_v4()));
+        assert!(browser
+            .navigate_async("forward".into(), Uuid::new_v4())
+            .await
+            .unwrap()
+            .is_some());
+        let calls =
+            std::fs::read_to_string(binary.with_file_name("browser fixture.calls")).unwrap();
+        let expected = ["back", "get", "fail", "forward", "get"]
+            .map(|command| format!("{} {command}\n", browser.session_name))
+            .concat();
+        assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     /// Real port files accept valid advertisements and reject oversized or unusable ports.
     #[test]
     fn stream_port_files_are_bounded() {
