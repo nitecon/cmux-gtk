@@ -57,7 +57,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         "build_profile": "debug", "backend": "x11", "software_rendering": True,
         "host": {"system": platform.system(), "release": platform.release(),
                  "machine": platform.machine()},
-        "workload": {"split_close_cycles": 45, "redraw_iterations": 1800,
+        "workload": {"split_close_cycles": 45, "child_eof_cycles": 9,
+                     "redraw_iterations": 1800,
                      "redraw_target_hz": 30, "window_pixels": [1800, 1000]},
         "status": "running", "samples": [],
     }
@@ -75,6 +76,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     try:
         eventually(socket.exists)
         eventually(lambda: len(children()) >= 1)
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)],
+            text=True, timeout=10,
+        ).split()
+        assert windows, "application has no X11 window"
+        window = windows[-1]
         baseline_children = children()
         record_resources("baseline", 0)
         samples = []
@@ -83,6 +90,26 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
             eventually(lambda: len(children()) == len(baseline_children) + 1)
             surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
             selected = next(s["uuid"] for s in surfaces if s["active"])
+            if cycle % 5 == 0:
+                # Replace the interactive shell with a predictable canonical-input
+                # reader. Its marker proves readiness before GTK receives Ctrl-D.
+                ready = root / f"eof-ready-{cycle}"
+                reader = (
+                    "import pathlib,sys; "
+                    f"pathlib.Path({str(ready)!r}).touch(); sys.stdin.read()"
+                )
+                cli("send-text", "exec python3 -c " + shlex.quote(reader))
+                subprocess.check_call(
+                    ["xdotool", "windowfocus", window, "key", "--clearmodifiers", "Return"],
+                    timeout=10,
+                )
+                eventually(ready.exists)
+                subprocess.check_call(
+                    ["xdotool", "windowfocus", window, "key", "--clearmodifiers", "ctrl+d"],
+                    timeout=10,
+                )
+                eventually(lambda: children() == baseline_children)
+                record_resources("child_eof", cycle + 1)
             cli("close-surface", selected)
             eventually(lambda: children() == baseline_children)
             if cycle in (9, 24, 44):
@@ -94,14 +121,12 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         # growth, rather than requiring RSS to return to an unrealistically exact value.
         assert samples[-1] - samples[0] < 96 * 1024, f"RSS grew after warmup: {samples} KiB"
         assert len(json.loads(cli("list-surfaces", "--json"))["surfaces"]) == 1
-        print(f"45 split/close cycles reaped every PTY; RSS samples: {samples} KiB")
+        print(f"45 split/close cycles including 9 GTK Ctrl-D exits reaped every PTY; RSS samples: {samples} KiB")
 
         # The reported OOM happened without pane churn. Exercise thousands of
         # large frames as well, keeping terminal history bounded by repainting
         # the same screen. A frame-sized leak becomes visible within seconds.
-        windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True).split()
-        assert windows, "application has no X11 window"
-        subprocess.check_call(["xdotool", "windowsize", windows[-1], "1800", "1000"])
+        subprocess.check_call(["xdotool", "windowsize", window, "1800", "1000"])
         marker = root / "render-complete"
         program = ("import sys,time,pathlib; "
                    "[(sys.stdout.write('\\x1b[H' + (str(i%10)*100+'\\r\\n')*20), "
@@ -109,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
                    f"pathlib.Path({str(marker)!r}).touch()")
         cli("send-text", "python3 -u -c " + shlex.quote(program))
         # send-text uses bracketed paste. Enter is a separate keyboard action.
-        subprocess.check_call(["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "Return"])
+        subprocess.check_call(["xdotool", "windowfocus", window, "key", "--clearmodifiers", "Return"])
         render_samples = []
         deadline = time.monotonic() + 90
         started = time.monotonic()
