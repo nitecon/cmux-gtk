@@ -95,6 +95,7 @@ impl SocketClient {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, CliError> {
+        let started = Instant::now();
         let id = self.next_id;
         self.next_id = self
             .next_id
@@ -113,13 +114,51 @@ impl SocketClient {
         let mut line = request.to_string();
         line.push('\n');
 
-        self.writer
-            .write_all(line.as_bytes())
-            .map_err(|e| CliError::ProtocolError(format!("write failed: {}", e)))?;
-
-        let response = read_response(&mut self.reader, self.timeout, MAX_RESPONSE_BYTES)?;
+        write_request(
+            &mut self.writer,
+            line.as_bytes(),
+            remaining_budget(started, self.timeout)?,
+        )?;
+        let response = read_response(
+            &mut self.reader,
+            remaining_budget(started, self.timeout)?,
+            MAX_RESPONSE_BYTES,
+        )?;
         decode_response(&response, id)
     }
+}
+
+/// Return the remaining operation budget without permitting zero-length socket timeouts.
+fn remaining_budget(started: Instant, timeout: Duration) -> Result<Duration, CliError> {
+    timeout
+        .checked_sub(started.elapsed())
+        .filter(|value| !value.is_zero())
+        .ok_or_else(|| CliError::ProtocolError("exchange deadline exceeded".into()))
+}
+
+/// Write a complete request while reducing the socket timeout after each partial write.
+fn write_request(
+    stream: &mut UnixStream,
+    mut bytes: &[u8],
+    timeout: Duration,
+) -> Result<(), CliError> {
+    let started = Instant::now();
+    while !bytes.is_empty() {
+        stream
+            .set_write_timeout(Some(remaining_budget(started, timeout)?))
+            .map_err(|error| CliError::ProtocolError(format!("set request timeout: {error}")))?;
+        match stream.write(bytes) {
+            Ok(0) => {
+                return Err(CliError::ProtocolError(
+                    "server closed while writing request".into(),
+                ))
+            }
+            Ok(count) => bytes = &bytes[count..],
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(CliError::ProtocolError(format!("write failed: {error}"))),
+        }
+    }
+    Ok(())
 }
 
 /// Validate a numbered v2 envelope, distinguishing malformed replies from valid server errors.
@@ -171,10 +210,7 @@ fn read_response(
     let started = Instant::now();
     let mut response = Vec::new();
     loop {
-        let remaining = timeout
-            .checked_sub(started.elapsed())
-            .filter(|value| !value.is_zero())
-            .ok_or_else(|| CliError::ProtocolError("response deadline exceeded".into()))?;
+        let remaining = remaining_budget(started, timeout)?;
         reader
             .get_ref()
             .set_read_timeout(Some(remaining))
@@ -256,6 +292,24 @@ mod tests {
             client.call("system.ping", serde_json::json!({})).unwrap(),
             serde_json::json!({"pong": true})
         );
+    }
+
+    /// Write exact request bytes and time out when a live peer stops consuming a full socket.
+    #[test]
+    fn bounded_request_writes() {
+        use std::io::Read;
+        let (mut stream, mut peer) = UnixStream::pair().unwrap();
+        write_request(&mut stream, b"request\n", Duration::from_secs(1)).unwrap();
+        peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+        let mut bytes = [0; 8];
+        peer.read_exact(&mut bytes).unwrap();
+        assert_eq!(&bytes, b"request\n");
+        assert!(write_request(
+            &mut stream,
+            &vec![b'x'; 8 * 1024 * 1024],
+            Duration::from_millis(30)
+        )
+        .is_err());
     }
 
     /// Preserve fragmented UTF-8 bytes and leave coalesced response lines for the next read.
