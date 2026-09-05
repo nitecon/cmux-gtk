@@ -614,6 +614,41 @@ pub struct SplitEngine {
     pub remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
 }
 
+/// Borrow immutable launch dependencies while rebuilding one saved pane tree on GTK.
+struct RestoreContext<'a> {
+    app: &'a gtk4::Application,
+    ghostty_app: ffi::ghostty_app_t,
+    working_directory: Option<&'a std::path::Path>,
+    launch_command: Option<&'a str>,
+    remote_launch: Option<&'a crate::ghostty::surface::SurfaceIoMode>,
+}
+
+impl RestoreContext<'_> {
+    /// Create a restored terminal with shared launch precedence, UUID and context-menu wiring.
+    /// Workspace directory overrides saved CWD; remote launch overrides a startup command.
+    fn terminal(&self, pane_id: u64, uuid: Uuid, saved_cwd: &str) -> PaneSurface {
+        let directory = self
+            .working_directory
+            .map(std::path::Path::to_path_buf)
+            .or_else(|| (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd)));
+        let launch = self.remote_launch.cloned().unwrap_or_else(|| {
+            self.launch_command
+                .map(|command| crate::ghostty::surface::SurfaceIoMode::Command(command.to_owned()))
+                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+        });
+        let (gl_area, _) = crate::ghostty::surface::create_surface(
+            self.app,
+            self.ghostty_app,
+            None,
+            directory,
+            pane_id,
+            launch,
+        );
+        attach_terminal_context_menu(&gl_area);
+        PaneSurface::Terminal { gl_area, uuid }
+    }
+}
+
 impl SplitEngine {
     /// Create a new SplitEngine with a single leaf pane.
     /// The initial GLArea and surface are created by the caller (Plan 04) and passed in.
@@ -665,16 +700,14 @@ impl SplitEngine {
         static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 =
             std::sync::atomic::AtomicU64::new(1 << 24);
         let mut next_pane_id = NEXT_RESTORE_BASE.fetch_add(1 << 18, Ordering::Relaxed);
-        let root = Self::node_from_data(
-            &app,
+        let context = RestoreContext {
+            app: &app,
             ghostty_app,
-            data,
-            &mut next_pane_id,
-            0,
-            working_directory.as_deref(),
-            launch_command.as_deref(),
-            remote_launch.as_ref(),
-        )?;
+            working_directory: working_directory.as_deref(),
+            launch_command: launch_command.as_deref(),
+            remote_launch: remote_launch.as_ref(),
+        };
+        let root = Self::node_from_data(&context, data, &mut next_pane_id, 0)?;
         // Find active pane by saved UUID, or fall back to first leaf
         let active_id = active_pane_uuid
             .and_then(|uuid_str| root.find_pane_id_by_uuid(uuid_str))
@@ -699,14 +732,10 @@ impl SplitEngine {
     /// Recursively construct GTK panes from legacy or tabbed snapshots, limiting depth to 16.
     /// Native terminals initialize on realization; caller launch settings override saved defaults.
     fn node_from_data(
-        app: &gtk4::Application,
-        ghostty_app: ffi::ghostty_app_t,
+        context: &RestoreContext<'_>,
         data: &SplitNodeData,
         next_pane_id: &mut u64,
         depth: u32,
-        working_directory: Option<&std::path::Path>,
-        launch_command: Option<&str>,
-        remote_launch: Option<&crate::ghostty::surface::SurfaceIoMode>,
     ) -> Option<SplitNode> {
         if depth > 16 {
             eprintln!("cmux: session restore tree depth > 16, falling back (D-14)");
@@ -718,29 +747,9 @@ impl SplitEngine {
             } => {
                 let pane_id = *next_pane_id;
                 *next_pane_id += 1;
-                let pane_directory = working_directory
-                    .map(std::path::Path::to_path_buf)
-                    .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
-                // Create surface — realize callback will create Ghostty surface and wire registries
-                let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
-                    app,
-                    ghostty_app,
-                    None,
-                    pane_directory,
-                    pane_id,
-                    remote_launch.cloned().unwrap_or_else(|| {
-                        launch_command
-                            .map(|c| crate::ghostty::surface::SurfaceIoMode::Command(c.to_string()))
-                            .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
-                    }),
-                );
-                // Phase 9: Attach right-click context menu (D-08)
-                attach_terminal_context_menu(&gl_area);
-                // D-06: preserve UUID from session
-                let uuid = *surface_uuid;
                 Some(create_pane(
                     pane_id,
-                    PaneSurface::Terminal { gl_area, uuid },
+                    context.terminal(pane_id, *surface_uuid, cwd),
                 ))
             }
             SplitNodeData::Pane {
@@ -752,32 +761,7 @@ impl SplitEngine {
                 let mut restored = surfaces.iter().map(|surface| match surface {
                     PaneSurfaceData::Terminal {
                         surface_uuid, cwd, ..
-                    } => {
-                        let pane_directory = working_directory
-                            .map(std::path::Path::to_path_buf)
-                            .or_else(|| (!cwd.is_empty()).then(|| std::path::PathBuf::from(cwd)));
-                        let (gl_area, _) = crate::ghostty::surface::create_surface(
-                            app,
-                            ghostty_app,
-                            None,
-                            pane_directory,
-                            pane_id,
-                            remote_launch.cloned().unwrap_or_else(|| {
-                                launch_command
-                                    .map(|c| {
-                                        crate::ghostty::surface::SurfaceIoMode::Command(
-                                            c.to_string(),
-                                        )
-                                    })
-                                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
-                            }),
-                        );
-                        attach_terminal_context_menu(&gl_area);
-                        PaneSurface::Terminal {
-                            gl_area,
-                            uuid: *surface_uuid,
-                        }
-                    }
+                    } => context.terminal(pane_id, *surface_uuid, cwd),
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
                         widgets.uuid = *surface_uuid;
@@ -788,27 +772,9 @@ impl SplitEngine {
                         }
                     }
                 });
-                let initial = restored.next().unwrap_or_else(|| {
-                    let (gl_area, _) = crate::ghostty::surface::create_surface(
-                        app,
-                        ghostty_app,
-                        None,
-                        working_directory.map(std::path::Path::to_path_buf),
-                        pane_id,
-                        remote_launch.cloned().unwrap_or_else(|| {
-                            launch_command
-                                .map(|c| {
-                                    crate::ghostty::surface::SurfaceIoMode::Command(c.to_string())
-                                })
-                                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
-                        }),
-                    );
-                    attach_terminal_context_menu(&gl_area);
-                    PaneSurface::Terminal {
-                        gl_area,
-                        uuid: Uuid::new_v4(),
-                    }
-                });
+                let initial = restored
+                    .next()
+                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), ""));
                 let node = create_pane(pane_id, initial);
                 if let SplitNode::Leaf {
                     notebook,
@@ -837,26 +803,8 @@ impl SplitEngine {
                 start,
                 end,
             } => {
-                let start_node = Self::node_from_data(
-                    app,
-                    ghostty_app,
-                    start,
-                    next_pane_id,
-                    depth + 1,
-                    working_directory,
-                    launch_command,
-                    remote_launch,
-                )?;
-                let end_node = Self::node_from_data(
-                    app,
-                    ghostty_app,
-                    end,
-                    next_pane_id,
-                    depth + 1,
-                    working_directory,
-                    launch_command,
-                    remote_launch,
-                )?;
+                let start_node = Self::node_from_data(context, start, next_pane_id, depth + 1)?;
+                let end_node = Self::node_from_data(context, end, next_pane_id, depth + 1)?;
                 let gtk_orientation = match orientation.as_str() {
                     "vertical" => gtk4::Orientation::Vertical,
                     _ => gtk4::Orientation::Horizontal,

@@ -254,3 +254,7 @@ Socket dispatch now consumes its raw request string, takes ID/method/parameter f
 ## Transport error and module style cleanup
 
 CLI error variants now use Connection/Command/Protocol within CliError, share one message-formatting arm and implement the standard Error trait. Binary exit-code routing is preserved. SSH cleanup guards precede the test module, removing the remaining module-order warning. All-target Clippy correctness/suspicious gates pass; remaining Rust style findings are the two large constructor signatures, plus native GTK deprecation warnings. No local tests run.
+
+## Shared restored-terminal construction
+
+Saved-tree restoration now borrows one immutable context containing GTK/native launch dependencies. A single terminal constructor handles legacy leaves, sibling terminal tabs and empty-pane fallback, preserving UUIDs, directory precedence, remote/startup-command precedence and context-menu wiring. The recursive walk passes context plus tree/depth/ID state rather than repeating eight arguments. No new restore/resume behavior or ownership framework was introduced. Existing Linux launch/session scenarios provide runtime coverage in CI; workspace all-target compilation and diff validation pass locally, with no local test execution.
