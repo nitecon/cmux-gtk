@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError  # noqa: E402
+from sidebar_support import parse_sidebar_state as _parse_sidebar_state
 
 
 # Historically, ports detection only checked a small allowlist. This test
@@ -30,19 +31,6 @@ from cmux import cmux, cmuxError  # noqa: E402
 # "work" only for the allowlist.
 _HISTORICAL_ALLOWLIST = {8000, 8080, 8888, 5173, 3000, 3001, 5000, 5432}
 _PREFERRED_BIND_HOST = "127.0.0.1"
-
-
-def _parse_sidebar_state(text: str) -> dict[str, str]:
-    data: dict[str, str] = {}
-    for raw in (text or "").splitlines():
-        line = raw.rstrip("\n")
-        if not line or line.startswith("  "):
-            continue
-        if "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        data[k.strip()] = v.strip()
-    return data
 
 
 def _wait_for(predicate, timeout: float, interval: float, label: str):

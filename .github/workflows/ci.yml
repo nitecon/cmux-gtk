@@ -102,6 +102,7 @@ jobs:
           python3 tests/test_benchmark_comparison.py
           python3 tests/test_diagnostic_collector.py
           python3 tests/test_process_support.py
+          python3 tests/test_sidebar_support.py
           python3 tests/test_render_report_output.py
 
       - name: Test prompt probe cleanup

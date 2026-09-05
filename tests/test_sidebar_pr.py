@@ -19,38 +19,11 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError  # noqa: E402
-
-
-def _parse_sidebar_state(text: str) -> dict[str, str]:
-    data: dict[str, str] = {}
-    for raw in (text or "").splitlines():
-        line = raw.rstrip("\n")
-        if not line or line.startswith("  "):
-            continue
-        if "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        data[k.strip()] = v.strip()
-    return data
-
-
-def _wait_for_state_field(
-    client: cmux,
-    key: str,
-    expected: str,
-    timeout: float = 8.0,
-    interval: float = 0.1,
-) -> dict[str, str]:
-    start = time.time()
-    while time.time() - start < timeout:
-        state = _parse_sidebar_state(client.sidebar_state())
-        if state.get(key) == expected:
-            return state
-        time.sleep(interval)
-    raise AssertionError(f"Timed out waiting for {key}={expected!r}")
+from sidebar_support import wait_for_state_field as _wait_for_state_field
 
 
 def main() -> int:
+    """Verify legacy review labels, state transitions and clearing on the connected app."""
     tag = os.environ.get("CMUX_TAG") or ""
     if not tag:
         print("Tip: set CMUX_TAG=<tag> when running this test to avoid socket conflicts.")

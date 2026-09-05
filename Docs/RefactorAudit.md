@@ -990,3 +990,9 @@ Workspace all-target compilation, targeted Clippy, Python syntax and diff checks
 ### Await terminal allocation during keyboard fixture setup
 
 CI run 33998700237 failed before keyboard-routing assertions: creating two workspaces immediately hid the intermediate terminal before its first non-zero GTK allocation, leaving its PTY uninitialized. Logs show that workspace realized at zero size and never initialized before the shell-count timeout. Setup now awaits each newly created workspace's shell before creating the next workspace. The subsequent rapid workspace switches and actual X11 keyboard destination assertions remain unchanged. Python syntax and diff checks pass; runtime verification is pending GitHub Actions. No local tests ran.
+
+### Share retained sidebar protocol helpers
+
+Six legacy sidebar/directory scenarios now share one documented top-level text parser. Three metadata scenarios also share a field waiter built on the existing monotonic polling helper. Parsing preserves first-equals splitting, Unicode, empty values and last-key wins while excluding nested two-space-indented rows. Socket errors still propagate immediately, and matching returns the full observed snapshot. The two v2 parsers include nested rows and remain separate pending their protocol review; they do not have the same contract.
+
+Added executable helper cases to CI for nested-row isolation, value preservation, convergence to an empty field and socket failure propagation. Documented the three metadata entry points. Python syntax and diff checks passed; no local tests ran. The retained legacy scenarios still depend on upstream sidebar-state commands and are not claimed as GTK integration coverage.
