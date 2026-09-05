@@ -18,7 +18,7 @@ check "META-02: appstreamcli validate" \
 # META-03: Icons exist at correct sizes
 for SIZE in 48 128 256; do
     check "META-03: ${SIZE}px icon exists" \
-        test -f "$REPO_ROOT/packaging/icons/hicolor/${SIZE}x${SIZE}/apps/com.cmux_lx.terminal.png"
+        test -f "$REPO_ROOT/packaging/icons/hicolor/${SIZE}x${SIZE}/apps/io.cmux.App.png"
 done
 
 # META-04: Shell completions exist

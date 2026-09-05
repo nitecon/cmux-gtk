@@ -50,9 +50,9 @@ cp "$REPO_ROOT/packaging/desktop/io.cmux.App.desktop" "$STAGING/"
 cp "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml" "$STAGING/"
 
 # Icons (flatten to simple names for spec)
-cp "$REPO_ROOT/packaging/icons/hicolor/48x48/apps/com.cmux_lx.terminal.png" "$STAGING/icons/48x48.png"
-cp "$REPO_ROOT/packaging/icons/hicolor/128x128/apps/com.cmux_lx.terminal.png" "$STAGING/icons/128x128.png"
-cp "$REPO_ROOT/packaging/icons/hicolor/256x256/apps/com.cmux_lx.terminal.png" "$STAGING/icons/256x256.png"
+cp "$REPO_ROOT/packaging/icons/hicolor/48x48/apps/io.cmux.App.png" "$STAGING/icons/48x48.png"
+cp "$REPO_ROOT/packaging/icons/hicolor/128x128/apps/io.cmux.App.png" "$STAGING/icons/128x128.png"
+cp "$REPO_ROOT/packaging/icons/hicolor/256x256/apps/io.cmux.App.png" "$STAGING/icons/256x256.png"
 
 # Shell completions
 cp "$REPO_ROOT/packaging/completions/cmux.bash" "$STAGING/"

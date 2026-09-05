@@ -48,7 +48,7 @@ install -Dm0644 "$REPO_ROOT/packaging/desktop/io.cmux.App.metainfo.xml" \
 
 # Icons
 for size in 48x48 128x128 256x256; do
-    install -Dm0644 "$REPO_ROOT/packaging/icons/hicolor/${size}/apps/com.cmux_lx.terminal.png" \
+    install -Dm0644 "$REPO_ROOT/packaging/icons/hicolor/${size}/apps/io.cmux.App.png" \
         "$PKG_ROOT/usr/share/icons/hicolor/${size}/apps/io.cmux.App.png"
 done
 

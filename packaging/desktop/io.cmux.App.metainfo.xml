@@ -10,7 +10,7 @@
   </description>
   <launchable type="desktop-id">io.cmux.App.desktop</launchable>
   <url type="homepage">https://github.com/nitecon/cmux-gtk</url>
-  <developer id="com.cmux_lx">
+  <developer id="io.github.nitecon">
     <name>nitecon</name>
   </developer>
   <content_rating type="oars-1.1" />

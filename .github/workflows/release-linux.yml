@@ -108,7 +108,7 @@ jobs:
           install -m 0644 packaging/desktop/io.cmux.App.metainfo.xml dist/archive/share/metainfo/io.cmux.App.metainfo.xml
           for size in 48x48 128x128 256x256; do
             mkdir -p "dist/archive/share/icons/hicolor/${size}/apps"
-            install -m 0644 "packaging/icons/hicolor/${size}/apps/com.cmux_lx.terminal.png" \
+            install -m 0644 "packaging/icons/hicolor/${size}/apps/io.cmux.App.png" \
               "dist/archive/share/icons/hicolor/${size}/apps/io.cmux.App.png"
           done
           tar -C dist/archive -czf dist/cmux-gtk-linux-x86_64.tar.gz cmux cmux-app share

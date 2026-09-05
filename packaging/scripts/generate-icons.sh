@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SVG="$REPO_ROOT/resources/cmux.svg"
 ICON_DIR="$REPO_ROOT/packaging/icons/hicolor"
-APP_ID="com.cmux_lx.terminal"
+APP_ID="io.cmux.App"
 
 if command -v rsvg-convert &>/dev/null; then
     CONVERTER="rsvg-convert"
