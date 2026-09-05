@@ -90,6 +90,29 @@ def main():
                 assert counters["succeeded"] > snapshot["rpc"]["succeeded"]
                 assert counters["failed"] > snapshot["rpc"]["failed"]
                 assert counters["in_flight"] >= 1  # The snapshot includes its own request.
+                subprocess.run(cli + ["new-workspace"], env=env, text=True,
+                               capture_output=True, check=True, timeout=10)
+
+                def saved_session():
+                    """Wait for a real workspace mutation to produce persistence timing evidence."""
+                    try:
+                        records = [json.loads(line) for line in (root / "events.jsonl").read_text().splitlines()]
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        return False
+                    saves = [record["fields"] for record in records
+                             if record["event"] == "session.save"
+                             and record["fields"]["workspaces"] >= 2]
+                    if not saves:
+                        return False
+                    latest = saves[-1]
+                    assert latest["outcome"] == "success"
+                    assert latest["bytes"] > 0
+                    assert latest["serialization_us"] >= 0
+                    assert latest["write_us"] >= 0
+                    assert latest["duration_us"] >= latest["serialization_us"]
+                    return True
+
+                wait_for(saved_session)
                 report_path = root / "diagnostic-report.json"
                 subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
                                 "--binary", str(binary_dir / "cmux"), "--socket", str(socket),

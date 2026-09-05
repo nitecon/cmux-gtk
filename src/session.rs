@@ -24,7 +24,7 @@ pub struct WorkspaceSession {
 }
 
 /// Root session data written to session.json.
-/// `version: 1` allows forward-compatible schema evolution.
+/// The loader accepts schema versions 1 through 3; newer versions fall back to a fresh session.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct SessionData {
     pub version: u32,
@@ -46,10 +46,32 @@ pub fn save_session_atomic(data: &SessionData) -> std::io::Result<()> {
     save_session_to(data, &session_path())
 }
 
-/// Internal: save to a specific path (used in tests with temp paths).
+/// Serialize and atomically replace a snapshot, recording timings and counts without paths or content.
 pub fn save_session_to(data: &SessionData, path: &Path) -> std::io::Result<()> {
-    let json = serde_json::to_vec_pretty(data).map_err(std::io::Error::other)?;
-    cmux_platform::filesystem::atomic_write(path, &json)
+    let started = std::time::Instant::now();
+    let encoded = serde_json::to_vec_pretty(data).map_err(std::io::Error::other);
+    let serialization_us = started.elapsed().as_micros() as u64;
+    let write_started = std::time::Instant::now();
+    let (bytes, result) = match encoded {
+        Ok(json) => (
+            Some(json.len()),
+            cmux_platform::filesystem::atomic_write(path, &json),
+        ),
+        Err(error) => (None, Err(error)),
+    };
+    crate::diagnostics::record(
+        "session.save",
+        serde_json::json!({
+            "outcome": if result.is_ok() { "success" } else { "error" },
+            "workspaces": data.workspaces.len(),
+            "bytes": bytes,
+            "serialization_us": serialization_us,
+            "write_us": bytes.map(|_| write_started.elapsed().as_micros() as u64),
+            "duration_us": started.elapsed().as_micros() as u64,
+            "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
+        }),
+    );
+    result
 }
 
 /// Load session from disk. Returns None if the file is missing, empty, or invalid JSON.
