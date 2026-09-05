@@ -944,16 +944,17 @@ impl SplitEngine {
     /// Removes the active leaf, replaces its parent Split with the surviving sibling.
     /// Returns the new active pane_id, or None if this was the last pane.
     pub fn close_active(&mut self) -> Option<u64> {
-        let active_id = self.active_pane_id;
+        self.close_pane(self.active_pane_id)
+    }
 
-        // Cannot close the last pane — workspace close is handled at AppState level.
-        let is_single_pane =
-            matches!(&self.root, SplitNode::Leaf { pane_id, .. } if *pane_id == active_id);
-        if is_single_pane {
-            return None; // Signal to AppState: close the workspace instead
+    /// Remove an explicit pane and its PTYs, preserving a surviving active pane.
+    /// Return the resulting focused pane, or None for a missing/final pane without mutation.
+    fn close_pane(&mut self, pane_id: u64) -> Option<u64> {
+        self.root.find_node(pane_id)?;
+        if matches!(&self.root, SplitNode::Leaf { .. }) {
+            return None;
         }
-
-        let terminal_areas = find_pane_tabs(&self.root, active_id)
+        let terminal_areas = find_pane_tabs(&self.root, pane_id)
             .map(|(_, surfaces)| {
                 surfaces
                     .borrow()
@@ -962,41 +963,33 @@ impl SplitEngine {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        // End the PTYs and renderers while their GL contexts are still valid.
+        // End PTYs and renderers before removing their valid GL contexts.
         for area in &terminal_areas {
             destroy_terminal_area(area);
         }
-
-        // Remove the leaf from the tree and get the surviving sibling's pane_id.
-        let surviving_id = remove_leaf_from_tree(&mut self.root, active_id)?;
-
-        // Update focus to the surviving pane.
-        self.active_pane_id = surviving_id;
-        self.root.update_focus_css(surviving_id);
-
-        // Call ghostty_surface_set_focus on the surviving surface (SPLIT-07).
-        if let Some(surface) = self.find_surface(surviving_id) {
-            unsafe {
-                ffi::ghostty_surface_set_focus(surface, true);
-            }
+        let sibling_id = remove_leaf_from_tree(&mut self.root, pane_id)?;
+        if self.root.find_node(self.active_pane_id).is_none() {
+            self.active_pane_id = sibling_id;
         }
-
-        // Grab GTK focus on the surviving pane's widget (GLArea or URL entry).
-        if let Some(gl_area) = self.find_gl_area(surviving_id) {
-            gl_area.grab_focus();
-        } else if let Some(entry) = find_url_entry_in_tree(&self.root, surviving_id) {
-            entry.grab_focus();
-        }
-
-        Some(surviving_id)
+        self.root.update_focus_css(self.active_pane_id);
+        self.focus_active_surface();
+        Some(self.active_pane_id)
     }
 
     /// Close a tab and its pane when empty, leaving final-workspace policy to the caller.
     /// LastSurfaceInPane means only the workspace's final pane remains; no workspace is removed here.
     pub fn close_surface_and_empty_pane(&mut self, uuid: Uuid) -> CloseSurfaceResult {
         match self.close_surface_tab(uuid) {
-            CloseSurfaceResult::LastSurfaceInPane if self.close_active().is_some() => {
-                CloseSurfaceResult::Closed
+            CloseSurfaceResult::LastSurfaceInPane => {
+                let pane_id = self.find_pane_id_by_uuid(&uuid.to_string());
+                if pane_id
+                    .and_then(|pane_id| self.close_pane(pane_id))
+                    .is_some()
+                {
+                    CloseSurfaceResult::Closed
+                } else {
+                    CloseSurfaceResult::LastSurfaceInPane
+                }
             }
             result => result,
         }
@@ -1029,8 +1022,6 @@ impl SplitEngine {
             crate::diagnostics::event(format_args!(
                 "surface-tab close delegates to pane uuid={uuid} pane={pane_id}"
             ));
-            self.active_pane_id = pane_id;
-            self.root.update_focus_css(pane_id);
             return CloseSurfaceResult::LastSurfaceInPane;
         }
 

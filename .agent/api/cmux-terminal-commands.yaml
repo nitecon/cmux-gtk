@@ -28,6 +28,9 @@ content:
     - method: surface.split
       transport: Unix JSON socket
       description: Optional id selects the surface to split in the active workspace; absent id uses the active pane. Unknown id returns not_found without mutation. A successful split focuses the new terminal.
+    - method: surface.close
+      transport: Unix JSON socket
+      description: Close a UUID in the active workspace. Sibling removal preserves the selected surviving tab or chooses the same slot with end fallback. Empty-pane removal preserves a surviving active pane; closing the active pane selects a surviving sibling. The final workspace surface is retained and reports close_failed. This command does not implement cross-workspace targeting.
     - method: surface.send_text
       transport: Unix JSON socket
       description: Paste text to optional id or the selected terminal without changing focus. Bracketed paste can keep newlines from submitting shell commands; send a literal carriage return through surface.send_key to submit separately. Missing native terminals return not_found; NUL bytes return invalid_params.
