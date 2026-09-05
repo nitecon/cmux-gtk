@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise bounded fixture cleanup with real child processes in CI."""
+import os
 import select
 import signal
 import subprocess
@@ -7,7 +8,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from process_support import stop_process, wait_until
+from process_support import linux_process_belongs_to, stop_process, wait_until
 
 
 class ProcessCleanup(unittest.TestCase):
@@ -36,6 +37,23 @@ class ProcessCleanup(unittest.TestCase):
         self.assertFalse(stop_process(child))
         self.assertEqual(child.returncode, 7)
         self.assertFalse(stop_process(None))
+
+
+class LinuxProcessOwnership(unittest.TestCase):
+    """Verify root matching and ancestry against real live processes in Linux CI."""
+
+    def test_child_ancestry(self):
+        """A launched child belongs to its parent tree, but not an unrelated root."""
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        try:
+            self.assertTrue(linux_process_belongs_to(child.pid, {str(child.pid)}))
+            self.assertTrue(linux_process_belongs_to(child.pid, {str(os.getpid())}))
+            self.assertTrue(linux_process_belongs_to(child.pid, {str(os.getppid())}))
+            self.assertFalse(linux_process_belongs_to(child.pid, {"0"}))
+            self.assertFalse(linux_process_belongs_to("not-a-pid", {str(child.pid)}))
+        finally:
+            stop_process(child)
+        self.assertFalse(linux_process_belongs_to(child.pid, {str(os.getpid())}))
 
 
 class Polling(unittest.TestCase):

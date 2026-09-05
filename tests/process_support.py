@@ -1,4 +1,5 @@
 """Shared elapsed-time polling and owned subprocess cleanup for integration fixtures."""
+from pathlib import Path
 import subprocess
 import time
 
@@ -47,3 +48,30 @@ def wait_until(predicate, description="condition", timeout=10, interval=0.1):
             break
         time.sleep(min(interval, remaining))
     raise AssertionError(f"timed out waiting for {description}")
+
+
+def linux_process_belongs_to(pid, roots):
+    """Check a live Linux ancestry chain against fixture-owned root PID strings.
+
+    Shell launchers may add a process between Ghostty and the interactive shell.
+    Read at most 64 ancestors, reject malformed identities, and tolerate exits.
+    This is a short-lived test observation, not a PID-reuse-safe authorization check.
+    """
+    pid = str(pid)
+    seen = set()
+    for _ in range(64):
+        if not pid.isdecimal() or pid == "0" or pid in seen:
+            return False
+        seen.add(pid)
+        try:
+            status = Path(f"/proc/{pid}/status").read_text()
+        except FileNotFoundError:
+            return False
+        if pid in roots:
+            return True
+        parent = next((line.split()[1] for line in status.splitlines()
+                       if line.startswith("PPid:")), None)
+        if parent is None:
+            return False
+        pid = parent
+    return False

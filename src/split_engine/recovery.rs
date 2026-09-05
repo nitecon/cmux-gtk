@@ -187,11 +187,14 @@ mod tests {
         );
         let weak = paned.downgrade();
         window.set_child(None::<&gtk4::Widget>);
-        drop(paned);
-        assert!(
-            weak.upgrade().is_none(),
-            "recovery retained detached divider"
-        );
         window.close();
+        drop(window);
+        drop(mapped);
+        drop(first);
+        drop(notebook);
+        drop(paned);
+        // GTK can defer release until pending focus/layout work has drained.
+        // A strong callback cycle would still fail the bounded lifetime check.
+        wait_until(|| weak.upgrade().is_none());
     }
 }

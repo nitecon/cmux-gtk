@@ -7,7 +7,7 @@ from pathlib import Path
 import shlex
 import subprocess
 from functools import partial
-from process_support import stop_process, wait_until
+from process_support import linux_process_belongs_to, stop_process, wait_until
 import tempfile
 import time
 
@@ -110,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
             )
             subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Return"], timeout=10)
             try:
-                eventually(lambda: marker.exists() and marker.read_text() in new_children)
+                eventually(lambda: marker.exists() and linux_process_belongs_to(marker.read_text(), new_children))
             except AssertionError:
                 # Record fixture-owned evidence only, never terminal contents or shell environment.
                 report["interactive_failure"] = {

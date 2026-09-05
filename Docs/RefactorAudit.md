@@ -563,3 +563,24 @@ include argument/environment forwarding, preserving explicit socket selection,
 avoiding recursive wrapper invocation and testing teammate pane operations through
 the actual Linux implementation. The deleted upstream suites are not current
 coverage of those requirements. Diff validation passed; no local runtime tests ran.
+
+
+### CI evidence: terminal ancestry and GTK release timing
+
+Run 33991708007 produced the previously missing input evidence: iteration zero
+wrote a numeric shell marker (`12081`), while the newly observed direct child was
+`12078`. Input therefore executed, but the marker check's direct-child equality
+was too restrictive for a launcher plus interactive shell. The fixture now walks
+at most 64 live Linux ancestors and requires the marker PID to belong to the new
+terminal's process tree. It still sends real X11 keyboard input with no focus
+repair or socket-input fallback. CI helper coverage checks real child ancestry,
+unrelated roots, invalid identities and reaped children. The new ancestry result
+must pass CI before claiming correct routing for the failing scenario.
+
+The same run passed divider mapping/focus checks but failed immediate weak-owner
+destruction. The test now closes and releases its GTK window, child snapshots and
+notebook references, then drives GTK with a three-second destruction deadline.
+This checks eventual release and rejects persistent callback cycles; it does not
+claim that no transient GTK reference exists immediately after detachment.
+Local Rust test-target compilation, Python syntax parsing and diff checks passed.
+No local tests ran; corrected runtime results remain pending.
