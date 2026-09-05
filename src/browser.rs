@@ -261,15 +261,32 @@ impl BrowserManager {
                 max_frame_size: Some(8 * 1024 * 1024),
                 ..Default::default()
             };
-            let ws_result =
-                tokio_tungstenite::connect_async_with_config(&url, Some(config), false).await;
+            let ws_result = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                tokio_tungstenite::connect_async_with_config(&url, Some(config), false),
+            )
+            .await;
             let (ws_stream, _) = match ws_result {
-                Ok(conn) => conn,
-                Err(e) => {
-                    eprintln!("cmux: browser stream WS connect failed: {}", e);
+                Ok(Ok(conn)) => conn,
+                Ok(Err(_)) => {
+                    crate::diagnostics::record(
+                        "browser.stream.connect",
+                        serde_json::json!({"outcome": "error"}),
+                    );
+                    return;
+                }
+                Err(_) => {
+                    crate::diagnostics::record(
+                        "browser.stream.connect",
+                        serde_json::json!({"outcome": "timeout"}),
+                    );
                     return;
                 }
             };
+            crate::diagnostics::record(
+                "browser.stream.connect",
+                serde_json::json!({"outcome": "success"}),
+            );
             let (_write, mut read) = ws_stream.split();
             while let Some(msg_result) = read.next().await {
                 let msg = match msg_result {
