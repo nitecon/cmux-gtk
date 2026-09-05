@@ -214,3 +214,7 @@ Documented the remaining fifteen helpers in the Linux window-state and SSH/works
 ## Bounded Linux fixture child cleanup
 
 Window and workspace integration fixtures now share a documented terminate/wait/kill/reap helper for directly owned children. Nested cleanup ensures application failure still reaches window-manager or SSH cleanup and closes log handles. Workspace restart assertions continue to fail when graceful application shutdown requires killing. The helper does not claim to stop entire process groups or privileged SSH daemons; those remain explicitly owned by the fixture. CI tests launch a TERM-ignoring child to verify forced reaping and verify already-exited children. Syntax and diff checks pass; no local tests run. CI run 33986935543 completed successfully at d958b692, including bounded browser image decoding and Ctrl+Enter coverage.
+
+## Shared cleanup across maintained Linux scenarios
+
+Diagnostics, memory-churn and surface-directory scenarios now use the same bounded child cleanup as window/workspace fixtures. Diagnostics and directory scenarios preserve failure on forced shutdown while ensuring the child is reaped; churn retains its existing kill-fallback policy and records shutdown_forced in its report. This removes duplicated teardown logic without changing workload thresholds. Python syntax and diff checks pass; execution and helper behavior tests remain in CI.

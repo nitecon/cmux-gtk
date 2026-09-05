@@ -6,6 +6,7 @@ import platform
 from pathlib import Path
 import shlex
 import subprocess
+from process_support import stop_process
 import tempfile
 import time
 
@@ -134,12 +135,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         raise
     finally:
         try:
-            app.terminate()
-            try:
-                app.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                app.kill()
-                app.wait(timeout=10)
+            report["shutdown_forced"] = stop_process(app)
         finally:
             log.close()
             destination = os.environ.get("CMUX_CHURN_REPORT")

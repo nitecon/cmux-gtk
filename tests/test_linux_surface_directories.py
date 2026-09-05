@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from process_support import stop_process
 import tempfile
 import time
 import uuid
@@ -81,8 +82,7 @@ def main():
                 print(log.read())
                 raise
             finally:
-                app.terminate()
-                app.wait(timeout=10)
+                assert not stop_process(app), "directory fixture required forced shutdown"
 
 
 if __name__ == "__main__":

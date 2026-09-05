@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from process_support import stop_process
 import sys
 import tempfile
 import time
@@ -143,11 +144,11 @@ def main():
                                    env=env, check=True, timeout=180)
                 print("diagnostic resources and successful/failed CLI-to-GTK traces verified")
             finally:
-                app.terminate()
-                app.wait(timeout=10)
+                forced = stop_process(app)
                 log.seek(0)
                 if app.returncode not in (0, -15):
                     print(log.read())
+                assert not forced, "diagnostics application required forced shutdown"
 
 
 if __name__ == "__main__":
