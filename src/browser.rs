@@ -1,8 +1,8 @@
-use base64::Engine as _;
 use futures_util::StreamExt;
 use gtk4::prelude::*;
 use serde_json::Value;
 mod discovery;
+mod frames;
 pub(crate) mod metrics;
 mod transport;
 pub use discovery::agent_browser_available;
@@ -256,7 +256,13 @@ impl BrowserManager {
         // Spawn tokio task: WebSocket client that reads frames
         let stream_task = runtime.spawn(async move {
             let _stream_metrics = metrics::Stream::begin();
-            let ws_result = tokio_tungstenite::connect_async(&url).await;
+            let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig {
+                max_message_size: Some(8 * 1024 * 1024),
+                max_frame_size: Some(8 * 1024 * 1024),
+                ..Default::default()
+            };
+            let ws_result =
+                tokio_tungstenite::connect_async_with_config(&url, Some(config), false).await;
             let (ws_stream, _) = match ws_result {
                 Ok(conn) => conn,
                 Err(e) => {
@@ -274,24 +280,15 @@ impl BrowserManager {
                     }
                 };
                 if let tokio_tungstenite::tungstenite::Message::Text(text) = &msg {
-                    if let Ok(frame) = serde_json::from_str::<serde_json::Value>(text) {
-                        if frame.get("type").and_then(|t| t.as_str()) == Some("frame") {
-                            if let Some(data_b64) = frame.get("data").and_then(|d| d.as_str()) {
-                                if let Ok(jpeg_bytes) =
-                                    base64::engine::general_purpose::STANDARD.decode(data_b64)
-                                {
-                                    metrics::received(jpeg_bytes.len());
-                                    if frame_tx
-                                        .send(Some(glib::Bytes::from_owned(jpeg_bytes)))
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                } else {
-                                    metrics::invalid_base64();
-                                }
+                    match frames::decode(text) {
+                        Ok(Some(bytes)) => {
+                            metrics::received(bytes.len());
+                            if frame_tx.send(Some(bytes)).is_err() {
+                                break;
                             }
                         }
+                        Ok(None) => {}
+                        Err(_) => metrics::invalid_base64(),
                     }
                 }
             }
