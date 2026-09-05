@@ -83,11 +83,19 @@ async fn deliver(
     picture: gtk4::Picture,
     mut frame_rx: tokio::sync::watch::Receiver<Option<glib::Bytes>>,
 ) {
+    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
+    let destruction = picture.add_weak_ref_notify_local(move || {
+        let _ = destroyed_tx.send(());
+    });
     let picture_weak = picture.downgrade();
     drop(picture);
 
     let mut first_frame = true;
-    while frame_rx.changed().await.is_ok() {
+    loop {
+        tokio::select! {
+            _ = &mut destroyed_rx => break,
+            changed = frame_rx.changed() => { if changed.is_err() { break; } }
+        }
         let Some(picture_clone) = picture_weak.upgrade() else {
             break;
         };
@@ -121,12 +129,39 @@ async fn deliver(
             Err(_) => metrics::texture(false),
         }
     }
+    destruction.disconnect();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures_util::SinkExt;
+
+    /// Destroying an idle picture releases its receiver without waiting for another frame.
+    #[test]
+    #[ignore = "requires GTK display; run in headless Linux CI"]
+    fn destroyed_picture_releases_delivery() {
+        gtk4::init().unwrap();
+        let context = glib::MainContext::default();
+        let (sender, receiver) = tokio::sync::watch::channel(None);
+        let picture = gtk4::Picture::new();
+        let task = context.spawn_local(deliver(picture.clone(), receiver));
+        drop(picture);
+        context.block_on(async {
+            match futures_util::future::select(
+                Box::pin(task),
+                Box::pin(glib::timeout_future_seconds(5)),
+            )
+            .await
+            {
+                futures_util::future::Either::Left((result, _)) => result.unwrap(),
+                futures_util::future::Either::Right(_) => {
+                    panic!("destroyed picture retained idle delivery")
+                }
+            }
+        });
+        assert!(sender.is_closed());
+    }
 
     /// Deliver a real WebSocket envelope and retire an idle reader once its consumer disappears.
     #[tokio::test]

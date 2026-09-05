@@ -103,6 +103,9 @@ jobs:
       - name: Run unit tests
         run: cargo test --workspace
 
+      - name: Test idle browser preview widget cleanup
+        run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app destroyed_picture_releases_delivery -- --ignored --test-threads=1
+
       - name: Test window state restoration
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_window_state.py
 
