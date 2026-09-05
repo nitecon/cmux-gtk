@@ -872,3 +872,7 @@ Removed the dispatcher socket-path test that unsafely changed process-wide XDG_R
 ### Current-state documentation reconciliation (2026-09-05)
 
 Refreshed unique-source inventory and current CI evidence rather than relying on historical checkpoint counts. Consolidated socket component ownership and corrected observability statements that still called enforced connection/write limits or implemented structured diagnostics future work. Optimized workload gaps remain explicit, distinct from the existing debug churn/redraw evidence. Current Python scan finds 841 undocumented functions; all-function documentation and full-goal completion remain unproven. Whitespace checks pass; no code or runtime behavior changed.
+
+### Shared input probes and manual signal ownership (2026-09-05)
+
+Consolidated byte-identical manual control-key and initial-rendering suites through relative v2 links. The manual EOF probe counts lines instead of retaining all entered content, and its SIGINT handler only records receipt; printing occurs after control returns to the polling loop, avoiding buffered-output reentrancy. Documented the remaining helper/nested function contracts and the legacy presentation-counter/type-simulation requirements. Current Linux input and churn tests are not claimed as compositor-presentation equivalence. Static parsing and whitespace checks pass; interactive and executable tests were not run locally.

@@ -2,7 +2,8 @@
 """
 Interactive test for Ctrl+C and Ctrl+D in cmux terminal.
 
-This script tests that control signals are properly handled.
+This manual probe observes signals delivered to its own terminal process; it
+does not validate socket named-key parsing. The v2 entry shares this source.
 Run this script inside the cmux terminal.
 
 Tests:
@@ -26,8 +27,8 @@ def test_ctrl_c():
     received = [False]
 
     def handler(signum, frame):
+        """Mark delivery without reentering buffered console output from a signal handler."""
         received[0] = True
-        print("\n✅ SUCCESS: SIGINT (Ctrl+C) received!")
 
     old_handler = signal.signal(signal.SIGINT, handler)
 
@@ -45,6 +46,7 @@ def test_ctrl_c():
             print("\n❌ FAILED: No SIGINT received within 10 seconds")
             print("   Ctrl+C may not be working correctly.")
             return False
+        print("\n✅ SUCCESS: SIGINT (Ctrl+C) received!")
         return True
     finally:
         signal.signal(signal.SIGINT, old_handler)
@@ -57,20 +59,21 @@ def test_ctrl_d():
     print("Type something and press Enter, then Ctrl+D on empty line:")
 
     try:
-        lines = []
+        line_count = 0
         while True:
             try:
-                line = input("> ")
-                lines.append(line)
+                input("> ")
+                line_count += 1
             except EOFError:
                 print("\n✅ SUCCESS: EOF (Ctrl+D) received!")
-                print(f"   Lines entered before EOF: {len(lines)}")
+                print(f"   Lines entered before EOF: {line_count}")
                 return True
     except KeyboardInterrupt:
         print("\n⚠️  Got Ctrl+C instead of Ctrl+D")
         return False
 
 def main():
+    """Guide manual terminal signal checks and return failure if either interaction fails."""
     print("=" * 50)
     print("cmux Control Signal Test")
     print("=" * 50)

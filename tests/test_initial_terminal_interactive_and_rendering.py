@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Regression test: the initial terminal surface must be interactive and rendering
-immediately on launch.
+Retained upstream regression: a new terminal must accept input and present it.
+This uses legacy render_stats/simulate_type debug APIs and is not current Linux
+presentation evidence. The v2 entry shares this source and its own client adapter.
 
 Bug: the first terminal (or a newly-created surface) could appear "frozen" until
 the user manually changes focus (alt-tab / click another split and back). In this
@@ -27,6 +28,7 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
+    """Poll a legacy predicate against wall time; propagate failures and raise on timeout."""
     start = time.time()
     while time.time() - start < timeout_s:
         if pred():
@@ -36,6 +38,7 @@ def _wait_for(pred, timeout_s: float, step_s: float = 0.05) -> None:
 
 
 def _wait_for_surface_focus(c: cmux, panel_id: str, timeout_s: float = 5.0) -> None:
+    """Repeatedly request activation and accept either legacy focus or identify evidence; raise on timeout."""
     panel_lower = panel_id.lower()
     start = time.time()
     while time.time() - start < timeout_s:
@@ -81,6 +84,7 @@ def _wait_for_render_context(c: cmux, panel_id: str, timeout_s: float = 5.0) -> 
 
 
 def main() -> int:
+    """Create a legacy workspace and require typed text, a presentation counter advance and shell output."""
     token = f"CMUX_INIT_{int(time.time() * 1000)}"
     tmp = f"/tmp/cmux_init_{token}.txt"
     with cmux(SOCKET_PATH) as c:
@@ -111,6 +115,7 @@ def main() -> int:
         # Also require at least one layer presentation after typing; this is a stronger
         # proxy for "the UI actually updated" than reading terminal text alone.
         def did_present() -> bool:
+            """Compare the upstream presentation counter with the pre-input baseline."""
             stats = c.render_stats(panel_id)
             return int(stats.get("presentCount", 0) or 0) > baseline_present
 
@@ -121,6 +126,7 @@ def main() -> int:
 
         # Verify the shell actually received/ran the command.
         def wrote_file() -> bool:
+            """Read the shell marker, treating missing or incomplete content as not ready."""
             try:
                 return Path(tmp).read_text().strip() == token
             except Exception:
