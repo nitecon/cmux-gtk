@@ -100,6 +100,9 @@ jobs:
       - name: Test window state restoration
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_window_state.py
 
+      - name: Test process diagnostics and request correlation
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diagnostics.py
+
       - name: Test workspace widget cleanup
         if: ${{ !cancelled() && steps.debug_build.outcome == 'success' }}
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app workspace_controls_release_closed_widget_trees -- --ignored --test-threads=1

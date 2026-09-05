@@ -52,6 +52,8 @@ pub enum Commands {
     Identify,
     /// List supported socket commands
     Capabilities,
+    /// Show process resources and diagnostic logging health
+    Diagnostics,
     /// List all workspaces
     ListWorkspaces,
     /// Show the current workspace
@@ -432,18 +434,27 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
 
     let use_color = format::use_color(&cli.color);
 
+    let started = std::time::Instant::now();
     // Handle Raw command separately (dynamic method name)
     let (method_name, result) = if let Commands::Raw { ref method, ref params } = cli.command {
         let params_val: serde_json::Value = serde_json::from_str(params).map_err(|e| {
             CliError::ProtocolError(format!("invalid JSON params: {}", e))
         })?;
-        let result = client.call(method, params_val)?;
+        let result = client.call(method, params_val);
         (method.clone(), result)
     } else {
         let (method, params) = command_to_rpc(&cli.command);
-        let result = client.call(method, params)?;
+        let result = client.call(method, params);
         (method.to_string(), result)
     };
+
+    if cli.verbose {
+        if let Some(trace_id) = client.last_trace_id() {
+            eprintln!("trace_id={trace_id} round_trip_us={}", started.elapsed().as_micros());
+        }
+    }
+
+    let result = result?;
 
     // Browser commands default to JSON; everything else defaults to human-readable
     let json_mode = match &cli.command {
@@ -581,6 +592,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::Ping => ("system.ping", json!({})),
         Commands::Identify => ("system.identify", json!({})),
         Commands::Capabilities => ("system.capabilities", json!({})),
+        Commands::Diagnostics => ("system.diagnostics", json!({})),
         Commands::ListWorkspaces => ("workspace.list", json!({})),
         Commands::CurrentWorkspace => ("workspace.current", json!({})),
 

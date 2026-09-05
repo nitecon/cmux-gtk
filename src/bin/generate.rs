@@ -17,6 +17,7 @@ use std::path::Path;
 
 use cli::Cli;
 
+/// Generate CLI completions and normalized man-page output from the command schema.
 fn main() -> std::io::Result<()> {
     let mut cmd = Cli::command();
 
@@ -36,7 +37,10 @@ fn main() -> std::io::Result<()> {
     let man = Man::new(cmd);
     let mut buf = Vec::new();
     man.render(&mut buf)?;
-    fs::write(man_dir.join("cmux.1"), buf)?;
+    let text = String::from_utf8(buf)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    let normalized = text.lines().map(str::trim_end).collect::<Vec<_>>().join("\n");
+    fs::write(man_dir.join("cmux.1"), format!("{normalized}\n"))?;
     eprintln!("Generated: packaging/man/cmux.1");
 
     Ok(())

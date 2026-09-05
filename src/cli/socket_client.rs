@@ -30,6 +30,7 @@ pub struct SocketClient {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
     next_id: u64,
+    last_trace_id: Option<uuid::Uuid>,
 }
 
 impl SocketClient {
@@ -51,7 +52,13 @@ impl SocketClient {
             reader: BufReader::new(stream),
             writer,
             next_id: 1,
+            last_trace_id: None,
         })
+    }
+
+    /// Return the correlation ID of the most recent call, including failed calls.
+    pub fn last_trace_id(&self) -> Option<uuid::Uuid> {
+        self.last_trace_id
     }
 
     /// Send a JSON-RPC call and return the result value.
@@ -66,7 +73,10 @@ impl SocketClient {
         let id = self.next_id;
         self.next_id += 1;
 
+        let trace_id = uuid::Uuid::new_v4();
+        self.last_trace_id = Some(trace_id);
         let request = serde_json::json!({
+            "trace_id": trace_id,
             "id": id,
             "method": method,
             "params": params,

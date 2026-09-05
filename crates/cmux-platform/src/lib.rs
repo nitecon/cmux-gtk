@@ -10,6 +10,7 @@ compile_error!("cmux-platform currently supports Linux only");
 
 pub mod paths;
 pub mod peer;
+pub mod process;
 
 #[cfg(feature = "gtk")]
 pub mod window;

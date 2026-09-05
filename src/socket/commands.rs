@@ -7,6 +7,8 @@ pub type RespTx = tokio::sync::oneshot::Sender<Value>;
 /// GTK/AppState reads and mutations happen ONLY in handlers.rs on the main thread.
 #[allow(dead_code)]
 pub enum SocketCommand {
+    /// Carry transport correlation and queue timing into the GTK dispatcher.
+    Observed { command: Box<SocketCommand>, trace_id: uuid::Uuid, queued_at: std::time::Instant },
     // -- system.* --
     Ping             { req_id: Value, resp_tx: RespTx },
     Identify         { req_id: Value, resp_tx: RespTx },

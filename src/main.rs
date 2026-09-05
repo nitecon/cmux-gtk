@@ -110,6 +110,7 @@ fn main() {
         return;
     }
 
+    let _diagnostic_guard = diagnostics::initialize();
     diagnostics::install_panic_hook();
     diagnostics::event(format_args!(
         "starting version={} pid={} diagnostics={}",
@@ -126,6 +127,7 @@ fn main() {
     let runtime = tokio::runtime::Runtime::new()
         .expect("Failed to create tokio runtime");
     let runtime_handle = runtime.handle().clone();
+    diagnostics::start_sampler(&runtime_handle);
 
     // glib::MainContext::channel pattern: event-driven bridge from tokio to GTK main thread.
     // NOTE: glib::MainContext::channel was removed in glib 0.18+. We replicate its semantics

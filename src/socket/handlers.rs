@@ -44,6 +44,17 @@ pub fn handle_socket_command(
     state: &crate::app_state::AppStateRef,
 ) {
     match cmd {
+        SocketCommand::Observed { command, trace_id, queued_at } => {
+            let started = std::time::Instant::now();
+            crate::diagnostics::record("rpc.gtk.start", json!({
+                "trace_id": trace_id, "queue_wait_us": queued_at.elapsed().as_micros(),
+            }));
+            handle_socket_command(*command, state);
+            crate::diagnostics::record("rpc.gtk.dispatched", json!({
+                "trace_id": trace_id, "duration_us": started.elapsed().as_micros(),
+            }));
+        }
+
         // -- system.* --
         SocketCommand::Ping { req_id, resp_tx } => {
             let _ = resp_tx.send(ok(req_id, json!({"pong": true})));
@@ -60,7 +71,7 @@ pub fn handle_socket_command(
 
         SocketCommand::Capabilities { req_id, resp_tx } => {
             let methods: Vec<&str> = vec![
-                "system.ping", "system.identify", "system.capabilities",
+                "system.ping", "system.identify", "system.capabilities", "system.diagnostics",
                 "workspace.list", "workspace.current", "workspace.create",
                 "workspace.select", "workspace.close", "workspace.rename",
                 "workspace.next", "workspace.previous", "workspace.last", "workspace.reorder",

@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Verify diagnostic snapshots and CLI-to-GTK correlation on a live application."""
+
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import time
+
+
+def wait_for(check, timeout=15):
+    """Wait for observable asynchronous state, failing within a bounded deadline."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if check():
+            return
+        time.sleep(0.1)
+    raise AssertionError("diagnostic state did not converge")
+
+
+def main():
+    """Exercise the installed command contract against isolated real GTK state."""
+    with tempfile.TemporaryDirectory(prefix="cmux-diagnostics-") as directory:
+        root = Path(directory)
+        env = dict(os.environ, CMUX_NO_UPDATE="1", GDK_BACKEND="x11",
+                   LIBGL_ALWAYS_SOFTWARE="1", CMUX_LOG=str(root / "events.jsonl"))
+        for kind in ("DATA_HOME", "CONFIG_HOME", "STATE_HOME", "RUNTIME_DIR"):
+            path = root / kind.lower()
+            path.mkdir(mode=0o700)
+            env[f"XDG_{kind}"] = str(path)
+        socket = root / "runtime_dir/cmux/cmux.sock"
+        with (root / "app.log").open("w+") as log:
+            app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
+            try:
+                wait_for(socket.exists)
+                cli = ["target/debug/cmux", "--socket", str(socket), "--json"]
+                result = subprocess.run(cli + ["diagnostics"], env=env, text=True,
+                                        capture_output=True, check=True, timeout=10)
+                snapshot = json.loads(result.stdout)
+                assert snapshot["pid"] == app.pid
+                assert snapshot["resources"]["rss_kib"] > 0
+                assert snapshot["resources"]["threads"] > 0
+                assert snapshot["logging"]["active"]
+                for command in ("ping", "raw"):
+                    arguments = [command] if command == "ping" else ["raw", "unsupported_method"]
+                    result = subprocess.run(cli + ["--verbose"] + arguments, env=env,
+                                            text=True, capture_output=True, timeout=10)
+                    assert (result.returncode == 0) == (command == "ping")
+                    trace_id = re.search(r"trace_id=([0-9a-f-]+)", result.stderr).group(1)
+
+                    def complete():
+                        """Verify all recorded stages agree on the caller correlation ID."""
+                        try:
+                            records = [json.loads(line) for line in (root / "events.jsonl").read_text().splitlines()]
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            return False
+                        events = {record["event"]: record["fields"] for record in records
+                                  if record["fields"].get("trace_id") == trace_id}
+                        if not {"rpc.gtk.start", "rpc.gtk.dispatched", "rpc.complete"} <= events.keys():
+                            return False
+                        assert events["rpc.complete"]["outcome"] == ("success" if command == "ping" else "error")
+                        assert events["rpc.gtk.start"]["queue_wait_us"] >= 0
+                        return True
+
+                    wait_for(complete)
+                print("diagnostic resources and successful/failed CLI-to-GTK traces verified")
+            finally:
+                app.terminate()
+                app.wait(timeout=10)
+                log.seek(0)
+                if app.returncode not in (0, -15):
+                    print(log.read())
+
+
+if __name__ == "__main__":
+    main()

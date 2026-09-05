@@ -18,10 +18,13 @@ _cmux() {
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'-V[Print version]' \
+'--version[Print version]' \
 ":: :_cmux_commands" \
 "*::: :->cmux" \
 && ret=0
@@ -31,11 +34,24 @@ _cmux() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-command-$line[1]:"
         case $line[1] in
-            (ping)
+            (update)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(ping)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -47,6 +63,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -58,6 +75,19 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(diagnostics)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -69,6 +99,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -80,6 +111,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -92,6 +124,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -101,9 +134,12 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (new-workspace)
 _arguments "${_arguments_options[@]}" : \
+'--name=[Display name (defaults to the selected folder name)]:NAME:_default' \
+'--cwd=[Folder new terminals in this workspace start in]:PATH:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -115,6 +151,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -127,6 +164,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -139,6 +177,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -152,6 +191,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -163,6 +203,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -174,6 +215,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -185,6 +227,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -198,6 +241,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -211,6 +255,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -222,6 +267,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -234,6 +280,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -247,6 +294,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -260,6 +308,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -273,6 +322,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -285,6 +335,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -297,6 +348,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -308,6 +360,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -319,6 +372,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -331,6 +385,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -342,6 +397,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -353,6 +409,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -364,6 +421,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -375,6 +433,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -387,6 +446,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -398,6 +458,7 @@ _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -405,11 +466,33 @@ _arguments "${_arguments_options[@]}" : \
 ':id -- Notification ID:_default' \
 && ret=0
 ;;
-(browser-open)
+(browser)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__browser_commands" \
+"*::: :->browser" \
+&& ret=0
+
+    case $state in
+    (browser)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-browser-command-$line[1]:"
+        case $line[1] in
+            (open)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[Target workspace ID]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
@@ -417,60 +500,447 @@ _arguments "${_arguments_options[@]}" : \
 ':url -- URL to open:_default' \
 && ret=0
 ;;
-(browser-close)
+(list)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-(browser-stream-enable)
+(close)
 _arguments "${_arguments_options[@]}" : \
+'--surface=[Surface reference (surface\:N or UUID); closes all if omitted]:SURFACE:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-(browser-stream-disable)
+(snapshot)
+_arguments "${_arguments_options[@]}" : \
+'--max-depth=[Maximum depth]:MAX_DEPTH:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--interactive[Include interactive element annotations]' \
+'--compact[Compact output]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(click)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--snapshot-after[Take snapshot after action]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':target -- Target element (e1 or CSS selector):_default' \
+&& ret=0
+;;
+(fill)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--snapshot-after[Take snapshot after action]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':target -- Target element (CSS selector):_default' \
+':text -- Value to fill:_default' \
+&& ret=0
+;;
+(type)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':selector -- CSS selector of the element:_default' \
+':text -- Text to type:_default' \
+&& ret=0
+;;
+(press)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':key -- Key name:_default' \
+&& ret=0
+;;
+(hover)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':selector -- CSS selector of the element:_default' \
+&& ret=0
+;;
+(scroll)
+_arguments "${_arguments_options[@]}" : \
+'--amount=[Amount in pixels]:AMOUNT:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':direction -- Direction\: up, down, left, right:_default' \
+&& ret=0
+;;
+(select)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':selector -- CSS selector of the select element:_default' \
+':value -- Value to select:_default' \
+&& ret=0
+;;
+(eval)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':expression -- JavaScript expression to evaluate:_default' \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+'--selector=[CSS selector to wait for]:SELECTOR:_default' \
+'--text=[Text to wait for]:TEXT:_default' \
+'--url-contains=[URL substring to wait for]:URL_CONTAINS:_default' \
+'--load-state=[Load state to wait for]:LOAD_STATE:_default' \
+'--function=[JavaScript function to wait for]:FUNCTION:_default' \
+'--timeout-ms=[Timeout in milliseconds]:TIMEOUT_MS:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(goto)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':url -- URL to navigate to:_default' \
+&& ret=0
+;;
+(back)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(forward)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(reload)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(get-url)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(get-title)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':selector -- CSS selector of the element:_default' \
+&& ret=0
+;;
+(get-html)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+':selector -- CSS selector of the element:_default' \
+&& ret=0
+;;
+(screenshot)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':surface -- Surface reference (surface\:N or UUID):_default' \
+&& ret=0
+;;
+(stream-enable)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-(browser-snapshot)
+(stream-disable)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
 ;;
-(browser-screenshot)
+(help)
 _arguments "${_arguments_options[@]}" : \
-'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
-'--color=[Color mode\: always, never, auto]:COLOR:_default' \
-'--json[Output raw JSON responses]' \
-'-v[Verbose output (connection info to stderr)]' \
-'--verbose[Verbose output (connection info to stderr)]' \
-'-h[Print help]' \
-'--help[Print help]' \
+":: :_cmux__browser__help_commands" \
+"*::: :->help" \
 && ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-browser-help-command-$line[1]:"
+        case $line[1] in
+            (open)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(close)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(snapshot)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(click)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(fill)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(type)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(press)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(hover)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(scroll)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(select)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(eval)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(goto)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(back)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(forward)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(reload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-url)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-title)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-html)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(screenshot)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stream-enable)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stream-disable)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -484,7 +954,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-help-command-$line[1]:"
         case $line[1] in
-            (ping)
+            (update)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(ping)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -493,6 +967,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (capabilities)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(diagnostics)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -612,29 +1090,117 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-open)
+(browser)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__browser_commands" \
+"*::: :->browser" \
+&& ret=0
+
+    case $state in
+    (browser)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-browser-command-$line[1]:"
+        case $line[1] in
+            (open)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-close)
+(list)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-stream-enable)
+(close)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-stream-disable)
+(snapshot)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-snapshot)
+(click)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(browser-screenshot)
+(fill)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(type)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(press)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(hover)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(scroll)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(select)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(eval)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(wait)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(goto)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(back)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(forward)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(reload)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-url)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-title)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(get-html)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(screenshot)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stream-enable)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stream-disable)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
@@ -652,9 +1218,11 @@ esac
 (( $+functions[_cmux_commands] )) ||
 _cmux_commands() {
     local commands; commands=(
+'update:Update a self-managed cmux installation' \
 'ping:Ping the running cmux instance' \
 'identify:Show cmux instance identity (version, platform, pid)' \
 'capabilities:List supported socket commands' \
+'diagnostics:Show process resources and diagnostic logging health' \
 'list-workspaces:List all workspaces' \
 'current-workspace:Show the current workspace' \
 'raw:Send an arbitrary JSON-RPC method' \
@@ -684,45 +1252,317 @@ _cmux_commands() {
 'type:Type text into the focused terminal' \
 'list-notifications:List notifications' \
 'clear-notification:Clear a notification' \
-'browser-open:Open a URL in the browser pane' \
-'browser-close:Close the browser pane' \
-'browser-stream-enable:Enable browser streaming' \
-'browser-stream-disable:Disable browser streaming' \
-'browser-snapshot:Take a browser snapshot' \
-'browser-screenshot:Take a browser screenshot' \
+'browser:Browser automation (agent primary interface)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux commands' commands "$@"
 }
-(( $+functions[_cmux__browser-close_commands] )) ||
-_cmux__browser-close_commands() {
-    local commands; commands=()
-    _describe -t commands 'cmux browser-close commands' commands "$@"
+(( $+functions[_cmux__browser_commands] )) ||
+_cmux__browser_commands() {
+    local commands; commands=(
+'open:Open a URL in the browser pane' \
+'list:List browser surfaces' \
+'close:Close browser surface(s)' \
+'snapshot:Take a browser snapshot (accessibility tree / DOM text)' \
+'click:Click an element' \
+'fill:Fill an input field (clears first, then types)' \
+'type:Type text into an element' \
+'press:Press a key (e.g. "Enter", "Tab", "Escape")' \
+'hover:Hover over an element' \
+'scroll:Scroll the page' \
+'select:Select an option from a dropdown' \
+'eval:Evaluate JavaScript in the browser' \
+'wait:Wait for a condition' \
+'goto:Navigate to a URL' \
+'back:Go back in browser history' \
+'forward:Go forward in browser history' \
+'reload:Reload the current page' \
+'get-url:Get the current page URL' \
+'get-title:Get the current page title' \
+'get-text:Get text content of an element' \
+'get-html:Get HTML content of an element' \
+'screenshot:Take a browser screenshot (base64 PNG)' \
+'stream-enable:Enable browser streaming' \
+'stream-disable:Disable browser streaming' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux browser commands' commands "$@"
 }
-(( $+functions[_cmux__browser-open_commands] )) ||
-_cmux__browser-open_commands() {
+(( $+functions[_cmux__browser__back_commands] )) ||
+_cmux__browser__back_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux browser-open commands' commands "$@"
+    _describe -t commands 'cmux browser back commands' commands "$@"
 }
-(( $+functions[_cmux__browser-screenshot_commands] )) ||
-_cmux__browser-screenshot_commands() {
+(( $+functions[_cmux__browser__click_commands] )) ||
+_cmux__browser__click_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux browser-screenshot commands' commands "$@"
+    _describe -t commands 'cmux browser click commands' commands "$@"
 }
-(( $+functions[_cmux__browser-snapshot_commands] )) ||
-_cmux__browser-snapshot_commands() {
+(( $+functions[_cmux__browser__close_commands] )) ||
+_cmux__browser__close_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux browser-snapshot commands' commands "$@"
+    _describe -t commands 'cmux browser close commands' commands "$@"
 }
-(( $+functions[_cmux__browser-stream-disable_commands] )) ||
-_cmux__browser-stream-disable_commands() {
+(( $+functions[_cmux__browser__eval_commands] )) ||
+_cmux__browser__eval_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux browser-stream-disable commands' commands "$@"
+    _describe -t commands 'cmux browser eval commands' commands "$@"
 }
-(( $+functions[_cmux__browser-stream-enable_commands] )) ||
-_cmux__browser-stream-enable_commands() {
+(( $+functions[_cmux__browser__fill_commands] )) ||
+_cmux__browser__fill_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux browser-stream-enable commands' commands "$@"
+    _describe -t commands 'cmux browser fill commands' commands "$@"
+}
+(( $+functions[_cmux__browser__forward_commands] )) ||
+_cmux__browser__forward_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser forward commands' commands "$@"
+}
+(( $+functions[_cmux__browser__get-html_commands] )) ||
+_cmux__browser__get-html_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser get-html commands' commands "$@"
+}
+(( $+functions[_cmux__browser__get-text_commands] )) ||
+_cmux__browser__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser get-text commands' commands "$@"
+}
+(( $+functions[_cmux__browser__get-title_commands] )) ||
+_cmux__browser__get-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser get-title commands' commands "$@"
+}
+(( $+functions[_cmux__browser__get-url_commands] )) ||
+_cmux__browser__get-url_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser get-url commands' commands "$@"
+}
+(( $+functions[_cmux__browser__goto_commands] )) ||
+_cmux__browser__goto_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser goto commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help_commands] )) ||
+_cmux__browser__help_commands() {
+    local commands; commands=(
+'open:Open a URL in the browser pane' \
+'list:List browser surfaces' \
+'close:Close browser surface(s)' \
+'snapshot:Take a browser snapshot (accessibility tree / DOM text)' \
+'click:Click an element' \
+'fill:Fill an input field (clears first, then types)' \
+'type:Type text into an element' \
+'press:Press a key (e.g. "Enter", "Tab", "Escape")' \
+'hover:Hover over an element' \
+'scroll:Scroll the page' \
+'select:Select an option from a dropdown' \
+'eval:Evaluate JavaScript in the browser' \
+'wait:Wait for a condition' \
+'goto:Navigate to a URL' \
+'back:Go back in browser history' \
+'forward:Go forward in browser history' \
+'reload:Reload the current page' \
+'get-url:Get the current page URL' \
+'get-title:Get the current page title' \
+'get-text:Get text content of an element' \
+'get-html:Get HTML content of an element' \
+'screenshot:Take a browser screenshot (base64 PNG)' \
+'stream-enable:Enable browser streaming' \
+'stream-disable:Disable browser streaming' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux browser help commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__back_commands] )) ||
+_cmux__browser__help__back_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help back commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__click_commands] )) ||
+_cmux__browser__help__click_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help click commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__close_commands] )) ||
+_cmux__browser__help__close_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help close commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__eval_commands] )) ||
+_cmux__browser__help__eval_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help eval commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__fill_commands] )) ||
+_cmux__browser__help__fill_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help fill commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__forward_commands] )) ||
+_cmux__browser__help__forward_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help forward commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__get-html_commands] )) ||
+_cmux__browser__help__get-html_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help get-html commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__get-text_commands] )) ||
+_cmux__browser__help__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help get-text commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__get-title_commands] )) ||
+_cmux__browser__help__get-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help get-title commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__get-url_commands] )) ||
+_cmux__browser__help__get-url_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help get-url commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__goto_commands] )) ||
+_cmux__browser__help__goto_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help goto commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__help_commands] )) ||
+_cmux__browser__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help help commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__hover_commands] )) ||
+_cmux__browser__help__hover_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help hover commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__list_commands] )) ||
+_cmux__browser__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help list commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__open_commands] )) ||
+_cmux__browser__help__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help open commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__press_commands] )) ||
+_cmux__browser__help__press_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help press commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__reload_commands] )) ||
+_cmux__browser__help__reload_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help reload commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__screenshot_commands] )) ||
+_cmux__browser__help__screenshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help screenshot commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__scroll_commands] )) ||
+_cmux__browser__help__scroll_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help scroll commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__select_commands] )) ||
+_cmux__browser__help__select_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help select commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__snapshot_commands] )) ||
+_cmux__browser__help__snapshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help snapshot commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__stream-disable_commands] )) ||
+_cmux__browser__help__stream-disable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help stream-disable commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__stream-enable_commands] )) ||
+_cmux__browser__help__stream-enable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help stream-enable commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__type_commands] )) ||
+_cmux__browser__help__type_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help type commands' commands "$@"
+}
+(( $+functions[_cmux__browser__help__wait_commands] )) ||
+_cmux__browser__help__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser help wait commands' commands "$@"
+}
+(( $+functions[_cmux__browser__hover_commands] )) ||
+_cmux__browser__hover_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser hover commands' commands "$@"
+}
+(( $+functions[_cmux__browser__list_commands] )) ||
+_cmux__browser__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser list commands' commands "$@"
+}
+(( $+functions[_cmux__browser__open_commands] )) ||
+_cmux__browser__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser open commands' commands "$@"
+}
+(( $+functions[_cmux__browser__press_commands] )) ||
+_cmux__browser__press_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser press commands' commands "$@"
+}
+(( $+functions[_cmux__browser__reload_commands] )) ||
+_cmux__browser__reload_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser reload commands' commands "$@"
+}
+(( $+functions[_cmux__browser__screenshot_commands] )) ||
+_cmux__browser__screenshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser screenshot commands' commands "$@"
+}
+(( $+functions[_cmux__browser__scroll_commands] )) ||
+_cmux__browser__scroll_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser scroll commands' commands "$@"
+}
+(( $+functions[_cmux__browser__select_commands] )) ||
+_cmux__browser__select_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser select commands' commands "$@"
+}
+(( $+functions[_cmux__browser__snapshot_commands] )) ||
+_cmux__browser__snapshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser snapshot commands' commands "$@"
+}
+(( $+functions[_cmux__browser__stream-disable_commands] )) ||
+_cmux__browser__stream-disable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser stream-disable commands' commands "$@"
+}
+(( $+functions[_cmux__browser__stream-enable_commands] )) ||
+_cmux__browser__stream-enable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser stream-enable commands' commands "$@"
+}
+(( $+functions[_cmux__browser__type_commands] )) ||
+_cmux__browser__type_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser type commands' commands "$@"
+}
+(( $+functions[_cmux__browser__wait_commands] )) ||
+_cmux__browser__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux browser wait commands' commands "$@"
 }
 (( $+functions[_cmux__capabilities_commands] )) ||
 _cmux__capabilities_commands() {
@@ -754,6 +1594,11 @@ _cmux__current-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux current-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__diagnostics_commands] )) ||
+_cmux__diagnostics_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux diagnostics commands' commands "$@"
+}
 (( $+functions[_cmux__focus-pane_commands] )) ||
 _cmux__focus-pane_commands() {
     local commands; commands=()
@@ -772,9 +1617,11 @@ _cmux__health_commands() {
 (( $+functions[_cmux__help_commands] )) ||
 _cmux__help_commands() {
     local commands; commands=(
+'update:Update a self-managed cmux installation' \
 'ping:Ping the running cmux instance' \
 'identify:Show cmux instance identity (version, platform, pid)' \
 'capabilities:List supported socket commands' \
+'diagnostics:Show process resources and diagnostic logging health' \
 'list-workspaces:List all workspaces' \
 'current-workspace:Show the current workspace' \
 'raw:Send an arbitrary JSON-RPC method' \
@@ -804,45 +1651,160 @@ _cmux__help_commands() {
 'type:Type text into the focused terminal' \
 'list-notifications:List notifications' \
 'clear-notification:Clear a notification' \
-'browser-open:Open a URL in the browser pane' \
-'browser-close:Close the browser pane' \
-'browser-stream-enable:Enable browser streaming' \
-'browser-stream-disable:Disable browser streaming' \
-'browser-snapshot:Take a browser snapshot' \
-'browser-screenshot:Take a browser screenshot' \
+'browser:Browser automation (agent primary interface)' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux help commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-close_commands] )) ||
-_cmux__help__browser-close_commands() {
-    local commands; commands=()
-    _describe -t commands 'cmux help browser-close commands' commands "$@"
+(( $+functions[_cmux__help__browser_commands] )) ||
+_cmux__help__browser_commands() {
+    local commands; commands=(
+'open:Open a URL in the browser pane' \
+'list:List browser surfaces' \
+'close:Close browser surface(s)' \
+'snapshot:Take a browser snapshot (accessibility tree / DOM text)' \
+'click:Click an element' \
+'fill:Fill an input field (clears first, then types)' \
+'type:Type text into an element' \
+'press:Press a key (e.g. "Enter", "Tab", "Escape")' \
+'hover:Hover over an element' \
+'scroll:Scroll the page' \
+'select:Select an option from a dropdown' \
+'eval:Evaluate JavaScript in the browser' \
+'wait:Wait for a condition' \
+'goto:Navigate to a URL' \
+'back:Go back in browser history' \
+'forward:Go forward in browser history' \
+'reload:Reload the current page' \
+'get-url:Get the current page URL' \
+'get-title:Get the current page title' \
+'get-text:Get text content of an element' \
+'get-html:Get HTML content of an element' \
+'screenshot:Take a browser screenshot (base64 PNG)' \
+'stream-enable:Enable browser streaming' \
+'stream-disable:Disable browser streaming' \
+    )
+    _describe -t commands 'cmux help browser commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-open_commands] )) ||
-_cmux__help__browser-open_commands() {
+(( $+functions[_cmux__help__browser__back_commands] )) ||
+_cmux__help__browser__back_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux help browser-open commands' commands "$@"
+    _describe -t commands 'cmux help browser back commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-screenshot_commands] )) ||
-_cmux__help__browser-screenshot_commands() {
+(( $+functions[_cmux__help__browser__click_commands] )) ||
+_cmux__help__browser__click_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux help browser-screenshot commands' commands "$@"
+    _describe -t commands 'cmux help browser click commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-snapshot_commands] )) ||
-_cmux__help__browser-snapshot_commands() {
+(( $+functions[_cmux__help__browser__close_commands] )) ||
+_cmux__help__browser__close_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux help browser-snapshot commands' commands "$@"
+    _describe -t commands 'cmux help browser close commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-stream-disable_commands] )) ||
-_cmux__help__browser-stream-disable_commands() {
+(( $+functions[_cmux__help__browser__eval_commands] )) ||
+_cmux__help__browser__eval_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux help browser-stream-disable commands' commands "$@"
+    _describe -t commands 'cmux help browser eval commands' commands "$@"
 }
-(( $+functions[_cmux__help__browser-stream-enable_commands] )) ||
-_cmux__help__browser-stream-enable_commands() {
+(( $+functions[_cmux__help__browser__fill_commands] )) ||
+_cmux__help__browser__fill_commands() {
     local commands; commands=()
-    _describe -t commands 'cmux help browser-stream-enable commands' commands "$@"
+    _describe -t commands 'cmux help browser fill commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__forward_commands] )) ||
+_cmux__help__browser__forward_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser forward commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__get-html_commands] )) ||
+_cmux__help__browser__get-html_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser get-html commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__get-text_commands] )) ||
+_cmux__help__browser__get-text_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser get-text commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__get-title_commands] )) ||
+_cmux__help__browser__get-title_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser get-title commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__get-url_commands] )) ||
+_cmux__help__browser__get-url_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser get-url commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__goto_commands] )) ||
+_cmux__help__browser__goto_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser goto commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__hover_commands] )) ||
+_cmux__help__browser__hover_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser hover commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__list_commands] )) ||
+_cmux__help__browser__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser list commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__open_commands] )) ||
+_cmux__help__browser__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser open commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__press_commands] )) ||
+_cmux__help__browser__press_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser press commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__reload_commands] )) ||
+_cmux__help__browser__reload_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser reload commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__screenshot_commands] )) ||
+_cmux__help__browser__screenshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser screenshot commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__scroll_commands] )) ||
+_cmux__help__browser__scroll_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser scroll commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__select_commands] )) ||
+_cmux__help__browser__select_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser select commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__snapshot_commands] )) ||
+_cmux__help__browser__snapshot_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser snapshot commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__stream-disable_commands] )) ||
+_cmux__help__browser__stream-disable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser stream-disable commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__stream-enable_commands] )) ||
+_cmux__help__browser__stream-enable_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser stream-enable commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__type_commands] )) ||
+_cmux__help__browser__type_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser type commands' commands "$@"
+}
+(( $+functions[_cmux__help__browser__wait_commands] )) ||
+_cmux__help__browser__wait_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help browser wait commands' commands "$@"
 }
 (( $+functions[_cmux__help__capabilities_commands] )) ||
 _cmux__help__capabilities_commands() {
@@ -873,6 +1835,11 @@ _cmux__help__current-window_commands() {
 _cmux__help__current-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help current-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__help__diagnostics_commands] )) ||
+_cmux__help__diagnostics_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help diagnostics commands' commands "$@"
 }
 (( $+functions[_cmux__help__focus-pane_commands] )) ||
 _cmux__help__focus-pane_commands() {
@@ -1009,6 +1976,11 @@ _cmux__help__type_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help type commands' commands "$@"
 }
+(( $+functions[_cmux__help__update_commands] )) ||
+_cmux__help__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help update commands' commands "$@"
+}
 (( $+functions[_cmux__identify_commands] )) ||
 _cmux__identify_commands() {
     local commands; commands=()
@@ -1123,6 +2095,11 @@ _cmux__split_commands() {
 _cmux__type_commands() {
     local commands; commands=()
     _describe -t commands 'cmux type commands' commands "$@"
+}
+(( $+functions[_cmux__update_commands] )) ||
+_cmux__update_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux update commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_cmux" ]; then

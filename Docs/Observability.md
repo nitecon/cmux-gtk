@@ -2,6 +2,10 @@
 
 Status: required implementation scope for the active refactor. Existing diagnostics write lifecycle strings and panic backtraces; that is insufficient to claim end-to-end visibility.
 
+Implemented first stage: `cmux diagnostics --json` returns procfs resource samples and writer health. `cmux --verbose ping` prints a trace UUID and client round-trip time; JSONL records at the normal diagnostic path correlate that UUID with GTK queue wait, dispatch duration and response outcome. The GTK dispatch event means the handler returned, not necessarily that an asynchronous browser operation completed. Completion is separately recorded when the response arrives. SSH/browser internal propagation remains pending.
+
+The diagnostic worker has 128 queue slots, a 64 KiB record limit, and two files of up to 8 MiB for newly written logs (active file plus `.1`). Queue overflow drops records and increments the snapshot counter. Five-second resource sampling runs off GTK. Existing unstructured stderr output is still being audited; this change does not claim all output is structured or bounded. Retention of oversized files inherited from older versions still needs hardening.
+
 ## Operation correlation
 
 Trace an operation from CLI or UI entry through socket validation, queue wait, GTK dispatch and completion. Where it calls browser or SSH services, carry the correlation through that request and report transport versus execution time separately. Use stable operation names, request/trace IDs, workspace/surface identifiers, monotonic durations and explicit success/error/cancelled outcomes. Do not use user command text or URLs as metric labels.

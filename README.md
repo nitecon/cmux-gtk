@@ -228,6 +228,12 @@ cmux records startup, pane/tab lifecycle events, and panic backtraces in
 `CMUX_LOG` to use a different path. Desktop-launch output is also available
 through `journalctl --user`.
 
+Use `cmux diagnostics --json` for process resources and diagnostic writer health.
+Use `cmux --verbose ping` to obtain a trace ID for matching CLI requests to GTK
+queue and dispatch timings in the JSONL diagnostic file. New log output rotates
+at 8 MiB with one backup (`cmux.log.1`); a full diagnostic queue drops records
+instead of blocking the application, and the snapshot reports that count.
+
 ## Building Packages
 
 ```bash

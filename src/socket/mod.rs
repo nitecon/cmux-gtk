@@ -140,6 +140,25 @@ async fn dispatch_line(
     let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("").to_string();
     let params = req.get("params").cloned().unwrap_or(serde_json::Value::Object(Default::default()));
 
+    let mut operation = crate::diagnostics::Operation::begin(
+        &method, req.get("trace_id").and_then(|id| id.as_str()),
+    );
+    // Early validation failures below are errors; cancellation while awaiting
+    // execution is reset explicitly before yielding to the response channel.
+    operation.finish(false);
+
+    if method == "system.diagnostics" {
+        return match tokio::task::spawn_blocking(crate::diagnostics::snapshot).await {
+            Ok(snapshot) => {
+                operation.finish(true);
+                serde_json::json!({"id": req_id, "ok": true, "result": snapshot}).to_string()
+            },
+            Err(_) => serde_json::json!({"id": req_id, "ok": false, "error": {
+                "code": "internal_error", "message": "diagnostic sampling failed"
+            }}).to_string(),
+        };
+    }
+
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
@@ -320,7 +339,10 @@ async fn dispatch_line(
         },
     };
 
-    if cmd_tx.send(cmd).is_err() {
+    let observed = commands::SocketCommand::Observed {
+        command: Box::new(cmd), trace_id: operation.id, queued_at: std::time::Instant::now(),
+    };
+    if cmd_tx.send(observed).is_err() {
         return serde_json::json!({
             "id": req_id,
             "ok": false,
@@ -328,11 +350,14 @@ async fn dispatch_line(
         }).to_string();
     }
 
-    resp_rx.await.unwrap_or_else(|_| serde_json::json!({
+    operation.pending();
+    let response = resp_rx.await.unwrap_or_else(|_| serde_json::json!({
         "id": req_id,
         "ok": false,
         "error": {"code": "internal_error", "message": "handler dropped response"}
-    })).to_string()
+    }));
+    operation.finish(response.get("ok").and_then(|value| value.as_bool()).unwrap_or(false));
+    response.to_string()
 }
 
 #[cfg(test)]

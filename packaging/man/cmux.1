@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH cmux 1  "cmux " 
+.TH cmux 1  "cmux 0.1.8"
 .SH NAME
 cmux \- Control cmux terminal multiplexer
 .SH SYNOPSIS
-\fBcmux\fR [\fB\-\-socket\fR] [\fB\-\-json\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIsubcommands\fR>
+\fBcmux\fR [\fB\-\-socket\fR] [\fB\-\-json\fR] [\fB\-\-no\-json\fR] [\fB\-v\fR|\fB\-\-verbose\fR] [\fB\-\-color\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] <\fIsubcommands\fR>
 .SH DESCRIPTION
 Control cmux terminal multiplexer
 .SH OPTIONS
@@ -15,6 +15,9 @@ Path to the cmux socket (overrides discovery)
 \fB\-\-json\fR
 Output raw JSON responses
 .TP
+\fB\-\-no\-json\fR
+Suppress JSON output for browser commands (browser defaults to JSON)
+.TP
 \fB\-v\fR, \fB\-\-verbose\fR
 Verbose output (connection info to stderr)
 .TP
@@ -23,7 +26,13 @@ Color mode: always, never, auto
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
 .SH SUBCOMMANDS
+.TP
+cmux\-update(1)
+Update a self\-managed cmux installation
 .TP
 cmux\-ping(1)
 Ping the running cmux instance
@@ -33,6 +42,9 @@ Show cmux instance identity (version, platform, pid)
 .TP
 cmux\-capabilities(1)
 List supported socket commands
+.TP
+cmux\-diagnostics(1)
+Show process resources and diagnostic logging health
 .TP
 cmux\-list\-workspaces(1)
 List all workspaces
@@ -121,23 +133,10 @@ List notifications
 cmux\-clear\-notification(1)
 Clear a notification
 .TP
-cmux\-browser\-open(1)
-Open a URL in the browser pane
-.TP
-cmux\-browser\-close(1)
-Close the browser pane
-.TP
-cmux\-browser\-stream\-enable(1)
-Enable browser streaming
-.TP
-cmux\-browser\-stream\-disable(1)
-Disable browser streaming
-.TP
-cmux\-browser\-snapshot(1)
-Take a browser snapshot
-.TP
-cmux\-browser\-screenshot(1)
-Take a browser screenshot
+cmux\-browser(1)
+Browser automation (agent primary interface)
 .TP
 cmux\-help(1)
 Print this message or the help of the given subcommand(s)
+.SH VERSION
+v0.1.8
