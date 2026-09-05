@@ -92,6 +92,7 @@ jobs:
         run: |
           python3 tests/test_socket_discovery.py
           python3 tests/test_socket_transport.py
+          python3 tests/test_python_client.py
 
       - name: Test prompt probe cleanup
         run: python3 tests/test_prompt_probe.py

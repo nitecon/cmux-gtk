@@ -196,91 +196,49 @@ class cmux:
     # ID resolution helpers (index -> id)
     # ---------------------------------------------------------------------
 
+    def _resolve_reference(self, kind: str, value: Union[str, int, None], workspace_id: Optional[str] = None) -> Optional[str]:
+        """Resolve a workspace/pane/surface selector, retaining each kind's current-selection policy."""
+        if value is None:
+            if kind == "workspace":
+                selected = (self._call("workspace.current") or {}).get("workspace_id")
+                if not selected:
+                    raise cmuxError("No workspace selected")
+                return str(selected)
+            focused = (self._call("system.identify") or {}).get("focused") or {}
+            selected = focused.get(f"{kind}_id") if isinstance(focused, dict) else None
+            return None if selected in (None, "", {}) else str(selected)
+
+        if not isinstance(value, int):
+            value = str(value).strip()
+            if not value:
+                return None
+            if value.isdigit():
+                value = int(value)
+            elif _looks_like_ref(value, kind) or _looks_like_uuid(value):
+                return value
+            else:
+                raise cmuxError(f"Invalid {kind} id: {value}")
+
+        params: Dict[str, Any] = {}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        items = (self._call(f"{kind}.list", params) or {}).get(f"{kind}s") or []
+        for row in items:
+            if int(row.get("index", -1)) == value:
+                return str(row.get("id"))
+        raise cmuxError(f"{kind.title()} index not found: {value}")
+
     def _resolve_workspace_id(self, workspace: Union[str, int, None]) -> Optional[str]:
         """Resolve the current workspace, an index, typed reference or UUID; reject invalid identifiers."""
-        if workspace is None:
-            res = self._call("workspace.current")
-            wsid = (res or {}).get("workspace_id")
-            if not wsid:
-                raise cmuxError("No workspace selected")
-            return str(wsid)
-
-        if isinstance(workspace, int):
-            items = (self._call("workspace.list") or {}).get("workspaces") or []
-            for row in items:
-                if int(row.get("index", -1)) == workspace:
-                    return str(row.get("id"))
-            raise cmuxError(f"Workspace index not found: {workspace}")
-
-        s = str(workspace).strip()
-        if not s:
-            return None
-        if s.isdigit():
-            return self._resolve_workspace_id(int(s))
-        if _looks_like_ref(s, "workspace"):
-            return s
-        if not _looks_like_uuid(s):
-            raise cmuxError(f"Invalid workspace id: {s}")
-        return s
+        return self._resolve_reference("workspace", workspace)
 
     def _resolve_surface_id(self, surface: Union[str, int, None], workspace_id: Optional[str] = None) -> Optional[str]:
         """Resolve focus or a surface index in the requested workspace, preserving explicit refs and UUIDs."""
-        if surface is None:
-            # Try fast-path via identify.
-            ident = self._call("system.identify")
-            focused = (ident or {}).get("focused") or {}
-            sid = focused.get("surface_id") if isinstance(focused, dict) else None
-            return None if sid in (None, "", {}) else str(sid)
-
-        if isinstance(surface, int):
-            params: Dict[str, Any] = {}
-            if workspace_id:
-                params["workspace_id"] = workspace_id
-            items = (self._call("surface.list", params) or {}).get("surfaces") or []
-            for row in items:
-                if int(row.get("index", -1)) == surface:
-                    return str(row.get("id"))
-            raise cmuxError(f"Surface index not found: {surface}")
-
-        s = str(surface).strip()
-        if not s:
-            return None
-        if s.isdigit():
-            return self._resolve_surface_id(int(s), workspace_id=workspace_id)
-        if _looks_like_ref(s, "surface"):
-            return s
-        if not _looks_like_uuid(s):
-            raise cmuxError(f"Invalid surface id: {s}")
-        return s
+        return self._resolve_reference("surface", surface, workspace_id)
 
     def _resolve_pane_id(self, pane: Union[str, int, None], workspace_id: Optional[str] = None) -> Optional[str]:
         """Resolve focus or a pane index in the requested workspace, preserving explicit refs and UUIDs."""
-        if pane is None:
-            ident = self._call("system.identify")
-            focused = (ident or {}).get("focused") or {}
-            pid = focused.get("pane_id") if isinstance(focused, dict) else None
-            return None if pid in (None, "", {}) else str(pid)
-
-        if isinstance(pane, int):
-            params: Dict[str, Any] = {}
-            if workspace_id:
-                params["workspace_id"] = workspace_id
-            items = (self._call("pane.list", params) or {}).get("panes") or []
-            for row in items:
-                if int(row.get("index", -1)) == pane:
-                    return str(row.get("id"))
-            raise cmuxError(f"Pane index not found: {pane}")
-
-        s = str(pane).strip()
-        if not s:
-            return None
-        if s.isdigit():
-            return self._resolve_pane_id(int(s), workspace_id=workspace_id)
-        if _looks_like_ref(s, "pane"):
-            return s
-        if not _looks_like_uuid(s):
-            raise cmuxError(f"Invalid pane id: {s}")
-        return s
+        return self._resolve_reference("pane", pane, workspace_id)
 
     # ---------------------------------------------------------------------
     # System
