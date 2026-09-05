@@ -224,6 +224,7 @@ async fn run_proxy_routing(
                         if msg.get("id").and_then(|v| v.as_u64()) == Some(1)
                             && msg.get("ok").and_then(|v| v.as_bool()) == Some(true) {
                             read_connected.store(true, std::sync::atomic::Ordering::Release);
+                            eprintln!("cmux: SSH workspace={workspace_id} handshake complete");
                             let _ = read_ssh_tx.send(SshEvent::StateChanged { workspace_id, state: ConnectionState::Connected }).await;
                         }
                         handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending).await;
@@ -448,6 +449,7 @@ pub async fn open_remote_stream(
         .map_err(|_| "proxy.stream.subscribe response channel dropped".to_string())?;
 
     bridge.mark_subscribed(pane_id);
+    eprintln!("cmux: remote terminal={pane_id} stream={stream_id} subscribed");
 
     // Notify via SSH event
     let _ = ssh_tx.send(SshEvent::StreamOpened {

@@ -60,7 +60,11 @@ Subsystem sftp internal-sftp
 """)
     for command in ["ssh", "scp"]:
         wrapper = root / "bin" / command
-        wrapper.write_text(f'#!/bin/sh\nexec /usr/bin/{command} -F {shlex.quote(str(config))} "$@"\n')
+        invocation = f'/usr/bin/{command} -F {shlex.quote(str(config))} "$@"'
+        if command == "ssh":
+            wrapper.write_text(f'#!/bin/sh\ncase "$*" in\n*"serve --stdio") tee {root}/rpc-in | {invocation} | tee {root}/rpc-out ;;\n*) exec {invocation} ;;\nesac\n')
+        else:
+            wrapper.write_text(f'#!/bin/sh\nexec {invocation}\n')
         wrapper.chmod(0o755)
     ssh_log = (root / "sshd.log").open("w+")
     subprocess.run(["sudo", "mkdir", "-p", "/run/sshd"], check=True)
@@ -149,6 +153,10 @@ Subsystem sftp internal-sftp
             log.flush()
             log.seek(0)
             print(log.read())
+        for name in ["rpc-in", "rpc-out"]:
+            path = root / name
+            if path.exists():
+                print(name, path.read_text()[-16000:])
         raise
     finally:
         if app and app.poll() is None:
