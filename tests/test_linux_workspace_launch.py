@@ -64,7 +64,8 @@ Subsystem sftp internal-sftp
         if command == "ssh":
             wrapper.write_text(f'#!/bin/sh\ncase "$*" in\n*"serve --stdio") tee {root}/rpc-in | {invocation} | tee {root}/rpc-out ;;\n*) exec {invocation} ;;\nesac\n')
         else:
-            wrapper.write_text(f'#!/bin/sh\nexec {invocation}\n')
+            # Verify the client retries deployment itself after a failed upload.
+            wrapper.write_text(f'#!/bin/sh\nif [ ! -e {root}/scp-attempted ]; then touch {root}/scp-attempted; exit 1; fi\nexec {invocation}\n')
         wrapper.chmod(0o755)
     ssh_log = (root / "sshd.log").open("w+")
     subprocess.run(["sudo", "mkdir", "-p", "/run/sshd"], check=True)

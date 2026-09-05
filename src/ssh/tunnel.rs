@@ -33,6 +33,7 @@ pub async fn run_ssh_lifecycle(
     bridge: Arc<SshBridge>,
 ) {
     let mut attempt: u32 = 0;
+    let mut deployed = false;
 
     loop {
         // Update state to reconnecting
@@ -41,8 +42,9 @@ pub async fn run_ssh_lifecycle(
             state: ConnectionState::Reconnecting(attempt),
         }).await;
 
-        // Deploy if first attempt
-        if attempt == 0 {
+        // A failed upload must be retried; never fall through to an older or
+        // missing daemon simply because the connection attempt count advanced.
+        if !deployed {
             if let Err(e) = crate::ssh::deploy::deploy_remote(&target).await {
                 eprintln!("cmux: SSH deploy failed: {e}");
 
@@ -71,6 +73,7 @@ pub async fn run_ssh_lifecycle(
                 attempt += 1;
                 continue;
             }
+            deployed = true;
         }
 
         // Start SSH connection with cmuxd-remote in stdio mode
