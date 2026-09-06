@@ -61,12 +61,19 @@ def main():
                 selected = next(row["uuid"] for row in app.surfaces() if row["active"])
                 quit_app(app)
                 assert_saved_directory(root, source["uuid"], changed)
+            session_path = root / "data/cmux/session.json"
+            saved = json.loads(session_path.read_text())
+            saved_source = next(row for row in saved["workspaces"] if row["uuid"] == source["workspace_uuid"])
+            saved_source["launch_environment"] = {"PROJECT_VALUE": "literal $HOME two words", "CMUX_SURFACE_ID": "forged"}
+            session_path.write_text(json.dumps(saved))
             with running_app(root) as app:
                 app.wait_for(lambda: bool(app.surfaces()), "restored selected terminal")
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
                 # Intentionally never select or read the source before the next normal quit.
                 quit_app(app)
                 assert_saved_directory(root, source["uuid"], changed)
+            persisted = json.loads(session_path.read_text())
+            assert next(row for row in persisted["workspaces"] if row["uuid"] == source["workspace_uuid"])["launch_environment"]["PROJECT_VALUE"] == "literal $HOME two words"
             with running_app(root) as app:
                 app.cli("select-workspace", source["workspace_uuid"])
 
@@ -93,6 +100,22 @@ def main():
                 text = capture()
                 assert text.index("RESTORED-0119") < text.index("FRESH-AFTER-REPLAY")
                 assert len(text.encode()) <= 256 * 1024
+
+                def verify_environment(surface, filename):
+                    """Observe inherited literal overrides and fresh cmux identity in the actual child shell."""
+                    destination = root / filename
+                    app.cli("send-text", "--id", surface,
+                            "printf '%s\\n%s\\n' \"$PROJECT_VALUE\" \"$CMUX_SURFACE_ID\" > " + shlex.quote(str(destination)))
+                    app.cli("send-key", "--id", surface, "\r")
+                    app.wait_for(lambda: destination.exists() and len(destination.read_text().splitlines()) == 2,
+                                 "restored launch environment")
+                    assert destination.read_text().splitlines() == ["literal $HOME two words", surface]
+
+                verify_environment(source["uuid"], "restored-environment")
+                created = json.loads(app.cli("split", "--direction", "horizontal", "--json"))["uuid"]
+                app.wait_for(lambda: json.loads(app.cli("health", "--id", created, "--json"))["alive"],
+                             "new terminal after restore")
+                verify_environment(created, "split-environment")
         finally:
             stop_process(wm)
     print("styled history and unopened background cache survived normal quit/reopen before fresh shell output")

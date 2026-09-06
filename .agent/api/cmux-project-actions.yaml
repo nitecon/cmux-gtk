@@ -89,3 +89,7 @@ content:
   launch_environment_persistence:
     - WorkspaceSession launch_environment defaults empty and captures explicit SplitEngine overrides only. Restored local surfaces and later tabs retain overrides; native managed identity still wins.
     - Deserialization shares project environment entry/key/value/aggregate bounds. Round-trip, legacy omission and malformed-map tests await Actions. Project layout application remains outstanding.
+
+  launch_environment_runtime_coverage:
+    - Multi-restart fixture seeds explicit overrides, leaves workspace unopened across another quit, verifies saved retention and actual child values in restored and later split terminals.
+    - Literal dollar-sign/space values must survive and each child must receive its real surface ID despite a forged CMUX_SURFACE_ID override. Existing history/CWD checks retained. AST passes; runtime pending Actions.

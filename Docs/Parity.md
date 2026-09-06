@@ -412,3 +412,7 @@ Added local configured surface launch with owned environment strings, inherited/
 ### Workspace launch environment persistence
 
 Session snapshots now retain explicit workspace environment overrides and restore them into local terminals and future tabs. Shared bounded validation rejects malformed saved values; old sessions default empty. Tests cover round-trip and compatibility; runtime pending Actions. Project layout launch remains open.
+
+### Restored launch environment end-to-end coverage
+
+The multi-restart fixture now checks explicit environment retention through an unopened workspace, actual restored-shell values and a later split terminal. Both must receive their own cmux identities despite a forged saved override. Existing history/style/CWD checks remain. Python syntax passes; runtime pending Actions.
