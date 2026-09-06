@@ -1,6 +1,7 @@
 """Shared elapsed-time polling and owned subprocess cleanup for integration fixtures."""
 from pathlib import Path
 import subprocess
+import math
 import time
 
 
@@ -31,13 +32,14 @@ def stop_process(process, timeout=10):
         return True
 
 
-def wait_until(predicate, description="condition", timeout=10, interval=0.1):
+def wait_until(predicate, description="condition", timeout=10, interval=0.1, *, deadline_error=None):
     """Poll until truthy or raise with context when the monotonic deadline expires.
 
+    A supplied deadline_error replaces the default AssertionError on expiry only.
     Predicate exceptions propagate immediately. A running predicate cannot be
     interrupted: subprocesses and I/O inside it need their own deadlines.
     """
-    if timeout <= 0 or interval <= 0:
+    if not math.isfinite(timeout) or not math.isfinite(interval) or timeout <= 0 or interval <= 0:
         raise ValueError("polling timeout and interval must be positive")
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -47,6 +49,8 @@ def wait_until(predicate, description="condition", timeout=10, interval=0.1):
         if remaining <= 0:
             break
         time.sleep(min(interval, remaining))
+    if deadline_error is not None:
+        raise deadline_error
     raise AssertionError(f"timed out waiting for {description}")
 
 

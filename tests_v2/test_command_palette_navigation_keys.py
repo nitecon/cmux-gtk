@@ -19,18 +19,7 @@ from cmux import cmux, cmuxError
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
-def _wait_until(
-    predicate,
-    timeout_s: float = 4.0,
-    interval_s: float = 0.05,
-    message: str = "timeout",
-) -> None:
-    start = time.time()
-    while time.time() - start < timeout_s:
-        if predicate():
-            return
-        time.sleep(interval_s)
-    raise cmuxError(message)
+from scenario_support import wait_until as _wait_until
 
 
 def _palette_visible(client: cmux, window_id: str) -> bool:

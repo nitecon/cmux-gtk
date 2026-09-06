@@ -7,6 +7,7 @@ import signal
 import subprocess
 import time
 from cmux import cmuxError
+from process_support import wait_until as poll_until
 
 
 def require(condition: object, message: str) -> None:
@@ -73,3 +74,18 @@ def run_command(cmd: list[str], *, env: dict[str, str] | None = None,
         output = [bytes(buffer).decode(encoding).replace("\r\n", "\n").replace("\r", "\n")
                   for buffer in buffers]
         return subprocess.CompletedProcess(cmd, process.returncode, *output)
+
+
+def wait_until(predicate, timeout_s: float = 4.0, interval_s: float = 0.05,
+               message: str = "timeout") -> None:
+    """Poll on the shared monotonic clock, preserving the scenario's deadline error.
+
+    Predicate errors escape unchanged; callbacks must bound their own blocking work.
+    """
+    poll_until(predicate, timeout=timeout_s, interval=interval_s,
+               deadline_error=cmuxError(message))
+
+
+def wait_for(pred, timeout_s: float = 8.0, step_s: float = 0.1) -> None:
+    """Preserve the remote scenario polling defaults and error through the shared loop."""
+    wait_until(pred, timeout_s, step_s, "Timed out waiting for condition")

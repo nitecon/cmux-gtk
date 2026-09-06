@@ -7,11 +7,11 @@ import sys
 import time
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from cli_support import find_cli_binary
 from cmux import cmuxError
-from scenario_support import require, run_command
+from scenario_support import require, run_command, wait_for, wait_until
 
 
 class ScenarioSupportTests(unittest.TestCase):
@@ -80,6 +80,27 @@ class ScenarioSupportTests(unittest.TestCase):
                 with self.assertRaises(ChildProcessError):
                     os.waitpid(pid, os.WNOHANG)
                 self.assertFalse(Path(f"/proc/{pid}").exists())
+
+    def test_shared_polling_contract(self):
+        """Real elapsed-time polling preserves success, deadline details and predicate failures."""
+        values = iter([False, False, True])
+        with patch("time.time", side_effect=AssertionError("wall clock consulted")):
+            self.assertIsNone(wait_until(values.__next__, timeout_s=1, interval_s=0.001))
+        started = time.monotonic()
+        with self.assertRaisesRegex(cmuxError, "expected ready"):
+            wait_until(lambda: False, timeout_s=0.02, interval_s=10, message="expected ready")
+        self.assertLess(time.monotonic() - started, 1)
+        with self.assertRaisesRegex(cmuxError, "Timed out waiting for condition"):
+            wait_for(lambda: False, timeout_s=0.01)
+        failure = AssertionError("predicate failed")
+        with self.assertRaises(AssertionError) as raised:
+            wait_until(Mock(side_effect=failure))
+        self.assertIs(raised.exception, failure)
+        for limit in (float("nan"), float("inf"), 0, -1):
+            with self.assertRaises(ValueError):
+                wait_until(lambda: True, timeout_s=limit)
+            with self.assertRaises(ValueError):
+                wait_until(lambda: True, interval_s=limit)
 
     def test_build_directory_and_explicit_override(self):
         """Run the chosen executable and reject invalid overrides rather than selecting another build."""

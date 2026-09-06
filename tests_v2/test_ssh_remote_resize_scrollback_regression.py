@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmux, cmuxError
-from scenario_support import require as _must
+from scenario_support import require as _must, run_command as _run, wait_for as _wait_for
 from cli_support import find_cli_binary as _find_cli_binary
 
 
@@ -30,7 +30,6 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 OSC_ESCAPE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
 
-from scenario_support import run_command as _run
 
 
 def _run_cli_json(cli: str, args: list[str]) -> dict:
@@ -46,13 +45,6 @@ def _run_cli_json(cli: str, args: list[str]) -> dict:
         raise cmuxError(f"Invalid JSON output for {' '.join(args)}: {proc.stdout!r} ({exc})")
 
 
-def _wait_for(pred, timeout_s: float = 8.0, step_s: float = 0.1) -> None:
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        if pred():
-            return
-        time.sleep(step_s)
-    raise cmuxError("Timed out waiting for condition")
 
 
 def _wait_remote_connected(client: cmux, workspace_id: str, timeout_s: float = 45.0) -> None:
