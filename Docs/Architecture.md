@@ -16,7 +16,7 @@ cmux is a native terminal multiplexer. Its product hierarchy is workspace → sp
 
 `agent-browser` is an optional, independently installed external browser service. Its implementation language is not an application dependency to maintain here. Missing installations disable browser panes and show the install command.
 
-The inherited `web` Next.js/React/TypeScript website was removed because the desktop did not load it or need it to build its binaries. Remaining obsolete upstream macOS artifacts are being audited; see [RefactorAudit](RefactorAudit.md) for current migration status. Keep the complete Ghostty submodule, including upstream platform directories and vendored dependencies.
+The inherited `web` Next.js/React/TypeScript website was removed because the desktop did not load it or need it to build its binaries. The owned legacy audit and verification evidence are recorded in [RefactorAudit](RefactorAudit.md). Keep the complete Ghostty submodule, including upstream platform directories and vendored dependencies.
 
 ## Component boundaries
 

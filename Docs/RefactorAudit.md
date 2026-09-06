@@ -1,24 +1,46 @@
 # Refactor audit
 
-Status: in progress. This document is a completion checklist, not a claim that the migration is finished.
+Status: complete for the full-refactor scope. [Cumulative CI 34015489261](https://github.com/nitecon/cmux-gtk/actions/runs/34015489261) passed every step at `226ddb31`. Local end-to-end user validation precedes any new release tag.
 
 ## Current requirement status
 
-This table supersedes the historical checkpoint notes below. Inventory refreshed from tracked, existing unique owned source through `ebcb019a` on 2026-09-06 UTC. Ghostty and two Python entry symlinks are excluded from owned declaration counts. Static scans support discovery and documentation checks; they do not prove runtime correctness.
+This table supersedes the historical checkpoint notes below. Inventory refreshed from tracked, existing unique owned source through `226ddb31` on 2026-09-06 UTC. Ghostty and two Python entry symlinks are excluded from owned declaration counts. Static scans support discovery and documentation checks; they do not prove runtime correctness.
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture maps Rust/GTK/Tokio, Ghostty Zig/native dependencies, Go, C, Python, shell and configuration to manifests and seven standards. Owned source has 87 Rust, 12 Go and one C file; no owned Swift, Objective-C or Zig. Cargo builds all three binaries; remote Go builds with module toolchain 1.22.12. | Complete. |
-| Remove unnecessary legacy artifacts | Removed unused website/native stubs and unsupported macOS/remote/debug harnesses after caller and contract review. Complete Ghostty and historically relevant contracts retained. Maintained Python clients now contain only called transport/tooling paths. Standalone interactive signal and PTY/zsh integration probes remain useful portable tools; they are not claimed as GTK CI coverage. | Final cumulative CI for changed clients and replacement native scenarios. |
+| Remove unnecessary legacy artifacts | Removed unused website/native stubs and unsupported macOS/remote/debug harnesses after caller and contract review. Complete Ghostty and historically relevant contracts retained. Maintained Python clients now contain only called transport/tooling paths. Standalone interactive signal and PTY/zsh integration probes remain useful portable tools; they are not claimed as GTK CI coverage. | Complete: clients and native routing/prompt/input scenarios passed cumulative CI. |
 | Document every owned function | Adjacent documentation for 702 Rust functions; recursive AST scan finds no undocumented Python functions (150 in 41 root test files, 34 in five tests_v2 files, 29 in six script files). Embedded Python helper scan also passes. Go: 162 documented functions in 12 files; shell: ten documented functions in 30 syntax-valid scripts. Sole C bridge documents pointer/thread/output contracts. Embedded zsh callbacks have behavior comments. | Complete; declaration counts are navigation evidence, not correctness proof. |
 | Language standards and architecture | Seven standards link from Architecture alongside Components, Observability and gateway adaptations. Final relative-link and workflow script-path checks pass. | Complete. |
 | Concise agent instructions and symlink | Root AGENTS has six bullets/42 words; root CLAUDE links to it. Packaged CLAUDE has five bullets/32 words. Neither contains task/cache directives. | Complete. |
 | Linux component library | cmux-platform owns process, paths, filesystem, peer, notification command, native window/OpenGL and blocking/optional-async local transport, with no application model dependency. Both minimal and async-only platform builds pass. Generic C ABI types remain in Ghostty; procfs/X11 test probes are explicitly Linux. | Complete. |
-| KISS and shared behavior | Shared pane closure/selection, session writer, browser exchanges/child capture, line framing, Go lifecycle and Python helpers replace repeated behavior. AppState::start_ssh shares RPC/dialog/restore ownership. Final formatting and correctness/suspicious Clippy checks pass; native GTK X11 deprecation warnings remain. | Verify latest shared SSH launch path and client pruning in cumulative CI. |
-| End-to-end observability and benchmarks | Bounded diagnostics correlate CLI/GTK, browser wire exchanges and workspace launch → SSH connection → remote setup. Session snapshot/save, desktop helper completion and resource metrics implemented. Optimized ping/idle/memory/input/SSH/history/actual Chromium raw baselines archived with measurement limits. | Latest SSH launch ancestry assertion awaits CI. External internals, per-key streams, physical GPU/compositor presentation and long-running OOM stability are not claimed. |
-| Executable verification | Run 34013445662 at 9ee61500 passed all jobs, including Chromium DOM/preview, delayed waits, browser child traces and optimized history/attention workloads. Final workspace and optimized binary builds, platform feature builds, Go build and lint pass locally without executing tests. | Run 34014725090 at ebcb019a is active. Earlier run 34014434446 failed the already-fixed nested fixture's all-workspace membership assertion. Final cumulative Actions success is required. |
+| KISS and shared behavior | Shared pane closure/selection, session writer, browser exchanges/child capture, line framing, Go lifecycle and Python helpers replace repeated behavior. AppState::start_ssh shares RPC/dialog/restore ownership. Final formatting and correctness/suspicious Clippy checks pass; native GTK X11 deprecation warnings remain. | Complete: shared SSH launch and client pruning passed cumulative CI. |
+| End-to-end observability and benchmarks | Bounded diagnostics correlate CLI/GTK, browser wire exchanges and workspace launch → SSH connection → remote setup. Session snapshot/save, desktop helper completion and resource metrics implemented. Optimized ping/idle/memory/input/SSH/history/actual Chromium raw baselines archived with measurement limits. | Complete: SSH launch ancestry and all optimized workloads passed cumulative CI. External internals, per-key streams, physical GPU/compositor presentation and long-running OOM stability are not claimed. |
+| Executable verification | Run 34013445662 at 9ee61500 passed all jobs, including Chromium DOM/preview, delayed waits, browser child traces and optimized history/attention workloads. Final workspace and optimized binary builds, platform feature builds, Go build and lint pass locally without executing tests. | Complete: 34015489261 at 226ddb31 passed all Go/Linux, packaging-helper, clipboard, memory/PTY, prompt/input, SSH and optimized Chromium/benchmark steps. |
 
-Session standby/resume hooks and additional agent-facing feature parity remain a separately deferred task. Their deferral does not waive any active refactor or observability requirement. A release tag is not appropriate while the active scope remains unfinished.
+Session standby/resume hooks and additional agent-facing feature parity remain a separately deferred task. Their deferral does not waive any active refactor or observability requirement. No release tag was created; user validation remains the next release prerequisite.
+
+## Final verification and local handoff
+
+The final source passed workspace/debug and optimized binary builds, both minimal platform feature configurations, Go 1.22.12 build, formatting, Clippy correctness/suspicious checks, Bash syntax, documentation/link checks and the full Actions run linked above. No tests ran locally. Native GTK X11 deprecation warnings remain; the platform library deliberately preserves its existing native integration.
+
+The final prompt fixture explicitly sets Ghostty's command in isolated configuration. Its successful runtime check observes three new prompts and verifies workspace/PTY cleanup; a `SHELL` environment override had selected the runner's ordinary prompt in earlier failed runs. The nested scenario filters surfaces by workspace before checking identities, matching the production list-all-workspaces contract. Neither fix relaxes delivery or lifecycle assertions.
+
+Close an existing cmux instance before launching the local optimized build with its normal socket and saved configuration:
+
+```bash
+cd /home/whattingh/Documents/Projects/cmux-linux
+CMUX_NO_UPDATE=1 ./target/release/cmux-app
+```
+
+In another terminal, inspect `./target/release/cmux diagnostics --json` or collect resource trends while using the application:
+
+```bash
+python3 scripts/collect-cmux-diagnostics.py --binary ./target/release/cmux \
+  --samples 120 --interval 5 --output "/tmp/cmux-validation-$(date +%s).json"
+```
+
+The collector writes a new private report. These measurements help investigate sustained memory growth; CI's bounded software-rendered workloads are not proof that every OOM cause is resolved. Session resume/hooks remain deferred, and no version bump, tag or release publication is part of this handoff.
 
 ## Historical implementation checkpoints
 
@@ -55,16 +77,16 @@ Added a bounded diagnostic time-series collector for issue reports, with private
 - [x] Inspect stack, build roots, workflows and initial platform coupling.
 - [x] Create architecture, component map and language standards.
 - [x] Replace owned agent files with concise bullets, at most 50 words; root CLAUDE symlink to AGENTS.
-- [ ] Remove verified unused/legacy owned artifacts and update all affected references and CI.
+- [x] Remove verified unused/legacy owned artifacts and update all affected references and CI.
 - [x] Isolate Linux services in a component library and route all relevant callers through it.
-- [ ] Refactor repeated behavior into shared functions and simplify component ownership.
+- [x] Refactor repeated behavior into shared functions and simplify component ownership.
 - [x] Document all retained owned functions with useful adjacent native comments.
 - [x] Apply language formatting and appropriate linting to retained owned code.
 - [x] Look up applicable gateway patterns and document project adaptations.
-- [ ] Implement correlated end-to-end diagnostics, resource metrics and bounded retention.
+- [x] Implement correlated end-to-end diagnostics, resource metrics and bounded retention.
 - [x] Add repeatable optimized benchmarks, diagnostic collection and CI artifacts.
-- [ ] Build all binaries and verify behavior through GitHub Actions.
-- [ ] Audit every original requirement against final files and executable evidence.
+- [x] Build all binaries and verify behavior through GitHub Actions.
+- [x] Audit every original requirement against final files and executable evidence.
 
 Known issue to avoid hiding: session save lacks a shutdown flush (deferred feature task). Directory tracking now uses each surface's native reports; terminals that do not report changes retain only an explicit launch directory or an empty unknown value.
 
