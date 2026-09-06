@@ -18,6 +18,16 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
 
+/// Build the shared public CLI viewport arguments without shell interpretation.
+fn viewport_command(width: i32, height: i32) -> Vec<String> {
+    vec![
+        "set".into(),
+        "viewport".into(),
+        width.to_string(),
+        height.to_string(),
+    ]
+}
+
 /// GTK-owned close tasks retained until application exit drains them before stopping Tokio.
 pub type ShutdownTasks = std::rc::Rc<std::cell::RefCell<tokio::task::JoinSet<()>>>;
 
@@ -268,7 +278,7 @@ impl BrowserManager {
         command: String,
         trace_id: uuid::Uuid,
     ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
-        self.navigation_commands(vec![vec![command]], trace_id)
+        self.navigation_commands(vec![vec![command]], true, trace_id)
     }
 
     /// Prepare viewport sizing, URL navigation and address refresh as one admitted operation.
@@ -282,23 +292,37 @@ impl BrowserManager {
         let mut commands = Vec::new();
         if let Some((width, height)) = viewport.filter(|(width, height)| *width > 0 && *height > 0)
         {
-            commands.push(vec![
-                "set".into(),
-                "viewport".into(),
-                width.to_string(),
-                height.to_string(),
-            ]);
+            commands.push(viewport_command(width, height));
         }
         commands.push(vec!["open".into(), url]);
-        self.navigation_commands(commands, trace_id)
+        self.navigation_commands(commands, true, trace_id)
     }
 
-    /// Execute ordered public CLI commands and refresh the URL while owning one admission permit.
+    /// Set an allocated preview size on the bounded CLI worker without requesting URL refresh.
+    /// Invalid geometry performs no child I/O; overlap follows the shared navigation admission policy.
+    fn resize_async(
+        &self,
+        width: i32,
+        height: i32,
+        trace_id: Uuid,
+    ) -> impl std::future::Future<Output = Result<(), String>> + Send + 'static {
+        let operation =
+            self.navigation_commands(vec![viewport_command(width, height)], false, trace_id);
+        async move {
+            if width <= 0 || height <= 0 {
+                return Err("Browser viewport dimensions must be positive".to_string());
+            }
+            operation.await.map(|_| ())
+        }
+    }
+
+    /// Execute ordered public CLI commands with optional URL refresh while owning one admission permit.
     /// Reject overlap before spawning children; dropping the future releases its slot.
     /// The entire sequence shares a fifteen-second deadline, including URL refresh.
     fn navigation_commands(
         &self,
         commands: Vec<Vec<String>>,
+        refresh_url: bool,
         trace_id: uuid::Uuid,
     ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
         let mut shutdown = self.navigation_shutdown.subscribe();
@@ -326,8 +350,12 @@ impl BrowserManager {
                     let args: Vec<&str> = command.iter().map(String::as_str).collect();
                     cli::run(&binary, &session, &args, trace_id).await?;
                 }
-                let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
-                Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
+                if refresh_url {
+                    let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
+                    Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
+                } else {
+                    Ok(None)
+                }
             };
             tokio::select! {
                 biased;
@@ -767,6 +795,12 @@ esac
             .open_async(url, Some((640, 480)), Uuid::new_v4())
             .await
             .is_err());
+        assert!(browser.resize_async(800, 600, Uuid::new_v4()).await.is_ok());
+        assert!(browser.resize_async(0, 600, Uuid::new_v4()).await.is_err());
+        assert!(browser
+            .resize_async(640, 480, Uuid::new_v4())
+            .await
+            .is_err());
         let session_name = browser.session_name.clone();
         let abandoned = browser.navigate_async("after_drop".into(), Uuid::new_v4());
         drop(browser);
@@ -775,6 +809,7 @@ esac
             std::fs::read_to_string(binary.with_file_name("browser fixture.calls")).unwrap();
         let expected = [
             "back", "get", "fail", "forward", "get", "set", "open", "get", "open", "get", "set",
+            "set", "set",
         ]
         .map(|command| format!("{session_name} {command}\n"))
         .concat();

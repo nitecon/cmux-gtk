@@ -229,23 +229,15 @@ pub(crate) fn wire_browser_tab(
         }
     };
 
-    // Step 4: Set viewport to match pane size (deferred until after GTK layout)
+    // Apply the initial viewport after allocation without retaining a closed preview.
     {
         let state_for_viewport = Rc::downgrade(state);
-        let picture_for_viewport = picture_ref.clone();
+        let picture_for_viewport = picture_ref.downgrade();
         glib::idle_add_local_once(move || {
-            let Some(state_for_viewport) = state_for_viewport.upgrade() else {
-                return;
-            };
-            let pic_w = picture_for_viewport.width();
-            let pic_h = picture_for_viewport.height();
-            if pic_w > 0 && pic_h > 0 {
-                let mut s = state_for_viewport.borrow_mut();
-                if let Some(ref mut bm) = s.browser_manager {
-                    let width = pic_w.to_string();
-                    let height = pic_h.to_string();
-                    let _ = bm.run_cli(&["set", "viewport", &width, &height]);
-                }
+            if let (Some(state), Some(picture)) =
+                (state_for_viewport.upgrade(), picture_for_viewport.upgrade())
+            {
+                resize_browser_preview(&state, &picture);
             }
         });
     }
@@ -438,6 +430,31 @@ pub(crate) fn wire_browser_tab(
     state.borrow().trigger_session_save();
 }
 
+/// Await worker completion without retaining its widget; destruction aborts and reaps the task.
+/// All browser result-delivery callbacks share this cancellation boundary on the GTK context.
+fn widget_task_result<T: 'static>(
+    widget: &impl IsA<glib::Object>,
+    mut task: tokio::task::JoinHandle<T>,
+) -> impl std::future::Future<Output = Option<Result<T, tokio::task::JoinError>>> + 'static {
+    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
+    let destruction = widget.add_weak_ref_notify_local(move || {
+        let _ = destroyed_tx.send(());
+    });
+    async move {
+        let result = tokio::select! {
+            biased;
+            _ = &mut destroyed_rx => {
+                task.abort();
+                let _ = task.await;
+                None
+            }
+            result = &mut task => Some(result),
+        };
+        destruction.disconnect();
+        result
+    }
+}
+
 /// Start bounded snapshot I/O on Tokio without holding application state across execution.
 /// The overlay label owns result delivery and cancels the exchange when destroyed.
 fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
@@ -461,27 +478,16 @@ fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
 /// Weak ownership prevents the pending request from retaining a closed browser tab.
 fn finish_devtools_snapshot(
     label: &gtk4::Label,
-    mut task: tokio::task::JoinHandle<Result<String, String>>,
+    task: tokio::task::JoinHandle<Result<String, String>>,
     mut activity: crate::browser::metrics::Activity,
 ) {
-    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
-    let destruction = label.add_weak_ref_notify_local(move || {
-        let _ = destroyed_tx.send(());
-    });
+    let completion = widget_task_result(label, task);
     let label = label.downgrade();
     glib::MainContext::default().spawn_local(async move {
-        let result = tokio::select! {
-            biased;
-            _ = &mut destroyed_rx => {
-                task.abort();
-                let _ = task.await;
-                destruction.disconnect();
-                activity.finish("cancelled");
-                return;
-            }
-            result = &mut task => result,
+        let Some(result) = completion.await else {
+            activity.finish("cancelled");
+            return;
         };
-        destruction.disconnect();
         let Some(label) = label.upgrade() else {
             activity.finish("stale_widget");
             return;
@@ -520,6 +526,37 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
             crate::diagnostics::event(format_args!("browser map navigation failed error={error}"));
         }
     }
+}
+
+/// Run initial viewport sizing on Tokio; destruction cancels I/O and GTK never awaits under a model borrow.
+fn resize_browser_preview(state: &Rc<RefCell<AppState>>, picture: &gtk4::Picture) {
+    let (width, height) = (picture.width(), picture.height());
+    if width <= 0 || height <= 0 {
+        return;
+    }
+    let mut activity = super::metrics::Activity::begin("viewport", None);
+    let task = {
+        let s = state.borrow();
+        let (Some(browser), Some(runtime)) =
+            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
+        else {
+            activity.finish("unavailable");
+            return;
+        };
+        runtime.spawn(browser.resize_async(width, height, activity.id))
+    };
+    let completion = widget_task_result(picture, task);
+    glib::MainContext::default().spawn_local(async move {
+        let Some(result) = completion.await else {
+            activity.finish("cancelled");
+            return;
+        };
+        activity.finish(match result {
+            Ok(Ok(())) => "success",
+            Ok(Err(_)) => "error",
+            Err(_) => "task_error",
+        });
+    });
 }
 
 /// Release held keys for the originating manager; defer focus signals emitted during model mutation.
@@ -625,27 +662,18 @@ fn navigate_browser_entry(
 fn finish_browser_navigation(
     state: &Rc<RefCell<AppState>>,
     entry: &gtk4::Entry,
-    mut task: tokio::task::JoinHandle<Result<Option<String>, String>>,
+    task: tokio::task::JoinHandle<Result<Option<String>, String>>,
     mut activity: crate::browser::metrics::Activity,
 ) {
-    let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
-    let destruction = entry.add_weak_ref_notify_local(move || {
-        let _ = destroyed_tx.send(());
-    });
+    let completion = widget_task_result(entry, task);
     let original_url = entry.text();
     let entry = entry.downgrade();
     let state = Rc::downgrade(state);
     glib::MainContext::default().spawn_local(async move {
-        let result = tokio::select! {
-            _ = &mut destroyed_rx => {
-                task.abort();
-                let _ = task.await;
-                destruction.disconnect();
-                return;
-            }
-            result = &mut task => result,
+        let Some(result) = completion.await else {
+            activity.finish("cancelled");
+            return;
         };
-        destruction.disconnect();
         match result {
             Ok(Ok(Some(url))) => {
                 if let (Some(entry), Some(state)) = (entry.upgrade(), state.upgrade()) {
