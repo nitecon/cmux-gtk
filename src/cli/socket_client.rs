@@ -1,7 +1,7 @@
 //! Synchronous Unix socket JSON-RPC client for the cmux CLI.
 
+use cmux_platform::local_socket::BlockingStream;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
 const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
@@ -36,8 +36,8 @@ impl std::error::Error for CliError {}
 
 /// A synchronous Unix socket JSON-RPC client.
 pub struct SocketClient {
-    reader: BufReader<UnixStream>,
-    writer: UnixStream,
+    reader: BufReader<BlockingStream>,
+    writer: BlockingStream,
     next_id: u64,
     usable: bool,
     timeout: Duration,
@@ -138,7 +138,7 @@ fn remaining_budget(started: Instant, timeout: Duration) -> Result<Duration, Cli
 
 /// Write a complete request while reducing the socket timeout after each partial write.
 fn write_request(
-    stream: &mut UnixStream,
+    stream: &mut BlockingStream,
     mut bytes: &[u8],
     timeout: Duration,
 ) -> Result<(), CliError> {
@@ -199,7 +199,7 @@ fn decode_response(response: &[u8], id: u64) -> Result<serde_json::Value, CliErr
 
 /// Read a newline-delimited response within one time/byte budget without overreading later replies.
 fn read_response(
-    reader: &mut BufReader<UnixStream>,
+    reader: &mut BufReader<BlockingStream>,
     timeout: Duration,
     limit: usize,
 ) -> Result<Vec<u8>, CliError> {
@@ -237,8 +237,8 @@ mod tests {
     use super::*;
 
     /// Construct a client and peer socket without filesystem discovery for protocol behavior tests.
-    fn client_pair() -> (SocketClient, UnixStream) {
-        let (stream, peer) = UnixStream::pair().unwrap();
+    fn client_pair() -> (SocketClient, BlockingStream) {
+        let (stream, peer) = BlockingStream::pair().unwrap();
         let client = SocketClient {
             writer: stream.try_clone().unwrap(),
             reader: BufReader::new(stream),
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn bounded_request_writes() {
         use std::io::Read;
-        let (mut stream, mut peer) = UnixStream::pair().unwrap();
+        let (mut stream, mut peer) = BlockingStream::pair().unwrap();
         write_request(&mut stream, b"request\n", Duration::from_secs(1)).unwrap();
         peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
         let mut bytes = [0; 8];
@@ -333,7 +333,7 @@ mod tests {
     /// Preserve fragmented UTF-8 bytes and leave coalesced response lines for the next read.
     #[test]
     fn response_boundaries() {
-        let (stream, mut peer) = UnixStream::pair().unwrap();
+        let (stream, mut peer) = BlockingStream::pair().unwrap();
         peer.write_all("€\nnext\n".as_bytes()).unwrap();
         let mut reader = BufReader::with_capacity(1, stream);
         assert_eq!(
@@ -349,7 +349,7 @@ mod tests {
     /// Reject oversized lines, missing delimiters and peers that never produce bytes.
     #[test]
     fn response_limits() {
-        let (stream, mut peer) = UnixStream::pair().unwrap();
+        let (stream, mut peer) = BlockingStream::pair().unwrap();
         peer.write_all(b"12345\n").unwrap();
         assert!(
             read_response(&mut BufReader::new(stream), Duration::from_secs(1), 4)
@@ -357,10 +357,10 @@ mod tests {
                 .to_string()
                 .contains("byte limit")
         );
-        let (stream, peer) = UnixStream::pair().unwrap();
+        let (stream, peer) = BlockingStream::pair().unwrap();
         assert!(read_response(&mut BufReader::new(stream), Duration::from_millis(30), 4).is_err());
         drop(peer);
-        let (stream, mut peer) = UnixStream::pair().unwrap();
+        let (stream, mut peer) = BlockingStream::pair().unwrap();
         peer.write_all(b"123").unwrap();
         drop(peer);
         assert!(

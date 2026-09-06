@@ -99,7 +99,7 @@ mod tests {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 
     /// Read and acknowledge one real daemon input request, retaining its decoded event for assertions.
-    async fn receive(listener: &tokio::net::UnixListener) -> Value {
+    async fn receive(listener: &cmux_platform::local_socket::Listener) -> Value {
         let (peer, _) = listener.accept().await.unwrap();
         let mut peer = tokio::io::BufReader::new(peer);
         let mut line = String::new();
@@ -113,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn ordered_input_reserves_key_releases() {
         let path = std::env::temp_dir().join(format!("cmux-input-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let mut queue = InputQueue::new(&tokio::runtime::Handle::current(), path.clone());
         let down =
             serde_json::json!({"action":"input_keyboard", "type":"keyDown", "key":"a", "text":"a"});
@@ -157,7 +157,7 @@ mod tests {
     async fn dropping_queue_cancels_exchange() {
         let path =
             std::env::temp_dir().join(format!("cmux-input-drop-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let queue = InputQueue::new(&tokio::runtime::Handle::current(), path.clone());
         assert!(queue.send(vec![serde_json::json!({"type":"mousePressed"})]));
         tokio::time::timeout(std::time::Duration::from_secs(3), async {

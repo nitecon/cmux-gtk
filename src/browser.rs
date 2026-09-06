@@ -182,7 +182,9 @@ impl BrowserManager {
                     .map_err(|error| {
                         format!("Failed to create browser socket directory: {error}")
                     })?;
-                let ready = tokio::net::UnixStream::connect(&socket_path).await.is_ok();
+                let ready = cmux_platform::local_socket::Stream::connect(&socket_path)
+                    .await
+                    .is_ok();
                 if let StartupRequest::Preview(url) = &request {
                     cli::start(&binary, &session, chrome.as_deref(), url, trace_id).await?;
                 } else if !ready {
@@ -849,7 +851,8 @@ esac
         let mut browser = BrowserManager::new();
         browser.session_name = directory.join("browser").to_string_lossy().into_owned();
         browser.binary_path = Some(directory.join("must-not-be-executed"));
-        let listener = tokio::net::UnixListener::bind(browser.daemon_socket_path()).unwrap();
+        let listener =
+            cmux_platform::local_socket::Listener::bind(browser.daemon_socket_path()).unwrap();
         let server = tokio::spawn(async move {
             for action in ["", "navigate", "stream_enable", "", "stream_enable"] {
                 let (peer, _) = listener.accept().await.unwrap();
@@ -901,7 +904,7 @@ esac
         // An absolute fixture identity keeps the fake daemon outside user runtime directories.
         browser.session_name = directory.join("browser").to_string_lossy().into_owned();
         let path = browser.daemon_socket_path();
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let navigation = browser.navigate_async("back".into(), Uuid::new_v4());
         let gate = browser.navigation_gate.clone();
         let close = browser.shutdown();

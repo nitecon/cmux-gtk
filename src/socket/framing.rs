@@ -65,7 +65,7 @@ mod tests {
     /// Keep fragmented UTF-8 and coalesced CRLF requests intact at the exact byte boundary.
     #[tokio::test]
     async fn request_boundaries() {
-        let (reader, mut writer) = tokio::net::UnixStream::pair().unwrap();
+        let (reader, mut writer) = cmux_platform::local_socket::Stream::pair().unwrap();
         writer.write_all("€\r\nnext\n".as_bytes()).await.unwrap();
         let mut reader = BufReader::with_capacity(1, reader);
         assert_eq!(
@@ -82,7 +82,7 @@ mod tests {
     /// A partially sent request times out, and oversized or truncated requests never reach dispatch.
     #[tokio::test]
     async fn request_limits() {
-        let (reader, mut writer) = tokio::net::UnixStream::pair().unwrap();
+        let (reader, mut writer) = cmux_platform::local_socket::Stream::pair().unwrap();
         writer.write_all(b"x").await.unwrap();
         let mut reader = BufReader::new(reader);
         assert_eq!(

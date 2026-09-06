@@ -317,7 +317,6 @@ dependencies = [
  "glib",
  "gtk4",
  "image",
- "libc",
  "reqwest",
  "semver",
  "serde",
@@ -338,6 +337,7 @@ dependencies = [
  "gtk4",
  "libc",
  "socket2",
+ "tokio",
 ]
 
 [[package]]

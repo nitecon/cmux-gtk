@@ -1,11 +1,18 @@
-//! Native synchronous local connection setup, independent of application framing.
+//! Native Linux local transports and connection setup, independent of application framing.
 
 use socket2::{Domain, SockAddr, Socket, Type};
 use std::io;
 use std::os::fd::OwnedFd;
-use std::os::unix::net::UnixStream;
+/// Blocking Linux local stream; protocol framing and deadlines belong to its caller.
+pub use std::os::unix::net::UnixStream as BlockingStream;
 use std::path::Path;
 use std::time::{Duration, Instant};
+/// Tokio-backed Linux local listener, requiring an entered I/O runtime for binding.
+#[cfg(feature = "async-io")]
+pub use tokio::net::UnixListener as Listener;
+/// Tokio-backed Linux local stream with standard asynchronous byte-I/O semantics.
+#[cfg(feature = "async-io")]
+pub use tokio::net::UnixStream as Stream;
 
 /// Connect within a positive retry budget and return a blocking stream with I/O timeouts.
 ///
@@ -14,7 +21,7 @@ use std::time::{Duration, Instant};
 /// waiting. Other connection errors propagate immediately. Filesystem resolution
 /// and kernel scheduling are outside the userspace deadline guarantee. Framing,
 /// authentication and per-exchange total deadlines remain the caller's policy.
-pub fn connect(path: &Path, timeout: Duration) -> io::Result<UnixStream> {
+pub fn connect(path: &Path, timeout: Duration) -> io::Result<BlockingStream> {
     if timeout.is_zero() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -40,7 +47,7 @@ pub fn connect(path: &Path, timeout: Duration) -> io::Result<UnixStream> {
                 socket.set_nonblocking(false)?;
                 socket.set_read_timeout(Some(timeout))?;
                 socket.set_write_timeout(Some(timeout))?;
-                return Ok(UnixStream::from(OwnedFd::from(socket)));
+                return Ok(BlockingStream::from(OwnedFd::from(socket)));
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 drop(socket);
@@ -100,7 +107,7 @@ mod tests {
         let timeout = Duration::from_millis(100);
         let mut client = connect(&listener.path, timeout).unwrap();
         let (peer, _) = listener.socket.as_ref().unwrap().accept().unwrap();
-        let mut peer = UnixStream::from(OwnedFd::from(peer));
+        let mut peer = BlockingStream::from(OwnedFd::from(peer));
         assert_eq!(client.read_timeout().unwrap(), Some(timeout));
         assert_eq!(client.write_timeout().unwrap(), Some(timeout));
         peer.write_all(b"hello").unwrap();
@@ -126,7 +133,7 @@ mod tests {
         let (_accepted, _) = listener.socket.as_ref().unwrap().accept().unwrap();
         let mut next = connect(&listener.path, Duration::from_secs(1)).unwrap();
         let (peer, _) = listener.socket.as_ref().unwrap().accept().unwrap();
-        let mut peer = UnixStream::from(OwnedFd::from(peer));
+        let mut peer = BlockingStream::from(OwnedFd::from(peer));
         next.write_all(b"x").unwrap();
         let mut byte = [0];
         peer.read_exact(&mut byte).unwrap();

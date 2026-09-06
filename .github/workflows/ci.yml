@@ -84,7 +84,9 @@ jobs:
         run: cargo check --workspace --bins
 
       - name: Check platform services without GTK
-        run: cargo check -p cmux-platform --no-default-features
+        run: |
+          cargo check -p cmux-platform --no-default-features
+          cargo check -p cmux-platform --no-default-features --features async-io
 
       - name: Clippy correctness and suspicious lints
         run: cargo clippy --workspace --bins -- -D clippy::correctness -D clippy::suspicious

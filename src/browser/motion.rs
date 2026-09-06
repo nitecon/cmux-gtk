@@ -42,7 +42,7 @@ mod tests {
     #[tokio::test]
     async fn first_motion_is_delivered() {
         let path = std::env::temp_dir().join(format!("cmux-motion-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let sender = spawn_motion_forwarder(&tokio::runtime::Handle::current(), path.clone());
         sender.send((42, 24)).unwrap();
         let accepted = tokio::time::timeout(Duration::from_secs(5), listener.accept()).await;

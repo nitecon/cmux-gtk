@@ -28,7 +28,7 @@ pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value,
         "Browser command capacity reached".to_string()
     })?;
     let exchange = async {
-        let mut stream = tokio::net::UnixStream::connect(path).await?;
+        let mut stream = cmux_platform::local_socket::Stream::connect(path).await?;
         let mut payload = serde_json::to_vec(request)?;
         payload.push(b'\n');
         stream.write_all(&payload).await?;
@@ -65,7 +65,7 @@ mod tests {
     async fn cancelled_exchange_closes_socket() {
         use tokio::io::{AsyncBufReadExt, AsyncReadExt};
         let path = std::env::temp_dir().join(format!("cmux-cancel-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let client_path = path.clone();
         let client = tokio::spawn(async move {
             request_async(&client_path, &serde_json::json!({"action": "ping"})).await
@@ -96,7 +96,7 @@ mod tests {
     async fn async_response_roundtrip() {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
         let path = std::env::temp_dir().join(format!("cmux-browser-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let server = tokio::spawn(async move {
             let (peer, _) = listener.accept().await.unwrap();
             let mut reader = tokio::io::BufReader::new(peer);
@@ -121,7 +121,7 @@ mod tests {
     #[tokio::test]
     async fn silent_peer_times_out() {
         let path = std::env::temp_dir().join(format!("cmux-silent-{}.sock", uuid::Uuid::new_v4()));
-        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let payload = serde_json::json!({"action":"ping"});
         let request = request_async(&path, &payload);
         let server = async {
@@ -143,7 +143,7 @@ mod tests {
                 "cmux-response-bounds-{}.sock",
                 uuid::Uuid::new_v4()
             ));
-            let listener = tokio::net::UnixListener::bind(&path).unwrap();
+            let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
             let server = tokio::spawn(async move {
                 let (peer, _) = listener.accept().await.unwrap();
                 let mut reader = tokio::io::BufReader::new(peer);

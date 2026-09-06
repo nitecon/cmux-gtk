@@ -41,7 +41,7 @@ pub fn start_socket_server(
     // Enter the tokio runtime context so UnixListener::bind can register with the reactor.
     // bind() is synchronous but requires an active reactor context.
     let _guard = runtime.enter();
-    let listener = match tokio::net::UnixListener::bind(&sock_path) {
+    let listener = match cmux_platform::local_socket::Listener::bind(&sock_path) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("cmux: socket bind failed at {}: {e}", sock_path.display());
@@ -103,7 +103,7 @@ pub fn start_socket_server(
 /// Per-connection handler running in a tokio task.
 /// Reads newline-delimited JSON requests, dispatches via mpsc channel, writes responses.
 async fn handle_connection(
-    stream: tokio::net::UnixStream,
+    stream: cmux_platform::local_socket::Stream,
     cmd_tx: tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) {
     use tokio::io::BufReader;
@@ -149,7 +149,7 @@ async fn handle_connection(
 
 /// Monitor only an outstanding dispatch; preserve half-closed and pipelined clients without reading ahead.
 /// A coarse timer avoids spinning on cached EOF/read readiness while keeping per-connection work bounded.
-async fn wait_for_disconnect(stream: &tokio::net::UnixStream) -> std::io::Result<()> {
+async fn wait_for_disconnect(stream: &cmux_platform::local_socket::Stream) -> std::io::Result<()> {
     let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     loop {
@@ -171,7 +171,7 @@ mod connection_tests {
     /// Full disconnect drops the dispatcher reply receiver even when GTK has not answered.
     #[tokio::test]
     async fn disconnected_client_cancels_dispatch() {
-        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        let (mut client, server) = cmux_platform::local_socket::Stream::pair().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let connection = tokio::spawn(handle_connection(server, tx));
         client
@@ -197,7 +197,7 @@ mod connection_tests {
     /// A complete request from a sender that immediately closes still reaches command admission.
     #[tokio::test]
     async fn complete_request_is_admitted_before_disconnect() {
-        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        let (mut client, server) = cmux_platform::local_socket::Stream::pair().unwrap();
         client
             .write_all(b"{\"id\":1,\"method\":\"system.ping\"}\n")
             .await
@@ -217,7 +217,7 @@ mod connection_tests {
     /// A pipelined client may finish writing and still receive both ordered replies after monitor ticks.
     #[tokio::test]
     async fn half_closed_client_receives_pipelined_responses() {
-        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        let (mut client, server) = cmux_platform::local_socket::Stream::pair().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(2);
         let connection = tokio::spawn(handle_connection(server, tx));
         client
