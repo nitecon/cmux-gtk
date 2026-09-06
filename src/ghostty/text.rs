@@ -125,7 +125,6 @@ pub(crate) unsafe fn read_scrollback(
     // SAFETY: native capture owns text_len readable bytes until the guard releases them.
     let bytes =
         unsafe { std::slice::from_raw_parts(native.text.text.cast::<u8>(), native.text.text_len) };
-    std::str::from_utf8(bytes)
-        .map(str::to_owned)
-        .map_err(|_| "invalid scrollback UTF-8")
+    let text = std::str::from_utf8(bytes).map_err(|_| "invalid scrollback UTF-8")?;
+    crate::scrollback::replay_text(text).ok_or("scrollback exceeds replay limit")
 }

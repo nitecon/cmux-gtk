@@ -32,6 +32,8 @@ def main():
             after = json.loads(app.cli("read-text", "--id", source, "--json"))["text"]
             assert "HISTORY-0000" in text and "HISTORY-0299" in text and "界" in text
             assert "\x1b[" in text, "native capture lost styled VT representation"
+            assert "\x1b]" not in text, "history retained terminal OSC commands"
+            assert text.startswith("\x1b[0m") and text.endswith("\x1b[0m")
             assert len(text.encode()) <= 256 * 1024
             assert "HISTORY-0000" not in before, "fixture did not create offscreen history"
             assert before == after, "history capture changed the viewport"

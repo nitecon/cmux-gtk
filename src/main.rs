@@ -22,6 +22,7 @@ mod resume;
 mod resume_command;
 mod resume_policy;
 mod resume_review;
+mod scrollback;
 mod selection;
 mod session;
 mod shortcuts;

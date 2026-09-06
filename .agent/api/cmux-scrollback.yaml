@@ -13,7 +13,7 @@ content:
     - name: Inspect history
       steps:
         - cmux read-scrollback --id UUID --json calls surface.read_scrollback with id. Omitted id resolves the active terminal; explicit unknown targets fail.
-        - The response text is VT output, capped at 256 KiB and 2000 rows. It preserves native rendered cell styles and Unicode, not raw PTY control sequences. The native formatter shrinks the history suffix to fit its fixed scratch allocation.
+        - The response text is VT output, capped at 256 KiB and 2000 rows. It preserves native rendered SGR cell styles and Unicode, not raw PTY control sequences. The replay filter removes OSC (including theme and hyperlink metadata), DCS and other terminal command channels, retains visible text/whitespace and complete numeric SGR, and includes boundary resets within the byte limit. The native formatter shrinks the history suffix to fit its fixed scratch allocation.
         - Native allocations are released synchronously on GTK. There is no local process launch, viewport mutation or clipboard change. Existing common RPC tracing covers routing and timing without recording text.
   operations:
     verification: Actions tests/test_linux_scrollback.py captures offscreen styled output from an inactive native terminal and checks focus, viewport and byte bounds. Strict workspace clippy and fixture syntax passed locally; runtime verification is pending.
