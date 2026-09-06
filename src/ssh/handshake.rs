@@ -3,6 +3,14 @@ use super::writer::RpcWriter;
 use std::{io, time::Duration};
 use tokio::io::{AsyncBufRead, AsyncWrite};
 
+/// Features negotiated for this connection only; old terminal-capable peers remain usable.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Negotiated {
+    pub handler_duration_us: Option<u64>,
+    pub ports: bool,
+    pub forwarding: bool,
+}
+
 /// Bound hello write and response together; retain buffered trailing bytes for subsequent routing.
 /// Require the expected reply identity, daemon name and terminal capabilities. On any error,
 /// the caller must retire the connection rather than reuse potentially consumed protocol bytes.
@@ -10,7 +18,7 @@ pub(super) async fn establish<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(
     writer: &RpcWriter<W>,
     reader: &mut R,
     timeout: Duration,
-) -> io::Result<Option<u64>> {
+) -> io::Result<Negotiated> {
     tokio::time::timeout(timeout, async {
         writer
             .send(
@@ -51,8 +59,20 @@ pub(super) async fn establish<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(
                 ));
             }
         }
-        super::metrics::remote_timing(&reply, writer.connection_id())
-            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))
+        let supports = |name| {
+            capabilities
+                .iter()
+                .any(|value| value.as_str() == Some(name))
+        };
+        let ports = supports("ports.list");
+        Ok(Negotiated {
+            handler_duration_us: super::metrics::remote_timing(&reply, writer.connection_id())
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?,
+            ports,
+            forwarding: ports
+                && supports("proxy.shutdown_write")
+                && supports("proxy.stream.half_close"),
+        })
     })
     .await
     .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "SSH handshake deadline exceeded"))?
@@ -98,10 +118,50 @@ mod tests {
             establish(&writer, &mut reader, Duration::from_secs(1)),
             serve
         );
-        assert_eq!(result.unwrap(), Some(3));
+        let negotiated = result.unwrap();
+        assert_eq!(negotiated.handler_duration_us, Some(3));
+        assert!(!negotiated.ports && !negotiated.forwarding);
         let mut following = String::new();
         reader.read_line(&mut following).await.unwrap();
         assert_eq!(following, "following\n");
+    }
+
+    /// Every connection negotiates optional features independently; partial support never forwards.
+    #[tokio::test]
+    async fn negotiates_optional_forwarding_per_connection() {
+        for (extra, ports, forwarding) in [
+            (
+                vec![
+                    "ports.list",
+                    "proxy.shutdown_write",
+                    "proxy.stream.half_close",
+                ],
+                true,
+                true,
+            ),
+            (vec!["ports.list", "proxy.shutdown_write"], true, false),
+            (vec!["ports.list", "proxy.stream.half_close"], true, false),
+            (
+                vec!["proxy.shutdown_write", "proxy.stream.half_close"],
+                false,
+                false,
+            ),
+            (vec![], false, false),
+        ] {
+            let mut reply = valid_reply();
+            reply["result"]["capabilities"]
+                .as_array_mut()
+                .unwrap()
+                .extend(extra.into_iter().map(serde_json::Value::from));
+            let line = format!("{reply}\n");
+            let mut reader = BufReader::new(line.as_bytes());
+            let writer = RpcWriter::new(tokio::io::sink(), 0, uuid::Uuid::new_v4());
+            let negotiated = establish(&writer, &mut reader, Duration::from_secs(1))
+                .await
+                .unwrap();
+            assert_eq!(negotiated.ports, ports);
+            assert_eq!(negotiated.forwarding, forwarding);
+        }
     }
 
     /// Reject wrong IDs, failed replies, wrong daemon names and missing required capabilities.

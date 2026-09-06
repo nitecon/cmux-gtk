@@ -66,4 +66,9 @@ content:
   proxy_read_eof:
     - proxy.stream.subscribe accepts optional boolean half_close. With true, clean TCP read EOF emits proxy.stream.read_eof and retains the writable registered stream; default subscriptions keep full-retirement behavior. The daemon advertises proxy.stream.half_close.
     - Forwarding opts in, shuts down only the local response direction on read EOF, and waits for both directions. Sixteen data slots plus one reserved terminal-marker slot preserve ordering; error/overload markers abort rather than appearing as clean EOF.
-    - Real-TCP Go tests verify late request writes after remote FIN, and Rust route tests verify EOF behind a full data queue. Full SSH reverse-direction verification and older-daemon negotiation remain outstanding.
+    - Real-TCP Go tests verify late request writes after remote FIN, and Rust route tests verify EOF behind a full data queue. The real SSH fixture also receives response FIN before sending a multi-chunk request and checks exact bytes and acknowledged cleanup; runtime verification is pending.
+
+  negotiation:
+    - Each hello retains optional capabilities for that connection generation. ports.list is polled only when advertised; forwarding additionally requires proxy.shutdown_write and proxy.stream.half_close. Terminal-capable older daemons remain usable without publishing unsafe forwarding endpoints.
+    - ssh.handshake.complete records ports_supported and forwarding_supported. A missing optional feature remains unavailable until the remote daemon is upgraded and a new connection negotiates it; no feature state is inherited across reconnects.
+    - Duplex handshake tests cover full, partial and absent optional capability sets. Runtime execution is through Actions only.

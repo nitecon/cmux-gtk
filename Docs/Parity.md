@@ -306,3 +306,7 @@ Opt-in proxy subscriptions now support remote-to-local half-close without retiri
 ### Reverse TCP half-close integration coverage
 
 The real SSH workspace fixture now waits for remote response FIN before sending a multi-chunk request. It verifies the remote payload, exact directional byte counters, confirmed stream retirement, zero remaining client tasks and preserved background workspace selection. Python and embedded server syntax validation pass; runtime verification belongs to Actions. Actions run 34056967638 passed for its earlier source revision; it does not verify this new scenario. Full remote forwarding and browser-origin parity remain open.
+
+### Remote capability negotiation
+
+Hello now negotiates listener discovery and bidirectional half-close support per connection. Older terminal-capable daemons stay usable, with unsupported discovery/forwarding disabled until daemon upgrade and reconnect. Handshake diagnostics report both feature decisions. Added transport coverage for full/partial/missing capability sets; strict workspace Clippy passes, Actions execution pending. Reconnect/collision/overload integration evidence and full browser remote-origin routing remain open.

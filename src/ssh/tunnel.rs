@@ -130,7 +130,9 @@ pub async fn run_ssh_lifecycle(
                         serde_json::json!({
                             "workspace_id": workspace_id, "duration_us": started.elapsed().as_micros() as u64,
                             "trace_id": connection.id,
-                            "remote_handler_duration_us": result.as_ref().ok().copied().flatten(),
+                            "ports_supported": result.as_ref().ok().map(|value| value.ports),
+                            "forwarding_supported": result.as_ref().ok().map(|value| value.forwarding),
+                            "remote_handler_duration_us": result.as_ref().ok().and_then(|value| value.handler_duration_us),
                             "outcome": if result.is_ok() { "success" } else { "error" },
                             "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
                         }),
@@ -165,8 +167,15 @@ pub async fn run_ssh_lifecycle(
                         }
 
                         connection.phase("routing");
-                        input_rejected =
-                            run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
+                        input_rejected = run_proxy_routing(
+                            workspace_id,
+                            writer,
+                            reader,
+                            &bridge,
+                            &ssh_tx,
+                            result.unwrap(),
+                        )
+                        .await;
                     }
                 }
 
@@ -262,6 +271,7 @@ async fn run_proxy_routing(
     reader: BufReader<tokio::process::ChildStdout>,
     bridge: &Arc<SshBridge>,
     ssh_tx: &SshEventTx,
+    negotiated: super::handshake::Negotiated,
 ) -> bool {
     let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
 
@@ -358,6 +368,9 @@ async fn run_proxy_routing(
     let ports_bridge = bridge.clone();
     let ports_pending = pending.clone();
     let ports_handle = tokio::spawn(async move {
+        if !negotiated.ports {
+            return;
+        }
         let mut cursor = 0usize;
         loop {
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -410,12 +423,14 @@ async fn run_proxy_routing(
     });
     let _ports_guard = AbortOnDrop(ports_handle.abort_handle());
 
-    let forward_handle = tokio::spawn(super::forward::run(
-        writer.clone(),
-        pending.clone(),
-        bridge.clone(),
-    ));
-    let _forward_guard = AbortOnDrop(forward_handle.abort_handle());
+    let _forward_guard = negotiated.forwarding.then(|| {
+        let task = tokio::spawn(super::forward::run(
+            writer.clone(),
+            pending.clone(),
+            bridge.clone(),
+        ));
+        AbortOnDrop(task.abort_handle())
+    });
 
     // Write path: consume WriteRequests and send as JSON-RPC to SSH stdin
     let write_writer = writer.clone();
