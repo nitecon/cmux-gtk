@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError  # noqa: E402
+from process_support import stop_process
 from sidebar_support import parse_sidebar_state as _parse_sidebar_state
 from sidebar_support import wait_for_observation as _wait_for
 
@@ -37,6 +38,7 @@ _PREFERRED_BIND_HOST = "127.0.0.1"
 def _find_free_allowed_port() -> int:
     # Prefer a random ephemeral port to avoid flakiness from well-known ports
     # being grabbed by background services.
+    """Choose an ephemeral loopback port outside the historical allowlist; closing the probe leaves a bind race for the caller to handle."""
     for _ in range(50):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -57,7 +59,8 @@ def _find_free_allowed_port() -> int:
 def _start_external_server(base: Path, port: int) -> subprocess.Popen:
     """
     Start an http.server outside cmux and ensure it is actually listening.
-    Retries are handled by the caller by picking a different port.
+    Failed readiness terminates and reaps the child before propagating the error.
+    A successful return transfers cleanup ownership to the caller.
     """
     proc = subprocess.Popen(
         [sys.executable, "-m", "http.server", str(port), "--bind", _PREFERRED_BIND_HOST],
@@ -65,12 +68,18 @@ def _start_external_server(base: Path, port: int) -> subprocess.Popen:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    _wait_for_lsof_listen_pid(port, expected_pid=proc.pid, timeout=6.0)
+    try:
+        _wait_for_lsof_listen_pid(port, expected_pid=proc.pid, timeout=6.0)
+    except BaseException:
+        stop_process(proc, timeout=2)
+        raise
     return proc
 
 
 def _wait_for_port(client: cmux, port: int, timeout: float = 18.0) -> dict[str, str]:
+    """Retry legacy sidebar snapshots until the requested numeric port appears."""
     def pred():
+        """Return the matching port or listener observation for the enclosing retry loop."""
         state = _parse_sidebar_state(client.sidebar_state())
         raw = state.get("ports", "")
         if raw == "none" or not raw:
@@ -90,7 +99,9 @@ def _wait_for_port(client: cmux, port: int, timeout: float = 18.0) -> dict[str, 
 
 
 def _wait_for_port_absent(client: cmux, port: int, timeout: float = 18.0) -> dict[str, str]:
+    """Retry legacy sidebar snapshots until the port is absent, including empty port rows."""
     def pred():
+        """Return the matching port or listener observation for the enclosing retry loop."""
         state = _parse_sidebar_state(client.sidebar_state())
         raw = state.get("ports", "")
         if raw == "none" or not raw:
@@ -135,10 +146,12 @@ def _wait_for_lsof_listen_pid(port: int, expected_pid: int | None, timeout: floa
     """
 
     def pred():
+        """Return the matching port or listener observation for the enclosing retry loop."""
         result = subprocess.run(
             ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
             capture_output=True,
             text=True,
+            timeout=2,
         )
         if result.returncode != 0:
             return None
@@ -162,11 +175,14 @@ def _wait_for_lsof_listen_pid(port: int, expected_pid: int | None, timeout: floa
 
 
 def _wait_for_lsof_listen_gone(port: int, timeout: float = 8.0) -> None:
+    """Retry bounded lsof observations until no listener is reported; nonzero status is treated as absent by this legacy probe."""
     def pred():
+        """Return the matching port or listener observation for the enclosing retry loop."""
         result = subprocess.run(
             ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
             capture_output=True,
             text=True,
+            timeout=2,
         )
         return result.returncode != 0 or not (result.stdout or "").strip()
 
@@ -174,6 +190,7 @@ def _wait_for_lsof_listen_gone(port: int, timeout: float = 8.0) -> None:
 
 
 def main() -> int:
+    """Compare external versus shell-owned listener attribution through legacy sidebar APIs; owns the external child, while the shell server requires explicit command cleanup."""
     tag = os.environ.get("CMUX_TAG") or ""
     if not tag:
         print("Tip: set CMUX_TAG=<tag> when running this test to avoid socket conflicts.")
@@ -199,12 +216,6 @@ def main() -> int:
                 break
             except Exception as e:
                 last_start_err = e
-                if external_proc is not None:
-                    try:
-                        external_proc.kill()
-                    except Exception:
-                        pass
-                    external_proc = None
                 continue
         if port is None or external_proc is None:
             raise RuntimeError(f"Failed to start external http.server. Last error: {last_start_err}")
@@ -219,11 +230,7 @@ def main() -> int:
             _assert_port_absent_for_duration(client, port, duration=6.0)
 
             # Stop the external server, then reuse the port inside the tab.
-            external_proc.terminate()
-            try:
-                external_proc.wait(timeout=3.0)
-            except subprocess.TimeoutExpired:
-                external_proc.kill()
+            stop_process(external_proc, timeout=3)
             external_proc = None
             _wait_for_lsof_listen_gone(port, timeout=8.0)
 
@@ -260,15 +267,7 @@ def main() -> int:
         print(f"Sidebar ports test failed: {e}")
         return 1
     finally:
-        if external_proc is not None:
-            try:
-                external_proc.terminate()
-                external_proc.wait(timeout=2.0)
-            except Exception:
-                try:
-                    external_proc.kill()
-                except Exception:
-                    pass
+        stop_process(external_proc, timeout=2)
         try:
             shutil.rmtree(base)
         except Exception:

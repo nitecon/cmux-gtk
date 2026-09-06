@@ -1068,3 +1068,9 @@ The legacy new-tab snapshot probe no longer accepts failed original and fallback
 Three directory/port probes now share wait_for_observation instead of duplicating exception-retrying wall-clock loops. It delegates deadline handling to the existing monotonic waiter, returns the first truthy observation and retains the last transient failure as both timeout detail and exception cause. The existing field waiter continues to fail immediately on client errors; the two contracts remain explicit. Added CI helper cases for recovery and preserved causes. Documented directory/Git helpers and nested predicates, including the limitation that forced report fallbacks verify displayed state transitions rather than automatic discovery. Python syntax and diff checks pass; no local tests ran.
 
 Cumulative run 34000244562 at 6e896826 completed successfully, including Linux CLI discovery, shared PTY cleanup and closed-pipe/output-error coverage. Later browser sequence deadlines, marker replacement and bounded socket serialization still await cumulative CI.
+
+### Close port-fixture readiness ownership gaps
+
+The retained port probe now terminates and reaps its external HTTP server if readiness fails before returning the handle. Removed duplicate caller kill/wait branches, including kill-without-reap paths, in favor of stop_process. Each lsof subprocess has a two-second timeout so it cannot indefinitely occupy a polling attempt. Documented the port-selection bind race, observation semantics and remaining shell-launched-server cleanup limitation.
+
+Added a real-child failed-readiness case to the existing sidebar helper CI suite; it calls only the launcher helper, not the upstream sidebar integration scenario. Python syntax and diff checks pass; no local tests ran. The full port attribution scenario still depends on legacy APIs, treats nonzero lsof status as absence and needs broader ownership/API migration before it can establish Linux application coverage.

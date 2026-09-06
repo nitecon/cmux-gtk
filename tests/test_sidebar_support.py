@@ -1,13 +1,36 @@
 #!/usr/bin/env python3
 """Verify shared sidebar parsing and polling contracts without a desktop session."""
 import unittest
-from unittest.mock import Mock
+import subprocess
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 from sidebar_support import parse_sidebar_state, wait_for_state_field, wait_for_observation
 
 
 class SidebarSupport(unittest.TestCase):
     """Exercise text edge cases and observation behavior used by legacy scenarios."""
+
+    def test_failed_server_readiness_reaps_child(self):
+        """The launcher retains cleanup ownership until it can return a ready server handle."""
+        from test_sidebar_ports import _start_external_server
+        children = []
+        launch = subprocess.Popen
+
+        def record_child(*args, **kwargs):
+            """Retain the real child handle so the failed-readiness path can be verified."""
+            child = launch(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with tempfile.TemporaryDirectory(prefix="cmux-port-readiness-") as directory:
+            with patch("test_sidebar_ports.subprocess.Popen", side_effect=record_child), \
+                    patch("test_sidebar_ports._wait_for_lsof_listen_pid", side_effect=RuntimeError("not ready")):
+                with self.assertRaisesRegex(RuntimeError, "not ready"):
+                    _start_external_server(Path(directory), 0)
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].poll())
 
     def test_transient_observation_recovers(self):
         """The retrying contract preserves a successful snapshot after transient failure and empty state."""
