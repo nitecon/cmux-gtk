@@ -641,6 +641,13 @@ impl AppState {
         }
     }
 
+    /// Publish the final live layout before native teardown and prevent later callbacks overwriting it.
+    /// Idempotent on GTK; the composition root separately waits for durable worker completion.
+    pub fn finish_session(&mut self) {
+        self.trigger_session_save();
+        self.session_tx.take();
+    }
+
     /// Trigger a debounced session save. Call after any workspace/pane mutation.
     /// Snapshots SessionData on the main thread (safe for Rc) and sends to the
     /// tokio debounce task which handles the file I/O. Records GTK construction

@@ -44,7 +44,7 @@ Each browser manager owns a unique daemon session; CLI commands, preview metadat
 
 The browser adapter separates discovery, command transport, frame envelopes, pixel decoding, stream delivery, pointer motion and metrics. JPEG/PNG decoding uses the Rust `image` crate with only those codec features enabled; bounded blocking workers produce shared RGBA bytes for GTK memory textures. Latest-frame channels coalesce preview input. Generic browser RPCs use bounded asynchronous exchanges. History and URL-entry navigation share bounded asynchronous public-CLI subprocesses with widget-driven cancellation. DevTools snapshot requests use the bounded asynchronous socket transport and cancel when their overlay label is destroyed; snapshot display formatting also runs on bounded workers, and only display text returns to GTK. Daemon startup and existing browser restoration run asynchronously under a shared startup transaction. Mapped-tab navigation uses one serialized worker and retains only the latest pending destination. Keyboard and click delivery use a bounded ordered queue, with capacity reserved for accepted key releases. Shutdown cancels owned workers and drains bounded daemon-close tasks after GTK exits. Stream-port metadata is read on Tokio filesystem workers inside the owned frame task, with a five-second deadline and a 64-byte advertisement limit; GTK only schedules stream attachment.
 
-Focus is observable protocol behavior. Only operations documented to focus or select may move focus. Persist workspace order and launch settings consistently across CLI and UI operations. Session restore rebuilds app-owned state; it does not checkpoint arbitrary processes. Session resume enhancements remain a separate deferred task.
+Focus is observable protocol behavior. Only operations documented to focus or select may move focus. Persist workspace order and launch settings consistently across CLI and UI operations. Session restore rebuilds app-owned state; it does not checkpoint arbitrary processes. Session resume enhancements are part of the active parity goal. Normal quit freezes a final live snapshot and drains the serialized writer before stopping the runtime.
 
 ## Build and verification
 
@@ -59,6 +59,8 @@ Commit directly to `main`; do not create PRs. Main pushes run CI. Only `release-
 ## Documentation and discoverability
 
 [Observability](Observability.md) defines the required end-to-end diagnostics and benchmark coverage. [Gateway patterns](CodingStandards/Patterns.md) records researched guidance and explicit project adaptations.
+
+[Upstream parity](Parity.md) tracks the active capability goal and its monthly release provenance, implementation requirements and verification gates.
 
 Document each owned function at its declaration using native documentation syntax. Describe purpose and meaningful inputs, outputs, errors, ownership, side effects and thread requirements; omit irrelevant boilerplate. Name helpers by behavior so symbol search can locate them. Explain unsafe preconditions and cleanup responsibilities. Keep component docs linked to real modules rather than duplicating source listings. Dependency/generated code follows its upstream rules; do not bulk rewrite it to satisfy local documentation conventions.
 

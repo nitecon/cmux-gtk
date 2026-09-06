@@ -153,6 +153,9 @@ jobs:
       - name: Test window state restoration
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_window_state.py
 
+      - name: Test final session save on immediate quit
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_session_quit.py
+
       - name: Test process diagnostics and request correlation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diagnostics.py
 

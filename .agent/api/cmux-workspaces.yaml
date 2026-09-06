@@ -36,7 +36,7 @@ content:
     - name: Session persistence diagnostics
       steps:
         - session.snapshot records GTK construction_us, total duration_us, workspace count and published or worker_closed outcome without user content. Publication cost includes replaced-snapshot destruction and excludes diagnostic recording.
-        - session.save records worker serialization and atomic-write timing. Latest-value coalescing prevents one-to-one snapshot/save mapping; publication does not guarantee durability and shutdown does not explicitly drain the session writer.
+        - session.save records worker serialization and atomic-write timing. Latest-value coalescing prevents one-to-one snapshot/save mapping; publication does not guarantee durability. Normal GTK quit freezes a final live snapshot before teardown and joins the same serialized writer; the final replacement syncs the file and parent directory. session.shutdown records completion duration and success/error, and failures are also reported on stderr. Forced process termination remains outside this guarantee.
     - name: Desktop attention delivery
       steps:
         - Pane bells update GTK attention before optional desktop delivery. Preserve the per-workspace five-second rate limit and unfocused-window policy.

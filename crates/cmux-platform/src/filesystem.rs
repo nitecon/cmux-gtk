@@ -64,6 +64,18 @@ pub fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
     atomic_write_with(path, |file| file.write_all(contents))
 }
 
+/// Make an already replaced file and its directory entry durable before returning.
+/// Call after the owning serialized writer has completed its final replacement.
+/// Blocking filesystem errors propagate; concurrent replacement is the caller's responsibility.
+pub fn sync_file_and_parent(path: &Path) -> io::Result<()> {
+    std::fs::File::open(path)?.sync_all()?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    std::fs::File::open(parent)?.sync_all()
+}
+
 /// Stream a replacement into a private sibling file and rename only after callback success.
 /// The callback owns flushing any added buffers; errors remove the staging file and retain
 /// the destination. Returns the callback result after replacement. Blocking, without fsync.

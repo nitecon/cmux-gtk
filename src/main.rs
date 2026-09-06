@@ -163,9 +163,11 @@ fn main() {
 
     // One watch channel coalesces immutable snapshots without a second notification mechanism.
     let (session_tx, session_rx) = tokio::sync::watch::channel(None::<crate::session::Snapshot>);
-    runtime_handle.spawn(crate::session::write_snapshots(
+    let (session_finish, session_finished) = tokio::sync::oneshot::channel();
+    let session_writer = runtime_handle.spawn(crate::session::write_snapshots(
         session_rx,
         crate::session::session_path(),
+        session_finished,
     ));
 
     // Load config once at startup (D-06). ShortcutMap must be built inside
@@ -208,7 +210,27 @@ fn main() {
     gtk_probe.remove();
     eprintln!("cmux: app.run() returned");
 
-    // GTK has stopped; finish owned browser cleanup before cancelling the runtime.
+    // GTK has frozen its last live snapshot; serialize its durable save after any older write.
+    let _ = session_finish.send(());
+    let saving_started = std::time::Instant::now();
+    let saved = runtime.block_on(session_writer);
+    let save_error = match saved {
+        Ok(result) => result.err(),
+        Err(error) => Some(std::io::Error::other(error)),
+    };
+    diagnostics::record(
+        "session.shutdown",
+        serde_json::json!({
+            "outcome": if save_error.is_none() { "success" } else { "error" },
+            "duration_us": saving_started.elapsed().as_micros() as u64,
+            "error_kind": save_error.as_ref().map(|error| format!("{:?}", error.kind())),
+        }),
+    );
+    if let Some(error) = save_error {
+        eprintln!("cmux: final session save failed: {error}");
+    }
+
+    // Finish owned browser cleanup before cancelling the runtime.
     let closing = std::mem::take(&mut *browser_shutdown_tasks.borrow_mut());
     runtime.block_on(browser::drain_shutdown(closing));
 
@@ -565,7 +587,9 @@ fn build_ui(
     {
         let state_for_shutdown = state.clone();
         app.connect_shutdown(move |_| {
-            state_for_shutdown.borrow_mut().shutdown_browser();
+            let mut state = state_for_shutdown.borrow_mut();
+            state.finish_session();
+            state.shutdown_browser();
         });
     }
 
@@ -578,6 +602,7 @@ fn build_ui(
     window.connect_close_request({
         let state = state.clone();
         move |_win| {
+            state.borrow_mut().finish_session();
             let count = state.borrow().workspaces.len();
             if count == 0 {
                 return gtk4::glib::Propagation::Proceed;

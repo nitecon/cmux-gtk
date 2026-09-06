@@ -38,21 +38,51 @@ pub struct SessionData {
 pub type Snapshot = std::sync::Arc<SessionData>;
 
 /// Coalesce snapshots over a 500-ms window and serialize blocking writes one at a time.
-/// Channel closure ends the worker after any unseen snapshot; runtime shutdown is not a flush guarantee.
+/// Finish interrupts debounce, saves the latest snapshot after any older write and syncs it to disk.
+/// Only this worker writes the destination; callers stop GTK publication before requesting finish.
 pub async fn write_snapshots(
     mut receiver: tokio::sync::watch::Receiver<Option<Snapshot>>,
     path: PathBuf,
-) {
-    while receiver.changed().await.is_ok() {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    mut finish: tokio::sync::oneshot::Receiver<()>,
+) -> std::io::Result<()> {
+    loop {
+        let stopping = tokio::select! {
+            biased;
+            _ = &mut finish => true,
+            changed = receiver.changed() => {
+                if changed.is_err() {
+                    true
+                } else {
+                    tokio::select! {
+                        biased;
+                        _ = &mut finish => true,
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => false,
+                    }
+                }
+            }
+        };
         let latest = receiver.borrow_and_update().clone();
         if let Some(snapshot) = latest {
             let path = path.clone();
-            match tokio::task::spawn_blocking(move || save_session_to(&snapshot, &path)).await {
-                Ok(Ok(())) => {}
-                Ok(Err(error)) => eprintln!("cmux: session save failed: {error}"),
-                Err(error) => eprintln!("cmux: session save worker failed: {error}"),
+            let result = tokio::task::spawn_blocking(move || {
+                save_session_to(&snapshot, &path)?;
+                if stopping {
+                    cmux_platform::filesystem::sync_file_and_parent(&path)?;
+                }
+                Ok(())
+            })
+            .await
+            .map_err(std::io::Error::other)
+            .and_then(|result| result);
+            if stopping {
+                return result;
             }
+            if let Err(error) = result {
+                eprintln!("cmux: session save failed: {error}");
+            }
+        }
+        if stopping {
+            return Ok(());
         }
     }
 }
@@ -262,7 +292,8 @@ mod tests {
         sender
             .send(Some(std::sync::Arc::new(dummy_session("first"))))
             .unwrap();
-        let worker = tokio::spawn(write_snapshots(receiver, path.clone()));
+        let (_finish, finished) = tokio::sync::oneshot::channel();
+        let worker = tokio::spawn(write_snapshots(receiver, path.clone(), finished));
         tokio::time::sleep(std::time::Duration::from_millis(25)).await;
         sender
             .send(Some(std::sync::Arc::new(dummy_session("latest"))))
@@ -271,12 +302,58 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_secs(5), worker)
             .await
             .unwrap()
+            .unwrap()
             .unwrap();
         assert_eq!(
             load_session_from(&path).unwrap().workspaces[0].name,
             "latest"
         );
         std::fs::remove_file(path).unwrap();
+    }
+
+    /// Finish persists an immediate last mutation even while publishers still hold channel handles.
+    #[tokio::test]
+    async fn snapshot_finish_flushes_latest_with_live_sender() {
+        let path =
+            std::env::temp_dir().join(format!("cmux-session-finish-{}", uuid::Uuid::new_v4()));
+        let (sender, receiver) = tokio::sync::watch::channel(None);
+        let (finish, finished) = tokio::sync::oneshot::channel();
+        let worker = tokio::spawn(write_snapshots(receiver, path.clone(), finished));
+        sender
+            .send(Some(std::sync::Arc::new(dummy_session("old"))))
+            .unwrap();
+        sender
+            .send(Some(std::sync::Arc::new(dummy_session("final"))))
+            .unwrap();
+        finish.send(()).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), worker)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            load_session_from(&path).unwrap().workspaces[0].name,
+            "final"
+        );
+        assert!(sender.is_closed());
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// Final-save failures reach the joining owner rather than being reported as a successful flush.
+    #[tokio::test]
+    async fn snapshot_finish_reports_write_failure() {
+        let path = std::env::temp_dir().join(format!("cmux-session-fail-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&path).unwrap();
+        let (sender, receiver) = tokio::sync::watch::channel(None);
+        let (finish, finished) = tokio::sync::oneshot::channel();
+        sender
+            .send(Some(std::sync::Arc::new(dummy_session("final"))))
+            .unwrap();
+        finish.send(()).unwrap();
+        assert!(write_snapshots(receiver, path.clone(), finished)
+            .await
+            .is_err());
+        std::fs::remove_dir(path).unwrap();
     }
 
     /// Construct a minimal serializable workspace for persistence scenarios.
