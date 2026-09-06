@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Exercise shared assertions and CLI discovery for retained protocol scenarios."""
 import os
+import json
+import socket
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+from test_ssh_remote_daemon_resize_stdio import _rpc
 from cli_support import find_cli_binary
 from cmux import cmuxError
 from scenario_support import require, run_command, wait_for, wait_for_browser, wait_until
@@ -117,6 +121,38 @@ class ScenarioSupportTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt) as raised:
             wait_for_browser(Mock(side_effect=cancelled), 1, "title")
         self.assertIs(raised.exception, cancelled)
+
+    def test_daemon_rpc_framing_and_retirement(self):
+        """Fragmented replies decode; incomplete or mismatched replies retire the connection."""
+        for response, failure in [
+            (b'{"id":1,"ok":true,"result":{"label":"\xce\xbb"}}\n', None),
+            (b'{"id":2,"ok":true}\n', cmuxError),
+            (b'{"id":1', TimeoutError),
+        ]:
+            connection, peer = socket.socketpair()
+            with connection, peer, ThreadPoolExecutor(max_workers=1) as workers:
+                peer.settimeout(3)
+
+                def reply():
+                    """Consume the actual request and send a reply one byte at a time without closing the peer."""
+                    request = bytearray()
+                    while not request.endswith(b"\n"):
+                        chunk = peer.recv(4096)
+                        if not chunk:
+                            raise AssertionError("request closed before newline")
+                        request.extend(chunk)
+                    self.assertEqual(json.loads(request)["method"], "hello")
+                    for byte in response:
+                        peer.sendall(bytes([byte]))
+
+                sent = workers.submit(reply)
+                if failure is None:
+                    self.assertEqual(_rpc(connection, 1, "hello", {}, timeout_s=1)["result"]["label"], "λ")
+                else:
+                    with self.assertRaises(failure):
+                        _rpc(connection, 1, "hello", {}, timeout_s=1)
+                    self.assertEqual(connection.fileno(), -1)
+                sent.result(timeout=3)
 
     def test_build_directory_and_explicit_override(self):
         """Run the chosen executable and reject invalid overrides rather than selecting another build."""

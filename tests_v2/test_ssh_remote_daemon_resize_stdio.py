@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
-import select
+import socket
+import tempfile
+from contextlib import contextmanager
 import shutil
 import subprocess
 import sys
@@ -13,7 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmuxError
-from scenario_support import require as _must
+from scenario_support import require as _must, run_command
+from process_support import stop_process
+from cmux_socket_transport import read_response
 
 
 def _daemon_module_dir() -> Path:
@@ -21,49 +25,55 @@ def _daemon_module_dir() -> Path:
     return Path(__file__).resolve().parents[1] / "daemon" / "remote"
 
 
-def _rpc(
-    proc: subprocess.Popen[str],
-    req_id: int,
-    method: str,
-    params: dict,
-    *,
-    timeout_s: float = 5.0,
-) -> dict:
-    """Send one request and require a JSON response with the same ID.
+def _rpc(connection: socket.socket, req_id: int, method: str, params: dict,
+         *, timeout_s: float = 5.0) -> dict:
+    """Bound a complete stdio request/reply, validate its identity and retire failed transport.
 
-    The timeout bounds readiness polling only: buffered writes, readline and stderr
-    capture may still block. The caller owns daemon lifetime and pipe cleanup.
+    The daemon's stdin/stdout share one socketpair endpoint. Framing uses the same
+    four-MiB response limit as Python clients, including fragmented response reads.
     """
-    if proc.stdin is None or proc.stdout is None:
-        raise cmuxError("daemon subprocess stdio pipes are not available")
+    deadline = time.monotonic() + timeout_s
+    try:
+        payload = json.dumps({"id": req_id, "method": method, "params": params},
+                             separators=(",", ":")).encode() + b"\n"
+        if len(payload) > 4 * 1024 * 1024:
+            raise cmuxError("daemon request exceeds byte limit")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("daemon request deadline exceeded")
+        connection.settimeout(remaining)
+        connection.sendall(payload)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("daemon request deadline exceeded")
+        response = json.loads(read_response(connection, bytearray(), remaining))
+        _must(isinstance(response, dict) and response.get("id") == req_id,
+              f"Response identity mismatch for {method}")
+        return response
+    except BaseException:
+        connection.close()
+        raise
 
-    payload = {"id": req_id, "method": method, "params": params}
-    proc.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    proc.stdin.flush()
 
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        wait_s = max(0.0, min(0.2, deadline - time.time()))
-        ready, _, _ = select.select([proc.stdout], [], [], wait_s)
-        if not ready:
-            continue
-        line = proc.stdout.readline()
-        if line == "":
-            stderr = ""
-            if proc.stderr is not None:
-                try:
-                    stderr = proc.stderr.read().strip()
-                except Exception:
-                    stderr = ""
-            raise cmuxError(f"cmuxd-remote exited while waiting for {method} response: {stderr}")
-        try:
-            resp = json.loads(line)
-        except Exception as exc:  # noqa: BLE001
-            raise cmuxError(f"Invalid JSON response for {method}: {line!r} ({exc})")
-        _must(resp.get("id") == req_id, f"Response id mismatch for {method}: {resp}")
-        return resp
-
-    raise cmuxError(f"Timed out waiting for cmuxd-remote response: {method}")
+@contextmanager
+def running_daemon():
+    """Build with the configured Go toolchain, launch the binary directly and reap it on every exit."""
+    _must(shutil.which("go") is not None, "Go is required for remote daemon integration")
+    daemon_dir = _daemon_module_dir()
+    _must(daemon_dir.is_dir(), f"Missing daemon module directory: {daemon_dir}")
+    with tempfile.TemporaryDirectory(prefix="cmux-daemon-resize-") as directory:
+        binary = Path(directory) / "cmuxd-remote"
+        run_command(["go", "-C", str(daemon_dir), "build", "-o", str(binary), "./cmd/cmuxd-remote"])
+        connection, child = socket.socketpair()
+        with connection, child:
+            proc = subprocess.Popen([str(binary), "serve", "--stdio"],
+                                    stdin=child, stdout=child, stderr=subprocess.DEVNULL)
+            child.close()
+            try:
+                yield connection
+            finally:
+                connection.close()
+                stop_process(proc)
 
 
 def _as_int(value: object, field: str) -> int:
@@ -92,40 +102,19 @@ def _assert_effective(resp: dict, want_cols: int, want_rows: int, label: str) ->
 
 
 def main() -> int:
-    """Run a Go daemon and verify attach/resize/detach/reconnect size coordination over stdio.
-
-    Missing Go skips the fixture. Cleanup targets the go-run wrapper; independently
-    surviving daemon children are not proven reaped by this harness.
-    """
-    if shutil.which("go") is None:
-        print("SKIP: go is not available")
-        return 0
-
-    daemon_dir = _daemon_module_dir()
-    _must(daemon_dir.is_dir(), f"Missing daemon module directory: {daemon_dir}")
-
-    proc = subprocess.Popen(
-        ["go", "run", "./cmd/cmuxd-remote", "serve", "--stdio"],
-        cwd=str(daemon_dir),
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
-
-    try:
-        hello = _rpc(proc, 1, "hello", {})
+    """Verify the actual daemon's attach/resize/detach/reconnect coordination through bounded stdio."""
+    with running_daemon() as connection:
+        hello = _rpc(connection, 1, "hello", {})
         _must(hello.get("ok") is True, f"hello should return ok=true: {hello}")
         capabilities = {str(item) for item in ((hello.get("result") or {}).get("capabilities") or [])}
         _must("session.basic" in capabilities, f"hello missing session.basic capability: {hello}")
         _must("session.resize.min" in capabilities, f"hello missing session.resize.min capability: {hello}")
 
-        open_resp = _rpc(proc, 2, "session.open", {"session_id": "sess-e2e"})
+        open_resp = _rpc(connection, 2, "session.open", {"session_id": "sess-e2e"})
         _assert_effective(open_resp, 0, 0, "session.open")
 
         attach_small = _rpc(
-            proc,
+            connection,
             3,
             "session.attach",
             {"session_id": "sess-e2e", "attachment_id": "a-small", "cols": 90, "rows": 30},
@@ -133,7 +122,7 @@ def main() -> int:
         _assert_effective(attach_small, 90, 30, "session.attach(a-small)")
 
         attach_large = _rpc(
-            proc,
+            connection,
             4,
             "session.attach",
             {"session_id": "sess-e2e", "attachment_id": "a-large", "cols": 140, "rows": 50},
@@ -141,7 +130,7 @@ def main() -> int:
         _assert_effective(attach_large, 90, 30, "session.attach(a-large)")
 
         resize_large = _rpc(
-            proc,
+            connection,
             5,
             "session.resize",
             {"session_id": "sess-e2e", "attachment_id": "a-large", "cols": 200, "rows": 80},
@@ -149,7 +138,7 @@ def main() -> int:
         _assert_effective(resize_large, 90, 30, "session.resize(a-large)")
 
         detach_small = _rpc(
-            proc,
+            connection,
             6,
             "session.detach",
             {"session_id": "sess-e2e", "attachment_id": "a-small"},
@@ -157,7 +146,7 @@ def main() -> int:
         _assert_effective(detach_small, 200, 80, "session.detach(a-small)")
 
         detach_large = _rpc(
-            proc,
+            connection,
             7,
             "session.detach",
             {"session_id": "sess-e2e", "attachment_id": "a-large"},
@@ -165,34 +154,20 @@ def main() -> int:
         _assert_effective(detach_large, 200, 80, "session.detach(a-large)")
 
         reattach = _rpc(
-            proc,
+            connection,
             8,
             "session.attach",
             {"session_id": "sess-e2e", "attachment_id": "a-reconnect", "cols": 110, "rows": 40},
         )
         _assert_effective(reattach, 110, 40, "session.attach(a-reconnect)")
 
-        status = _rpc(proc, 9, "session.status", {"session_id": "sess-e2e"})
+        status = _rpc(connection, 9, "session.status", {"session_id": "sess-e2e"})
         _assert_effective(status, 110, 40, "session.status")
         attachments = (status.get("result") or {}).get("attachments") or []
         _must(len(attachments) == 1, f"session.status should report one active attachment after reattach: {status}")
 
         print("PASS: cmuxd-remote stdio session.resize coordinator enforces smallest-screen-wins semantics")
         return 0
-    finally:
-        try:
-            if proc.stdin is not None:
-                proc.stdin.close()
-        except Exception:
-            pass
-        try:
-            proc.terminate()
-            proc.wait(timeout=2.0)
-        except Exception:
-            try:
-                proc.kill()
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":

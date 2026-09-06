@@ -26,6 +26,9 @@ jobs:
         working-directory: daemon/remote
         run: go test ./...
 
+      - name: Test remote daemon stdio resize lifecycle
+        run: python3 tests_v2/test_ssh_remote_daemon_resize_stdio.py
+
       - name: Validate remote daemon release assets
         run: ./tests/test_remote_daemon_release_assets.sh
 
