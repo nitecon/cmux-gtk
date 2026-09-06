@@ -240,6 +240,23 @@ fn handle_socket_command_traced(
             }
         }
 
+        SocketCommand::ProjectActionRun {
+            req_id,
+            workspace,
+            action_id,
+            fingerprint,
+            resp_tx,
+        } => {
+            super::project::run(
+                state,
+                workspace,
+                action_id,
+                fingerprint,
+                req_id,
+                resp_tx,
+                trace_id,
+            );
+        }
         SocketCommand::ProjectActionsList {
             req_id,
             workspace,
@@ -304,6 +321,7 @@ fn handle_socket_command_traced(
                 "system.capabilities",
                 "ports.list",
                 "project.actions.list",
+                "project.actions.run",
                 "sidebar.metadata",
                 "sidebar.set_status",
                 "sidebar.report_meta_block",

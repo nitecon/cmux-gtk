@@ -62,6 +62,39 @@ def main():
             assert "fixture.parent" not in actions["config"]["actions"]
             assert not (repo / "MUST_NOT_RUN").exists()
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
+            # Explicit execution re-reads the definition before delivering any terminal input.
+            config_file = repo / ".cmux/cmux.json"
+            config_file.write_text(json.dumps({"actions": {"fixture.repo": {"command": "pwd > executed.cwd"}}}))
+            try:
+                app.cli("project-run", "fixture.repo", "--workspace", target["workspace_uuid"],
+                        "--fingerprint", actions["config"]["actions"]["fixture.repo"]["fingerprint"])
+                raise AssertionError("stale action fingerprint accepted")
+            except subprocess.CalledProcessError:
+                pass
+            assert not (repo / "executed.cwd").exists()
+            assert not (repo / "MUST_NOT_RUN").exists()
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            before = {row["uuid"] for row in app.surfaces()}
+            submitted = json.loads(app.cli("project-run", "fixture.repo", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.repo"]["fingerprint"], "--json"))
+            assert submitted["status"] == "submitted" and submitted["workspace_id"] == target["workspace_uuid"]
+            assert submitted["surface_id"] not in before
+            app.wait_for(lambda: (repo / "executed.cwd").exists(), "project command execution")
+            assert (repo / "executed.cwd").read_text().strip() == str(repo)
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == submitted["surface_id"]
+            app.cli("close-surface", submitted["surface_id"])
+            config_file.write_text(json.dumps({"actions": {"fixture.repo": {
+                "command": "pwd > current.cwd", "target": "currentTerminal"}}}))
+            current = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            before = {row["uuid"] for row in app.surfaces()}
+            submitted = json.loads(app.cli("project-run", "fixture.repo", "--workspace", target["workspace_uuid"],
+                "--fingerprint", current["config"]["actions"]["fixture.repo"]["fingerprint"], "--json"))
+            assert submitted["surface_id"] == target["uuid"]
+            app.wait_for(lambda: (repo / "current.cwd").exists(), "current-terminal action execution")
+            assert (repo / "current.cwd").read_text().strip() == str(repo)
+            assert {row["uuid"] for row in app.surfaces()} == before
+            app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))
             app.cli("send-key", "--id", target["uuid"], "\r")

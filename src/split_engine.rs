@@ -817,6 +817,29 @@ impl SplitEngine {
         gl_area
     }
 
+    /// Launch an explicit local project command in a selected sibling tab without changing future launch defaults.
+    pub(crate) fn new_project_command(
+        &mut self,
+        command: &str,
+        directory: std::path::PathBuf,
+    ) -> Option<Uuid> {
+        if self.remote_launch.is_some() {
+            return None;
+        }
+        let previous_command = self.launch_command.replace(format!(
+            "/bin/sh -c {}",
+            crate::workspace::shell_quote(&format!(
+                "/bin/sh -c {}\nexec /bin/sh",
+                crate::workspace::shell_quote(command)
+            ))
+        ));
+        let previous_directory = self.working_directory.replace(directory);
+        let result = self.new_terminal_tab();
+        self.launch_command = previous_command;
+        self.working_directory = previous_directory;
+        result
+    }
+
     /// Create and select a terminal surface tab in the focused pane.
     pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
         let pane_id = self.active_pane_id;

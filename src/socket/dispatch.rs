@@ -475,6 +475,39 @@ async fn dispatch_request(
             resp_tx,
         },
 
+        "project.actions.run" => {
+            let workspace = match params.get("workspace_id").filter(|value| !value.is_null()) {
+                None => None,
+                Some(value) => match value
+                    .as_str()
+                    .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                {
+                    Some(id) => Some(id),
+                    None => return err(req_id, "invalid_params", "invalid workspace UUID"),
+                },
+            };
+            let Some(action_id) = params
+                .get("action_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty() && value.len() <= 128)
+            else {
+                return err(req_id, "invalid_params", "invalid action ID");
+            };
+            let Some(fingerprint) = params
+                .get("fingerprint")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit()))
+            else {
+                return err(req_id, "invalid_params", "review fingerprint required");
+            };
+            commands::SocketCommand::ProjectActionRun {
+                req_id: req_id.clone(),
+                workspace,
+                action_id: action_id.into(),
+                fingerprint: fingerprint.into(),
+                resp_tx,
+            }
+        }
         "project.actions.list" => {
             let workspace = match params.get("workspace_id").filter(|value| !value.is_null()) {
                 None => None,

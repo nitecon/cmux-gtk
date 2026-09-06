@@ -370,3 +370,9 @@ Added project.actions.list and project-actions --workspace, resolving captured t
 ### Project action review identity
 
 Action inspection now returns a versioned fingerprint binding full definition, source, ID and captured directory for stale-review rejection during execution. No authorization or execution is added by the digest. Strict Clippy passes; change-invalidation tests await Actions.
+
+### Explicit project command execution
+
+Local project.actions.run / project-run re-reads the inspected action and rejects stale fingerprint, CWD or selected-surface context before submission. Commands support selected sibling tabs in the captured directory or literal input into the current terminal. Success reports submission only; explicit requests authorize execution, while listing and fingerprint possession do not. Persistent trust, palette, other action families, remote configuration and workspace layout execution remain open. Actions coverage checks stale rejection, new-tab CWD and current-terminal identity. Strict Clippy and syntax checks pass; runtime pending.
+
+Actions run 34059233345 failed in remote-browser fixture cleanup because browser close requires --surface. The fixture argument is corrected; complete isolated-origin/reconnect/overload runtime verification awaits a green rerun.

@@ -33,6 +33,14 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Execute an explicitly requested project command after checking its inspected fingerprint
+    ProjectRun {
+        action: String,
+        #[arg(long)]
+        fingerprint: String,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
     /// Inspect resolved project actions and their source files without running them
     ProjectActions {
         #[arg(long, conflicts_with = "workspace")]

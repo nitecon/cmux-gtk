@@ -34,6 +34,14 @@ pub enum SocketCommand {
         resp_tx: RespTx,
     },
 
+    /// Explicitly submit a reviewed project command after checking its fingerprint and live context.
+    ProjectActionRun {
+        req_id: Value,
+        workspace: Option<uuid::Uuid>,
+        action_id: String,
+        fingerprint: String,
+        resp_tx: RespTx,
+    },
     /// Resolve project actions from a captured local workspace directory on a bounded worker.
     ProjectActionsList {
         req_id: Value,

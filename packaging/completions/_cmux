@@ -34,7 +34,22 @@ _cmux() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-command-$line[1]:"
         case $line[1] in
-            (project-actions)
+            (project-run)
+_arguments "${_arguments_options[@]}" : \
+'--fingerprint=[]:FINGERPRINT:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':action:_default' \
+&& ret=0
+;;
+(project-actions)
 _arguments "${_arguments_options[@]}" : \
 '(--workspace)--directory=[]:DIRECTORY:_files' \
 '--workspace=[]:WORKSPACE:_default' \
@@ -1682,7 +1697,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-help-command-$line[1]:"
         case $line[1] in
-            (project-actions)
+            (project-run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(project-actions)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2138,6 +2157,7 @@ esac
 (( $+functions[_cmux_commands] )) ||
 _cmux_commands() {
     local commands; commands=(
+'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
 'project-actions:Inspect resolved project actions and their source files without running them' \
 'hooks:Install and receive native agent session hooks' \
 'restore:Execute this terminal'\''s saved manual resume command in the calling terminal' \
@@ -2569,6 +2589,7 @@ _cmux__health_commands() {
 (( $+functions[_cmux__help_commands] )) ||
 _cmux__help_commands() {
     local commands; commands=(
+'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
 'project-actions:Inspect resolved project actions and their source files without running them' \
 'hooks:Install and receive native agent session hooks' \
 'restore:Execute this terminal'\''s saved manual resume command in the calling terminal' \
@@ -3020,6 +3041,11 @@ _cmux__help__project-actions_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help project-actions commands' commands "$@"
 }
+(( $+functions[_cmux__help__project-run_commands] )) ||
+_cmux__help__project-run_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help project-run commands' commands "$@"
+}
 (( $+functions[_cmux__help__raw_commands] )) ||
 _cmux__help__raw_commands() {
     local commands; commands=()
@@ -3446,6 +3472,11 @@ _cmux__prev-workspace_commands() {
 _cmux__project-actions_commands() {
     local commands; commands=()
     _describe -t commands 'cmux project-actions commands' commands "$@"
+}
+(( $+functions[_cmux__project-run_commands] )) ||
+_cmux__project-run_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux project-run commands' commands "$@"
 }
 (( $+functions[_cmux__raw_commands] )) ||
 _cmux__raw_commands() {

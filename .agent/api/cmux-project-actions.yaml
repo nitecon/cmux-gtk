@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Project action configuration resolution
 space: cmux-gtk
 slug: project-actions
-summary: Bounded read-only cmux.json action resolution and outstanding execution/palette integration.
+summary: Bounded cmux.json discovery and explicit fingerprint-checked local command execution.
 kind: agent_context
 source_format: agent_context
 source_ref: src/project_config.rs
@@ -41,3 +41,10 @@ content:
   review_identity:
     - Each resolved action carries fingerprint SHA256 over a versioned tuple of captured directory, source path, action ID and full definition.
     - This detects changes between inspection and execution but is not authorization or persistent trust. Execution remains outstanding; tests cover command/target/source/ID/directory invalidation.
+
+  command_execution:
+    - project.actions.run requires action_id and fingerprint, optional workspace_id defaults current. CLI project-run ACTION --workspace UUID --fingerprint HASH uses a seven-second client deadline.
+    - Re-read under shared two-reader admission and five-second deadline, then reject changed fingerprint, directory or selected terminal before mutation. Explicit request authorizes this execution; fingerprint is not persistent trust.
+    - Local command intents support newTabInCurrentPane (default, captured canonical directory, isolated POSIX command then shell) and currentTerminal (literal input then carriage return). Success selects workspace and surface; listing and rejection preserve focus.
+    - Response workspace_id, surface_id, status=submitted acknowledges submission, not process completion. project.actions.run logs trace/workspace/surface/duration without command text. Other action families, palette confirmation, persistent trust and remote execution remain outstanding.
+    - Actions fixture covers stale rejection and execution directory; runtime pending.

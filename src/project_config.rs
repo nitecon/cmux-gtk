@@ -1,6 +1,6 @@
 //! Read-only project action resolution, independent of GTK and command execution.
 #[path = "project_action.rs"]
-mod project_action;
+pub(crate) mod project_action;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};

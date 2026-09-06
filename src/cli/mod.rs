@@ -150,7 +150,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             client
         }
         Commands::Browser(BrowserCommand::Open { .. }) => Duration::from_secs(30),
-        Commands::ProjectActions { .. } => Duration::from_secs(7),
+        Commands::ProjectActions { .. } | Commands::ProjectRun { .. } => Duration::from_secs(7),
         _ => Duration::from_secs(5),
     };
 
@@ -383,6 +383,14 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
+        Commands::ProjectRun {
+            action,
+            fingerprint,
+            workspace,
+        } => (
+            "project.actions.run",
+            serde_json::json!({"action_id":action,"fingerprint":fingerprint,"workspace_id":workspace}),
+        ),
         Commands::ProjectActions { workspace, .. } => (
             "project.actions.list",
             serde_json::json!({"workspace_id":workspace}),
