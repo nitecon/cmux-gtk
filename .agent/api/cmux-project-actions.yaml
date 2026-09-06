@@ -48,3 +48,8 @@ content:
     - Local command intents support newTabInCurrentPane (default, captured canonical directory, isolated POSIX command then shell) and currentTerminal (literal input then carriage return). Success selects workspace and surface; listing and rejection preserve focus.
     - Response workspace_id, surface_id, status=submitted acknowledges submission, not process completion. project.actions.run logs trace/workspace/surface/duration without command text. Other action families, palette confirmation, persistent trust and remote execution remain outstanding.
     - Actions fixture covers stale rejection and execution directory; runtime pending.
+
+  terminal_builtins:
+    - Local project.actions.run also executes canonical cmux.newTerminal, cmux.splitRight and cmux.splitDown through existing SplitEngine operations. Named operation determines layout; command target does not override builtin behavior.
+    - Shared fingerprint/context checks precede mutation, success selects and returns new surface, triggers session save and records submission trace. Other builtin integrations remain outstanding.
+    - Actions fixture verifies each builtin adds exactly one selected surface and supports normal close/focus cleanup. Strict Clippy and Python AST pass; runtime pending.

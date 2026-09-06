@@ -94,6 +94,18 @@ def main():
             app.wait_for(lambda: (repo / "current.cwd").exists(), "current-terminal action execution")
             assert (repo / "current.cwd").read_text().strip() == str(repo)
             assert {row["uuid"] for row in app.surfaces()} == before
+            for builtin in ["cmux.newTerminal", "cmux.splitRight", "cmux.splitDown"]:
+                config_file.write_text(json.dumps({"actions": {"fixture.builtin": {"builtin": builtin}}}))
+                reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+                before = {row["uuid"] for row in app.surfaces()}
+                created = json.loads(app.cli("project-run", "fixture.builtin", "--workspace", target["workspace_uuid"],
+                    "--fingerprint", reviewed["config"]["actions"]["fixture.builtin"]["fingerprint"], "--json"))
+                assert created["status"] == "submitted"
+                assert created["surface_id"] not in before
+                assert {row["uuid"] for row in app.surfaces()} == before | {created["surface_id"]}
+                assert next(row["uuid"] for row in app.surfaces() if row["active"]) == created["surface_id"]
+                app.cli("close-surface", created["surface_id"])
+                app.cli("focus-surface", target["uuid"])
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))

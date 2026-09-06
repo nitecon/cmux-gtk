@@ -78,7 +78,7 @@ pub fn list(
     });
 }
 
-/// Re-read an explicitly requested command, then apply only if its reviewed identity and GTK context survive.
+/// Re-read an explicitly requested action, then apply only if its reviewed identity and GTK context survive.
 /// Successful execution selects the target workspace/tab; listing or possessing a fingerprint never executes.
 pub fn run(
     state: &crate::app_state::AppStateRef,
@@ -144,8 +144,7 @@ pub fn run(
         };
         let Some(action)=resolved.actions.remove(&action_id) else {let _=response.send(err(req_id,"not_found","project action not found"));return;};
         if action.fingerprint!=fingerprint {let _=response.send(err(req_id,"changed","project action changed since inspection"));return;}
-        use crate::project_config::project_action::{Intent,Target};
-        let Intent::Command{command}=action.intent else {let _=response.send(err(req_id,"unsupported","this action family is not executable yet"));return;};
+        use crate::project_config::project_action::{Builtin,Intent,Target};
         let Some(owner)=owner.upgrade() else {return;};
         let mut state=owner.borrow_mut();
         let Some(index)=state.workspaces.iter().position(|w|w.uuid==workspace_id) else {let _=response.send(err(req_id,"not_found","workspace closed"));return;};
@@ -153,7 +152,20 @@ pub fn run(
             let _=response.send(err(req_id,"changed","workspace execution context changed"));return;
         }
         if response.is_closed(){return;}
-        let surface=match action.target {
+        let surface=match action.intent {
+            Intent::Builtin { builtin: Builtin::NewTerminal } => {
+                state.switch_to_index(index);
+                state.split_engines[index].new_terminal_tab()
+            }
+            Intent::Builtin { builtin: builtin @ (Builtin::SplitRight | Builtin::SplitDown) } => {
+                state.switch_to_index(index);
+                let orientation = if builtin == Builtin::SplitRight { gtk4::Orientation::Horizontal } else { gtk4::Orientation::Vertical };
+                let engine = &mut state.split_engines[index];
+                engine.split_active(orientation).and_then(|new_pane| {
+                    engine.all_panes().into_iter().find(|(_, id, _)| *id == new_pane).map(|(uuid, _, _)| uuid)
+                })
+            }
+            Intent::Command { command } => match action.target {
             Target::NewTabInCurrentPane=>{
                 state.switch_to_index(index);
                 state.split_engines[index].new_project_command(&command,resolved.directory)
@@ -169,6 +181,8 @@ pub fn run(
                 state=owner.borrow_mut();
                 pane.as_ref().and_then(|id|uuid::Uuid::parse_str(id).ok())
             }
+            },
+            _ => {let _=response.send(err(req_id,"unsupported","this action family is not executable yet"));return;}
         };
         let Some(surface)=surface else {let _=response.send(err(req_id,"launch_failed","project terminal could not be created"));return;};
         state.trigger_session_save();
