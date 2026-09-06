@@ -38,6 +38,8 @@ def main():
             assert "HISTORY-0000" not in before, "fixture did not create offscreen history"
             assert before == after, "history capture changed the viewport"
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
+            metrics = json.loads(app.cli("diagnostics", "--json"))["session_scrollback"]
+            assert metrics["captures"] > 0 and metrics["capture_ns"] > 0 and metrics["capture_bytes"] > 0
     print("bounded native styled history preserved inactive target, focus and viewport")
 
 

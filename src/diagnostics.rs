@@ -137,6 +137,7 @@ pub fn snapshot() -> serde_json::Value {
         "browser_preview": crate::browser::metrics::snapshot(),
         "browser_commands": crate::browser::transport::snapshot(),
         "socket_connections": crate::socket::admission::snapshot(),
+        "session_scrollback": crate::scrollback::metrics(),
         "notification_parser": crate::ghostty::notifications::metrics(),
         "terminals": {"registered": crate::ghostty::registry::live_count(),
             "inherited_directories": crate::ghostty::inherited::live_directories()},

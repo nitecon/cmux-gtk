@@ -30,7 +30,7 @@ impl RestoreContext<'_> {
         uuid: Uuid,
         saved_cwd: &str,
         resume: Option<&crate::resume::ResumeBinding>,
-        scrollback: Option<&str>,
+        scrollback: Option<&std::sync::Arc<str>>,
     ) -> PaneSurface {
         let saved_directory = (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd));
         let workspace_directory = self.working_directory.map(std::path::Path::to_path_buf);
@@ -154,7 +154,7 @@ impl SplitEngine {
                         *surface_uuid,
                         cwd,
                         resume.as_ref(),
-                        scrollback.as_deref(),
+                        scrollback.as_ref(),
                     ),
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);

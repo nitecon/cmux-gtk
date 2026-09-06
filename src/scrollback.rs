@@ -1,5 +1,26 @@
 //! Bounded, theme-independent rendered history suitable for terminal output replay.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static CAPTURES: AtomicU64 = AtomicU64::new(0);
+static CAPTURE_NS: AtomicU64 = AtomicU64::new(0);
+static CAPTURE_BYTES: AtomicU64 = AtomicU64::new(0);
+static CAPTURE_FAILURES: AtomicU64 = AtomicU64::new(0);
+static PENDING_REUSES: AtomicU64 = AtomicU64::new(0);
+static BUDGET_SKIPS: AtomicU64 = AtomicU64::new(0);
+
+/// Return cumulative snapshot capture cost and retention decisions without history or directory text.
+pub(crate) fn metrics() -> serde_json::Value {
+    serde_json::json!({
+        "captures": CAPTURES.load(Ordering::Relaxed),
+        "capture_ns": CAPTURE_NS.load(Ordering::Relaxed),
+        "capture_bytes": CAPTURE_BYTES.load(Ordering::Relaxed),
+        "capture_failures": CAPTURE_FAILURES.load(Ordering::Relaxed),
+        "pending_reuses": PENDING_REUSES.load(Ordering::Relaxed),
+        "budget_skips": BUDGET_SKIPS.load(Ordering::Relaxed),
+    })
+}
+
 /// Per-terminal UTF-8 replay budget, including reset sequences.
 pub(crate) const MAX_BYTES: usize = 256 * 1024;
 
@@ -92,8 +113,9 @@ fn validate_tree(tree: &mut crate::split_engine::SplitNodeData, budget: &mut usi
                     *scrollback = scrollback
                         .take()
                         .and_then(|text| replay_text(&text))
+                        .map(std::sync::Arc::<str>::from)
                         .filter(|text| text.len() <= *budget);
-                    *budget -= scrollback.as_ref().map_or(0, String::len);
+                    *budget -= scrollback.as_ref().map_or(0, |text| text.len());
                 }
             }
         }
@@ -107,11 +129,11 @@ fn validate_tree(tree: &mut crate::split_engine::SplitNodeData, budget: &mut usi
 
 /// Preserve history already normalized by validate_session for uninitialized background surfaces.
 /// GTK owns the cached allocation; native replay borrows it synchronously before removing the cache.
-pub(crate) fn prepare(area: &gtk4::GLArea, text: Option<&str>) {
+pub(crate) fn prepare(area: &gtk4::GLArea, text: Option<&std::sync::Arc<str>>) {
     use gtk4::prelude::*;
     if let Some(text) = text.filter(|text| text.len() <= MAX_BYTES) {
-        // SAFETY: this private key always owns String, read/stolen only on GTK in native initialization.
-        unsafe { area.set_data(PENDING_KEY, text.to_owned()) };
+        // SAFETY: this private key always owns Arc<str>, read/stolen only on GTK in native initialization.
+        unsafe { area.set_data(PENDING_KEY, text.clone()) };
     }
 }
 
@@ -121,17 +143,37 @@ pub(crate) fn capture(
     area: &gtk4::GLArea,
     surface: Option<crate::ghostty::ffi::ghostty_surface_t>,
     budget: &mut usize,
-) -> Option<String> {
+) -> Option<std::sync::Arc<str>> {
     use gtk4::prelude::*;
     if *budget < MAX_BYTES {
+        BUDGET_SKIPS.fetch_add(1, Ordering::Relaxed);
         return None;
     }
     let text = if let Some(surface) = surface {
+        let started = std::time::Instant::now();
         // SAFETY: the owning GTK snapshot keeps this terminal live without event-loop iteration.
-        unsafe { crate::ghostty::text::read_scrollback(surface) }.ok()?
+        let result = unsafe { crate::ghostty::text::read_scrollback(surface) };
+        CAPTURES.fetch_add(1, Ordering::Relaxed);
+        CAPTURE_NS.fetch_add(
+            started.elapsed().as_nanos().min(u64::MAX as u128) as u64,
+            Ordering::Relaxed,
+        );
+        match result {
+            Ok(text) => {
+                CAPTURE_BYTES.fetch_add(text.len() as u64, Ordering::Relaxed);
+                std::sync::Arc::<str>::from(text)
+            }
+            Err(_) => {
+                CAPTURE_FAILURES.fetch_add(1, Ordering::Relaxed);
+                return None;
+            }
+        }
     } else {
-        // SAFETY: prepare exclusively stores String under this private key on the same GTK thread.
-        unsafe { area.data::<String>(PENDING_KEY) }.map(|text| unsafe { text.as_ref().clone() })?
+        // SAFETY: prepare exclusively stores Arc<str> under this private key on the same GTK thread.
+        let text = unsafe { area.data::<std::sync::Arc<str>>(PENDING_KEY) }
+            .map(|text| unsafe { text.as_ref().clone() })?;
+        PENDING_REUSES.fetch_add(1, Ordering::Relaxed);
+        text
     };
     if text.len() > *budget {
         return None;

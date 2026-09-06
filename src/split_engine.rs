@@ -1589,7 +1589,7 @@ pub enum PaneSurfaceData {
         #[serde(default)]
         resume: Option<crate::resume::ResumeBinding>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        scrollback: Option<String>,
+        scrollback: Option<std::sync::Arc<str>>,
     },
     Browser {
         surface_uuid: Uuid,

@@ -159,7 +159,7 @@ fn initialize_surface(
             config.pty_tee_cb = Some(super::notifications::output);
             config.pty_tee_userdata = (&mut **context as *mut super::notifications::Context).cast();
         }
-        let replay = area.data::<String>(crate::scrollback::PENDING_KEY);
+        let replay = area.data::<std::sync::Arc<str>>(crate::scrollback::PENDING_KEY);
         let surface = if let Some(replay) = replay {
             let replay = replay.as_ref();
             let replay_started = std::time::Instant::now();
@@ -182,7 +182,7 @@ fn initialize_surface(
         };
         if !surface.is_null() {
             // Native initialization has synchronously applied history before starting child IO.
-            area.steal_data::<String>(crate::scrollback::PENDING_KEY);
+            area.steal_data::<std::sync::Arc<str>>(crate::scrollback::PENDING_KEY);
         }
         if let Some(context) = notifications {
             area.set_data("cmux-notification-context", context);
