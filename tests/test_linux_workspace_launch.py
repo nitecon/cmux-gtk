@@ -122,17 +122,28 @@ Subsystem sftp internal-sftp
             return []
 
     def remote_write(name):
-        """Drive real terminal input until a marker proves execution in the remote working directory."""
+        """Observe native/prompt readiness, submit once, then verify complete remote marker contents."""
+        def ready():
+            """Wait read-only for realization and this fixture's remote-directory prompt before sending input."""
+            if not json.loads(cli("health", "--json"))["alive"]:
+                return False
+            text = cli("read-text").replace("\n", "").replace("\r", "")
+            return str(root / "remote") in text
+        eventually(ready)
+        cli("send-text", f"printf '%s' \"$PWD\" > {name}")
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True, timeout=10,
+        ).split()
+        subprocess.check_call(
+            ["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "Return"], timeout=10,
+        )
         def written():
-            """Check the remote marker or send a shell command plus real Return key before retrying."""
-            if (root / "remote" / name).exists():
-                return True
-            cli("send-text", f"printf '%s' \"$PWD\" > {name}")
-            windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True).split()
-            subprocess.check_call(["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "Return"])
-            return False
+            """Require the expected payload, tolerating the brief create-before-write observation window."""
+            try:
+                return (root / "remote" / name).read_text() == str(root / "remote")
+            except FileNotFoundError:
+                return False
         eventually(written)
-        assert (root / "remote" / name).read_text() == str(root / "remote")
         assert not (root / "local" / name).exists()
 
     def remote_setup_traced():
