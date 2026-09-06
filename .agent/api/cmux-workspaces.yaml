@@ -42,6 +42,8 @@ content:
       fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, color, active_pane_uuid, layout]
       compatibility: New optional fields default to null when reading older session files. Session ordering is array ordering.
   safety:
+    - SSH stdout uses shared bounded UTF-8 line framing, capped at four MiB including newline and ten seconds after initial bytes; idle pipes stay open. Rejected frames end the reader and record ssh.framing.rejected with workspace ID and error category.
+    - SSH stderr has a connection-owned cancellation guard and fixed four-KiB read buffer. Forward only the first 64 KiB of input to unstructured diagnostics, then drain/discard excess with one ssh.stderr.limited record; structured events omit contents. This bounds buffering, not remote process exit time or all SSH allocations.
     - InheritedConfig owns the sentinel-terminated working_directory allocated by Ghostty newSurfaceOptions. Split/tab creation transfers the non-copying owner into deferred SurfaceInit; Drop calls ghostty_string_free with sentinel true, even when a workspace directory overrides the inherited value or the terminal never realizes. Other native configuration fields retain their existing borrowed/scalar contracts.
     - Validate workspace paths before creating surfaces. Quote shell paths as one POSIX argument.
     - Never route asynchronous clipboard or remote output using the last focused or initialized surface pointer.
