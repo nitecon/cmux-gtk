@@ -48,6 +48,90 @@ pub fn identity(pid: u32) -> io::Result<ProcessIdentity> {
     })
 }
 
+/// Discover a qualified root and its current descendants across all spawning threads.
+/// Worker-only I/O, capped at 256 processes, 1024 threads per process and 64 KiB per child list.
+/// Parent identity is checked around each traversal; disappearing parents discard their unverified children.
+/// This is a current tree snapshot, not historical ownership of detached/reparented descendants.
+pub fn process_tree(root: ProcessIdentity) -> io::Result<Vec<ProcessIdentity>> {
+    let mut pending = vec![root];
+    let mut visited = HashSet::new();
+    let mut result = Vec::new();
+    while let Some(parent) = pending.pop() {
+        if !visited.insert(parent.pid) {
+            continue;
+        }
+        if visited.len() > 256 {
+            return Err(invalid());
+        }
+        if !matches_identity(parent)? {
+            continue;
+        }
+        let tasks = match std::fs::read_dir(format!("/proc/{}/task", parent.pid)) {
+            Ok(tasks) => tasks,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        let mut children = HashSet::new();
+        for (count, task) in tasks.enumerate() {
+            if count >= 1024 {
+                return Err(invalid());
+            }
+            let path = task?.path().join("children");
+            let text = match crate::filesystem::read_text_bounded(&path, 64 * 1024) {
+                Ok(text) => text,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error),
+            };
+            for child in text.split_whitespace() {
+                children.insert(child.parse::<u32>().map_err(|_| invalid())?);
+                if children.len() > 256 {
+                    return Err(invalid());
+                }
+            }
+        }
+        if !matches_identity(parent)? {
+            continue;
+        }
+        result.push(parent);
+        for child in children {
+            match child_identity(child, parent.pid) {
+                Ok(Some(child)) => {
+                    if pending.len() + visited.len() >= 256 {
+                        return Err(invalid());
+                    }
+                    pending.push(child);
+                }
+                Ok(None) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    if !matches_identity(root)? {
+        return Ok(Vec::new());
+    }
+    Ok(result)
+}
+
+/// Read child identity and parent from one stat record so stale child-list PIDs cannot change ownership.
+fn child_identity(pid: u32, expected_parent: u32) -> io::Result<Option<ProcessIdentity>> {
+    let stat =
+        crate::filesystem::read_text_bounded(&PathBuf::from(format!("/proc/{pid}/stat")), 8192)?;
+    let fields: Vec<_> = stat
+        .rsplit_once(')')
+        .ok_or_else(invalid)?
+        .1
+        .split_whitespace()
+        .take(20)
+        .collect();
+    if fields.len() < 20 {
+        return Err(invalid());
+    }
+    let parent = fields[1].parse::<u32>().map_err(|_| invalid())?;
+    let start_ticks = fields[19].parse().map_err(|_| invalid())?;
+    Ok((parent == expected_parent).then_some(ProcessIdentity { pid, start_ticks }))
+}
+
 /// Inspect up to 256 explicitly qualified processes, 4096 descriptors each and 2 MiB per TCP table.
 /// Only LISTEN sockets with descriptors owned by the same unchanged process are returned.
 /// Exited/reused processes are omitted; other I/O failures remain errors, not an empty successful scan.
@@ -168,6 +252,32 @@ fn invalid() -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A live child is discovered from the actual root; a reused root cannot acquire its descendants.
+    #[test]
+    fn discovers_owned_child_process() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let outcome = || {
+            let root = identity(std::process::id()).unwrap();
+            let descendants = process_tree(root).unwrap();
+            assert!(descendants.iter().any(|process| process.pid == child.id()));
+            assert!(process_tree(ProcessIdentity {
+                start_ticks: root.start_ticks + 1,
+                ..root
+            })
+            .unwrap()
+            .is_empty());
+        };
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(outcome));
+        let _ = child.kill();
+        child.wait().unwrap();
+        if let Err(error) = result {
+            std::panic::resume_unwind(error);
+        }
+    }
 
     /// A real owned listener is attributed, a reused identity is rejected, and closing removes its record.
     #[test]
