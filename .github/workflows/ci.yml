@@ -171,6 +171,9 @@ jobs:
       - name: Test installed Codex session hook lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_codex_hooks.py
 
+      - name: Test nested JSON agent hook lifecycles
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_json_agent_hooks.py
+
       - name: Test Claude Teams native split translation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_teams.py
 

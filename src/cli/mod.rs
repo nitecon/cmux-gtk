@@ -129,7 +129,14 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     if matches!(
         &cli.command,
         Commands::Hooks {
-            command: args::HookCommands::Claude { .. } | args::HookCommands::Codex { .. }
+            command: args::HookCommands::Claude { .. }
+                | args::HookCommands::Codex { .. }
+                | args::HookCommands::Grok { .. }
+                | args::HookCommands::Gemini { .. }
+                | args::HookCommands::Copilot { .. }
+                | args::HookCommands::Codebuddy { .. }
+                | args::HookCommands::Factory { .. }
+                | args::HookCommands::Qoder { .. }
         }
     ) && std::env::var_os("CMUX_SURFACE_ID").is_none()
         && cli.socket.is_none()
@@ -174,6 +181,20 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     } = &cli.command
     {
         return hooks::codex_event(&mut client, *event);
+    }
+    if let Commands::Hooks { command } = &cli.command {
+        let provider_event = match command {
+            args::HookCommands::Grok { event } => Some(("grok", *event)),
+            args::HookCommands::Gemini { event } => Some(("gemini", *event)),
+            args::HookCommands::Copilot { event } => Some(("copilot", *event)),
+            args::HookCommands::Codebuddy { event } => Some(("codebuddy", *event)),
+            args::HookCommands::Factory { event } => Some(("factory", *event)),
+            args::HookCommands::Qoder { event } => Some(("qoder", *event)),
+            _ => None,
+        };
+        if let Some((provider, event)) = provider_event {
+            return hooks::json_provider_event(&mut client, provider, event);
+        }
     }
 
     if let Commands::Restore {

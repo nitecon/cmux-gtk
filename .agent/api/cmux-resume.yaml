@@ -38,6 +38,13 @@ content:
         - Each callback accepts at most 65536 stdin bytes and requires the documented hook_event_name, native session_id, absolute cwd and originating CMUX_SURFACE_ID. SessionStart binds the absolute Codex executable as codex resume SESSION_ID and retains only CODEX_HOME. SessionEnd clears only the matching native checkpoint.
         - Stop routes bounded summary, message or assistant text into the exact surface inbox without selecting it. Context-free implicit callbacks skip outside cmux while explicit missing sockets fail. Hooks remain manually trusted until an exact or prefix approval is recorded.
 
+    - name: Shared JSON provider lifecycle hooks
+      steps:
+        - Grok, Gemini, GitHub Copilot, CodeBuddy, Factory Droid and Qoder use a centralized nested-JSON registry with their distinct binary names, config paths, native event names, environment overrides and resume argv. An omitted setup provider attempts every detected supported integration; an explicit missing provider binary fails.
+        - Setup merges only cmux-owned handlers into each hooks object, preserves arbitrary companion fields and handlers, is byte-stable on repetition, and atomically syncs at most one MiB. Existing symlink or malformed files fail without replacement.
+        - Hook input accepts at most 65536 bytes and resolves session/event/cwd strings from top-level snake-case or camel-case fields and fixed notification/data/session/context envelopes. It does not recursively traverse arbitrary payloads. Every event still requires a valid native session identity, absolute cwd for start and exact CMUX_SURFACE_ID.
+        - Start stores the provider's native resume command and only its allowlisted config-directory environment. Stop and Notification create bounded exact-surface inbox entries. True SessionEnd conditionally clears the same checkpoint. Grok turn-boundary SessionEnd is not installed as destructive cleanup.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.

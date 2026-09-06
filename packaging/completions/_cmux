@@ -323,6 +323,654 @@ esac
     ;;
 esac
 ;;
+(grok)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__grok_commands" \
+"*::: :->grok" \
+&& ret=0
+
+    case $state in
+    (grok)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-grok-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__grok__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-grok-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(gemini)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__gemini_commands" \
+"*::: :->gemini" \
+&& ret=0
+
+    case $state in
+    (gemini)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-gemini-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__gemini__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-gemini-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(copilot)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__copilot_commands" \
+"*::: :->copilot" \
+&& ret=0
+
+    case $state in
+    (copilot)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-copilot-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__copilot__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-copilot-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(codebuddy)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__codebuddy_commands" \
+"*::: :->codebuddy" \
+&& ret=0
+
+    case $state in
+    (codebuddy)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-codebuddy-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__codebuddy__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-codebuddy-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(factory)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__factory_commands" \
+"*::: :->factory" \
+&& ret=0
+
+    case $state in
+    (factory)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-factory-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__factory__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-factory-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(qoder)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__qoder_commands" \
+"*::: :->qoder" \
+&& ret=0
+
+    case $state in
+    (qoder)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-qoder-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__qoder__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-qoder-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -392,6 +1040,198 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(grok)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__grok_commands" \
+"*::: :->grok" \
+&& ret=0
+
+    case $state in
+    (grok)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-grok-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(gemini)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__gemini_commands" \
+"*::: :->gemini" \
+&& ret=0
+
+    case $state in
+    (gemini)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-gemini-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(copilot)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__copilot_commands" \
+"*::: :->copilot" \
+&& ret=0
+
+    case $state in
+    (copilot)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-copilot-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(codebuddy)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__codebuddy_commands" \
+"*::: :->codebuddy" \
+&& ret=0
+
+    case $state in
+    (codebuddy)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-codebuddy-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(factory)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__factory_commands" \
+"*::: :->factory" \
+&& ret=0
+
+    case $state in
+    (factory)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-factory-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(qoder)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__qoder_commands" \
+"*::: :->qoder" \
+&& ret=0
+
+    case $state in
+    (qoder)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-qoder-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2053,6 +2893,198 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(grok)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__grok_commands" \
+"*::: :->grok" \
+&& ret=0
+
+    case $state in
+    (grok)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-grok-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(gemini)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__gemini_commands" \
+"*::: :->gemini" \
+&& ret=0
+
+    case $state in
+    (gemini)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-gemini-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(copilot)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__copilot_commands" \
+"*::: :->copilot" \
+&& ret=0
+
+    case $state in
+    (copilot)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-copilot-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(codebuddy)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__codebuddy_commands" \
+"*::: :->codebuddy" \
+&& ret=0
+
+    case $state in
+    (codebuddy)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-codebuddy-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(factory)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__factory_commands" \
+"*::: :->factory" \
+&& ret=0
+
+    case $state in
+    (factory)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-factory-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(qoder)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__qoder_commands" \
+"*::: :->qoder" \
+&& ret=0
+
+    case $state in
+    (qoder)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-qoder-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -3264,6 +4296,12 @@ _cmux__help__hooks_commands() {
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
 'codex:Receive a Codex lifecycle hook payload on stdin' \
+'grok:Receive a Grok lifecycle hook payload on stdin' \
+'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
+'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
+'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
+'qoder:Receive a Qoder lifecycle hook payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -3297,6 +4335,36 @@ _cmux__help__hooks__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks claude stop commands' commands "$@"
 }
+(( $+functions[_cmux__help__hooks__codebuddy_commands] )) ||
+_cmux__help__hooks__codebuddy_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks codebuddy commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codebuddy__notification_commands] )) ||
+_cmux__help__hooks__codebuddy__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codebuddy notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codebuddy__session-end_commands] )) ||
+_cmux__help__hooks__codebuddy__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codebuddy session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codebuddy__session-start_commands] )) ||
+_cmux__help__hooks__codebuddy__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codebuddy session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codebuddy__stop_commands] )) ||
+_cmux__help__hooks__codebuddy__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codebuddy stop commands' commands "$@"
+}
 (( $+functions[_cmux__help__hooks__codex_commands] )) ||
 _cmux__help__hooks__codex_commands() {
     local commands; commands=(
@@ -3320,6 +4388,156 @@ _cmux__help__hooks__codex__session-start_commands() {
 _cmux__help__hooks__codex__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks codex stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot_commands] )) ||
+_cmux__help__hooks__copilot_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks copilot commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot__notification_commands] )) ||
+_cmux__help__hooks__copilot__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks copilot notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot__session-end_commands] )) ||
+_cmux__help__hooks__copilot__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks copilot session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot__session-start_commands] )) ||
+_cmux__help__hooks__copilot__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks copilot session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot__stop_commands] )) ||
+_cmux__help__hooks__copilot__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks copilot stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory_commands] )) ||
+_cmux__help__hooks__factory_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks factory commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory__notification_commands] )) ||
+_cmux__help__hooks__factory__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks factory notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory__session-end_commands] )) ||
+_cmux__help__hooks__factory__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks factory session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory__session-start_commands] )) ||
+_cmux__help__hooks__factory__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks factory session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory__stop_commands] )) ||
+_cmux__help__hooks__factory__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks factory stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini_commands] )) ||
+_cmux__help__hooks__gemini_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks gemini commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini__notification_commands] )) ||
+_cmux__help__hooks__gemini__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks gemini notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini__session-end_commands] )) ||
+_cmux__help__hooks__gemini__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks gemini session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini__session-start_commands] )) ||
+_cmux__help__hooks__gemini__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks gemini session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini__stop_commands] )) ||
+_cmux__help__hooks__gemini__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks gemini stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok_commands] )) ||
+_cmux__help__hooks__grok_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks grok commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok__notification_commands] )) ||
+_cmux__help__hooks__grok__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok__session-end_commands] )) ||
+_cmux__help__hooks__grok__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks grok session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok__session-start_commands] )) ||
+_cmux__help__hooks__grok__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks grok session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok__stop_commands] )) ||
+_cmux__help__hooks__grok__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks grok stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder_commands] )) ||
+_cmux__help__hooks__qoder_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks qoder commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder__notification_commands] )) ||
+_cmux__help__hooks__qoder__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder__session-end_commands] )) ||
+_cmux__help__hooks__qoder__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks qoder session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder__session-start_commands] )) ||
+_cmux__help__hooks__qoder__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks qoder session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder__stop_commands] )) ||
+_cmux__help__hooks__qoder__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks qoder stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__setup_commands] )) ||
 _cmux__help__hooks__setup_commands() {
@@ -3615,6 +4833,12 @@ _cmux__hooks_commands() {
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
 'codex:Receive a Codex lifecycle hook payload on stdin' \
+'grok:Receive a Grok lifecycle hook payload on stdin' \
+'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
+'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
+'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
+'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -3686,6 +4910,73 @@ _cmux__hooks__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks claude stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__codebuddy_commands] )) ||
+_cmux__hooks__codebuddy_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks codebuddy commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help_commands] )) ||
+_cmux__hooks__codebuddy__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks codebuddy help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__help_commands] )) ||
+_cmux__hooks__codebuddy__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__notification_commands] )) ||
+_cmux__hooks__codebuddy__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__session-end_commands] )) ||
+_cmux__hooks__codebuddy__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__session-start_commands] )) ||
+_cmux__hooks__codebuddy__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__stop_commands] )) ||
+_cmux__hooks__codebuddy__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__notification_commands] )) ||
+_cmux__hooks__codebuddy__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__session-end_commands] )) ||
+_cmux__hooks__codebuddy__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__session-start_commands] )) ||
+_cmux__hooks__codebuddy__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__stop_commands] )) ||
+_cmux__hooks__codebuddy__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__codex_commands] )) ||
 _cmux__hooks__codex_commands() {
     local commands; commands=(
@@ -3741,12 +5032,286 @@ _cmux__hooks__codex__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks codex stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__copilot_commands] )) ||
+_cmux__hooks__copilot_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks copilot commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help_commands] )) ||
+_cmux__hooks__copilot__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks copilot help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__help_commands] )) ||
+_cmux__hooks__copilot__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__notification_commands] )) ||
+_cmux__hooks__copilot__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__session-end_commands] )) ||
+_cmux__hooks__copilot__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__session-start_commands] )) ||
+_cmux__hooks__copilot__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__stop_commands] )) ||
+_cmux__hooks__copilot__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__notification_commands] )) ||
+_cmux__hooks__copilot__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__session-end_commands] )) ||
+_cmux__hooks__copilot__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__session-start_commands] )) ||
+_cmux__hooks__copilot__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__stop_commands] )) ||
+_cmux__hooks__copilot__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory_commands] )) ||
+_cmux__hooks__factory_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks factory commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help_commands] )) ||
+_cmux__hooks__factory__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks factory help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__help_commands] )) ||
+_cmux__hooks__factory__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__notification_commands] )) ||
+_cmux__hooks__factory__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__session-end_commands] )) ||
+_cmux__hooks__factory__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__session-start_commands] )) ||
+_cmux__hooks__factory__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__stop_commands] )) ||
+_cmux__hooks__factory__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__notification_commands] )) ||
+_cmux__hooks__factory__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__session-end_commands] )) ||
+_cmux__hooks__factory__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__session-start_commands] )) ||
+_cmux__hooks__factory__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__stop_commands] )) ||
+_cmux__hooks__factory__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini_commands] )) ||
+_cmux__hooks__gemini_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks gemini commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help_commands] )) ||
+_cmux__hooks__gemini__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks gemini help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__help_commands] )) ||
+_cmux__hooks__gemini__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__notification_commands] )) ||
+_cmux__hooks__gemini__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__session-end_commands] )) ||
+_cmux__hooks__gemini__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__session-start_commands] )) ||
+_cmux__hooks__gemini__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__stop_commands] )) ||
+_cmux__hooks__gemini__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__notification_commands] )) ||
+_cmux__hooks__gemini__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__session-end_commands] )) ||
+_cmux__hooks__gemini__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__session-start_commands] )) ||
+_cmux__hooks__gemini__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__stop_commands] )) ||
+_cmux__hooks__gemini__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok_commands] )) ||
+_cmux__hooks__grok_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks grok commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help_commands] )) ||
+_cmux__hooks__grok__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks grok help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__help_commands] )) ||
+_cmux__hooks__grok__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__notification_commands] )) ||
+_cmux__hooks__grok__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__session-end_commands] )) ||
+_cmux__hooks__grok__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__session-start_commands] )) ||
+_cmux__hooks__grok__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__stop_commands] )) ||
+_cmux__hooks__grok__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__notification_commands] )) ||
+_cmux__hooks__grok__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__session-end_commands] )) ||
+_cmux__hooks__grok__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__session-start_commands] )) ||
+_cmux__hooks__grok__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__stop_commands] )) ||
+_cmux__hooks__grok__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help_commands] )) ||
 _cmux__hooks__help_commands() {
     local commands; commands=(
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
 'codex:Receive a Codex lifecycle hook payload on stdin' \
+'grok:Receive a Grok lifecycle hook payload on stdin' \
+'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
+'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
+'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
+'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -3781,6 +5346,36 @@ _cmux__hooks__help__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help claude stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__codebuddy_commands] )) ||
+_cmux__hooks__help__codebuddy_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help codebuddy commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codebuddy__notification_commands] )) ||
+_cmux__hooks__help__codebuddy__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codebuddy notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codebuddy__session-end_commands] )) ||
+_cmux__hooks__help__codebuddy__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codebuddy session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codebuddy__session-start_commands] )) ||
+_cmux__hooks__help__codebuddy__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codebuddy session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codebuddy__stop_commands] )) ||
+_cmux__hooks__help__codebuddy__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codebuddy stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__codex_commands] )) ||
 _cmux__hooks__help__codex_commands() {
     local commands; commands=(
@@ -3805,15 +5400,232 @@ _cmux__hooks__help__codex__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help codex stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__copilot_commands] )) ||
+_cmux__hooks__help__copilot_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help copilot commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__copilot__notification_commands] )) ||
+_cmux__hooks__help__copilot__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help copilot notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__copilot__session-end_commands] )) ||
+_cmux__hooks__help__copilot__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help copilot session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__copilot__session-start_commands] )) ||
+_cmux__hooks__help__copilot__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help copilot session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__copilot__stop_commands] )) ||
+_cmux__hooks__help__copilot__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help copilot stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory_commands] )) ||
+_cmux__hooks__help__factory_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help factory commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory__notification_commands] )) ||
+_cmux__hooks__help__factory__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help factory notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory__session-end_commands] )) ||
+_cmux__hooks__help__factory__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help factory session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory__session-start_commands] )) ||
+_cmux__hooks__help__factory__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help factory session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory__stop_commands] )) ||
+_cmux__hooks__help__factory__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help factory stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini_commands] )) ||
+_cmux__hooks__help__gemini_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help gemini commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini__notification_commands] )) ||
+_cmux__hooks__help__gemini__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help gemini notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini__session-end_commands] )) ||
+_cmux__hooks__help__gemini__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help gemini session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini__session-start_commands] )) ||
+_cmux__hooks__help__gemini__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help gemini session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini__stop_commands] )) ||
+_cmux__hooks__help__gemini__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help gemini stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok_commands] )) ||
+_cmux__hooks__help__grok_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help grok commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok__notification_commands] )) ||
+_cmux__hooks__help__grok__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok__session-end_commands] )) ||
+_cmux__hooks__help__grok__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help grok session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok__session-start_commands] )) ||
+_cmux__hooks__help__grok__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help grok session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok__stop_commands] )) ||
+_cmux__hooks__help__grok__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help grok stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__help_commands] )) ||
 _cmux__hooks__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help help commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__qoder_commands] )) ||
+_cmux__hooks__help__qoder_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help qoder commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__qoder__notification_commands] )) ||
+_cmux__hooks__help__qoder__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__qoder__session-end_commands] )) ||
+_cmux__hooks__help__qoder__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help qoder session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__qoder__session-start_commands] )) ||
+_cmux__hooks__help__qoder__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help qoder session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__qoder__stop_commands] )) ||
+_cmux__hooks__help__qoder__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help qoder stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__setup_commands] )) ||
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder_commands] )) ||
+_cmux__hooks__qoder_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks qoder commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help_commands] )) ||
+_cmux__hooks__qoder__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks qoder help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__help_commands] )) ||
+_cmux__hooks__qoder__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__notification_commands] )) ||
+_cmux__hooks__qoder__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__session-end_commands] )) ||
+_cmux__hooks__qoder__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__session-start_commands] )) ||
+_cmux__hooks__qoder__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__stop_commands] )) ||
+_cmux__hooks__qoder__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__notification_commands] )) ||
+_cmux__hooks__qoder__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__session-end_commands] )) ||
+_cmux__hooks__qoder__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__session-start_commands] )) ||
+_cmux__hooks__qoder__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__stop_commands] )) ||
+_cmux__hooks__qoder__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__setup_commands] )) ||
 _cmux__hooks__setup_commands() {

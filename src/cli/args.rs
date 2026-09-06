@@ -471,6 +471,36 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: CodexHookEvent,
     },
+    /// Receive a Grok lifecycle hook payload on stdin
+    Grok {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a Gemini lifecycle hook payload on stdin
+    Gemini {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a GitHub Copilot lifecycle hook payload on stdin
+    Copilot {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a CodeBuddy lifecycle hook payload on stdin
+    Codebuddy {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a Factory Droid lifecycle hook payload on stdin
+    Factory {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a Qoder lifecycle hook payload on stdin
+    Qoder {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.
@@ -487,6 +517,14 @@ pub enum CodexHookEvent {
     SessionStart,
     SessionEnd,
     Stop,
+}
+
+#[derive(Clone, Copy, Subcommand)]
+pub enum JsonHookEvent {
+    SessionStart,
+    SessionEnd,
+    Stop,
+    Notification,
 }
 
 /// Manual resume binding controls; automatic execution is a separate hook policy.

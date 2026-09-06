@@ -1178,12 +1178,13 @@ fi
             std::env::temp_dir().join(format!("cmux-navigation-drop-{}", Uuid::new_v4()));
         cmux_platform::filesystem::create_private_directory(&directory).unwrap();
         let binary = directory.join("browser");
-        std::fs::write(
+        cmux_platform::filesystem::atomic_write(
             &binary,
             b"#!/bin/sh\nprintf '%s' $$ > \"$0.pid\"\nexec sleep 60\n",
         )
         .unwrap();
         cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        cmux_platform::filesystem::sync_file_and_parent(&binary).unwrap();
         let mut browser = BrowserManager::new();
         browser.binary_path = Some(binary);
         let mut task = tokio::spawn(browser.navigate_async("back".into(), Uuid::new_v4()));

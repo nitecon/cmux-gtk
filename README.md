@@ -166,7 +166,7 @@ cmux split --direction horizontal  # split current pane
 cmux list-panes                # list all panes
 
 # Agent teamwork
-cmux hooks setup               # install detected Claude and Codex hooks
+cmux hooks setup               # install every detected supported agent hook
 cmux hooks setup codex         # install only Codex lifecycle hooks
 cmux claude-teams              # launch Claude teams in native cmux splits
 cmux claude-teams --model sonnet  # forward ordinary Claude arguments
@@ -176,6 +176,11 @@ cmux identify                  # instance info (version, platform, pid)
 cmux ping                      # check connectivity
 cmux raw <method> --params '{}' # send arbitrary JSON-RPC
 ```
+
+Native JSON lifecycle integrations currently cover Claude Code, Codex, Grok,
+Gemini CLI, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
+unrelated provider configuration and binds resume and notification events to the
+originating terminal surface.
 
 ### Socket Path
 
