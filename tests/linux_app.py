@@ -43,7 +43,7 @@ class Application:
 
 
 @contextmanager
-def running_app(root, extra_environment=None, extra_arguments=None):
+def running_app(root, extra_environment=None, extra_arguments=None, startup_timeout=10):
     """Start cmux in caller-owned temporary storage and always terminate/reap its direct child.
 
     Overrides allow fixtures to install a browser mock or select CMUX_BIN_DIR before startup. Failure output
@@ -75,7 +75,7 @@ def running_app(root, extra_environment=None, extra_arguments=None):
                     return False
                 return response.returncode == 0
 
-            app.wait_for(protocol_ready, "application protocol readiness")
+            app.wait_for(protocol_ready, "application protocol readiness", startup_timeout)
             yield app
         except BaseException:
             failed = True

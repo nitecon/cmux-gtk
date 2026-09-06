@@ -54,7 +54,8 @@ def main():
             assert decoded["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "true"
             installed[name] = decoded["hooks"]
 
-        with running_app(root, env) as app:
+        # The six durable config syncs above can leave a loaded hosted runner briefly I/O-bound.
+        with running_app(root, env, startup_timeout=20) as app:
             target = next(row["uuid"] for row in app.surfaces() if row["active"])
             hook_env = dict(app.environment, CMUX_SURFACE_ID=target, CMUX_SOCKET=str(app.socket_path))
             expected_notifications = 0
