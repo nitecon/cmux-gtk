@@ -223,6 +223,26 @@ pub enum Commands {
         #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
         workspace: Option<String>,
     },
+    /// Publish a keyed multiline Markdown summary
+    ReportMetaBlock {
+        key: String,
+        markdown: String,
+        #[arg(long, default_value_t = 0)]
+        priority: i32,
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// Remove a keyed Markdown summary
+    ClearMetaBlock {
+        key: String,
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// List retained Markdown summaries
+    ListMetaBlocks {
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
     /// Clear one sidebar status key
     ClearStatus {
         key: String,

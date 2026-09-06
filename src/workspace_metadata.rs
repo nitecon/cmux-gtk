@@ -43,11 +43,28 @@ pub struct Progress {
     pub label: String,
 }
 
-/// At most 32 keyed entries plus one progress record per workspace.
+/// One bounded multiline agent summary, rendered without fetching external resources.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Block {
+    pub markdown: String,
+    #[serde(default)]
+    pub priority: i32,
+}
+
+impl Block {
+    /// Reject empty or oversized content at both RPC and session-load boundaries.
+    fn valid(&self) -> bool {
+        valid_text(&self.markdown, 8192) && !self.markdown.trim().is_empty()
+    }
+}
+
+/// At most 32 status entries, eight Markdown blocks and one progress record per workspace.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Metadata {
     #[serde(default)]
     pub statuses: BTreeMap<String, Status>,
+    #[serde(default)]
+    pub blocks: BTreeMap<String, Block>,
     #[serde(default)]
     pub progress: Option<Progress>,
 }
@@ -77,6 +94,11 @@ impl Metadata {
         while self.statuses.len() > 32 {
             self.statuses.pop_last();
         }
+        self.blocks
+            .retain(|key, block| valid_text(key, 64) && !key.is_empty() && block.valid());
+        while self.blocks.len() > 8 {
+            self.blocks.pop_last();
+        }
         self.progress = self
             .progress
             .filter(|p| p.value.is_finite() && valid_text(&p.label, 512))
@@ -95,6 +117,8 @@ pub enum Action {
     ClearStatus(String),
     SetProgress(Progress),
     ClearProgress,
+    SetBlock(String, Block),
+    ClearBlock(String),
 }
 
 /// Decode bounded command content; explicit workspace UUID parsing belongs to the transport boundary.
@@ -120,6 +144,15 @@ pub fn parse(method: &str, params: &serde_json::Value) -> Result<Action, &'stati
             }
             Ok(Action::SetStatus(key()?, status))
         }
+        "sidebar.report_meta_block" => {
+            let block: Block =
+                Block::deserialize(params).map_err(|_| "invalid Markdown block fields")?;
+            if !block.valid() {
+                return Err("Markdown block must be nonempty and at most 8192 bytes");
+            }
+            Ok(Action::SetBlock(key()?, block))
+        }
+        "sidebar.clear_meta_block" => Ok(Action::ClearBlock(key()?)),
         "sidebar.clear_status" => Ok(Action::ClearStatus(key()?)),
         "sidebar.set_progress" => {
             let mut progress: Progress =
@@ -136,15 +169,20 @@ pub fn parse(method: &str, params: &serde_json::Value) -> Result<Action, &'stati
 }
 
 /// Convert bounded CommonMark to GTK label markup without accepting HTML or fetching resources.
-/// Block boundaries collapse to spaces for inline sidebar layout; image alt text remains visible.
-fn inline_markdown(value: &str, links: bool) -> String {
+/// Inline mode collapses block boundaries; multiline mode preserves them. Image alt text remains visible.
+fn markdown_markup(value: &str, links: bool, multiline: bool) -> String {
     use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
     let mut output = String::new();
     let mut closing = Vec::new();
-    for event in Parser::new_ext(value, Options::ENABLE_STRIKETHROUGH) {
+    for event in Parser::new_ext(
+        value,
+        Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS,
+    ) {
         match event {
             Event::Start(tag) => {
                 let (open, close) = match tag {
+                    Tag::Heading { .. } if multiline => ("<b>".to_owned(), "</b>"),
+                    Tag::Item if multiline => ("• ".to_owned(), ""),
                     Tag::Strong => ("<b>".to_owned(), "</b>"),
                     Tag::Emphasis => ("<i>".to_owned(), "</i>"),
                     Tag::Strikethrough => ("<s>".to_owned(), "</s>"),
@@ -164,7 +202,7 @@ fn inline_markdown(value: &str, links: bool) -> String {
                     tag,
                     TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item | TagEnd::CodeBlock
                 ) {
-                    output.push(' ');
+                    output.push(if multiline { '\n' } else { ' ' });
                 }
             }
             Event::Text(text)
@@ -178,7 +216,9 @@ fn inline_markdown(value: &str, links: bool) -> String {
             Event::Code(text) => {
                 output.push_str(&format!("<tt>{}</tt>", glib::markup_escape_text(&text)))
             }
-            Event::SoftBreak | Event::HardBreak | Event::Rule => output.push(' '),
+            Event::SoftBreak | Event::HardBreak | Event::Rule => {
+                output.push(if multiline { '\n' } else { ' ' })
+            }
             Event::TaskListMarker(done) => output.push_str(if done { "☑ " } else { "☐ " }),
         }
     }
@@ -189,7 +229,7 @@ fn inline_markdown(value: &str, links: bool) -> String {
 fn status_markup(status: &Status) -> String {
     let mut markup = match status.format {
         Format::Plain => glib::markup_escape_text(&status.value).to_string(),
-        Format::Markdown => inline_markdown(&status.value, status.url.is_none()),
+        Format::Markdown => markdown_markup(&status.value, status.url.is_none(), false),
     };
     if let Some(color) = &status.color {
         markup = format!("<span foreground='{color}'>{markup}</span>");
@@ -213,6 +253,15 @@ pub fn apply(metadata: &mut Metadata, action: Action) -> Result<bool, &'static s
         Action::ClearStatus(key) => {
             metadata.statuses.remove(&key);
         }
+        Action::SetBlock(key, block) => {
+            if metadata.blocks.len() >= 8 && !metadata.blocks.contains_key(&key) {
+                return Err("Markdown block limit reached");
+            }
+            metadata.blocks.insert(key, block);
+        }
+        Action::ClearBlock(key) => {
+            metadata.blocks.remove(&key);
+        }
         Action::SetProgress(progress) => metadata.progress = Some(progress),
         Action::ClearProgress => metadata.progress = None,
     }
@@ -222,7 +271,15 @@ pub fn apply(metadata: &mut Metadata, action: Action) -> Result<bool, &'static s
 /// Render bounded plain-text rows in priority order and an optional progress bar into a dedicated box.
 pub fn render(container: &gtk4::Box, metadata: &Metadata) {
     use gtk4::prelude::*;
+    let mut expanded = std::collections::HashSet::new();
     while let Some(child) = container.first_child() {
+        if let Some(expander) = child.downcast_ref::<gtk4::Expander>() {
+            if expander.is_expanded() {
+                if let Some(key) = expander.label() {
+                    expanded.insert(key.to_string());
+                }
+            }
+        }
         container.remove(&child);
     }
     let mut entries: Vec<_> = metadata.statuses.iter().collect();
@@ -242,6 +299,25 @@ pub fn render(container: &gtk4::Box, metadata: &Metadata) {
         row.append(&label);
         container.append(&row);
     }
+    let mut blocks: Vec<_> = metadata.blocks.iter().collect();
+    blocks.sort_by(|(a, av), (b, bv)| bv.priority.cmp(&av.priority).then_with(|| a.cmp(b)));
+    for (key, block) in blocks {
+        let expander = gtk4::Expander::new(Some(key));
+        expander.set_expanded(expanded.contains(key));
+        let label = gtk4::Label::new(None);
+        label.set_xalign(0.0);
+        label.set_wrap(true);
+        label.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
+        label.set_max_width_chars(28);
+        label.set_markup(&markdown_markup(&block.markdown, true, true));
+        let scroll = gtk4::ScrolledWindow::new();
+        scroll.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Automatic);
+        scroll.set_max_content_height(240);
+        scroll.set_propagate_natural_height(true);
+        scroll.set_child(Some(&label));
+        expander.set_child(Some(&scroll));
+        container.append(&expander);
+    }
     if let Some(progress) = &metadata.progress {
         let bar = gtk4::ProgressBar::new();
         bar.set_fraction(progress.value);
@@ -249,7 +325,9 @@ pub fn render(container: &gtk4::Box, metadata: &Metadata) {
         bar.set_show_text(!progress.label.is_empty());
         container.append(&bar);
     }
-    container.set_visible(!metadata.statuses.is_empty() || metadata.progress.is_some());
+    container.set_visible(
+        !metadata.statuses.is_empty() || !metadata.blocks.is_empty() || metadata.progress.is_some(),
+    );
 }
 
 #[cfg(test)]
@@ -259,7 +337,7 @@ mod tests {
     /// Preserve inline formatting while preventing raw HTML and non-web links becoming active.
     #[test]
     fn markdown_escapes_untrusted_content() {
-        let markup = inline_markdown("**bold _italic_** `a<b` <span>text</span> [bad](file:///tmp/x) [web](https://example.com/?x=1&y=2)", true);
+        let markup = markdown_markup("**bold _italic_** `a<b` <span>text</span> [bad](file:///tmp/x) [web](https://example.com/?x=1&y=2)", true, false);
         assert!(markup.contains("<b>bold <i>italic</i></b>"));
         assert!(markup.contains("<tt>a&lt;b</tt>"));
         assert!(markup.contains("&lt;span&gt;text&lt;/span&gt;"));
@@ -280,6 +358,48 @@ mod tests {
         assert_eq!(markup.matches("<a ").count(), 1);
         assert!(markup.contains("outside.example/?a=1&amp;b=2"));
         assert!(!markup.contains("inside.example"));
+    }
+
+    /// Multiline summaries preserve structure and remain bounded across mutation and loaded state.
+    #[test]
+    fn blocks_keep_structure_and_reject_overflow() {
+        let markup = markdown_markup("# Heading\n\n- **Done**\n- Next", true, true);
+        assert!(markup.contains("<b>Heading</b>\n"));
+        assert!(markup.contains("• <b>Done</b>"));
+        let mut metadata = Metadata::default();
+        for index in 0..8 {
+            apply(
+                &mut metadata,
+                Action::SetBlock(
+                    index.to_string(),
+                    Block {
+                        markdown: "Valid".into(),
+                        priority: index,
+                    },
+                ),
+            )
+            .unwrap();
+        }
+        assert!(apply(
+            &mut metadata,
+            Action::SetBlock(
+                "overflow".into(),
+                Block {
+                    markdown: "Extra".into(),
+                    priority: 0
+                }
+            )
+        )
+        .is_err());
+        assert_eq!(metadata.blocks.len(), 8);
+        metadata.blocks.insert(
+            "invalid".into(),
+            Block {
+                markdown: "x".repeat(8193),
+                priority: 0,
+            },
+        );
+        assert!(!metadata.validated().blocks.contains_key("invalid"));
     }
 
     /// Reject active non-web schemes, invalid formats and oversized destinations at the worker boundary.

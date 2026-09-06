@@ -507,6 +507,22 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             "sidebar.clear_status",
             json!({"key":key,"workspace_id":workspace}),
         ),
+        Commands::ReportMetaBlock {
+            key,
+            markdown,
+            priority,
+            workspace,
+        } => (
+            "sidebar.report_meta_block",
+            json!({"key":key,"markdown":markdown,"priority":priority,"workspace_id":workspace}),
+        ),
+        Commands::ClearMetaBlock { key, workspace } => (
+            "sidebar.clear_meta_block",
+            json!({"key":key,"workspace_id":workspace}),
+        ),
+        Commands::ListMetaBlocks { workspace } => {
+            ("sidebar.metadata", json!({"workspace_id":workspace}))
+        }
         Commands::ListStatus { workspace } => {
             ("sidebar.metadata", json!({"workspace_id":workspace}))
         }

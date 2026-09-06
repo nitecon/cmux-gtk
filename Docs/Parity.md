@@ -185,3 +185,10 @@ These JSON `sidebar.*` methods adapt the pinned upstream legacy `set_status` / `
 `set-status --format markdown` now renders inline emphasis, strikethrough, code and HTTP(S) links with a CommonMark parser. Raw HTML is escaped, images retain alt text without fetching resources, and block boundaries collapse to spaces in the sidebar row. `--url` / `--link` adds a whole-row destination, taking precedence over inline links. GTK handles explicit link activation through its normal URI launcher. Destinations are bounded to 2048 bytes and restricted to HTTP(S), matching pinned upstream status URL validation. Existing session entries default to plain text.
 
 The implementation uses the [pulldown-cmark event API](https://docs.rs/pulldown-cmark/0.13.4/pulldown_cmark/enum.Event.html) to generate escaped GTK markup rather than rendering HTML. Actions unit coverage checks nested formatting, escaping, rejected schemes and link precedence; the native CLI/restart fixture now covers Markdown and URL persistence. Strict clippy and fixture syntax pass locally; runtime and actual desktop link activation remain unverified. Multiline metadata blocks and panel ownership remain open.
+
+
+## Multiline metadata block checkpoint
+
+`report-meta-block`, `clear-meta-block` and `list-meta-blocks` now manage separate persistent summaries, with eight blocks of at most 8 KiB per workspace. GTK renders priority-ordered collapsible summaries with bounded-height scrolling; live updates preserve expansion state. Markdown headings, paragraphs, list markers, code and inline styles retain multiline structure, with escaped HTML and no remote image downloads. CLI/JSON preserve literal Markdown bytes; the upstream legacy parser's backslash expansion is not applied to this JSON adapter.
+
+Actions coverage extends the real sidebar fixture with block replacement at capacity, rejected extra/empty/oversized blocks, restart retention and removal. Rust coverage checks multiline structure and loaded bounds. Runtime verification remains pending; panel provenance, rich project views and full legacy wire compatibility remain outstanding.

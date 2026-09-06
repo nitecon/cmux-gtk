@@ -39,6 +39,10 @@ def main():
                     app.cli("set-status", f"key{index}", str(index), "--workspace", target)
                 app.cli("set-status", "agent", "**updated** [details](https://example.com)",
                         "--format", "markdown", "--url", "https://example.com/status", "--workspace", target)
+                for index in range(8):
+                    app.cli("report-meta-block", f"block{index}", "# Summary\n\n- **Done**\n- Next", "--priority", str(index), "--workspace", target)
+                app.cli("report-meta-block", "block0", "## Replaced\n\n`literal <text>`", "--workspace", target)
+                assert len(json.loads(app.cli("list-meta-blocks", "--workspace", target, "--json"))["blocks"]) == 8
                 saved = metadata()
                 assert saved["statuses"]["agent"]["format"] == "markdown"
                 assert saved["statuses"]["agent"]["url"] == "https://example.com/status"
@@ -48,6 +52,9 @@ def main():
                     ("sidebar.set_status", {"key": "agent", "value": "x", "color": "red'/>"}),
                     ("sidebar.set_status", {"key": "agent", "value": "x", "format": "html"}),
                     ("sidebar.set_status", {"key": "agent", "value": "x", "url": "file:///tmp/status"}),
+                    ("sidebar.report_meta_block", {"key": "overflow", "markdown": "extra"}),
+                    ("sidebar.report_meta_block", {"key": "block0", "markdown": "x" * 8193}),
+                    ("sidebar.report_meta_block", {"key": "block0", "markdown": "   "}),
                     ("sidebar.set_progress", {"value": 0.5, "label": "x" * 513}),
                     ("sidebar.metadata", {"workspace_id": str(uuid.uuid4())}),
                     ("sidebar.metadata", {"workspace_id": 42}),
@@ -63,6 +70,8 @@ def main():
                 quit_app(app)
             with running_app(root) as app:
                 assert metadata() == saved, "metadata changed across normal quit/restart"
+                app.cli("clear-meta-block", "block0", "--workspace", target)
+                assert "block0" not in metadata()["blocks"]
                 app.cli("clear-status", "agent", "--workspace", target)
                 assert "agent" not in metadata()["statuses"]
                 app.cli("set-progress", "2", "--workspace", target)

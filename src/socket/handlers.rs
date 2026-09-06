@@ -186,7 +186,7 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(ok(
                         req_id,
                         json!({"workspace_id":state.workspaces[index].uuid,
-                        "statuses":metadata.statuses,"progress":metadata.progress}),
+                        "statuses":metadata.statuses,"blocks":metadata.blocks,"progress":metadata.progress}),
                     ));
                 }
                 Err(message) => {
@@ -202,6 +202,8 @@ fn handle_socket_command_traced(
                 "system.capabilities",
                 "sidebar.metadata",
                 "sidebar.set_status",
+                "sidebar.report_meta_block",
+                "sidebar.clear_meta_block",
                 "sidebar.clear_status",
                 "sidebar.set_progress",
                 "sidebar.clear_progress",
