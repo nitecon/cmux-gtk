@@ -3,10 +3,15 @@ use gtk4::prelude::*;
 use std::{path::PathBuf, rc::Rc, time::Duration};
 
 /// Latest successful local repository observation; never persisted as authoritative session state.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 pub struct GitMetadata {
     pub branch: String,
     pub dirty: bool,
+    pub upstream: Option<String>,
+    pub ahead: Option<u64>,
+    pub behind: Option<u64>,
+    pub head: Option<String>,
+    pub directory: PathBuf,
 }
 
 /// Parse Git's stable porcelain-v2 branch headers without retaining filenames.
@@ -14,12 +19,32 @@ fn parse(bytes: &[u8]) -> Option<GitMetadata> {
     let text = std::str::from_utf8(bytes).ok()?;
     let mut branch = None;
     let mut dirty = false;
+    let mut metadata = GitMetadata::default();
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("# branch.head ") {
             if value.len() > 1024 || value.chars().any(char::is_control) {
                 return None;
             }
             branch = Some(value.to_owned());
+        } else if let Some(value) = line.strip_prefix("# branch.upstream ") {
+            if value.len() > 1024 || value.chars().any(char::is_control) {
+                return None;
+            }
+            metadata.upstream = Some(value.to_owned());
+        } else if let Some(value) = line.strip_prefix("# branch.oid ") {
+            if value != "(initial)" {
+                if value.is_empty()
+                    || value.len() > 64
+                    || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
+                {
+                    return None;
+                }
+                metadata.head = Some(value.to_owned());
+            }
+        } else if let Some(value) = line.strip_prefix("# branch.ab ") {
+            let (ahead, behind) = value.split_once(' ')?;
+            metadata.ahead = Some(ahead.strip_prefix('+')?.parse().ok()?);
+            metadata.behind = Some(behind.strip_prefix('-')?.parse().ok()?);
         } else if matches!(line.as_bytes().first(), Some(b'1' | b'2' | b'u' | b'?')) {
             dirty = true;
         }
@@ -27,6 +52,7 @@ fn parse(bytes: &[u8]) -> Option<GitMetadata> {
     Some(GitMetadata {
         branch: branch?,
         dirty,
+        ..metadata
     })
 }
 
@@ -42,11 +68,12 @@ async fn probe(directory: PathBuf, workspace_id: uuid::Uuid) -> Option<GitMetada
             "core.hooksPath=/dev/null",
             "-C",
         ])
-        .arg(directory)
+        .arg(&directory)
         .args([
             "status",
             "--porcelain=v2",
             "--branch",
+            "--ahead-behind",
             "--untracked-files=normal",
         ]);
     for (key, _) in std::env::vars_os() {
@@ -68,7 +95,11 @@ async fn probe(directory: PathBuf, workspace_id: uuid::Uuid) -> Option<GitMetada
         .as_ref()
         .ok()
         .filter(|out| out.status.success())
-        .and_then(|out| parse(&out.stdout));
+        .and_then(|out| parse(&out.stdout))
+        .map(|mut metadata| {
+            metadata.directory = directory;
+            metadata
+        });
     crate::diagnostics::record(
         "workspace.git.probe",
         serde_json::json!({
@@ -111,8 +142,31 @@ fn directory(state: &crate::app_state::AppState, index: usize) -> Option<PathBuf
 pub fn render(label: &gtk4::Label, value: Option<&GitMetadata>) {
     label.set_text(
         &value
-            .map(|value| format!("{}{}", value.branch, if value.dirty { " •" } else { "" }))
+            .map(|value| {
+                let branch = if value.branch == "(detached)" {
+                    value
+                        .head
+                        .as_ref()
+                        .map(|head| format!("detached {}", &head[..head.len().min(8)]))
+                        .unwrap_or_else(|| value.branch.clone())
+                } else {
+                    value.branch.clone()
+                };
+                let mut text = format!("{}{}", branch, if value.dirty { " •" } else { "" });
+                if let Some(ahead) = value.ahead.filter(|count| *count > 0) {
+                    text.push_str(&format!(" ↑{ahead}"));
+                }
+                if let Some(behind) = value.behind.filter(|count| *count > 0) {
+                    text.push_str(&format!(" ↓{behind}"));
+                }
+                text
+            })
             .unwrap_or_default(),
+    );
+    label.set_tooltip_text(
+        value
+            .map(|value| value.directory.to_string_lossy())
+            .as_deref(),
     );
     label.set_visible(value.is_some());
 }
@@ -196,7 +250,8 @@ mod tests {
             parse(b"# branch.oid (initial)\n# branch.head main\n"),
             Some(GitMetadata {
                 branch: "main".into(),
-                dirty: false
+                dirty: false,
+                ..Default::default()
             })
         );
         for record in [
@@ -216,6 +271,12 @@ mod tests {
             "(detached)"
         );
         assert!(parse(b"fatal: not a repository").is_none());
+        let tracking =
+            parse(b"# branch.head main\n# branch.upstream origin/main\n# branch.ab +12 -3\n")
+                .unwrap();
+        assert_eq!(tracking.upstream.as_deref(), Some("origin/main"));
+        assert_eq!((tracking.ahead, tracking.behind), (Some(12), Some(3)));
+        assert!(parse(b"# branch.head main\n# branch.ab +? -2\n").is_none());
         assert!(parse(format!("# branch.head {}\n", "x".repeat(1025)).as_bytes()).is_none());
     }
 }

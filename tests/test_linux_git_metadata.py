@@ -21,10 +21,15 @@ def main():
             app.cli("new-workspace", "--name", "repo", "--cwd", str(repo))
             target = next(row for row in app.surfaces() if row["active"])
 
-            def observed():
+            def metadata():
                 """Read published metadata without selecting a workspace or executing Git via RPC."""
                 rows = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
                 return next(row["git"] for row in rows if row["uuid"] == target["workspace_uuid"])
+
+            def observed():
+                """Compare branch and dirty state while allowing independent tracking fields."""
+                value = metadata()
+                return {key: value[key] for key in ("branch", "dirty")} if value else None
 
             app.wait_for(lambda: observed() == {"branch": "initial", "dirty": False}, "initial Git branch")
             (repo / "new.txt").write_text("new\n")
@@ -35,6 +40,13 @@ def main():
             app.wait_for(lambda: observed() == {"branch": "initial", "dirty": False}, "clean committed state")
             subprocess.check_call(["git", "-C", str(repo), "switch", "-c", "feature"])
             app.wait_for(lambda: observed() == {"branch": "feature", "dirty": False}, "branch change")
+            assert metadata()["directory"] == str(repo)
+            assert metadata()["ahead"] is None and metadata()["upstream"] is None
+            subprocess.check_call(["git", "-C", str(repo), "branch", "--set-upstream-to=initial", "feature"])
+            subprocess.check_call(["git", "-C", str(repo), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                                   "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "ahead"])
+            app.wait_for(lambda: metadata() and metadata()["ahead"] == 1, "local ahead count")
+            assert metadata()["behind"] == 0 and metadata()["upstream"] == "initial"
             app.cli("new-workspace", "--name", "observer")
             active = next(row["uuid"] for row in app.surfaces() if row["active"])
             (repo / "new.txt").write_text("edited\n")

@@ -220,3 +220,8 @@ The parser uses Git's documented [porcelain-v2 status format](https://git-scm.co
 ## Status color CLI correction
 
 [Actions 34052123324](https://github.com/nitecon/cmux-gtk/actions/runs/34052123324), at `102a9eba`, failed the sidebar fixture when setting the first unstyled status after a styled one. The root CLI's global `color` argument supplied its `auto` default to the status subcommand's same-named optional text color. The server correctly rejected that non-hex styling value. Output color now defaults in the formatter instead of the argument parser, so omitted status colors remain absent. Explicit output-color modes and explicit status hex colors retain their syntax. Parser regression coverage is added alongside the existing real CLI fixture; strict clippy passes locally, runtime verification pending.
+
+
+## Git tracking and provenance checkpoint
+
+Local Git observations now include optional upstream, ahead/behind counts, HEAD object ID and the observed directory. The same bounded porcelain-v2 probe provides these fields; it performs no fetch. Missing tracking information remains null. Sidebar rows show positive ahead/behind counts and a short commit ID for detached checkouts, with the directory in a tooltip. Actions coverage adds a real local upstream and ahead commit; parser coverage checks tracking headers and malformed counters. Strict clippy and Python syntax pass locally, runtime pending. Remote discovery and PR/MR/project views remain outstanding.
