@@ -1,1 +1,0 @@
-../tests/test_initial_terminal_interactive_and_rendering.py
