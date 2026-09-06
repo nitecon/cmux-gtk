@@ -21,7 +21,7 @@ The Linux library exposes small typed functions, with no dependency on workspace
 
 Share repeated behavior at its owning component. UI and socket callers should invoke the same workspace operations; configuration files should use the same path and atomic-write helpers; credential tests must call the production authentication function. Do not duplicate those rules in adapters or tests.
 
-`src/bounded_json.rs` owns size-limited JSON-line encoding shared by CLI requests and diagnostic records. It has no GTK or platform dependency; each caller supplies its own byte budget.
+`src/bounded_json.rs` owns size-limited JSON-line encoding shared by CLI requests, socket responses and diagnostic records. It has no GTK or platform dependency; each caller supplies its own byte budget.
 
 Ordered selection after removal is shared by workspace rows and sibling tabs in `src/selection.rs`: preserve the surviving selected identity, otherwise select the replacement at the same slot and fall back at the end. The helper is independent of GTK; callers own widget/model synchronization.
 

@@ -1046,3 +1046,9 @@ Viewport setup, navigation and URL refresh now share one fifteen-second deadline
 ### Share socket-marker path and atomic replacement
 
 Listener startup and CLI discovery now use the same platform marker-path function. Removed redundant socket-directory/path wrappers and a parent unwrap; the public socket_path export remains available through a direct re-export. Marker writing uses the existing private atomic-write helper instead of truncating the destination in place, preserving complete old/new visibility and mode 0600. A failed replacement retains the prior marker and remains a reported nonfatal startup error. This guarantees atomic visibility, not fsync durability. Workspace all-target compilation and diff checks pass; existing filesystem replacement and Linux startup/discovery CI scenarios cover the shared components. No local tests ran.
+
+### Bound socket serialization before allocating the full JSON response
+
+Worker dispatch now returns structured responses to one bounded encoding boundary, including validation and diagnostic replies. Reused bounded_json rather than adding another serializer. Four MiB includes the newline; transport uses that same constant. Oversized output becomes a valid response_too_large error with its request ID when possible, falling back to null only if the identity itself cannot fit. A dedicated diagnostic event records overflow without response content. This replaces the previous serialize-first, reject-at-write behavior.
+
+Added executable cases for escaping amplification, Unicode round-trip, retained identity and oversized-identity fallback. Existing dispatch scenarios exercise the common encoder through the unchanged dispatch_line interface. Workspace all-target compilation and diff checks pass; tests remain CI-only. Construction of large result Values, accepted-command completion waits and disconnect cancellation remain separate unresolved bounds.

@@ -59,7 +59,7 @@ pub(super) async fn write_response<W: AsyncWrite + Unpin>(
     writer: &mut W,
     response: &str,
 ) -> io::Result<()> {
-    if response.len() > 4 * 1024 * 1024 {
+    if response.len() >= super::response::MAX_RESPONSE_BYTES {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "response exceeds byte limit",

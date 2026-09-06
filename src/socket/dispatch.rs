@@ -21,10 +21,18 @@ pub(super) async fn dispatch_line(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) -> String {
+    super::response::encode(dispatch_request(line, cmd_tx).await)
+}
+
+/// Validate and execute one request while retaining its response as structured data.
+async fn dispatch_request(
+    line: String,
+    cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
+) -> serde_json::Value {
     let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
         Err(_) => {
-            return err(serde_json::Value::Null, "parse_error", "invalid JSON").to_string();
+            return err(serde_json::Value::Null, "parse_error", "invalid JSON");
         }
     };
 
@@ -34,8 +42,7 @@ pub(super) async fn dispatch_line(
             serde_json::Value::Null,
             "invalid_request",
             "request must be an object",
-        )
-        .to_string();
+        );
     }
     let req_id = req
         .get_mut("id")
@@ -43,7 +50,7 @@ pub(super) async fn dispatch_line(
         .unwrap_or(serde_json::Value::Null);
     let method = match req.get_mut("method").map(serde_json::Value::take) {
         Some(serde_json::Value::String(method)) => method,
-        _ => return err(req_id, "invalid_request", "method must be a string").to_string(),
+        _ => return err(req_id, "invalid_request", "method must be a string"),
     };
     let mut params = req
         .get_mut("params")
@@ -62,7 +69,7 @@ pub(super) async fn dispatch_line(
     if params.is_null() {
         params = serde_json::json!({});
     } else if !params.is_object() {
-        return err(req_id, "invalid_params", "params must be an object or null").to_string();
+        return err(req_id, "invalid_params", "params must be an object or null");
     }
 
     if method == "system.diagnostics" {
@@ -71,11 +78,11 @@ pub(super) async fn dispatch_line(
         return match tokio::task::spawn_blocking(crate::diagnostics::snapshot).await {
             Ok(snapshot) => {
                 operation.finish(true);
-                ok(req_id, snapshot).to_string()
+                ok(req_id, snapshot)
             }
             Err(_) => {
                 operation.finish(false);
-                err(req_id, "internal_error", "diagnostic sampling failed").to_string()
+                err(req_id, "internal_error", "diagnostic sampling failed")
             }
         };
     }
@@ -92,7 +99,7 @@ pub(super) async fn dispatch_line(
     ) {
         match optional_target(&params) {
             Ok(target) => target,
-            Err(message) => return err(req_id, "invalid_params", message).to_string(),
+            Err(message) => return err(req_id, "invalid_params", message),
         }
     } else {
         None
@@ -146,7 +153,7 @@ pub(super) async fn dispatch_line(
                             Some(path)
                         }
                         Err(message) => {
-                            return err(req_id, "invalid_directory", &message).to_string();
+                            return err(req_id, "invalid_directory", &message);
                         }
                     },
                     None => None,
@@ -216,8 +223,7 @@ pub(super) async fn dispatch_line(
                     req_id,
                     "invalid_params",
                     "position must be a nonnegative integer within the native index range",
-                )
-                .to_string();
+                );
             };
             commands::SocketCommand::WorkspaceReorder {
                 req_id: req_id.clone(),
@@ -250,7 +256,6 @@ pub(super) async fn dispatch_line(
                         "invalid_params",
                         "direction must be horizontal or vertical",
                     )
-                    .to_string()
                 }
             };
             commands::SocketCommand::SurfaceSplit {
@@ -289,8 +294,7 @@ pub(super) async fn dispatch_line(
                     req_id,
                     "invalid_params",
                     &format!("{field} must be a string"),
-                )
-                .to_string();
+                );
             };
             let input = input.to_owned();
             match method.as_str() {
@@ -442,7 +446,7 @@ pub(super) async fn dispatch_line(
                 "trace_id": operation.id, "code": code, "capacity": cmd_tx.max_capacity(),
             }),
         );
-        return err(req_id, code, message).to_string();
+        return err(req_id, code, message);
     }
 
     operation.pending();
@@ -455,7 +459,7 @@ pub(super) async fn dispatch_line(
             .and_then(|value| value.as_bool())
             .unwrap_or(false),
     );
-    response.to_string()
+    response
 }
 
 #[cfg(test)]

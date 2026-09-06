@@ -56,6 +56,7 @@ content:
       transport: Unix JSON socket
       description: Schedule a redraw of the exact terminal UUID, or selected terminal when id is omitted. Do not focus or select. Missing terminal widgets return not_found.
   safety:
+    - Worker responses remain structured until the shared bounded JSON encoder runs. Complete response lines, including newline, are limited to four MiB before allocating a full encoded string. Oversized results return response_too_large and record rpc.response.oversized; request identity is preserved when the error fits, otherwise id is null. This bounds serialization, not prior construction of result values.
     - Linux authenticates control-socket peers using SO_PEERCRED and the application real UID, in addition to private runtime directory and socket permissions. Same-user external processes are allowed; this port does not implement upstream cmuxOnly ancestry or password modes. A foreign UID is rejected before protocol dispatch even if filesystem access is broadened.
     - Request envelopes must be objects with a string method. Omitted or null params normalize to an empty object; other non-object params return invalid_params before dispatch, including background diagnostics.
     - Optional target IDs for split, terminal input/read/health/refresh and pane focus accept only strings or null; omitted/null retain the documented default behavior. Other types return invalid_params before GTK admission and never fall back to the active terminal.
