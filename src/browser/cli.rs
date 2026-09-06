@@ -41,6 +41,7 @@ pub(super) async fn start(
     binary: &Path,
     session: &str,
     browser: Option<&Path>,
+    profile: Option<&str>,
     url: &str,
     proxy_port: Option<u16>,
     trace_id: uuid::Uuid,
@@ -54,6 +55,9 @@ pub(super) async fn start(
         .env("AGENT_BROWSER_STREAM_PORT", "0");
     if let Some(browser) = browser {
         command.arg("--executable-path").arg(browser);
+    }
+    if let Some(profile) = profile {
+        command.arg("--profile").arg(profile);
     }
     if let Some(port) = proxy_port {
         command
@@ -166,6 +170,7 @@ mod tests {
             &binary,
             "private-session",
             None,
+            Some("Profile 2"),
             "http://localhost:3000/path",
             Some(23456),
             uuid::Uuid::new_v4(),
@@ -179,6 +184,8 @@ mod tests {
                 "--session",
                 "private-session",
                 "--json",
+                "--profile",
+                "Profile 2",
                 "--proxy",
                 "socks5://127.0.0.1:23456",
                 "--proxy-bypass",

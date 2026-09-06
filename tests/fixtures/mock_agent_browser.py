@@ -91,9 +91,14 @@ if __name__ == "__main__":
         if "open" in commands:
             index = commands.index("open")
             if index + 1 < len(commands):
+                profile = None
+                if "--profile" in commands:
+                    profile_index = commands.index("--profile")
+                    if profile_index + 1 < len(commands):
+                        profile = commands[profile_index + 1]
                 (socket_dir() / "last-navigation.json").write_text(
                     json.dumps({"action": "navigate", "url": commands[index + 1],
-                                "session": args.session}),
+                                "session": args.session, "profile": profile}),
                     encoding="utf-8",
                 )
         print(json.dumps({"success": True, "data": {}}))

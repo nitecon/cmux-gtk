@@ -61,10 +61,11 @@ fn pane_tree(
                         resume: None,
                         scrollback: None,
                     },
-                    PreparedSurface::Browser { uuid, url } => {
+                    PreparedSurface::Browser { uuid, url, profile } => {
                         crate::split_engine::PaneSurfaceData::Browser {
                             surface_uuid: uuid,
                             url: crate::browser_address::normalize(&url),
+                            profile,
                         }
                     }
                 })

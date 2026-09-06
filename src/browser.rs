@@ -58,6 +58,14 @@ pub(crate) enum StartupRequest {
     Stream,
 }
 
+/// Validate an explicit agent-browser profile name or directory without resolving or reading it.
+/// The selector is persisted because it determines the authenticated browser context on restart.
+pub(crate) fn profile_selector(value: &str) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty() && value.len() <= 4096 && !value.chars().any(char::is_control))
+        .then(|| value.to_owned())
+}
+
 /// Public endpoint code and safe startup/exchange detail for response delivery.
 #[derive(Debug)]
 pub(crate) struct StartupError {
@@ -85,6 +93,7 @@ pub enum PreviewState {
 /// Own daemon discovery and the preview stream task for this application session.
 pub struct BrowserManager {
     session_name: String,
+    profile: Option<String>,
     remote_bridge: Option<std::sync::Arc<crate::ssh::bridge::SshBridge>>,
     navigation_gate: std::sync::Arc<tokio::sync::Semaphore>,
     navigation_shutdown: tokio::sync::watch::Sender<bool>,
@@ -103,6 +112,7 @@ impl BrowserManager {
         BrowserManager {
             remote_bridge: None,
             session_name: format!("cmux-{}", Uuid::new_v4().simple()),
+            profile: None,
             navigation_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
             navigation_shutdown: tokio::sync::watch::channel(false).0,
             binary_path: None,
@@ -110,6 +120,11 @@ impl BrowserManager {
             input_queue: None,
             preview_state: PreviewState::Empty,
         }
+    }
+
+    /// Bind one explicit persistent browser profile before the private daemon starts.
+    pub(crate) fn set_profile(&mut self, profile: Option<String>) {
+        self.profile = profile;
     }
 
     /// Capture the owning workspace network context on GTK; remote pages never inherit local routing.
@@ -172,6 +187,7 @@ impl BrowserManager {
     ) -> impl std::future::Future<Output = Result<(PathBuf, Value), StartupError>> + Send + 'static
     {
         let session = self.session_name.clone();
+        let profile = self.profile.clone();
         let remote_bridge = self.remote_bridge.clone();
         let binary = self.binary_path.clone();
         let socket_dir = Self::agent_browser_socket_dir();
@@ -232,6 +248,7 @@ impl BrowserManager {
                         &binary,
                         &session,
                         chrome.as_deref(),
+                        profile.as_deref(),
                         url,
                         proxy_port,
                         trace_id,
@@ -242,6 +259,7 @@ impl BrowserManager {
                         &binary,
                         &session,
                         chrome.as_deref(),
+                        profile.as_deref(),
                         "about:blank",
                         proxy_port,
                         trace_id,
@@ -654,6 +672,8 @@ pub struct PreviewPaneWidgets {
     pub devtools_btn: gtk4::ToggleButton,
     pub pane_id: u64,
     pub uuid: Uuid,
+    /// Explicit agent-browser profile selector; `None` keeps an isolated ephemeral context.
+    pub profile: Option<String>,
 }
 
 /// Create a browser preview pane widget (nav bar + Picture + status overlay).
@@ -735,6 +755,7 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
         devtools_btn,
         pane_id: next_pane_id,
         uuid,
+        profile: None,
     }
 }
 

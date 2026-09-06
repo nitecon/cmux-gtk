@@ -262,7 +262,8 @@ pub(crate) async fn initialize_browser_surface(
             .get(index)
             .ok_or("browser workspace missing")?
             .uuid;
-        let manager = super::BrowserManager::for_workspace(&s, workspace)?;
+        let mut manager = super::BrowserManager::for_workspace(&s, workspace)?;
+        manager.set_profile(widgets.profile.clone());
         let browser = s.browser_sessions.entry(uuid).or_insert(manager);
         let session = browser.session_identity();
         let url = widgets.url_entry.text().to_string();

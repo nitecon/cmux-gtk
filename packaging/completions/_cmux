@@ -1349,6 +1349,7 @@ _arguments "${_arguments_options[@]}" : \
             (open)
 _arguments "${_arguments_options[@]}" : \
 '--workspace=[Target workspace ID]:WORKSPACE:_default' \
+'--profile=[Chrome profile name or persistent profile directory used by agent-browser]:PROFILE:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \

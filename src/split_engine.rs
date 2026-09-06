@@ -891,8 +891,18 @@ impl SplitEngine {
 
     /// Append a browser surface, optionally selecting it and moving keyboard focus to its address.
     pub fn add_preview(&mut self, select: bool) -> Option<crate::browser::PreviewPaneWidgets> {
+        self.add_preview_with_profile(select, None)
+    }
+
+    /// Append a browser surface with an explicit persistent agent-browser profile selector.
+    pub fn add_preview_with_profile(
+        &mut self,
+        select: bool,
+        profile: Option<String>,
+    ) -> Option<crate::browser::PreviewPaneWidgets> {
         let active_id = self.active_pane_id;
-        let widgets = crate::browser::create_preview_pane(active_id);
+        let mut widgets = crate::browser::create_preview_pane(active_id);
+        widgets.profile = profile;
 
         // Phase 9: Attach right-click context menu to browser preview (D-09)
         {
@@ -1614,6 +1624,9 @@ pub enum PaneSurfaceData {
         surface_uuid: Uuid,
         #[serde(default = "default_browser_url")]
         url: String,
+        /// Explicit agent-browser profile selector; absent snapshots remain ephemeral.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<String>,
     },
 }
 
@@ -1695,6 +1708,7 @@ impl SplitNode {
                         PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
                             surface_uuid: *uuid,
                             url: widgets.url_entry.text().to_string(),
+                            profile: widgets.profile.clone(),
                         },
                     })
                     .collect();
@@ -1821,6 +1835,7 @@ mod tests {
                 PaneSurfaceData::Browser {
                     surface_uuid: browser_uuid,
                     url: "https://example.com/path".to_string(),
+                    profile: Some("Profile 2".to_string()),
                 },
             ],
         };
@@ -1844,8 +1859,10 @@ mod tests {
         ));
         assert!(matches!(
             &surfaces[1],
-            PaneSurfaceData::Browser { surface_uuid, url }
-                if *surface_uuid == browser_uuid && url == "https://example.com/path"
+            PaneSurfaceData::Browser { surface_uuid, url, profile }
+                if *surface_uuid == browser_uuid
+                    && url == "https://example.com/path"
+                    && profile.as_deref() == Some("Profile 2")
         ));
         let injected = json.replace(
             "\"environment\":{\"PROJECT_VALUE\":\"literal\"}",

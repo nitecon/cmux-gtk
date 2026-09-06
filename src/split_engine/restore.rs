@@ -197,10 +197,17 @@ impl SplitEngine {
                         Some(environment),
                         initial_input.as_deref(),
                     ),
-                    PaneSurfaceData::Browser { surface_uuid, url } => {
+                    PaneSurfaceData::Browser {
+                        surface_uuid,
+                        url,
+                        profile,
+                    } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
                         widgets.uuid = *surface_uuid;
                         widgets.url_entry.set_text(url);
+                        widgets.profile = profile
+                            .as_deref()
+                            .and_then(crate::browser::profile_selector);
                         PaneSurface::Browser {
                             widgets,
                             uuid: *surface_uuid,

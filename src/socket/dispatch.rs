@@ -842,6 +842,21 @@ async fn dispatch_request(
                     .unwrap_or("")
                     .to_owned(),
                 workspace,
+                profile: match params.get("profile").filter(|value| !value.is_null()) {
+                    Some(value) => {
+                        match value.as_str().and_then(crate::browser::profile_selector) {
+                            Some(value) => Some(value),
+                            None => {
+                                return err(
+                                    req_id,
+                                    "invalid_params",
+                                    "invalid browser profile selector",
+                                )
+                            }
+                        }
+                    }
+                    None => None,
+                },
                 resp_tx,
             }
         }

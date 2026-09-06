@@ -126,6 +126,7 @@ Agents running inside cmux can discover and use browser automation via the `cmux
 ```bash
 # Open a site (https:// auto-prepended if no scheme)
 cmux browser open slashdot.org            # returns surface:1 handle
+cmux browser open gmail.com --profile Default  # reuse an agent-browser Chrome profile
 
 # Interact with the page
 cmux browser surface:1 snapshot --interactive  # accessibility tree with element refs
@@ -143,6 +144,10 @@ cmux browser surface:1 reload
 cmux browser list                          # list browser surfaces
 cmux browser close --surface surface:1     # close a surface
 ```
+
+`--profile` accepts the Chrome profile name or persistent profile directory supported by
+`agent-browser`. The selector belongs to that browser surface, appears in `browser list`, and
+survives cmux session restoration. Omitting it creates the existing isolated ephemeral context.
 
 Browser commands default to JSON output (agents are the primary consumers). Use `--no-json` for human-readable output.
 

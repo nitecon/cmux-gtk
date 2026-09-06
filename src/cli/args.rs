@@ -505,6 +505,9 @@ pub enum BrowserCommand {
         /// Target workspace ID
         #[arg(long)]
         workspace: Option<String>,
+        /// Chrome profile name or persistent profile directory used by agent-browser
+        #[arg(long)]
+        profile: Option<String>,
     },
     /// List browser surfaces
     List,

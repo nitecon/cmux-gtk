@@ -1540,13 +1540,17 @@ _cmux() {
             return 0
             ;;
         cmux__browser__open)
-            opts="-v -h --workspace --socket --json --no-json --verbose --color --help <URL>"
+            opts="-v -h --workspace --profile --socket --json --no-json --verbose --color --help <URL>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --workspace)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --profile)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

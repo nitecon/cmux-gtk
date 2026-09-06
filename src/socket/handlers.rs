@@ -1255,11 +1255,15 @@ fn handle_socket_command_traced(
             req_id,
             url,
             workspace,
+            profile,
             resp_tx,
         } => {
             let mut params = json!({"url": crate::browser_address::normalize(&url)});
             if let Some(workspace) = workspace {
                 params["workspace"] = json!(workspace);
+            }
+            if let Some(profile) = profile {
+                params["profile"] = json!(profile);
             }
             start_browser_lifecycle(
                 state,
@@ -1358,7 +1362,7 @@ fn handle_socket_command_traced(
                     Some(_) => "starting",
                     None => "suspended",
                 };
-                json!({"ref":reference,"uuid":id,"workspace_uuid":s.workspaces[index].uuid,"status":status,"url":widgets.url_entry.text().to_string()})
+                json!({"ref":reference,"uuid":id,"workspace_uuid":s.workspaces[index].uuid,"status":status,"url":widgets.url_entry.text().to_string(),"profile":widgets.profile})
             }).collect();
             let _ = resp_tx.send(ok(req_id, serde_json::json!({"surfaces": surfaces})));
         }
@@ -1538,6 +1542,13 @@ pub(super) fn start_browser_lifecycle(
         }
         _ => None,
     };
+    let initial_profile = match &mut request {
+        crate::browser::StartupRequest::Open(params) => params
+            .as_object_mut()
+            .and_then(|params| params.remove("profile"))
+            .and_then(|value| value.as_str().and_then(crate::browser::profile_selector)),
+        _ => None,
+    };
     let trace = trace_id
         .as_deref()
         .and_then(|id| uuid::Uuid::parse_str(id).ok())
@@ -1588,6 +1599,8 @@ pub(super) fn start_browser_lifecycle(
                 return;
             }
         };
+        let mut manager = manager;
+        manager.set_profile(initial_profile.clone());
         let browser = s.browser_manager.insert(manager);
         (
             browser.session_identity(),
@@ -1656,7 +1669,7 @@ pub(super) fn start_browser_lifecycle(
             let widgets = s
                 .split_engines
                 .get_mut(index)
-                .and_then(|engine| engine.add_preview(false));
+                .and_then(|engine| engine.add_preview_with_profile(false, initial_profile.clone()));
             if let Some(widgets) = &widgets {
                 if let Some(url) = &initial_url {
                     widgets.url_entry.set_text(url);

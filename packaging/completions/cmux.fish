@@ -640,6 +640,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand browser; and not __fish_seen_s
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and not __fish_seen_subcommand_from open list close snapshot click fill type press hover scroll select eval wait goto back forward reload get-url get-title get-text get-html screenshot stream-enable stream-disable help" -f -a "stream-disable" -d 'Disable browser streaming'
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and not __fish_seen_subcommand_from open list close snapshot click fill type press hover scroll select eval wait goto back forward reload get-url get-title get-text get-html screenshot stream-enable stream-disable help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and __fish_seen_subcommand_from open" -l workspace -d 'Target workspace ID' -r
+complete -c cmux -n "__fish_cmux_using_subcommand browser; and __fish_seen_subcommand_from open" -l profile -d 'Chrome profile name or persistent profile directory used by agent-browser' -r
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and __fish_seen_subcommand_from open" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and __fish_seen_subcommand_from open" -l color -d 'Color mode: always, never, auto' -r
 complete -c cmux -n "__fish_cmux_using_subcommand browser; and __fish_seen_subcommand_from open" -l json -d 'Output raw JSON responses'

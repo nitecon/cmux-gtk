@@ -67,9 +67,20 @@ def main():
                 first = app.surfaces()[0]
                 source, terminal = first["workspace_uuid"], first["uuid"]
                 app.cli("focus-surface", terminal)
-                opened = subprocess.run(command(app, "--verbose", "browser", "open", "https://example.test/initial"),
+                profile = root / "Browser Profile"
+                opened = subprocess.run(command(app, "--verbose", "browser", "open",
+                                                "https://example.test/initial", "--profile", str(profile)),
                                         env=app.environment, capture_output=True, text=True, check=True, timeout=15)
                 result = json.loads(opened.stdout)
+                app.wait_for(
+                    lambda: json.loads((browser_dir / "last-navigation.json").read_text()).get("profile") == str(profile),
+                    "explicit browser profile launch",
+                )
+                listed_profile = next(
+                    item for item in json.loads(app.cli("browser", "list"))["surfaces"]
+                    if item["uuid"] == result["uuid"]
+                )
+                assert listed_profile["profile"] == str(profile), listed_profile
                 trace = re.search(r"trace_id=([0-9a-f-]+)", opened.stderr).group(1)
 
                 def stream_correlated():

@@ -263,6 +263,7 @@ pub enum SocketCommand {
         req_id: Value,
         url: String,
         workspace: Option<String>,
+        profile: Option<String>,
         resp_tx: RespTx,
     },
     BrowserStreamEnable {

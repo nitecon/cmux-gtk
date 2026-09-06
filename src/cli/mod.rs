@@ -237,9 +237,16 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
 fn browser_command_to_rpc(cmd: &BrowserCommand) -> (&'static str, serde_json::Value) {
     use serde_json::json;
     match cmd {
-        BrowserCommand::Open { url, workspace } => {
+        BrowserCommand::Open {
+            url,
+            workspace,
+            profile,
+        } => {
             let url = browser_address::normalize(url);
-            ("browser.open", json!({"url": url, "workspace": workspace}))
+            (
+                "browser.open",
+                json!({"url": url, "workspace": workspace, "profile": profile}),
+            )
         }
         BrowserCommand::List => ("browser.list", json!({})),
         BrowserCommand::Close { surface } => ("browser.close", json!({"surface_ref": surface})),

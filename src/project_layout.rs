@@ -61,6 +61,7 @@ pub struct Surface {
     pub cwd: Option<String>,
     pub env: BTreeMap<String, String>,
     pub url: Option<String>,
+    pub profile: Option<String>,
     pub focus: Option<bool>,
 }
 
@@ -90,6 +91,7 @@ pub(crate) enum PreparedSurface {
     Browser {
         uuid: uuid::Uuid,
         url: String,
+        profile: Option<String>,
     },
 }
 
@@ -159,6 +161,20 @@ fn layout(value: &Value, depth: usize, surfaces: &mut usize) -> Result<Layout, S
                 .filter(|value| !value.is_null())
                 .map(|value| value.as_bool().ok_or("surface focus must be boolean"))
                 .transpose()?;
+            let profile = match text(entry, "profile")? {
+                Some(profile)
+                    if profile.len() <= 4096
+                        && !profile.trim().is_empty()
+                        && !profile.chars().any(char::is_control) =>
+                {
+                    Some(profile)
+                }
+                Some(_) => return Err("invalid browser profile selector".into()),
+                None => None,
+            };
+            if profile.is_some() && kind != SurfaceType::Browser {
+                return Err("profile requires a browser surface".into());
+            }
             entries.push(Surface {
                 kind,
                 name: text(entry, "name")?,
@@ -166,6 +182,7 @@ fn layout(value: &Value, depth: usize, surfaces: &mut usize) -> Result<Layout, S
                 cwd: text(entry, "cwd")?,
                 env: environment(entry)?,
                 url: text(entry, "url")?,
+                profile,
                 focus,
             });
         }
@@ -280,6 +297,7 @@ pub(crate) fn prepare_tree(
                         SurfaceType::Browser => PreparedSurface::Browser {
                             uuid,
                             url: surface.url.clone().unwrap_or_else(|| "about:blank".into()),
+                            profile: surface.profile.clone(),
                         },
                         SurfaceType::Project => {
                             return Err("project surfaces are not available on Linux yet".into())
@@ -325,7 +343,7 @@ mod tests {
     /// A mixed terminal/browser split retains launch fields and clamps ratio like upstream.
     #[test]
     fn parses_mixed_layout_and_rejects_ambiguous_nodes() {
-        let leaf = serde_json::json!({"pane":{"surfaces":[{"type":"terminal","command":"echo hi"},{"type":"browser","url":"http://localhost:3000"}]}});
+        let leaf = serde_json::json!({"pane":{"surfaces":[{"type":"terminal","command":"echo hi"},{"type":"browser","url":"http://localhost:3000","profile":"Profile 2"}]}});
         let parsed=parse(&serde_json::json!({"layout":{"direction":"horizontal","split":2,"children":[leaf.clone(),leaf.clone()]}})).unwrap();
         let Layout::Split {
             split, children, ..
@@ -338,6 +356,7 @@ mod tests {
         assert!(parse(&serde_json::json!({"layout":{"pane":{"surfaces":[]}}})).is_err());
         assert!(parse(&serde_json::json!({"layout":{"pane":{"surfaces":[{"type":"terminal"}]},"direction":"horizontal"}})).is_err());
         assert!(parse(&serde_json::json!({"env":{"BAD=KEY":"value"}})).is_err());
+        assert!(parse(&serde_json::json!({"layout":{"pane":{"surfaces":[{"type":"terminal","profile":"Default"}]}}})).is_err());
     }
 
     /// Preparation resolves each terminal CWD and consumes setup at the first terminal only.
