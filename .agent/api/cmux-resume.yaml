@@ -25,3 +25,9 @@ content:
         - Bindings live in their terminal entry in the pane layout; normal snapshot/save and final quit drain persist them. New sibling/split terminals start without a binding.
         - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Automatic requests return not_supported until a configured hook/approval policy exists. Untrusted source strings do not confer automatic launch authority.
         - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Provider hooks, automatic approval, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
+
+    - name: Claude native session hooks
+      steps:
+        - cmux hooks setup claude discovers the provider on PATH and merges owned SessionStart/SessionEnd command handlers into CLAUDE_CONFIG_DIR/settings.json or HOME/.claude/settings.json. Unrelated settings/handlers survive repeated installs; malformed, oversized or symlink settings fail without replacement. No current-user setup is run by repository verification.
+        - cmux hooks claude session-start/session-end accepts at most 65536 stdin bytes and requires a matching hook_event_name, native session_id and originating surface identity. Start records a quoted absolute provider command, native checkpoint, absolute cwd and only known configuration directory overrides. End clears only that checkpoint.
+        - Context-free implicit hooks outside cmux skip successfully; explicit sockets retain connection failures. Hook-created bindings are not automatically trusted. Per-turn notifications and other providers remain incomplete.

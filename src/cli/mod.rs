@@ -7,6 +7,7 @@
 mod bounded_json;
 use cmux_platform::discovery;
 pub mod format;
+mod hooks;
 #[path = "../resume.rs"]
 #[allow(dead_code)]
 mod resume;
@@ -78,6 +79,24 @@ fn restore_terminal(
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
+    if let Commands::Hooks {
+        command: args::HookCommands::Setup { agent },
+    } = &cli.command
+    {
+        return hooks::setup(agent.as_deref());
+    }
+    // Global agent settings also run outside cmux; only implicit, context-free hooks are skipped.
+    // An explicit socket still gets ordinary connection errors instead of silent success.
+    if matches!(
+        &cli.command,
+        Commands::Hooks {
+            command: args::HookCommands::Claude { .. }
+        }
+    ) && std::env::var_os("CMUX_SURFACE_ID").is_none()
+        && cli.socket.is_none()
+    {
+        return Ok(());
+    }
     if matches!(cli.command, Commands::Update) {
         updater::manual_update().map_err(|e| CliError::Command(format!("{e:#}")))?;
         return Ok(());
@@ -103,6 +122,12 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     };
 
     let mut client = socket_client::SocketClient::connect(&socket_path, timeout)?;
+    if let Commands::Hooks {
+        command: args::HookCommands::Claude { event },
+    } = &cli.command
+    {
+        return hooks::claude_event(&mut client, *event);
+    }
 
     if let Commands::Restore {
         surface,
@@ -380,6 +405,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
                 json!({"surface_id": surface, "checkpoint_id": checkpoint}),
             ),
         },
+        Commands::Hooks { .. } => unreachable!("hooks are handled before ordinary RPC dispatch"),
         Commands::Restore { .. } => unreachable!("restore executes in the caller terminal"),
         Commands::ListSurfaces => ("surface.list", json!({})),
         Commands::Split { direction, id } => {

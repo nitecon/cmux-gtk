@@ -33,6 +33,11 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Install and receive native agent session hooks
+    Hooks {
+        #[command(subcommand)]
+        command: HookCommands,
+    },
     /// Execute this terminal's saved manual resume command in the calling terminal
     Restore {
         #[arg(long, env = "CMUX_SURFACE_ID")]
@@ -215,6 +220,28 @@ pub enum SurfaceCommands {
         #[command(subcommand)]
         command: ResumeCommands,
     },
+}
+
+/// Hook installation and provider events; other providers are added through the same ingestion boundary.
+#[derive(Subcommand)]
+pub enum HookCommands {
+    /// Install supported hooks while preserving unrelated agent configuration
+    Setup {
+        /// Agent provider (currently claude); omitted discovers available supported providers
+        agent: Option<String>,
+    },
+    /// Receive a Claude Code hook payload on stdin
+    Claude {
+        #[command(subcommand)]
+        event: ClaudeHookEvent,
+    },
+}
+
+/// Session-level Claude events; per-turn notification hooks are a separate inbox integration.
+#[derive(Clone, Copy, Subcommand)]
+pub enum ClaudeHookEvent {
+    SessionStart,
+    SessionEnd,
 }
 
 /// Manual resume binding controls; automatic execution is a separate hook policy.
