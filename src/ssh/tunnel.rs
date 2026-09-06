@@ -442,6 +442,7 @@ async fn open_remote_stream(
         .and_then(|v| v.as_str())
         .filter(|id| !id.is_empty() && id.len() <= super::outbound::MAX_STREAM_ID)
         .ok_or_else(|| {
+            writer.retire_unanswered_request();
             let err_msg = resp
                 .get("error")
                 .and_then(|e| e.get("message"))
@@ -513,7 +514,12 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
         .lock()
         .map_err(|_| "remote response registry unavailable".to_string())?
         .insert(id, sender);
-    let _request = PendingRequest(pending.clone(), id);
+    let mut awaiting = PendingRequest {
+        pending: pending.clone(),
+        id,
+        writer,
+        settled: false,
+    };
     writer
         .send(&request)
         .await
@@ -525,7 +531,12 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
     if response.get("id").and_then(|value| value.as_u64()) != Some(id) {
         return Err(format!("{method} response identity mismatch"));
     }
-    if response.get("ok").and_then(|value| value.as_bool()) != Some(true) {
+    let accepted = response
+        .get("ok")
+        .and_then(|value| value.as_bool())
+        .ok_or_else(|| format!("{method} response status invalid"))?;
+    awaiting.settled = true;
+    if !accepted {
         let message = response
             .pointer("/error/message")
             .and_then(|value| value.as_str())
@@ -569,12 +580,21 @@ fn backoff_duration(attempt: u32) -> Duration {
     Duration::from_secs(secs)
 }
 
-struct PendingRequest(PendingMap, u64);
-impl Drop for PendingRequest {
-    /// Remove an outstanding response slot on success, error or future cancellation.
+/// Own response registration and retire uncertain remote side effects on cancellation or lost replies.
+struct PendingRequest<'a, W: tokio::io::AsyncWrite + Unpin> {
+    pending: PendingMap,
+    id: u64,
+    writer: &'a RpcWriter<W>,
+    settled: bool,
+}
+impl<W: tokio::io::AsyncWrite + Unpin> Drop for PendingRequest<'_, W> {
+    /// Release the slot on every exit; only correlated boolean-status replies settle the request.
     fn drop(&mut self) {
-        if let Ok(mut pending) = self.0.lock() {
-            pending.remove(&self.1);
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.remove(&self.id);
+        }
+        if !self.settled {
+            self.writer.retire_unanswered_request();
         }
     }
 }
@@ -691,11 +711,15 @@ mod request_tests {
                 serde_json::json!({"id": 42, "ok": false, "error": {"message": "subscription refused"}}),
             ),
             Some(serde_json::json!({"id": 43, "ok": true, "result": {}})),
+            Some(serde_json::json!({"id": 42, "ok": null})),
             None,
         ] {
             let expected = reply
                 .as_ref()
                 .is_some_and(|value| value["id"] == 42 && value["ok"] == true);
+            let should_retire = !reply
+                .as_ref()
+                .is_some_and(|value| value["id"] == 42 && value["ok"].is_boolean());
             let (pipe, reader) = tokio::io::duplex(4096);
             let writer = RpcWriter::new(pipe, 0);
             let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
@@ -733,6 +757,12 @@ mod request_tests {
             .await
             .unwrap();
             assert_eq!(result.is_ok(), expected);
+            assert_eq!(
+                tokio::time::timeout(Duration::from_millis(30), writer.failed())
+                    .await
+                    .is_ok(),
+                should_retire
+            );
             assert!(pending.lock().unwrap().is_empty());
         }
     }
@@ -743,6 +773,7 @@ mod request_tests {
         let writer = Arc::new(RpcWriter::new(tokio::io::sink(), 0));
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         let task_pending = pending.clone();
+        let observe_writer = writer.clone();
         let task = tokio::spawn(async move {
             request_remote(
                 &writer,
@@ -763,6 +794,9 @@ mod request_tests {
         .unwrap();
         drop(guard);
         assert!(task.await.unwrap_err().is_cancelled());
+        tokio::time::timeout(Duration::from_secs(1), observe_writer.failed())
+            .await
+            .unwrap();
         assert!(pending.lock().unwrap().is_empty());
     }
 }

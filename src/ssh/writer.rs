@@ -79,6 +79,16 @@ impl<W: AsyncWrite + Unpin> RpcWriter<W> {
         let mut receiver = self.failed.subscribe();
         let _ = receiver.wait_for(|failed| *failed).await;
     }
+
+    /// Retire a setup request whose remote side effects cannot be established from its reply.
+    pub(super) fn retire_unanswered_request(&self) {
+        drop(RetireOnDrop {
+            failed: &self.failed,
+            workspace_id: self.workspace_id,
+            reason: "unanswered_request",
+            armed: true,
+        });
+    }
 }
 
 /// Mark cancellation as transport failure even when a write future is dropped midway through a frame.
