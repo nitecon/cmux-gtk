@@ -32,3 +32,9 @@ content:
       description: Read the latest observed workspace listeners without initiating a scan or changing selection. Optional workspace_id and surface_id must be UUIDs. A surface alone resolves its owning workspace; a conflicting pair fails. Omitted scope uses the selected workspace. Response includes workspace_id, optional surface_id and ports, where null indicates unavailable and an empty array means no observed listeners.
   cli:
     - cmux ports accepts --workspace (alias --tab, default CMUX_WORKSPACE_ID), --surface and --json. It uses ports.list and preserves exact target validation.
+
+  remote_daemon:
+    - The Linux daemon advertises ports.list with required stream_id. It accepts only a currently registered PTY connection, captures the owned shell PID/start ticks, walks its current descendants and matches listening TCP/IPv6 socket inodes to their file descriptors.
+    - Collection limits processes to 256, threads to 1024 per process, descriptors to 4096 per process, TCP tables to two MiB, child lists to 64 KiB and results to 256. Root and per-process identity are rechecked; a stream retired during collection cannot publish a successful result.
+    - Remote records contain address, port, pid and remote provenance. Missing, non-PTY, unsupported-platform and failed scans return explicit errors. Desktop polling, remote UI publication, table batching and automatic forwarding are still outstanding.
+    - Go Actions coverage launches a real listener helper from the registered PTY, excludes a listener owned by the test caller and rejects a retired stream. Local Go build passes; runtime verification pending.

@@ -280,3 +280,9 @@ The new Actions fixture launches a real terminal child server, observes its port
 `cmux ports` and `ports.list` now expose the latest attributed listener snapshot with workspace/surface filters, exact scope validation and no focus changes. The native listener fixture checks filtered records and conflicting-scope rejection. Runtime verification pending.
 
 Listener observation now batches qualified processes and reads TCP tables once per network namespace per scan. Open namespace handles keep cached identities stable; cache limits are 16 namespaces and 16,384 listener entries each. Per-process descriptor matching and before/after identity checks remain in place. Existing platform and native listener Actions fixtures cover attribution through the batched path; runtime verification pending.
+
+### Remote PTY listener discovery
+
+The remote daemon now exposes `ports.list` for a registered PTY stream. Linux collection follows the owned shell's current descendants, qualifies PID/start-time identities and intersects listening socket inodes with process descriptors. It returns bounded records with remote provenance and rejects stale, missing or non-PTY streams. A Go Actions fixture starts a real server inside the PTY, excludes an unrelated caller listener and checks retired-stream rejection. Desktop polling/publication and automatic forwarding remain to implement; the daemon endpoint alone does not complete remote workspace parity.
+
+Cumulative Actions [34055394097](https://github.com/nitecon/cmux-gtk/actions/runs/34055394097) passed for `c859c5fd`, including the independent-browser, background restoration, location persistence, recovery and optimized benchmark checks present at that commit. Later port changes still require cumulative verification.

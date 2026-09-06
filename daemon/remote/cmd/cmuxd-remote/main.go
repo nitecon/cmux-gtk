@@ -319,6 +319,7 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 				"capabilities": []string{
 					"session.basic",
 					"session.spawn",
+					"ports.list",
 					"session.resize.min",
 					"proxy.http_connect",
 					"proxy.socks5",
@@ -335,6 +336,8 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 				"pong": true,
 			},
 		}
+	case "ports.list":
+		return s.handlePortsList(req)
 	case "proxy.open":
 		return s.handleProxyOpen(req)
 	case "proxy.close":
