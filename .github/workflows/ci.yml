@@ -167,6 +167,9 @@ jobs:
       - name: Test nested terminal routing and cleanup
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_nested_split_routing.py
 
+      - name: Test prompt diagnostic against GTK
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_prompt_probe.py
+
       - name: Test initial terminal input before submission
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_initial_input.py
 

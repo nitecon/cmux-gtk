@@ -29,7 +29,7 @@ def _is_prompt_line(line: str) -> bool:
 
 
 def _prompt_block(text: str) -> tuple[list[str], str]:
-    """Extract the last prompt and its contiguous nonblank preprompt lines."""
+    """Extract the last prompt and its preprompt block, stopping at blank lines or an earlier prompt."""
     lines = text.splitlines()
     while lines and not lines[-1].strip():
         lines.pop()
@@ -44,7 +44,7 @@ def _prompt_block(text: str) -> tuple[list[str], str]:
 
     preprompt: list[str] = []
     i = prompt_idx - 1
-    while i >= 0 and lines[i].strip():
+    while i >= 0 and lines[i].strip() and not _is_prompt_line(lines[i]):
         preprompt.append(lines[i])
         i -= 1
     preprompt.reverse()
@@ -64,23 +64,17 @@ def _duplicate_run_length(preprompt: list[str]) -> int:
     return count
 
 
-def _read_text(client: cmux, workspace_id: str, surface_id: str) -> str:
-    """Read at most eighty lines of terminal text for this explicit diagnostic probe."""
+def _read_text(client: cmux, surface_id: str) -> str:
+    """Read the GTK viewport for an explicit surface; the server caps text at 256 KiB."""
     payload = client._call(
         "surface.read_text",
-        {
-            "workspace_id": workspace_id,
-            "surface_id": surface_id,
-            "scrollback": True,
-            "lines": 80,
-        },
+        {"id": surface_id},
     ) or {}
     return str(payload.get("text") or "")
 
 
 def _wait_for_prompt_text(
     client: cmux,
-    workspace_id: str,
     surface_id: str,
     *,
     timeout: float,
@@ -91,7 +85,7 @@ def _wait_for_prompt_text(
     last_error = ""
 
     while time.monotonic() - start < timeout:
-        last_text = _read_text(client, workspace_id, surface_id)
+        last_text = _read_text(client, surface_id)
         try:
             preprompt, prompt = _prompt_block(last_text)
             return last_text, preprompt, prompt
@@ -127,16 +121,16 @@ def main() -> int:
 
     with cmux(args.socket) as client:
         current = client._call("workspace.current", {}) or {}
-        original_workspace_id = str(current.get("workspace_id") or "")
+        original_workspace_id = str(current.get("uuid") or "")
         if not original_workspace_id:
-            raise cmuxError(f"workspace.current returned no workspace_id: {current}")
+            raise cmuxError(f"workspace.current returned no uuid: {current}")
 
         created = client._call("workspace.create", {}) or {}
-        workspace_id = str(created.get("workspace_id") or "")
+        workspace_id = str(created.get("uuid") or "")
         if not workspace_id:
-            raise cmuxError(f"workspace.create returned no workspace_id: {created}")
+            raise cmuxError(f"workspace.create returned no uuid: {created}")
         try:
-            client._call("workspace.select", {"workspace_id": workspace_id})
+            client._call("workspace.select", {"id": workspace_id})
 
             surface_id = ""
             probe_text = ""
@@ -144,12 +138,12 @@ def main() -> int:
             start = time.monotonic()
             while True:
                 try:
-                    listed = client._call("surface.list", {"workspace_id": workspace_id}) or {}
+                    listed = client._call("surface.list", {}) or {}
                     surfaces = listed.get("surfaces") or []
                     if surfaces:
-                        surface_id = str(surfaces[0].get("id") or "")
+                        surface_id = str(surfaces[0].get("uuid") or "")
                     if surface_id:
-                        baseline = _read_text(client, workspace_id, surface_id)
+                        baseline = _read_text(client, surface_id)
                         probe_text = baseline
                         break
                     raise cmuxError("surface not ready yet")
@@ -164,7 +158,6 @@ def main() -> int:
 
             baseline, preprompt, prompt = _wait_for_prompt_text(
                 client,
-                workspace_id,
                 surface_id,
                 timeout=args.prompt_timeout,
             )
@@ -180,18 +173,13 @@ def main() -> int:
 
             for step in range(1, args.enters + 1):
                 client._call(
-                    "surface.send_text",
-                    {
-                        "workspace_id": workspace_id,
-                        "surface_id": surface_id,
-                        "text": "\n",
-                    },
+                    "surface.send_key",
+                    {"id": surface_id, "key": "\r"},
                 )
                 time.sleep(args.delay)
 
                 text, preprompt, prompt = _wait_for_prompt_text(
                     client,
-                    workspace_id,
                     surface_id,
                     timeout=args.prompt_timeout,
                 )
@@ -210,10 +198,9 @@ def main() -> int:
         finally:
             if not args.keep_workspace:
                 try:
-                    client._call("workspace.close", {"workspace_id": workspace_id})
-                except Exception:
-                    pass
-                client._call("workspace.select", {"workspace_id": original_workspace_id})
+                    client._call("workspace.close", {"id": workspace_id})
+                finally:
+                    client._call("workspace.select", {"id": original_workspace_id})
 
 
 if __name__ == "__main__":
