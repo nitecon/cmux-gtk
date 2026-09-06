@@ -1,4 +1,6 @@
 //! Read-only project action resolution, independent of GTK and command execution.
+#[path = "project_action.rs"]
+mod project_action;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -14,6 +16,8 @@ const MAX_BYTES: u64 = 256 * 1024;
 pub struct Action {
     pub source: PathBuf,
     pub definition: Value,
+    pub intent: project_action::Intent,
+    pub target: project_action::Target,
 }
 
 /// Resolved global and nearest-directory actions; loading never runs commands or trusts project files.
@@ -61,11 +65,15 @@ fn merge(resolved: &mut Resolved, source: PathBuf, value: Value) -> Result<(), S
                         .into(),
                 );
             }
+            let (intent, target) = project_action::parse(definition)
+                .map_err(|error| format!("action {id}: {error}"))?;
             resolved.actions.insert(
                 id.clone(),
                 Action {
                     source: source.clone(),
                     definition: definition.clone(),
+                    intent,
+                    target,
                 },
             );
             if resolved.actions.len() > 256 {

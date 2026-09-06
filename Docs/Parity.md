@@ -350,3 +350,7 @@ Added bounded handshake gauges/outcome counters and workspace-qualified timing e
 ### Project configuration resolution foundation
 
 Added [project action resolution](ProjectActions.md) and offline `cmux project-actions --directory PATH`, preserving global/nearest-project precedence and winning source paths under bounded regular-file reads. Upstream source resolves an ambiguity in its dogfood documentation: actions use nearest local plus global fallback; hierarchy lookup is separate for hooks. Typed validation, execution, palette and remote config remain open. Strict Clippy passes; runtime verification is pending Actions.
+
+### Typed project action intent
+
+Read-only action inspection now reports typed intent/target and rejects malformed command/agent fields, targets, presentation booleans and unknown action types. Workspace layouts and builtin capability resolution remain incomplete, along with execution and palette integration. Strict Clippy passes; Actions runtime pending. Earlier SOCKS transport foundation ce95b481 passed full Actions run 34058349025.
