@@ -30,6 +30,7 @@ pub enum PaneSurface {
     Terminal {
         gl_area: gtk4::GLArea,
         uuid: Uuid,
+        resume: Option<crate::resume::ResumeBinding>,
     },
     Browser {
         widgets: crate::browser::PreviewPaneWidgets,
@@ -475,7 +476,9 @@ impl SplitNode {
         match self {
             SplitNode::Leaf { surfaces, .. } => {
                 surfaces.borrow().iter().find_map(|surface| match surface {
-                    PaneSurface::Terminal { gl_area, uuid } if uuid.to_string() == target_uuid => {
+                    PaneSurface::Terminal { gl_area, uuid, .. }
+                        if uuid.to_string() == target_uuid =>
+                    {
                         Some(gl_area.clone())
                     }
                     _ => None,
@@ -611,6 +614,7 @@ impl SplitEngine {
             PaneSurface::Terminal {
                 gl_area: initial_gl_area,
                 uuid: Uuid::new_v4(),
+                resume: None,
             },
         );
         root.update_focus_css(pane_id);
@@ -756,6 +760,7 @@ impl SplitEngine {
             PaneSurface::Terminal {
                 gl_area: new_gl_area.clone(),
                 uuid: Uuid::new_v4(),
+                resume: None,
             },
         );
 
@@ -825,6 +830,7 @@ impl SplitEngine {
             PaneSurface::Terminal {
                 gl_area: gl_area.clone(),
                 uuid,
+                resume: None,
             },
             true,
         );
@@ -1123,6 +1129,47 @@ impl SplitEngine {
         panes
     }
 
+    /// Read or replace a terminal's resume metadata without selection or native process changes.
+    /// A checkpoint mismatch leaves the binding intact, preventing stale hook cleanup.
+    pub fn resume_action(
+        &self,
+        surface_id: &str,
+        action: &crate::resume::ResumeAction,
+    ) -> Result<Option<crate::resume::ResumeBinding>, &'static str> {
+        let pane_id = self
+            .find_pane_id_by_uuid(surface_id)
+            .ok_or("surface not found")?;
+        let (_, surfaces) = find_pane_tabs(&self.root, pane_id).ok_or("pane not found")?;
+        let mut surfaces = surfaces.borrow_mut();
+        let surface = surfaces
+            .iter_mut()
+            .find(|surface| surface.uuid().to_string() == surface_id)
+            .ok_or("surface not found")?;
+        let PaneSurface::Terminal { resume, .. } = surface else {
+            return Err("resume bindings require a terminal");
+        };
+        match action {
+            crate::resume::ResumeAction::Set(binding) => {
+                binding.validate()?;
+                *resume = Some(binding.clone());
+            }
+            crate::resume::ResumeAction::Show => {}
+            crate::resume::ResumeAction::Clear { checkpoint_id } => {
+                if let Some(expected) = checkpoint_id {
+                    if resume
+                        .as_ref()
+                        .and_then(|binding| binding.checkpoint_id.as_ref())
+                        != Some(expected)
+                    {
+                        return Err("checkpoint mismatch");
+                    }
+                }
+                *resume = None;
+            }
+        }
+        Ok(resume.clone())
+    }
+
     /// Focus a session-local pane reference or a legacy surface UUID without switching its tab.
     pub fn focus_pane_ref(&mut self, reference: &str) -> bool {
         let pane_id = if let Some(number) = reference.strip_prefix("pane:") {
@@ -1222,6 +1269,7 @@ where
                         PaneSurface::Terminal {
                             gl_area: gtk4::GLArea::new(),
                             uuid: Uuid::new_v4(),
+                            resume: None,
                         },
                     ),
                 );
@@ -1528,6 +1576,8 @@ pub enum PaneSurfaceData {
         surface_uuid: Uuid,
         shell: String,
         cwd: String,
+        #[serde(default)]
+        resume: Option<crate::resume::ResumeBinding>,
     },
     Browser {
         surface_uuid: Uuid,
@@ -1560,7 +1610,12 @@ impl SplitNode {
                     .borrow()
                     .iter()
                     .map(|surface| match surface {
-                        PaneSurface::Terminal { gl_area, uuid } => PaneSurfaceData::Terminal {
+                        PaneSurface::Terminal {
+                            gl_area,
+                            uuid,
+                            resume,
+                        } => PaneSurfaceData::Terminal {
+                            resume: resume.clone(),
                             surface_uuid: *uuid,
                             shell: shell.clone(),
                             cwd: surface_for_area(gl_area)
@@ -1684,6 +1739,7 @@ mod tests {
             active_surface_uuid: Some(browser_uuid),
             surfaces: vec![
                 PaneSurfaceData::Terminal {
+                    resume: None,
                     surface_uuid: terminal_uuid,
                     shell: "/bin/sh".to_string(),
                     cwd: "/tmp".to_string(),

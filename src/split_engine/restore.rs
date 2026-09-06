@@ -23,7 +23,13 @@ struct RestoreContext<'a> {
 impl RestoreContext<'_> {
     /// Create a restored terminal with shared launch precedence, UUID and context-menu wiring.
     /// Workspace directory overrides saved CWD; remote launch overrides a startup command.
-    fn terminal(&self, pane_id: u64, uuid: Uuid, saved_cwd: &str) -> PaneSurface {
+    fn terminal(
+        &self,
+        pane_id: u64,
+        uuid: Uuid,
+        saved_cwd: &str,
+        resume: Option<&crate::resume::ResumeBinding>,
+    ) -> PaneSurface {
         let directory = self
             .working_directory
             .map(std::path::Path::to_path_buf)
@@ -41,7 +47,11 @@ impl RestoreContext<'_> {
             launch,
         );
         attach_terminal_context_menu(&gl_area);
-        PaneSurface::Terminal { gl_area, uuid }
+        PaneSurface::Terminal {
+            gl_area,
+            uuid,
+            resume: resume.filter(|binding| binding.validate().is_ok()).cloned(),
+        }
     }
 }
 
@@ -106,7 +116,7 @@ impl SplitEngine {
                 *next_pane_id += 1;
                 Some(create_pane(
                     pane_id,
-                    context.terminal(pane_id, *surface_uuid, cwd),
+                    context.terminal(pane_id, *surface_uuid, cwd, None),
                 ))
             }
             SplitNodeData::Pane {
@@ -117,8 +127,11 @@ impl SplitEngine {
                 *next_pane_id += 1;
                 let mut restored = surfaces.iter().map(|surface| match surface {
                     PaneSurfaceData::Terminal {
-                        surface_uuid, cwd, ..
-                    } => context.terminal(pane_id, *surface_uuid, cwd),
+                        surface_uuid,
+                        cwd,
+                        resume,
+                        ..
+                    } => context.terminal(pane_id, *surface_uuid, cwd, resume.as_ref()),
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
                         widgets.uuid = *surface_uuid;
@@ -131,7 +144,7 @@ impl SplitEngine {
                 });
                 let initial = restored
                     .next()
-                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), ""));
+                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), "", None));
                 let node = create_pane(pane_id, initial);
                 if let SplitNode::Leaf {
                     notebook,

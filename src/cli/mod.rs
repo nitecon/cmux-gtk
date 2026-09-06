@@ -254,6 +254,7 @@ fn browser_command_to_rpc(cmd: &BrowserCommand) -> (&'static str, serde_json::Va
 /// Convert a CLI command to a JSON-RPC method and params.
 /// Raw is handled separately in run() — panics if called with Raw.
 fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
+    use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
         Commands::Update => unreachable!("update is handled before socket discovery"),
@@ -288,6 +289,32 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             ("workspace.reorder", json!({"id": id, "position": position}))
         }
 
+        Commands::Surface {
+            command: SurfaceCommands::Resume { command },
+        } => match command {
+            ResumeCommands::Set {
+                surface,
+                shell,
+                kind,
+                checkpoint,
+                cwd,
+                name,
+            } => (
+                "surface.resume.set",
+                json!({"surface_id": surface, "command": shell,
+                    "kind": kind, "checkpoint_id": checkpoint, "cwd": cwd, "name": name}),
+            ),
+            ResumeCommands::Show { surface } => {
+                ("surface.resume.show", json!({"surface_id": surface}))
+            }
+            ResumeCommands::Clear {
+                surface,
+                checkpoint,
+            } => (
+                "surface.resume.clear",
+                json!({"surface_id": surface, "checkpoint_id": checkpoint}),
+            ),
+        },
         Commands::ListSurfaces => ("surface.list", json!({})),
         Commands::Split { direction, id } => {
             let mut p = serde_json::Map::new();

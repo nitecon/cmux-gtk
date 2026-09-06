@@ -14,6 +14,7 @@ mod line_reader;
 mod menus;
 mod notification;
 mod preferences;
+mod resume;
 mod selection;
 mod session;
 mod shortcuts;

@@ -33,6 +33,11 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Manage persistent terminal surface state
+    Surface {
+        #[command(subcommand)]
+        command: SurfaceCommands,
+    },
     /// Update a self-managed cmux installation
     Update,
     /// Ping the running cmux instance
@@ -193,6 +198,45 @@ pub enum Commands {
     /// Browser automation (agent primary interface)
     #[command(subcommand)]
     Browser(BrowserCommand),
+}
+
+/// Surface operations grouped to match upstream command spelling.
+#[derive(Subcommand)]
+pub enum SurfaceCommands {
+    /// Register or inspect a saved resume command (does not execute it)
+    Resume {
+        #[command(subcommand)]
+        command: ResumeCommands,
+    },
+}
+
+/// Manual resume binding controls; automatic execution is a separate hook policy.
+#[derive(Subcommand)]
+pub enum ResumeCommands {
+    Set {
+        #[arg(long, env = "CMUX_SURFACE_ID")]
+        surface: Option<String>,
+        #[arg(long)]
+        shell: String,
+        #[arg(long)]
+        kind: Option<String>,
+        #[arg(long)]
+        checkpoint: Option<String>,
+        #[arg(long)]
+        cwd: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    Show {
+        #[arg(long, env = "CMUX_SURFACE_ID")]
+        surface: Option<String>,
+    },
+    Clear {
+        #[arg(long, env = "CMUX_SURFACE_ID")]
+        surface: Option<String>,
+        #[arg(long)]
+        checkpoint: Option<String>,
+    },
 }
 
 /// Browser subcommands for `cmux browser <action>` / `cmux browser <surface> <action>`.

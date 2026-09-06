@@ -91,6 +91,12 @@ pub enum SocketCommand {
         req_id: Value,
         resp_tx: RespTx,
     },
+    SurfaceResume {
+        req_id: Value,
+        id: Option<String>,
+        action: crate::resume::ResumeAction,
+        resp_tx: RespTx,
+    },
     SurfaceSplit {
         req_id: Value,
         id: Option<String>,

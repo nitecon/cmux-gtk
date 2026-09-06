@@ -121,6 +121,64 @@ async fn dispatch_request(
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
+        "surface.resume.set" | "surface.resume.show" | "surface.resume.clear" => {
+            let id = match params.get("surface_id").or_else(|| params.get("id")) {
+                None | Some(serde_json::Value::Null) => None,
+                Some(serde_json::Value::String(id)) if uuid::Uuid::parse_str(id).is_ok() => {
+                    Some(id.clone())
+                }
+                _ => return err(req_id, "invalid_params", "surface_id must be a UUID"),
+            };
+            let action = match method.as_str() {
+                "surface.resume.set" => {
+                    if params
+                        .get("auto_resume")
+                        .is_some_and(|value| value != &serde_json::Value::Bool(false))
+                    {
+                        return err(
+                            req_id,
+                            "not_supported",
+                            "automatic resume requires a configured hook policy",
+                        );
+                    }
+                    let binding =
+                        match serde_json::from_value::<crate::resume::ResumeBinding>(params.take())
+                        {
+                            Ok(binding) => binding,
+                            Err(_) => {
+                                return err(
+                                    req_id,
+                                    "invalid_params",
+                                    "invalid resume binding fields",
+                                )
+                            }
+                        };
+                    if let Err(message) = binding.validate() {
+                        return err(req_id, "invalid_params", message);
+                    }
+                    crate::resume::ResumeAction::Set(binding)
+                }
+                "surface.resume.clear" => {
+                    let checkpoint_id = match params.get("checkpoint_id") {
+                        None | Some(serde_json::Value::Null) => None,
+                        Some(serde_json::Value::String(value))
+                            if value.len() <= 16384 && !value.contains('\0') =>
+                        {
+                            Some(value.clone())
+                        }
+                        _ => return err(req_id, "invalid_params", "invalid checkpoint_id"),
+                    };
+                    crate::resume::ResumeAction::Clear { checkpoint_id }
+                }
+                _ => crate::resume::ResumeAction::Show,
+            };
+            commands::SocketCommand::SurfaceResume {
+                req_id: req_id.clone(),
+                id,
+                action,
+                resp_tx,
+            }
+        }
         "system.ping" => commands::SocketCommand::Ping {
             req_id: req_id.clone(),
             resp_tx,

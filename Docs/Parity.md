@@ -37,3 +37,9 @@ The saved gateway task contains specific behavior contracts recovered during leg
 ## First implementation checkpoint
 
 Normal close-request and application shutdown now freeze the final live layout, preventing teardown callbacks from publishing a degraded replacement. A finish signal interrupts the 500-ms debounce; the same worker completes older writes before saving and syncing the latest snapshot and parent directory. The composition root joins it before runtime shutdown. Save failures remain explicit. This does not checkpoint processes or make forced termination durable. Unit failure/coalescing cases and native immediate-quit/reopen coverage are added to CI; runtime verification is pending.
+
+## Resume metadata checkpoint
+
+CLI/socket manual per-terminal `surface.resume.set/show/clear` supports exact UUID targeting across workspaces, bounded command/environment data and checkpoint-conditional clearing. Pane snapshots persist the binding; sibling/split creation does not copy it. Registration does not execute commands. Automatic resume and provider hooks remain incomplete and automatic requests fail explicitly until that policy is implemented. The native quit/restart scenario verifies binding persistence, stale-checkpoint rejection and nonexecution while preserving selection; runtime verification is pending.
+
+Contract research used pinned upstream `ControlSurfaceResumeSetInputs.swift`, `ControlSurfaceResumeBinding.swift` and `WorkspaceSurfaceResumeBinding.swift`. This checkpoint is additive progress, not complete upstream resume compatibility.

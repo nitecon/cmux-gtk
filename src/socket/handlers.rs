@@ -158,6 +158,9 @@ fn handle_socket_command_traced(
                 "surface.send_text",
                 "surface.send_key",
                 "surface.read_text",
+                "surface.resume.set",
+                "surface.resume.show",
+                "surface.resume.clear",
                 "surface.health",
                 "surface.refresh",
                 "pane.list",
@@ -507,6 +510,50 @@ fn handle_socket_command_traced(
         }
 
         // ── surface.* ────────────────────────────────────────────────────
+        SocketCommand::SurfaceResume {
+            req_id,
+            id,
+            action,
+            resp_tx,
+        } => {
+            let s = state.borrow();
+            let id = id.or_else(|| {
+                s.split_engines
+                    .get(s.active_index)
+                    .and_then(|engine| engine.active_pane_uuid())
+            });
+            let target = id.as_ref().and_then(|id| {
+                s.split_engines
+                    .iter()
+                    .enumerate()
+                    .find(|(_, engine)| engine.find_pane_id_by_uuid(id).is_some())
+            });
+            let response = match (id.as_ref(), target) {
+                (Some(id), Some((index, engine))) => match engine.resume_action(id, &action) {
+                    Ok(binding) => {
+                        if !matches!(action, crate::resume::ResumeAction::Show) {
+                            s.trigger_session_save();
+                        }
+                        ok(
+                            req_id,
+                            json!({"surface_id": id, "workspace_id": s.workspaces[index].uuid,
+                            "resume_binding": binding, "auto_resume": false}),
+                        )
+                    }
+                    Err(message) => err(
+                        req_id,
+                        if message == "checkpoint mismatch" {
+                            "conflict"
+                        } else {
+                            "invalid_params"
+                        },
+                        message,
+                    ),
+                },
+                _ => err(req_id, "not_found", "terminal surface not found"),
+            };
+            let _ = resp_tx.send(response);
+        }
         SocketCommand::SurfaceList { req_id, resp_tx } => {
             // SOCK-05: No focus side effects.
             let s = state.borrow();
