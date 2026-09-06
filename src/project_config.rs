@@ -3,6 +3,7 @@
 mod project_action;
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     io::Read,
@@ -15,6 +16,7 @@ const MAX_BYTES: u64 = 256 * 1024;
 #[derive(Serialize)]
 pub struct Action {
     pub source: PathBuf,
+    pub fingerprint: String,
     pub definition: Value,
     pub intent: project_action::Intent,
     pub target: project_action::Target,
@@ -59,6 +61,19 @@ fn read(path: &Path) -> Result<Option<Value>, String> {
     Ok(Some(value))
 }
 
+/// Bind reviewed action content to its source, ID and captured execution directory.
+/// The versioned digest is a change detector, not an authorization credential or stored approval.
+fn fingerprint(
+    directory: &Path,
+    source: &Path,
+    id: &str,
+    definition: &Value,
+) -> Result<String, String> {
+    let bytes = serde_json::to_vec(&("cmux-project-action-v1", directory, source, id, definition))
+        .map_err(|error| error.to_string())?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
 /// Merge whole action entries by ID, preserving local precedence and bounded registry size.
 fn merge(resolved: &mut Resolved, source: PathBuf, value: Value) -> Result<(), String> {
     if let Some(actions) = value.get("actions") {
@@ -80,6 +95,7 @@ fn merge(resolved: &mut Resolved, source: PathBuf, value: Value) -> Result<(), S
                 id.clone(),
                 Action {
                     source: source.clone(),
+                    fingerprint: fingerprint(&resolved.directory, &source, id, definition)?,
                     definition: definition.clone(),
                     intent,
                     target,
@@ -131,6 +147,44 @@ pub fn resolve(directory: &Path, global: Option<&Path>) -> Result<Resolved, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reviewed identity changes with command, target, source, action ID or captured directory.
+    #[test]
+    fn fingerprint_binds_action_and_execution_context() {
+        let directory = Path::new("/project");
+        let source = Path::new("/project/cmux.json");
+        let value = serde_json::json!({"command":"pwd","target":"newTabInCurrentPane"});
+        let expected = fingerprint(directory, source, "build", &value).unwrap();
+        assert_eq!(expected.len(), 64);
+        assert_eq!(
+            expected,
+            fingerprint(directory, source, "build", &value).unwrap()
+        );
+        for (cwd, path, id, definition) in [
+            (Path::new("/elsewhere"), source, "build", value.clone()),
+            (
+                directory,
+                Path::new("/other/cmux.json"),
+                "build",
+                value.clone(),
+            ),
+            (directory, source, "other", value.clone()),
+            (
+                directory,
+                source,
+                "build",
+                serde_json::json!({"command":"changed","target":"newTabInCurrentPane"}),
+            ),
+            (
+                directory,
+                source,
+                "build",
+                serde_json::json!({"command":"pwd","target":"currentTerminal"}),
+            ),
+        ] {
+            assert_ne!(expected, fingerprint(cwd, path, id, &definition).unwrap());
+        }
+    }
 
     /// Preferred nearest files override global entries without executing embedded commands.
     #[test]

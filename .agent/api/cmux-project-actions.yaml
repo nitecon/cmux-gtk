@@ -37,3 +37,7 @@ content:
     - GTK captures workspace identity and selected terminal CWD via AppState.local_workspace_directory, shared with Git metadata. Workers have two permits and five-second response deadlines; started filesystem reads retain permits after cancellation/timeouts.
     - Returns workspace_id and config with captured directory and provenance. No focus or execution side effects; remote config is explicitly unsupported pending transport implementation. Trace event project.actions.resolve contains workspace/duration/outcome.
     - Actions Git fixture tests background config lookup and switch after terminal cd without running commands or moving focus. Runtime pending.
+
+  review_identity:
+    - Each resolved action carries fingerprint SHA256 over a versioned tuple of captured directory, source path, action ID and full definition.
+    - This detects changes between inspection and execution but is not authorization or persistent trust. Execution remains outstanding; tests cover command/target/source/ID/directory invalidation.

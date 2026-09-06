@@ -366,3 +366,7 @@ Added bounded recursive pane/split validation, typed surface kinds, launch field
 ### Workspace-scoped project action discovery
 
 Added project.actions.list and project-actions --workspace, resolving captured terminal CWD on bounded workers and reusing local directory selection with Git metadata. The background-workspace Actions fixture checks CWD changes, no execution and focus preservation. Strict Clippy/syntax checks pass; runtime pending. Remote reads and execution/palette integration remain open.
+
+### Project action review identity
+
+Action inspection now returns a versioned fingerprint binding full definition, source, ID and captured directory for stale-review rejection during execution. No authorization or execution is added by the digest. Strict Clippy passes; change-invalidation tests await Actions.
