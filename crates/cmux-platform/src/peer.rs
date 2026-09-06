@@ -39,6 +39,30 @@ pub fn same_user(socket: &impl AsFd) -> io::Result<bool> {
     Ok(credential.uid == unsafe { libc::getuid() })
 }
 
+/// Check full peer hangup or socket failure without consuming data or waiting.
+/// A write-half shutdown alone is not a hangup: the caller may still read its response.
+pub fn disconnected(socket: &impl AsFd) -> io::Result<bool> {
+    let fd = socket.as_fd();
+    let mut poll = libc::pollfd {
+        fd: fd.as_raw_fd(),
+        events: 0,
+        revents: 0,
+    };
+    // SAFETY: the descriptor remains borrowed; poll references one initialized stack entry,
+    // and timeout zero guarantees this kernel observation never waits for readiness.
+    let result = unsafe { libc::poll(&mut poll, 1, 0) };
+    if result < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if poll.revents & libc::POLLNVAL != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid monitored socket",
+        ));
+    }
+    Ok(poll.revents & (libc::POLLHUP | libc::POLLERR) != 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,6 +72,19 @@ mod tests {
     fn accepts_same_user_socketpair() {
         let (socket, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
         assert!(same_user(&socket).unwrap());
+    }
+
+    /// Data and write-half closure remain usable; full closure is detectable even with unread bytes.
+    #[test]
+    fn distinguishes_half_close_from_disconnect() {
+        use std::io::Write;
+        let (socket, mut peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        peer.write_all(b"pending request").unwrap();
+        assert!(!disconnected(&socket).unwrap());
+        peer.shutdown(std::net::Shutdown::Write).unwrap();
+        assert!(!disconnected(&socket).unwrap());
+        drop(peer);
+        assert!(disconnected(&socket).unwrap());
     }
 
     /// Non-sockets must fail closed instead of accepting an unknown peer.

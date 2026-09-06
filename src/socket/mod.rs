@@ -123,7 +123,17 @@ async fn handle_connection(
                 break;
             }
         };
-        let response = dispatch_line(line, &cmd_tx).await;
+        let response = tokio::select! {
+            biased;
+            // Preserve admission of a complete request even if its sender has already closed.
+            response = dispatch_line(line, &cmd_tx) => response,
+            closed = wait_for_disconnect(writer.as_ref()) => {
+                crate::diagnostics::record("rpc.connection.abandoned", serde_json::json!({
+                    "monitor_error": closed.err().map(|error| format!("{:?}", error.kind())),
+                }));
+                break;
+            }
+        };
         if let Err(error) = framing::write_response(&mut writer, &response).await {
             crate::diagnostics::record(
                 "rpc.response.failed",
@@ -133,5 +143,114 @@ async fn handle_connection(
             );
             break;
         }
+    }
+}
+
+/// Monitor only an outstanding dispatch; preserve half-closed and pipelined clients without reading ahead.
+/// A coarse timer avoids spinning on cached EOF/read readiness while keeping per-connection work bounded.
+async fn wait_for_disconnect(stream: &tokio::net::UnixStream) -> std::io::Result<()> {
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        match cmux_platform::peer::disconnected(stream) {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod connection_tests {
+    use super::*;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+
+    /// Full disconnect drops the dispatcher reply receiver even when GTK has not answered.
+    #[tokio::test]
+    async fn disconnected_client_cancels_dispatch() {
+        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let connection = tokio::spawn(handle_connection(server, tx));
+        client
+            .write_all(b"{\"id\":1,\"method\":\"system.ping\"}\n")
+            .await
+            .unwrap();
+        let commands::SocketCommand::Observed { command, .. } = rx.recv().await.unwrap() else {
+            panic!("unobserved request");
+        };
+        let commands::SocketCommand::Ping { mut resp_tx, .. } = *command else {
+            panic!("unexpected command");
+        };
+        drop(client);
+        tokio::time::timeout(std::time::Duration::from_secs(2), resp_tx.closed())
+            .await
+            .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), connection)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    /// A complete request from a sender that immediately closes still reaches command admission.
+    #[tokio::test]
+    async fn complete_request_is_admitted_before_disconnect() {
+        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        client
+            .write_all(b"{\"id\":1,\"method\":\"system.ping\"}\n")
+            .await
+            .unwrap();
+        drop(client);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let connection = tokio::spawn(handle_connection(server, tx));
+        assert!(matches!(
+            tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+                .await
+                .unwrap(),
+            Some(commands::SocketCommand::Observed { .. })
+        ));
+        connection.await.unwrap();
+    }
+
+    /// A pipelined client may finish writing and still receive both ordered replies after monitor ticks.
+    #[tokio::test]
+    async fn half_closed_client_receives_pipelined_responses() {
+        let (mut client, server) = tokio::net::UnixStream::pair().unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
+        let connection = tokio::spawn(handle_connection(server, tx));
+        client
+            .write_all(
+                b"{\"id\":1,\"method\":\"system.ping\"}\n{\"id\":2,\"method\":\"system.ping\"}\n",
+            )
+            .await
+            .unwrap();
+        client.shutdown().await.unwrap();
+        let mut client = tokio::io::BufReader::new(client);
+        for id in [1, 2] {
+            let commands::SocketCommand::Observed { command, .. } = rx.recv().await.unwrap() else {
+                panic!("unobserved request");
+            };
+            let commands::SocketCommand::Ping { req_id, resp_tx } = *command else {
+                panic!("unexpected command");
+            };
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+            resp_tx
+                .send(response::ok(req_id, serde_json::json!({"pong":true})))
+                .unwrap();
+            let mut line = String::new();
+            tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                client.read_line(&mut line),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(&line).unwrap()["id"],
+                id
+            );
+        }
+        connection.await.unwrap();
     }
 }
