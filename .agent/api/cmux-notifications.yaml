@@ -28,7 +28,7 @@ content:
         - Session snapshots retain at most 256 messages and 1 MiB of accounted content/identity data. Read records are evicted first, then the oldest unread record. Startup validates retained field lengths and reconciles pane/sidebar indicators.
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
-    verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
+    verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Full Actions 34048253282 passed at 61266ee5 for inbox, native OSC and Claude hooks. Later desktop/caller/navigation changes await cumulative verification.
     outstanding: Advanced OSC99 query/replacement/activation reports, other provider hook delivery, nested/remote caller resolution remain part of the active parity goal.
 
     panel: View > Notifications or Ctrl+Shift+I opens one nonmodal live panel. Ctrl+Shift+U jumps to unread. A watch signal coalesces mutations; the GTK listener and action handlers hold weak references and closing aborts the listener. Rows render plain text, open exact targets or dismiss messages; bulk controls mark read or clear. Native CI checks live unread-title updates and navigation.

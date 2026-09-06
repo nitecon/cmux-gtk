@@ -121,3 +121,8 @@ The caller CI scenario now invokes the real CLI from an inactive terminal with C
 ## Unread navigation checkpoint
 
 Jump-to-unread now skips records whose saved workspace or terminal is closed, matching the upstream notification navigation coordinator's search for an openable record. Explicit message open still rejects a closed target without redirecting. If no retained unread message is reachable, the API returns opened=false and preserves focus/history. Workspace-only opens resolve the workspace independently of active terminal availability. Native inbox CI adds closed-target rejection, older reachable-message navigation and an all-stale no-op case. Runtime verification remains pending; upstream's separate non-message workspace/window unread fallback remains part of the broader attention/window matrix.
+
+
+## Cumulative verification at 61266ee5
+
+[Actions 34048253282](https://github.com/nitecon/cmux-gtk/actions/runs/34048253282) passed every job for native OSC intake and Claude Stop/Notification hooks, including the installed-handler/native-PTY integration scenarios and optimized memory/redraw benchmarks. This verifies the earlier source checkpoints at cb29ae1b/92534b35 plus the ordinary-output fast path. Desktop message delivery, caller identity, nullable workspace-only messages and stale-target navigation were added after this revision; their runtime evidence remains pending.
