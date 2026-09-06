@@ -44,3 +44,9 @@ content:
     - Validated observations require at most 256 rows, nonzero PID/port, remote provenance and a matching response stream_id. The bridge retains only current stream observations and clears them on reconnect or context removal.
     - GTK maps observations through the current remote context pointer and stream identity to the real surface UUID. Disconnected, changed or incompletely observed streams are unavailable; EOF contexts contribute no listeners. The shared sidebar and ports.list API preserve remote provenance without selecting a workspace.
     - The existing real SSH Actions launch fixture starts a remote PTY child listener, observes it while another workspace is selected, and requires removal after the service exits. Runtime evidence pending.
+
+  forwarding:
+    - Connection-owned supervisor forwards discovered remote sockets through existing proxy RPCs, with at most sixteen loopback listeners and sixteen clients, sixteen queued 32-KiB chunks per client and thirty-two live/retiring listener tasks.
+    - Ports expose forwarded_local_port, null for local or not-yet-forwarded services. Local binds prefer the remote port and fall back to an ephemeral port on conflict. Unknown destinations are never accepted from local clients.
+    - Proxy data routing never awaits local writes on the shared SSH reader. Invalid/full queues retire the client route and emit a rejection event. Client cleanup queues remote close through existing control admission; full connection teardown is the cleanup fallback.
+    - Runtime verification and full forwarding gates in Docs/RemoteForwarding.md remain pending, including half-close, acknowledged close, reconnect/overload and browser subresource routing.

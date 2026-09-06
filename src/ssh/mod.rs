@@ -1,5 +1,6 @@
 pub mod bridge;
 pub mod deploy;
+mod forward;
 mod handshake;
 mod metrics;
 mod outbound;

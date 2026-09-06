@@ -24,7 +24,7 @@ enum FailureKind {
 }
 
 /// Pending RPC responses awaiting completion.
-type PendingMap = Arc<Mutex<HashMap<u64, oneshot::Sender<serde_json::Value>>>>;
+pub(super) type PendingMap = Arc<Mutex<HashMap<u64, oneshot::Sender<serde_json::Value>>>>;
 
 /// Manage an SSH workspace connection lifecycle.
 /// Runs as a tokio task. Reports state changes via ssh_tx.
@@ -410,6 +410,13 @@ async fn run_proxy_routing(
     });
     let _ports_guard = AbortOnDrop(ports_handle.abort_handle());
 
+    let forward_handle = tokio::spawn(super::forward::run(
+        writer.clone(),
+        pending.clone(),
+        bridge.clone(),
+    ));
+    let _forward_guard = AbortOnDrop(forward_handle.abort_handle());
+
     // Write path: consume WriteRequests and send as JSON-RPC to SSH stdin
     let write_writer = writer.clone();
     let write_bridge = bridge.clone();
@@ -457,6 +464,9 @@ async fn handle_incoming_message(
 ) {
     if let Some(event) = msg.get("event").and_then(|v| v.as_str()) {
         let stream = msg.get("stream_id").and_then(|v| v.as_str()).unwrap_or("");
+        if bridge.proxy_routes.event(stream, event, msg) {
+            return;
+        }
         let id = bridge.stream_to_pane.lock().unwrap().get(stream).copied();
         let Some(pane_id) = id else {
             return;
@@ -583,7 +593,7 @@ async fn open_remote_stream(
 
 /// Register before writing, await a correlated successful response and remove the slot on every exit.
 /// The existing fifteen-second reply budget begins after the separately bounded request write.
-async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
+pub(super) async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
     writer: &RpcWriter<W>,
     pending: &PendingMap,
     id: u64,

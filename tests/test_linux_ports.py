@@ -53,7 +53,7 @@ def main():
             else:
                 raise AssertionError("conflicting port scope accepted")
             assert {"surface_uuid": target["uuid"], "address": "127.0.0.1", "port": port,
-                    "pid": pid, "provenance": "local"} in rows, rows
+                    "pid": pid, "provenance": "local", "forwarded_local_port": None} in rows, rows
             assert not any(row["port"] == foreign_port for row in rows)
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
             (root / "stop").touch()

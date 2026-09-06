@@ -12,6 +12,7 @@ pub struct Port {
     port: u16,
     pid: u32,
     provenance: &'static str,
+    forwarded_local_port: Option<u16>,
 }
 
 /// Validated daemon listener payload; attribution to a GTK surface happens only after stream checks.
@@ -68,6 +69,12 @@ fn remote(state: &crate::app_state::AppState, index: usize) -> Option<Vec<Port>>
                 port: row.port,
                 pid: row.pid,
                 provenance: "remote",
+                forwarded_local_port: bridge
+                    .forwarded
+                    .lock()
+                    .ok()?
+                    .get(&std::net::SocketAddr::new(row.address, row.port))
+                    .copied(),
             });
         }
     }
@@ -164,6 +171,7 @@ fn scan(terminals: &[(Uuid, PathBuf)]) -> std::io::Result<Vec<Port>> {
             port: listener.port,
             pid: listener.process.pid,
             provenance: "local",
+            forwarded_local_port: None,
         });
     }
     ports.sort_by_key(|port| (port.port, port.surface_uuid, port.pid, port.address));

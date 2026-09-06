@@ -23,6 +23,9 @@ pub struct WriteRequest {
 
 /// Manages the mapping between local panes and remote proxy streams.
 pub struct SshBridge {
+    /// Connection-owned data routes and published loopback port mappings for forwarded services.
+    pub proxy_routes: super::forward::Routes,
+    pub forwarded: Mutex<HashMap<std::net::SocketAddr, u16>>,
     /// Latest bounded observations keyed by live remote surface context, invalidated on reconnect.
     pub listeners: Mutex<HashMap<u64, crate::ports::RemoteObservation>>,
     /// Maps pane_id -> stream state
@@ -52,6 +55,8 @@ impl SshBridge {
     pub fn new() -> Self {
         let (write_tx, write_rx) = Outbound::new();
         Self {
+            proxy_routes: Default::default(),
+            forwarded: Mutex::new(HashMap::new()),
             listeners: Mutex::new(HashMap::new()),
             streams: Arc::new(Mutex::new(HashMap::new())),
             contexts: Mutex::new(HashMap::new()),
@@ -122,6 +127,7 @@ impl SshBridge {
     /// Clear all stream state (for reconnect -- old streams are stale).
     pub fn clear_stream_ids(&self) {
         self.listeners.lock().unwrap().clear();
+        self.forwarded.lock().unwrap().clear();
         if let Ok(contexts) = self.contexts.lock() {
             for ctx in contexts.values() {
                 *ctx.stream_id.lock().unwrap() = None;

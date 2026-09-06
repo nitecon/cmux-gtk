@@ -1,6 +1,6 @@
 # Remote listener forwarding
 
-This is the implementation contract for the outstanding remote-forwarding parity row. Listener discovery is implemented; automatic forwarding is not yet implemented. Reuse the established workspace SSH transport and the daemon's `proxy.open`, `proxy.stream.subscribe`, `proxy.write`, and `proxy.close` operations. Do not create a second SSH process for every listener.
+This is the implementation contract for the outstanding remote-forwarding parity row. Listener discovery and an initial automatic forwarding implementation are present; runtime verification and the full gates below remain outstanding. Reuse the established workspace SSH transport and the daemon's `proxy.open`, `proxy.stream.subscribe`, `proxy.write`, and `proxy.close` operations. Do not create a second SSH process for every listener.
 
 ## Ownership
 
@@ -31,3 +31,9 @@ Forwarded endpoints support tools and ordinary local clients. Browser workspace-
 Actions must exercise a real remote HTTP server through the established SSH daemon, response bodies larger than one proxy chunk, simultaneous local clients and unrelated terminal input. Two workspaces must expose the same remote port with independent endpoint identity. Verify listener removal, active-client closure, delayed-open cancellation, reconnect invalidation, bounded overload and absence of retained daemon streams. Record setup latency, byte counts, failures and active listener/client counts without payloads. Browser tests must include remote-only subresources and a WebSocket, not merely a document title.
 
 The desktop and remote sides already share bounded RPC identity/tracing; use these existing boundaries for forwarding diagnostics. Current sources are `src/ssh/tunnel.rs`, `src/ssh/bridge.rs`, `src/ssh/writer.rs`, `daemon/remote/cmd/cmuxd-remote/streams.go` and the [ports gateway context](../.agent/api/cmux-ports.yaml).
+
+## Initial implementation checkpoint
+
+`src/ssh/forward.rs` implements connection-owned discovery reconciliation, sixteen listeners/clients, at most thirty-two active or retiring listener tasks, bounded proxy queues and loopback endpoint publication. Port records expose nullable `forwarded_local_port`. Client retirement uses the established bounded outbound control channel for remote close; full connection teardown remains the authoritative cleanup fallback. An in-flight open settles before service-stop cancellation is applied. The real SSH fixture now transfers a payload larger than one proxy chunk through the published endpoint.
+
+Runtime verification is pending. Remaining gaps include TCP half-close fidelity, positive remote-close acknowledgement, multiple-workspace collision/reconnect and overload workload evidence, listener accept-failure recovery, aggregate byte/active counters, and full browser origin/subresource routing. These are required follow-ups rather than claims covered by the initial fixture.

@@ -235,7 +235,11 @@ Subsystem sftp internal-sftp
                                    "root=pathlib.Path(__file__).parent\n"
                                    "s=socket.socket();s.bind(('127.0.0.1',0));s.listen()\n"
                                    "(root/'listener-port').write_text(str(s.getsockname()[1]))\n"
-                                   "while not (root/'listener-stop').exists():time.sleep(0.05)\n"
+                                   "s.settimeout(0.1)\n"
+                                   "while not (root/'listener-stop').exists():\n"
+                                   " try:\n"
+                                   "  c,_=s.accept();c.sendall(b'cmux-forwarded-'*8192);c.close()\n"
+                                   " except socket.timeout: pass\n"
                                    "s.close()\n")
         cli("send-text", "python3 " + shlex.quote(str(listener_script)) + " &")
         cli("send-key", "\r")
@@ -248,6 +252,16 @@ Subsystem sftp internal-sftp
         eventually(lambda: remote_ports() and any(row["port"] == listener_port and row["provenance"] == "remote"
                                                   for row in remote_ports()))
         assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
+        eventually(lambda: any(row["port"] == listener_port and row.get("forwarded_local_port") for row in (remote_ports() or [])))
+        forwarded_port = next(row["forwarded_local_port"] for row in remote_ports() if row["port"] == listener_port)
+        with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
+            forwarded.settimeout(10)
+            payload = bytearray()
+            while chunk := forwarded.recv(32768):
+                payload.extend(chunk)
+                assert len(payload) <= 15 * 8192
+        assert bytes(payload) == b"cmux-forwarded-" * 8192
+        assert json.loads(cli("ping", "--json"))["pong"]
         (root / "remote/listener-stop").touch()
         eventually(lambda: remote_ports() is not None and not any(row["port"] == listener_port for row in remote_ports()))
         cli("select-workspace", remote_id)
