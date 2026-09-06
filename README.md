@@ -177,8 +177,8 @@ cmux ping                      # check connectivity
 cmux raw <method> --params '{}' # send arbitrary JSON-RPC
 ```
 
-Native JSON lifecycle integrations currently cover Claude Code, Codex, Grok,
-Gemini CLI, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
+Native lifecycle integrations currently cover Claude Code, Codex, Grok,
+OpenCode, Gemini CLI, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
 unrelated provider configuration and binds resume and notification events to the
 originating terminal surface.
 

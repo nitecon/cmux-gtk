@@ -137,6 +137,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
                 | args::HookCommands::Codebuddy { .. }
                 | args::HookCommands::Factory { .. }
                 | args::HookCommands::Qoder { .. }
+                | args::HookCommands::Opencode { .. }
         }
     ) && std::env::var_os("CMUX_SURFACE_ID").is_none()
         && cli.socket.is_none()
@@ -190,6 +191,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             args::HookCommands::Codebuddy { event } => Some(("codebuddy", *event)),
             args::HookCommands::Factory { event } => Some(("factory", *event)),
             args::HookCommands::Qoder { event } => Some(("qoder", *event)),
+            args::HookCommands::Opencode { event } => Some(("opencode", *event)),
             _ => None,
         };
         if let Some((provider, event)) = provider_event {

@@ -119,6 +119,20 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             notification_event: None,
             end_event: Some("SessionEnd"),
         },
+        "opencode" => JsonProvider {
+            name: "opencode",
+            display: "OpenCode",
+            binary: "opencode",
+            directory: ".config/opencode",
+            directory_env: Some("OPENCODE_CONFIG_DIR"),
+            environment: &["OPENCODE_CONFIG_DIR"],
+            file: "plugins/cmux-session.js",
+            resume_prefix: &["--session"],
+            start_event: "SessionStart",
+            stop_event: "Stop",
+            notification_event: None,
+            end_event: Some("SessionEnd"),
+        },
         _ => return None,
     })
 }
@@ -172,6 +186,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
     match agent {
         Some("claude") => setup_claude(true),
         Some("codex") => setup_codex(true),
+        Some("opencode") => setup_opencode(true),
         Some(name) if json_provider(name).is_some() => setup_json_provider(name, true),
         Some(other) => Err(CliError::Command(format!(
             "unsupported hook provider: {other}"
@@ -182,6 +197,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
             for provider in ["grok", "gemini", "copilot", "codebuddy", "factory", "qoder"] {
                 setup_json_provider(provider, false)?;
             }
+            setup_opencode(false)?;
             Ok(())
         }
     }
@@ -440,6 +456,123 @@ fn merge_json_provider_hooks(
         });
         entries.push(json!({"hooks": [{"type": "command", "command": format!("{} hooks {} {command}", shell_argument(&binary.to_string_lossy()), provider.name), "timeout": 10}]}));
     }
+    Ok(())
+}
+
+const OPENCODE_PLUGIN: &str = r#"// cmux-opencode-session-plugin-marker v1
+import { spawnSync } from "node:child_process";
+
+const cmux = __CMUX_BIN__;
+function first(...values) {
+  return values.find((value) => typeof value === "string" && value.trim())?.trim();
+}
+function send(command, context, event) {
+  if (process.env.CMUX_OPENCODE_HOOKS_DISABLED === "1" || !process.env.CMUX_SURFACE_ID) return;
+  const properties = event?.properties || {};
+  const info = properties.info || {};
+  const sessionId = first(info.id, properties.sessionID, properties.sessionId,
+    properties.session_id, properties.session?.id, event?.sessionID, event?.sessionId);
+  if (!sessionId) return;
+  const payload = JSON.stringify({
+    hook_event_name: command === "session-start" ? "SessionStart"
+      : command === "session-end" ? "SessionEnd" : "Stop",
+    session_id: sessionId,
+    cwd: first(info.directory, properties.cwd, properties.directory, context?.directory, process.cwd()),
+  });
+  spawnSync(cmux, ["hooks", "opencode", command], {
+    input: payload, encoding: "utf8", stdio: ["pipe", "ignore", "ignore"],
+    timeout: 5000, env: process.env,
+  });
+}
+
+const CMUXSessionRestore = async (context) => ({
+  event: async ({ event }) => {
+    const properties = event?.properties || {};
+    switch (event?.type) {
+      case "session.created": send("session-start", context, event); break;
+      case "session.updated":
+        send(properties.info?.time?.archived ? "session-end" : "session-start", context, event);
+        break;
+      case "session.status":
+        if (properties.status?.type === "idle") send("stop", context, event);
+        break;
+      case "session.idle": send("stop", context, event); break;
+      case "session.deleted": send("session-end", context, event); break;
+    }
+  },
+});
+export { CMUXSessionRestore };
+export default CMUXSessionRestore;
+"#;
+
+fn setup_opencode(explicit: bool) -> Result<(), CliError> {
+    let provider = json_provider("opencode").expect("static provider");
+    if cmux_platform::paths::find_command_on_path(provider.binary).is_none() {
+        if explicit {
+            return Err(CliError::Command(
+                "install OpenCode before installing its hooks".into(),
+            ));
+        }
+        println!("Skipped OpenCode: executable not found on PATH");
+        return Ok(());
+    }
+    let directory = std::env::var_os("OPENCODE_CONFIG_DIR")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config/opencode"))
+        })
+        .ok_or_else(|| CliError::Command("cannot resolve OpenCode config directory".into()))?;
+    let config_path = directory.join("opencode.json");
+    let plugin_path = directory.join(provider.file);
+    if config_path.is_symlink() || plugin_path.is_symlink() {
+        return Err(CliError::Command(
+            "OpenCode hook configuration is a symlink; configure its target explicitly".into(),
+        ));
+    }
+    let mut config = match cmux_platform::filesystem::read_text_bounded(&config_path, 1024 * 1024) {
+        Ok(text) => serde_json::from_str::<Value>(&text)
+            .map_err(|_| CliError::Command("OpenCode config contains invalid JSON".into()))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(error) => return Err(CliError::Command(format!("read OpenCode config: {error}"))),
+    };
+    let object = config
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("OpenCode config must be an object".into()))?;
+    let plugins = object
+        .entry("plugin")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or_else(|| CliError::Command("OpenCode plugin must be an array".into()))?;
+    let registration = "./plugins/cmux-session.js";
+    if !plugins
+        .iter()
+        .any(|value| value.as_str() == Some(registration))
+    {
+        plugins.push(json!(registration));
+    }
+    let config_bytes =
+        serde_json::to_vec_pretty(&config).map_err(|error| CliError::Command(error.to_string()))?;
+    if config_bytes.len() > 1024 * 1024 {
+        return Err(CliError::Command(
+            "merged OpenCode config exceeds one MiB".into(),
+        ));
+    }
+    let cmux = std::env::current_exe().map_err(|error| CliError::Command(error.to_string()))?;
+    let encoded_binary = serde_json::to_string(&cmux.to_string_lossy())
+        .map_err(|error| CliError::Command(error.to_string()))?;
+    let plugin = OPENCODE_PLUGIN.replace("__CMUX_BIN__", &encoded_binary);
+    cmux_platform::filesystem::create_private_directory(
+        plugin_path.parent().expect("plugin path has parent"),
+    )
+    .map_err(|error| CliError::Command(format!("create OpenCode plugin directory: {error}")))?;
+    cmux_platform::filesystem::atomic_write(&plugin_path, plugin.as_bytes())
+        .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&plugin_path))
+        .map_err(|error| CliError::Command(format!("save OpenCode plugin: {error}")))?;
+    cmux_platform::filesystem::atomic_write(&config_path, &config_bytes)
+        .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&config_path))
+        .map_err(|error| CliError::Command(format!("save OpenCode config: {error}")))?;
+    println!("Installed OpenCode hooks in {}", plugin_path.display());
     Ok(())
 }
 

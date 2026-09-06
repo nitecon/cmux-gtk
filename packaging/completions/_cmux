@@ -971,6 +971,114 @@ esac
     ;;
 esac
 ;;
+(opencode)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__opencode_commands" \
+"*::: :->opencode" \
+&& ret=0
+
+    case $state in
+    (opencode)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-opencode-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__opencode__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-opencode-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -1218,6 +1326,38 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-qoder-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(opencode)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__opencode_commands" \
+"*::: :->opencode" \
+&& ret=0
+
+    case $state in
+    (opencode)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-opencode-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -3085,6 +3225,38 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(opencode)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__opencode_commands" \
+"*::: :->opencode" \
+&& ret=0
+
+    case $state in
+    (opencode)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-opencode-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -4302,6 +4474,7 @@ _cmux__help__hooks_commands() {
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
+'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -4508,6 +4681,36 @@ _cmux__help__hooks__grok__session-start_commands() {
 _cmux__help__hooks__grok__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks grok stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode_commands] )) ||
+_cmux__help__hooks__opencode_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks opencode commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode__notification_commands] )) ||
+_cmux__help__hooks__opencode__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks opencode notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode__session-end_commands] )) ||
+_cmux__help__hooks__opencode__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks opencode session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode__session-start_commands] )) ||
+_cmux__help__hooks__opencode__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks opencode session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode__stop_commands] )) ||
+_cmux__help__hooks__opencode__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks opencode stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__qoder_commands] )) ||
 _cmux__help__hooks__qoder_commands() {
@@ -4839,6 +5042,7 @@ _cmux__hooks_commands() {
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
+'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -5312,6 +5516,7 @@ _cmux__hooks__help_commands() {
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
+'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -5525,6 +5730,36 @@ _cmux__hooks__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help help commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__opencode_commands] )) ||
+_cmux__hooks__help__opencode_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help opencode commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__opencode__notification_commands] )) ||
+_cmux__hooks__help__opencode__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help opencode notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__opencode__session-end_commands] )) ||
+_cmux__hooks__help__opencode__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help opencode session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__opencode__session-start_commands] )) ||
+_cmux__hooks__help__opencode__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help opencode session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__opencode__stop_commands] )) ||
+_cmux__hooks__help__opencode__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help opencode stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__qoder_commands] )) ||
 _cmux__hooks__help__qoder_commands() {
     local commands; commands=(
@@ -5559,6 +5794,73 @@ _cmux__hooks__help__qoder__stop_commands() {
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode_commands] )) ||
+_cmux__hooks__opencode_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks opencode commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help_commands] )) ||
+_cmux__hooks__opencode__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks opencode help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__help_commands] )) ||
+_cmux__hooks__opencode__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__notification_commands] )) ||
+_cmux__hooks__opencode__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__session-end_commands] )) ||
+_cmux__hooks__opencode__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__session-start_commands] )) ||
+_cmux__hooks__opencode__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__stop_commands] )) ||
+_cmux__hooks__opencode__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__notification_commands] )) ||
+_cmux__hooks__opencode__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__session-end_commands] )) ||
+_cmux__hooks__opencode__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__session-start_commands] )) ||
+_cmux__hooks__opencode__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__stop_commands] )) ||
+_cmux__hooks__opencode__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__qoder_commands] )) ||
 _cmux__hooks__qoder_commands() {

@@ -501,6 +501,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive an OpenCode plugin lifecycle payload on stdin
+    Opencode {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.

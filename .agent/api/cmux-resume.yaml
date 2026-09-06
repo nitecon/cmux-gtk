@@ -45,6 +45,12 @@ content:
         - Hook input accepts at most 65536 bytes and resolves session/event/cwd strings from top-level snake-case or camel-case fields and fixed notification/data/session/context envelopes. It does not recursively traverse arbitrary payloads. Every event still requires a valid native session identity, absolute cwd for start and exact CMUX_SURFACE_ID.
         - Start stores the provider's native resume command and only its allowlisted config-directory environment. Stop and Notification create bounded exact-surface inbox entries. True SessionEnd conditionally clears the same checkpoint. Grok turn-boundary SessionEnd is not installed as destructive cleanup.
 
+    - name: OpenCode lifecycle plugin
+      steps:
+        - cmux hooks setup opencode installs plugins/cmux-session.js under OPENCODE_CONFIG_DIR or HOME/.config/opencode and registers its relative path in opencode.json. Existing fields and plugin entries survive, repetition is byte-stable, and malformed, oversized or symlink configuration fails before replacement.
+        - The ESM plugin observes session.created, non-archived session.updated, idle status, archived updates and deletion. It forwards only native session identity and cwd through an inherited exact CMUX_SURFACE_ID using the installing absolute cmux binary and a five-second child timeout.
+        - Start binds the absolute OpenCode executable as opencode --session SESSION_ID and retains only OPENCODE_CONFIG_DIR. Idle creates an exact-surface inbox entry; archive or deletion clears only the matching checkpoint.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
