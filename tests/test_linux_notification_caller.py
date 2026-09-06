@@ -43,6 +43,29 @@ def main():
                     """Read retained history without selecting a terminal."""
                     return json.loads(app.cli("notifications", "list", "--json"))["notifications"]
 
+                binary = (Path(app.environment.get("CMUX_BIN_DIR", "target/debug")) / "cmux").resolve()
+                result_file = root / "tty-cli-result"
+                command = "env -u CMUX_SURFACE_ID -u CMUX_WORKSPACE_ID " + shlex.quote(str(binary))
+                command += " --socket " + shlex.quote(str(app.socket_path)) + " notify --title tty-cli --json > "
+                command += shlex.quote(str(result_file))
+                app.cli("send-text", "--id", first["uuid"], command)
+                app.cli("send-key", "--id", first["uuid"], "\r")
+                app.wait_for(lambda: result_file.exists() and result_file.stat().st_size, "CLI native TTY attribution")
+                assert json.loads(result_file.read_text())["surface_id"] == first["uuid"]
+                inherited = dict(app.environment, CMUX_SURFACE_ID=second["uuid"],
+                                 CMUX_WORKSPACE_ID=first["workspace_uuid"])
+
+                def inherited_cli(*arguments):
+                    """Run a real CLI with deliberately stale ambient workspace evidence."""
+                    return json.loads(subprocess.check_output([str(binary), "--socket", str(app.socket_path),
+                                                               *arguments, "--json"], env=inherited, text=True, timeout=15))
+
+                assert inherited_cli("notify", "--title", "ambient moved surface")["surface_id"] == second["uuid"]
+                direct = inherited_cli("notify", "--surface", first["uuid"], "--title", "explicit surface")
+                assert direct["surface_id"] == first["uuid"]
+                inherited_cli("notifications", "clear", "--caller")
+                assert all(row["surface_id"] != second["uuid"] for row in rows())
+                assert any(row["id"] == direct["id"] for row in rows())
                 native = call(caller_tty=tty, title="native TTY")
                 assert native["surface_id"] == first["uuid"]
                 stronger = call(caller_tty=tty, preferred_surface_id=second["uuid"], prefer_tty=True)

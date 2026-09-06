@@ -496,18 +496,37 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             body,
             workspace,
             surface,
-        } => (
-            "notification.create",
-            json!({
-                "title":title,"subtitle":subtitle,"body":body,"workspace_id":workspace,"surface_id":surface
-            }),
-        ),
+        } => {
+            if workspace.is_some() || surface.is_some() {
+                (
+                    "notification.create",
+                    json!({"title":title,"subtitle":subtitle,"body":body,
+                    "workspace_id":workspace,"surface_id":surface}),
+                )
+            } else {
+                let mut params = notification_caller_params();
+                params["title"] = json!(title);
+                params["subtitle"] = json!(subtitle);
+                params["body"] = json!(body);
+                ("notification.create_for_caller", params)
+            }
+        }
         Commands::Notifications { command } => match command {
             args::NotificationCommands::List => ("notification.list", json!({})),
-            args::NotificationCommands::Clear { workspace, surface } => (
-                "notification.clear",
-                json!({"workspace_id":workspace,"surface_id":surface}),
-            ),
+            args::NotificationCommands::Clear {
+                caller,
+                workspace,
+                surface,
+            } => {
+                let params = if *caller {
+                    let mut params = notification_caller_params();
+                    params["caller"] = json!(true);
+                    params
+                } else {
+                    json!({"workspace_id":workspace,"surface_id":surface})
+                };
+                ("notification.clear", params)
+            }
             args::NotificationCommands::MarkRead {
                 id,
                 workspace,
@@ -527,6 +546,16 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
 
         Commands::Browser(cmd) => browser_command_to_rpc(cmd),
     }
+}
+
+/// Preserve ambient caller identity separately from explicit command flags; pipes provide no TTY claim.
+fn notification_caller_params() -> serde_json::Value {
+    serde_json::json!({
+        "preferred_workspace_id": std::env::var("CMUX_WORKSPACE_ID").ok().filter(|value| !value.is_empty()),
+        "preferred_surface_id": std::env::var("CMUX_SURFACE_ID").ok().filter(|value| !value.is_empty()),
+        "preferred_workspace_is_explicit": false,
+        "caller_tty": cmux_platform::terminal::caller_tty(),
+    })
 }
 
 #[cfg(test)]

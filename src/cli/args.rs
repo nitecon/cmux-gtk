@@ -209,9 +209,9 @@ pub enum Commands {
         subtitle: String,
         #[arg(long, default_value = "")]
         body: String,
-        #[arg(long, env = "CMUX_WORKSPACE_ID")]
+        #[arg(long)]
         workspace: Option<String>,
-        #[arg(long, env = "CMUX_SURFACE_ID")]
+        #[arg(long)]
         surface: Option<String>,
     },
     /// Inspect, read, dismiss and navigate notification history
@@ -240,6 +240,9 @@ pub enum NotificationCommands {
     List,
     /// Remove all messages, or messages in an explicit workspace/surface scope
     Clear {
+        /// Clear messages attributed to this calling terminal using native identity
+        #[arg(long, conflicts_with_all = ["workspace", "surface"])]
+        caller: bool,
         #[arg(long)]
         workspace: Option<String>,
         #[arg(long)]

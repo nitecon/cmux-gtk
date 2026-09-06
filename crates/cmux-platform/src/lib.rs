@@ -22,3 +22,5 @@ pub mod window;
 
 #[cfg(feature = "gtk")]
 pub mod opengl;
+
+pub mod terminal;

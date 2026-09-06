@@ -7,6 +7,7 @@
   - crates/cmux-platform/src/process.rs
   - src/ghostty/inherited.rs
   - src/ghostty/tty.rs
+  - crates/cmux-platform/src/terminal.rs
 019df63f-3ce1-7b33-8556-07a9a133d668:
   - crates/cmux-platform/Cargo.toml
   - crates/cmux-platform/src/discovery.rs

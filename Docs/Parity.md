@@ -109,3 +109,10 @@ Actions 34047279827 passed the complete approval and live-inbox suite at ab9bbb0
 `notification.create_for_caller` and `notification.clear` with `caller=true` now share upstream-style attribution: stable surface identity, hard explicit workspace scope, ambient workspace rehoming and unique current local native TTY evidence. Caller failures do not borrow the focused terminal. A known workspace with no proven terminal produces a workspace-only record (`surface_id: null`), retained across quit; opening it selects the workspace and preserves its selected sibling. Workspace-only records contribute sidebar unread attention but no arbitrary pane ring.
 
 The existing Ghostty TTY getter supplies live evidence and its allocation is released synchronously; remote workspace PTYs are excluded. This checkpoint covers socket caller selectors and real local TTYs. CLI automatic caller provenance, fresh shell-reported nested-multiplexer TTYs and remote relay rewriting remain outstanding. Native CI now covers real PTY lookup, UUID precedence, explicit/ambient scope, failed attribution, scoped clear, workspace-only navigation and persistence. Runtime verification is pending.
+
+
+## CLI caller identity checkpoint
+
+Plain `cmux notify` now sends inherited CMUX surface/workspace hints as ambient caller evidence and discovers a TTY from its standard descriptors through the platform library. Explicit `--workspace` or `--surface` uses direct targeting without importing conflicting ambient selectors. `cmux notifications clear --caller` shares caller attribution; its flags conflict with explicit clear scopes. No subprocess or file scan is used for TTY discovery.
+
+The caller CI scenario now invokes the real CLI from an inactive terminal with CMUX identity variables removed, and from a captured-output process with a deliberately stale ambient workspace hint. It checks native TTY fallback, stable surface rehoming, explicit override and caller-scoped clear. Runtime evidence remains pending. Fresh nested shell TTY reporting and remote relay identity rewriting remain open.
