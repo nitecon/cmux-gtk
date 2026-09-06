@@ -150,6 +150,72 @@ class Comparison(unittest.TestCase):
         with self.assertRaises(ValueError):
             COMPARISON.compare_reports(report, report)
 
+    def memory_fixture(self):
+        """Derive synthetic release-shaped input from archived debug samples for comparator tests only."""
+        report = COMPARISON.load_report(ROOT / "Docs/Benchmarks/e08b976f/memory-churn.json")
+        report["build_profile"] = "release"
+        for sample in report["samples"]:
+            sample["snapshot"]["build_profile"] = "release"
+        return report
+
+    def test_memory_resource_deltas(self):
+        """Recompute RSS metrics from raw samples, preserving absolute changes with no invented gates."""
+        baseline = self.memory_fixture()
+        candidate = copy.deepcopy(baseline)
+        for sample in candidate["samples"]:
+            if sample["phase"] == "redraw":
+                sample["snapshot"]["resources"]["rss_kib"] += 1024
+        result = COMPARISON.compare_reports(baseline, candidate)
+        metrics = result["resources"]
+        self.assertEqual(metrics["redraw_final_rss_median_kib"]["delta"], 1024)
+        self.assertEqual(metrics["redraw_rss_growth_kib"]["delta"], 0)
+        self.assertEqual(metrics["split_close_rss_growth_kib"]["delta"], 0)
+        self.assertGreater(result["baseline_window"]["redraw_observed_seconds"], 0)
+        self.assertGreaterEqual(metrics["redraw_cpu_percent"]["baseline"], 0)
+        split_live = copy.deepcopy(baseline["samples"][1])
+        split_live.update(phase="split_live", iteration=1,
+                          elapsed_seconds=(baseline["samples"][1]["elapsed_seconds"]
+                                           + baseline["samples"][2]["elapsed_seconds"]) / 2)
+        split_live["snapshot"]["terminals"]["registered"] = 2
+        baseline["samples"].insert(2, split_live)
+        self.assertTrue(COMPARISON.compare_reports(baseline, baseline)["matched_settings"]["live_split_sample"])
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(baseline, candidate)
+
+    def test_memory_rejects_partial_or_inconsistent_evidence(self):
+        """Reject incomplete phases, process changes, counter regressions and incompatible debug reports."""
+        mutations = [
+            (("status",), "failed"), (("shutdown_forced",), True),
+            (("build_profile",), "debug"), (("host", "machine"), ""),
+            (("workload", "split_close_cycles"), 45.0),
+            (("samples", 2, "phase"), "redraw"),
+            (("samples", 2, "iteration"), True),
+            (("samples", 2, "elapsed_seconds"), float("nan")),
+            (("samples", 2, "elapsed_seconds"), 0),
+            (("samples", 2, "snapshot", "pid"), 1),
+            (("samples", 2, "snapshot", "build_profile"), "debug"),
+            (("samples", 2, "snapshot", "terminals", "registered"), 1),
+            (("samples", 2, "snapshot", "resources", "rss_kib"), True),
+            (("samples", 2, "snapshot", "resources", "cpu_user_us"), 0),
+        ]
+        for path, value in mutations:
+            report = self.memory_fixture()
+            target = report
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                COMPARISON.compare_reports(report, report)
+        report = self.memory_fixture()
+        report["samples"] = report["samples"][:20]
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(report, report)
+        debug = COMPARISON.load_report(ROOT / "Docs/Benchmarks/e08b976f/memory-churn.json")
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(debug, debug)
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(self.baseline, self.memory_fixture())
+
     def test_cli_rejects_unrepresentable_and_oversized_reports(self):
         """Invalid input exits cleanly with no partial JSON or Python traceback."""
         with tempfile.TemporaryDirectory(prefix="cmux-comparison-") as directory:
