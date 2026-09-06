@@ -10,38 +10,81 @@ use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// Open a browser preview pane (Ctrl+Shift+B).
-/// Launches the agent-browser daemon, navigates to about:blank, creates a preview pane,
-/// and starts the CDP screencast stream so frames render in the Picture widget.
+/// Start preview initialization on Tokio and install its pane in the originally requested workspace.
+/// No GTK borrow spans I/O; shutdown cancels startup and stale manager/workspace results are ignored.
 pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
-    // Step 1: Launch/navigate through agent-browser's stable public CLI.
-    {
+    let mut activity = super::metrics::Activity::begin("preview_startup", None);
+    let (session, workspace, task) = {
         let mut s = state.borrow_mut();
-        if s.browser_manager.is_none() {
-            s.browser_manager = Some(crate::browser::BrowserManager::new());
-        }
-        let bm = s.browser_manager.as_mut().unwrap();
-        if let Err(e) = bm.run_cli(&["open", "about:blank"]) {
-            eprintln!("cmux: browser.open navigate failed: {e}");
+        let Some(runtime) = s.runtime_handle.clone() else {
+            activity.finish("unavailable");
             return;
-        }
-        let _ = bm.run_cli(&["stream", "enable"]);
-    } // drop borrow
-
-    // Step 2: Create preview pane
-    let pane_result = {
-        let mut s = state.borrow_mut();
-        if let Some(engine) = s.active_split_engine_mut() {
-            engine.split_active_with_preview()
-        } else {
-            None
-        }
-    }; // drop borrow
-
-    let Some(widgets) = pane_result else {
-        return;
+        };
+        let Some(workspace) = s
+            .workspaces
+            .get(s.active_index)
+            .map(|workspace| workspace.uuid)
+        else {
+            activity.finish("missing_workspace");
+            return;
+        };
+        let browser = s
+            .browser_manager
+            .get_or_insert_with(super::BrowserManager::new);
+        (
+            browser.session_name.clone(),
+            workspace,
+            runtime.spawn(browser.prepare_preview_async(activity.id)),
+        )
     };
-    wire_browser_tab(state, widgets);
+    let state = Rc::downgrade(state);
+    glib::MainContext::default().spawn_local(async move {
+        let binary = match task.await {
+            Ok(Ok(binary)) => binary,
+            Ok(Err(error)) => {
+                activity.finish("error");
+                eprintln!("cmux: browser preview startup failed: {error}");
+                return;
+            }
+            Err(_) => {
+                activity.finish("task_error");
+                return;
+            }
+        };
+        let Some(state) = state.upgrade() else {
+            return;
+        };
+        let widgets = {
+            let mut s = state.borrow_mut();
+            let Some(browser) = s
+                .browser_manager
+                .as_mut()
+                .filter(|browser| browser.session_name == session)
+            else {
+                activity.finish("stale_manager");
+                return;
+            };
+            browser.binary_path = Some(binary);
+            browser.preview_state = super::PreviewState::Connected;
+            let Some(index) = s
+                .workspaces
+                .iter()
+                .position(|candidate| candidate.uuid == workspace)
+            else {
+                activity.finish("missing_workspace");
+                return;
+            };
+            s.split_engines
+                .get_mut(index)
+                .and_then(|engine| engine.split_active_with_preview())
+        };
+        if let Some(widgets) = widgets {
+            wire_browser_tab(&state, widgets);
+            activity.finish("success");
+        } else {
+            activity.finish("missing_pane");
+        }
+    });
 }
 
 /// Reconnect browser tabs reconstructed from session.json and navigate to their

@@ -148,6 +148,74 @@ impl BrowserManager {
         Err("agent-browser daemon failed to start within 10 seconds".to_string())
     }
 
+    /// Prepare a preview off GTK, sharing navigation admission and manager cancellation.
+    /// Return the resolved executable for GTK to install only if this manager still owns the result.
+    fn prepare_preview_async(
+        &self,
+        trace_id: Uuid,
+    ) -> impl std::future::Future<Output = Result<PathBuf, String>> + Send + 'static {
+        let session = self.session_name.clone();
+        let binary = self.binary_path.clone();
+        let socket_dir = Self::agent_browser_socket_dir();
+        let permit = self.navigation_gate.clone().try_acquire_owned();
+        let mut shutdown = self.navigation_shutdown.subscribe();
+        async move {
+            let permit = std::sync::Arc::new(permit.map_err(|_| {
+                "Browser navigation unavailable or already in progress".to_string()
+            })?);
+            if *shutdown.borrow() {
+                return Err("Browser manager stopped".to_string());
+            }
+            let prepare = async move {
+                let discovery_permit = permit.clone();
+                let (binary, chrome) = tokio::task::spawn_blocking(move || {
+                    // A cancelled waiter cannot release admission while discovery still runs.
+                    let _permit = discovery_permit;
+                    let binary = binary.or_else(which_agent_browser);
+                    let chrome = if std::env::var_os("AGENT_BROWSER_EXECUTABLE_PATH").is_none() {
+                        find_system_chrome()
+                    } else {
+                        None
+                    };
+                    (binary, chrome)
+                })
+                .await
+                .map_err(|_| "Browser discovery worker failed".to_string())?;
+                let binary = binary.ok_or_else(|| "agent-browser is not installed; browser panes are unavailable. Install it with: npm install -g agent-browser && agent-browser install".to_string())?;
+                tokio::fs::create_dir_all(socket_dir)
+                    .await
+                    .map_err(|error| {
+                        format!("Failed to create browser socket directory: {error}")
+                    })?;
+                cli::start(&binary, &session, chrome.as_deref(), trace_id).await?;
+                // Preserve the existing best-effort stream-enable behavior.
+                // start_stream validates the separately advertised port.
+                if cli::run(&binary, &session, &["stream", "enable"], trace_id)
+                    .await
+                    .is_err()
+                {
+                    crate::diagnostics::record(
+                        "browser.preview.stream_enable.failed",
+                        serde_json::json!({"trace_id": trace_id}),
+                    );
+                }
+                Ok(binary)
+            };
+            tokio::select! {
+                biased;
+                _ = shutdown.changed() => Err("Browser manager stopped".to_string()),
+                result = tokio::time::timeout(std::time::Duration::from_secs(15), prepare) => {
+                    result.unwrap_or_else(|_| {
+                        crate::diagnostics::record("browser.preview.startup.timeout", serde_json::json!({
+                            "trace_id": trace_id, "budget_ms": 15_000,
+                        }));
+                        Err("Browser preview startup deadline exceeded".to_string())
+                    })
+                }
+            }
+        }
+    }
+
     /// Run a supported public agent-browser CLI command for this cmux session.
     /// Lifecycle and navigation use the public CLI because private daemon
     /// action semantics can change between independently installed releases.
@@ -626,6 +694,73 @@ esac
         .map(|command| format!("{session_name} {command}\n"))
         .concat();
         assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// Preview startup orders public CLI calls, rejects overlap and cancels its direct child on shutdown.
+    #[tokio::test]
+    async fn preview_startup_is_ordered_and_cancellable() {
+        let directory =
+            std::env::temp_dir().join(format!("cmux-preview-startup-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let binary = directory.join("browser fixture");
+        std::fs::write(&binary, br#"#!/bin/sh
+[ "$1" = '--session' ] && [ "$3" = '--json' ] || exit 2
+session="$2"
+shift 3
+if [ "$1" = '--executable-path' ]; then shift 2; fi
+printf '%s %s\n' "$session" "$1" >> "$0.calls"
+if [ -e "$0.hang" ]; then
+    printf '%s' $$ > "$0.pid"
+    exec sleep 60
+fi
+if [ "$1" = 'open' ]; then
+    [ "$2" = 'about:blank' ] && [ "$AGENT_BROWSER_SESSION" = "$session" ] && [ "$AGENT_BROWSER_STREAM_PORT" = '0' ] || exit 3
+elif [ "$1" = 'stream' ]; then
+    [ "$2" = 'enable' ] || exit 4
+else
+    exit 5
+fi
+printf '%s\n' '{"success":true,"data":{}}'
+"#).unwrap();
+        cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        let mut browser = BrowserManager::new();
+        browser.binary_path = Some(binary.clone());
+        let startup = browser.prepare_preview_async(Uuid::new_v4());
+        assert!(browser.prepare_preview_async(Uuid::new_v4()).await.is_err());
+        assert_eq!(startup.await.unwrap(), binary);
+        let calls = std::fs::read_to_string(directory.join("browser fixture.calls")).unwrap();
+        assert_eq!(
+            calls,
+            format!(
+                "{} open\n{} stream\n",
+                browser.session_name, browser.session_name
+            )
+        );
+        std::fs::write(directory.join("browser fixture.hang"), b"").unwrap();
+        let task = tokio::spawn(browser.prepare_preview_async(Uuid::new_v4()));
+        let pid_path = directory.join("browser fixture.pid");
+        let pid = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Ok(text) = tokio::fs::read_to_string(&pid_path).await {
+                    if let Ok(pid) = text.parse::<u32>() {
+                        break pid;
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        browser.stop_navigation();
+        assert_eq!(task.await.unwrap().unwrap_err(), "Browser manager stopped");
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while PathBuf::from(format!("/proc/{pid}")).exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
 

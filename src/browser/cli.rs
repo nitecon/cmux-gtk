@@ -19,20 +19,53 @@ pub(super) async fn run(
     args: &[&str],
     trace_id: uuid::Uuid,
 ) -> Result<Value, String> {
-    let mut activity = super::metrics::Activity::begin(
-        if args == ["get", "url"] {
-            "cli_url_refresh"
-        } else {
-            "cli_command"
-        },
-        Some(trace_id),
-    );
     let mut command = tokio::process::Command::new(binary);
     command
         .arg("--session")
         .arg(session)
         .arg("--json")
         .args(args);
+    run_command(
+        command,
+        if args == ["get", "url"] {
+            "cli_url_refresh"
+        } else {
+            "cli_command"
+        },
+        trace_id,
+    )
+    .await
+}
+
+/// Start the private preview session through the public CLI using bounded worker pipes.
+/// Honor an explicit browser choice; the caller discovers an optional system browser off GTK.
+pub(super) async fn start(
+    binary: &Path,
+    session: &str,
+    browser: Option<&Path>,
+    trace_id: uuid::Uuid,
+) -> Result<Value, String> {
+    let mut command = tokio::process::Command::new(binary);
+    command
+        .arg("--session")
+        .arg(session)
+        .arg("--json")
+        .env("AGENT_BROWSER_SESSION", session)
+        .env("AGENT_BROWSER_STREAM_PORT", "0");
+    if let Some(browser) = browser {
+        command.arg("--executable-path").arg(browser);
+    }
+    command.args(["open", "about:blank"]);
+    run_command(command, "cli_startup", trace_id).await
+}
+
+/// Share pipe bounds, child cleanup, protocol decoding and timing across public CLI operations.
+async fn run_command(
+    command: tokio::process::Command,
+    kind: &'static str,
+    trace_id: uuid::Uuid,
+) -> Result<Value, String> {
+    let mut activity = super::metrics::Activity::begin(kind, Some(trace_id));
     let output = match execute(command, Duration::from_secs(15)).await {
         Ok(output) => output,
         Err(error) => {
