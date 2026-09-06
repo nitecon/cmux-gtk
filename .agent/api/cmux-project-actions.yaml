@@ -58,3 +58,7 @@ content:
     - cmux.newWorkspace creates and selects a local workspace bound to the reviewed canonical directory, using existing workspace construction/sidebar wiring/session persistence.
     - All run responses and submission traces include source_workspace_id and destination workspace_id plus surface_id. For commands and terminal builtins both workspace IDs are equal.
     - Actions coverage checks distinct workspace identity, captured directory, selected surface and normal close. Strict Clippy and syntax pass; runtime pending. Workspace layout intents remain outstanding.
+
+  browser_builtin:
+    - cmux.newBrowser opens about:blank through shared browser startup and cancellation ownership. Captured selected surface must survive unchanged until installation; successful project action selects the browser, ordinary browser.open remains no-focus.
+    - project-run client timeout is now thirty seconds for resolution plus browser startup. Submission trace identifies workspace/surface. Mock-browser Actions coverage checks selection and independent daemon cleanup; runtime pending.

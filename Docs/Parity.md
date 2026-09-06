@@ -384,3 +384,7 @@ Project actions can now invoke newTerminal, splitRight and splitDown using exist
 ### Project workspace builtin execution
 
 cmux.newWorkspace now applies the reviewed project directory through existing local-workspace creation, sidebar handlers and session persistence. Run results and traces distinguish source from destination workspace IDs. Actions coverage checks identity, directory and selected surface; strict Clippy and syntax pass, runtime pending. Full workspace layout intents and other builtin families remain open.
+
+### Project browser builtin execution
+
+cmux.newBrowser now reuses browser startup/cancellation/session wiring, rejects a changed target surface during startup and selects the resulting browser only for explicit project execution. CLI project-run allows thirty seconds. Mock-browser Actions coverage checks target selection and independent daemon retirement; Clippy/AST pass, runtime pending. Palette, agent/workspace intents and remaining builtins remain open.

@@ -150,7 +150,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             client
         }
         Commands::Browser(BrowserCommand::Open { .. }) => Duration::from_secs(30),
-        Commands::ProjectActions { .. } | Commands::ProjectRun { .. } => Duration::from_secs(7),
+        Commands::ProjectActions { .. } => Duration::from_secs(7),
+        Commands::ProjectRun { .. } => Duration::from_secs(30),
         _ => Duration::from_secs(5),
     };
 

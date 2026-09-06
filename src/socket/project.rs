@@ -152,6 +152,12 @@ pub fn run(
             let _=response.send(err(req_id,"changed","workspace execution context changed"));return;
         }
         if response.is_closed(){return;}
+        if matches!(action.intent, Intent::Builtin { builtin: Builtin::NewBrowser }) {
+            let Some(pane) = pane else {let _=response.send(err(req_id,"not_found","project browser target missing"));return;};
+            drop(state);
+            super::handlers::start_browser_lifecycle(&owner, crate::browser::StartupRequest::Open(json!({"url":"about:blank","workspace":workspace_id})), req_id, response, trace_id, Some(pane));
+            return;
+        }
         let mut result_workspace_id = workspace_id;
         let mut wire_row = false;
         let surface=match action.intent {

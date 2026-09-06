@@ -1128,6 +1128,7 @@ fn handle_socket_command_traced(
                 req_id,
                 resp_tx,
                 trace_id,
+                None,
             );
         }
 
@@ -1173,6 +1174,7 @@ fn handle_socket_command_traced(
                 req_id,
                 resp_tx,
                 trace_id,
+                None,
             );
         }
 
@@ -1382,13 +1384,15 @@ fn handle_socket_command_traced(
 }
 
 /// Initialize and command the daemon on Tokio, then apply surviving results on GTK without stealing focus.
-fn start_browser_lifecycle(
+pub(super) fn start_browser_lifecycle(
     state: &std::rc::Rc<std::cell::RefCell<crate::app_state::AppState>>,
     mut request: crate::browser::StartupRequest,
     req_id: Value,
     mut resp_tx: super::commands::RespTx,
     trace_id: Option<String>,
+    project_surface: Option<String>,
 ) {
+    let started = std::time::Instant::now();
     let initial_url = match &request {
         crate::browser::StartupRequest::Open(params) => {
             params.get("url").and_then(Value::as_str).map(str::to_owned)
@@ -1505,6 +1509,11 @@ fn start_browser_lifecycle(
                 ));
                 return;
             };
+            if project_surface.as_ref().is_some_and(|surface| s.split_engines[index].active_pane_uuid().as_ref() != Some(surface)) {
+                activity.finish("changed_context");
+                let _ = resp_tx.send(err(req_id, "changed", "project browser target changed during startup"));
+                return;
+            }
             let widgets = s
                 .split_engines
                 .get_mut(index)
@@ -1525,7 +1534,17 @@ fn start_browser_lifecycle(
             widgets
         };
         if let Some(widgets) = new_widgets {
+            let surface = widgets.uuid;
             crate::browser::ui::wire_browser_tab(&state, widgets, activity.id);
+            if project_surface.is_some() {
+                let mut s = state.borrow_mut();
+                if let Some(index) = s.workspaces.iter().position(|row| Some(row.uuid) == workspace) {
+                    s.switch_to_index(index);
+                    s.split_engines[index].focus_surface(&surface.to_string());
+                }
+                result = json!({"workspace_id":workspace,"source_workspace_id":workspace,"surface_id":surface,"status":"submitted"});
+                crate::diagnostics::record("project.actions.run", json!({"trace_id":trace,"workspace_id":workspace,"source_workspace_id":workspace,"surface_id":surface,"outcome":"submitted","duration_us":started.elapsed().as_micros() as u64}));
+            }
         } else {
             activity.finish("missing_surface");
             let _ = resp_tx.send(err(req_id, "not_found", "Could not create browser surface"));

@@ -153,6 +153,22 @@ def main():
                 app.cli("close-workspace", third)
                 app.wait_for(lambda: all(not pid.exists() for pid in third_daemons), "closed workspace browser daemon exit")
                 assert all(pid.exists() for pid in previous_daemons), "closing one workspace retired another browser"
+                (root / "cmux.json").write_text(json.dumps({"actions": {"fixture.browser": {"builtin": "cmux.newBrowser"}}}))
+                project = json.loads(app.cli("new-workspace", "--cwd", str(root), "--json"))["uuid"]
+                reviewed = json.loads(app.cli("project-actions", "--workspace", project, "--json"))
+                app.cli("select-workspace", target)
+                before_daemons = set(browser_dir.glob("*.pid"))
+                created = json.loads(app.cli("project-run", "fixture.browser", "--workspace", project,
+                    "--fingerprint", reviewed["config"]["actions"]["fixture.browser"]["fingerprint"], "--json", timeout=35))
+                assert created["status"] == "submitted" and created["workspace_id"] == project
+                assert {row["uuid"] for row in app.surfaces() if row["active"]} == {created["surface_id"]}
+                assert json.loads(app.cli("current-workspace", "--json"))["uuid"] == project
+                owned = set(browser_dir.glob("*.pid")) - before_daemons
+                assert len(owned) == 1
+                app.cli("close-workspace", project)
+                app.wait_for(lambda: all(not pid.exists() for pid in owned), "project browser daemon exit")
+                assert all(pid.exists() for pid in before_daemons)
+                app.cli("select-workspace", target)
                 app.cli("select-workspace", source)
                 with pending_open(app, browser_dir) as pending:
                     app.cli("select-workspace", target)
