@@ -81,6 +81,7 @@ pub(crate) fn snapshot() -> serde_json::Value {
 pub(crate) struct Activity {
     pub(crate) id: uuid::Uuid,
     stage: &'static str,
+    parent_trace_id: Option<uuid::Uuid>,
     started: std::time::Instant,
     outcome: &'static str,
 }
@@ -88,16 +89,26 @@ pub(crate) struct Activity {
 impl Activity {
     /// Begin a fixed-name stage, sharing its parent navigation ID when supplied.
     pub(crate) fn begin(stage: &'static str, parent: Option<uuid::Uuid>) -> Self {
-        let id = parent.unwrap_or_else(uuid::Uuid::new_v4);
+        Self::start(stage, parent.unwrap_or_else(uuid::Uuid::new_v4), None)
+    }
+
+    /// Give a nested operation its own identity while retaining the originating UI or RPC trace.
+    pub(crate) fn child(stage: &'static str, parent: uuid::Uuid) -> Self {
+        Self::start(stage, uuid::Uuid::new_v4(), Some(parent))
+    }
+
+    /// Emit a stage start with explicit identity and parent linkage.
+    fn start(stage: &'static str, id: uuid::Uuid, parent_trace_id: Option<uuid::Uuid>) -> Self {
         crate::diagnostics::record(
             "browser.activity.begin",
             serde_json::json!({
-                "trace_id": id, "stage": stage,
+                "trace_id": id, "stage": stage, "parent_trace_id": parent_trace_id,
             }),
         );
         Self {
             id,
             stage,
+            parent_trace_id,
             started: std::time::Instant::now(),
             outcome: "cancelled",
         }
@@ -116,6 +127,7 @@ impl Drop for Activity {
             "browser.activity.complete",
             serde_json::json!({
                 "trace_id": self.id, "stage": self.stage, "outcome": self.outcome,
+                "parent_trace_id": self.parent_trace_id,
                 "duration_us": self.started.elapsed().as_micros(),
             }),
         );

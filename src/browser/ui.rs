@@ -557,7 +557,7 @@ fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
             label.set_text("No browser session active");
             return;
         };
-        runtime.spawn(browser.snapshot_async())
+        runtime.spawn(browser.snapshot_async(activity.id))
     };
     finish_devtools_snapshot(label, task, activity);
 }

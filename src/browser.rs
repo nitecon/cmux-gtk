@@ -214,6 +214,7 @@ impl BrowserManager {
                         let response = transport::request_async(
                             &socket_path,
                             &Self::command_request("navigate", params),
+                            Some(trace_id),
                         )
                         .await
                         .map_err(|message| StartupError {
@@ -223,6 +224,7 @@ impl BrowserManager {
                         let _ = transport::request_async(
                             &socket_path,
                             &Self::command_request("stream_enable", serde_json::json!({})),
+                            Some(trace_id),
                         )
                         .await;
                         response
@@ -230,6 +232,7 @@ impl BrowserManager {
                     StartupRequest::Stream => transport::request_async(
                         &socket_path,
                         &Self::command_request("stream_enable", serde_json::json!({})),
+                        Some(trace_id),
                     )
                     .await
                     .map_err(|message| StartupError {
@@ -451,18 +454,20 @@ impl BrowserManager {
         &self,
         action: &str,
         params: Value,
+        trace_id: Option<Uuid>,
     ) -> impl std::future::Future<Output = Result<Value, String>> + Send + 'static {
         let path = self.daemon_socket_path();
         let request = Self::command_request(action, params);
-        async move { transport::request_async(&path, &request).await }
+        async move { transport::request_async(&path, &request, trace_id).await }
     }
 
     /// Fetch a snapshot with bounded async transport and prepare display text off GTK.
     /// Formatting uses a blocking worker; cancellation may leave only that bounded CPU job finishing.
     pub fn snapshot_async(
         &self,
+        trace_id: Uuid,
     ) -> impl std::future::Future<Output = Result<String, String>> + Send + 'static {
-        let request = self.send_command_async("snapshot", serde_json::json!({}));
+        let request = self.send_command_async("snapshot", serde_json::json!({}), Some(trace_id));
         async move {
             // Keep admission through formatting, even if the caller cancels after
             // the blocking worker starts. Rapid toggles cannot queue unbounded jobs.
@@ -545,9 +550,9 @@ impl BrowserManager {
         self.mapped_navigation.take();
         self.stop_stream();
         let gate = self.navigation_gate.clone();
-        let close = self.send_command_async("close", serde_json::json!({}));
+        let mut activity = metrics::Activity::begin("shutdown", None);
+        let close = self.send_command_async("close", serde_json::json!({}), Some(activity.id));
         async move {
-            let mut activity = metrics::Activity::begin("shutdown", None);
             let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 while gate.available_permits() == 0 {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;

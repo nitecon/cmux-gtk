@@ -42,7 +42,7 @@ def measure(root, report):
 
         def line_is(expected):
             """Require the final prompt's current buffer, avoiding matches in earlier terminal output."""
-            text = app.cli("read-text", "--id", surface)
+            text = json.loads(app.cli("read-text", "--id", surface, "--json"))["text"]
             return "CMUX_HISTORY>" in text and text.rsplit("CMUX_HISTORY>", 1)[1].strip() == expected
 
         def resources():

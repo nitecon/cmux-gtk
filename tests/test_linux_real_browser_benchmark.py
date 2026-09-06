@@ -5,6 +5,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -116,10 +117,25 @@ def measure(root, report):
             report["latency_us"] = {key: summarize_us([row[key] for row in report["samples"]])
                                     for key in report["samples"][0]}
             # A daemon-side evaluation error must reach the CLI as failure, not a successful outer envelope.
-            failed = subprocess.run(["target/release/cmux", "--socket", str(app.socket_path), "browser", "eval",
+            failed = subprocess.run(["target/release/cmux", "--socket", str(app.socket_path), "--verbose", "browser", "eval",
                                      surface, "throw new Error('fixture failure')"], env=app.environment,
                                     capture_output=True, text=True, timeout=15)
             assert failed.returncode != 0
+            failure_trace = re.search(r"trace_id=([0-9a-f-]+)", failed.stderr).group(1)
+
+            def failure_correlated():
+                """Require the failed external exchange to retain its originating CLI trace."""
+                try:
+                    with (root / "events.jsonl").open() as log:
+                        records = [json.loads(line) for line in log.read(1024 * 1024).splitlines()]
+                except (FileNotFoundError, json.JSONDecodeError):
+                    return False
+                return any(record["event"] == "browser.activity.complete"
+                           and record["fields"].get("parent_trace_id") == failure_trace
+                           and record["fields"]["stage"] == "daemon_exchange"
+                           and record["fields"]["outcome"] == "error" for record in records)
+
+            app.wait_for(failure_correlated, "failed browser exchange correlation")
             assert selected_surface(app) == terminal
             app.cli("browser", "close")
             app.wait_for(lambda: not list(browser_dir.glob("*.pid")), "browser daemon shutdown")

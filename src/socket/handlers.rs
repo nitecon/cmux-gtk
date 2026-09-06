@@ -880,7 +880,13 @@ fn handle_socket_command_traced(
                 let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
                 return;
             };
-            let exchange = browser.send_command_async("stream_disable", json!({}));
+            let exchange = browser.send_command_async(
+                "stream_disable",
+                json!({}),
+                trace_id
+                    .as_deref()
+                    .and_then(|id| uuid::Uuid::parse_str(id).ok()),
+            );
             drop(s);
             spawn_browser_exchange(
                 &runtime,
@@ -949,7 +955,13 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
                     return;
                 };
-                let exchange = bm.send_command_async(daemon_action, params);
+                let exchange = bm.send_command_async(
+                    daemon_action,
+                    params,
+                    trace_id
+                        .as_deref()
+                        .and_then(|id| uuid::Uuid::parse_str(id).ok()),
+                );
                 drop(s);
                 spawn_browser_exchange(
                     &runtime,

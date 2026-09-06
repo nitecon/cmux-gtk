@@ -21,12 +21,35 @@ pub(crate) fn snapshot() -> Value {
 
 /// Exchange with a five-second default, or an explicit wait timeout plus response margin; admit at most sixteen requests.
 /// Reject excess work immediately rather than retaining an unbounded queue of browser operations.
-pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value, String> {
+pub(super) async fn request_async(
+    path: &Path,
+    request: &Value,
+    parent_trace: Option<uuid::Uuid>,
+) -> Result<Value, String> {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+    let mut activity =
+        parent_trace.map(|parent| super::metrics::Activity::child("daemon_exchange", parent));
     let _permit = EXCHANGES.try_acquire().map_err(|_| {
+        if let Some(activity) = activity.as_mut() {
+            activity.finish("overloaded");
+        }
         REJECTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         "Browser command capacity reached".to_string()
     })?;
+    if let Some(activity) = activity.as_ref() {
+        let request_id = request
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| id.strip_prefix("cmux-"))
+            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+            .map(|id| format!("cmux-{id}"));
+        crate::diagnostics::record(
+            "browser.transport.request",
+            serde_json::json!({
+                "trace_id": activity.id, "parent_trace_id": parent_trace, "request_id": request_id,
+            }),
+        );
+    }
     let exchange = async {
         let mut stream = cmux_platform::local_socket::Stream::connect(path).await?;
         let mut payload = serde_json::to_vec(request)?;
@@ -48,8 +71,15 @@ pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value,
     } else {
         Duration::from_secs(5)
     };
-    tokio::time::timeout(timeout, exchange)
-        .await
+    let result = tokio::time::timeout(timeout, exchange).await;
+    if let Some(activity) = activity.as_mut() {
+        activity.finish(match &result {
+            Ok(Ok(_)) => "success",
+            Ok(Err(_)) => "error",
+            Err(_) => "timeout",
+        });
+    }
+    result
         .map_err(|_| "Browser command deadline exceeded".to_string())?
         .map_err(|error| format!("Browser daemon exchange failed: {error}"))
 }
@@ -111,7 +141,7 @@ mod tests {
         let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let client_path = path.clone();
         let client = tokio::spawn(async move {
-            request_async(&client_path, &serde_json::json!({"action": "ping"})).await
+            request_async(&client_path, &serde_json::json!({"action": "ping"}), None).await
         });
         let (peer, _) = tokio::time::timeout(Duration::from_secs(5), listener.accept())
             .await
@@ -154,7 +184,7 @@ mod tests {
             tokio::task::yield_now().await;
             peer.write_all(b"true}\n").await.unwrap();
         });
-        let result = request_async(&path, &serde_json::json!({"action": "ping"})).await;
+        let result = request_async(&path, &serde_json::json!({"action": "ping"}), None).await;
         let _ = std::fs::remove_file(path);
         assert_eq!(result.unwrap()["success"], true);
         server.await.unwrap();
@@ -184,7 +214,7 @@ mod tests {
                 .unwrap();
         };
         let (result, ()) = tokio::time::timeout(Duration::from_secs(15), async {
-            tokio::join!(request_async(&path, &payload), server)
+            tokio::join!(request_async(&path, &payload, None), server)
         })
         .await
         .unwrap();
@@ -198,7 +228,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("cmux-silent-{}.sock", uuid::Uuid::new_v4()));
         let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
         let payload = serde_json::json!({"action":"ping"});
-        let request = request_async(&path, &payload);
+        let request = request_async(&path, &payload, None);
         let server = async {
             let (peer, _) = listener.accept().await.unwrap();
             tokio::time::sleep(Duration::from_secs(6)).await;
@@ -241,7 +271,7 @@ mod tests {
                         .unwrap();
                 }
             });
-            let result = request_async(&path, &serde_json::json!({"action":"ping"})).await;
+            let result = request_async(&path, &serde_json::json!({"action":"ping"}), None).await;
             if oversized {
                 assert!(result.unwrap_err().contains("4 MiB"));
             } else {

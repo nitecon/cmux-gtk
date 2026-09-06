@@ -24,7 +24,7 @@ impl InputQueue {
                 let mut failed = false;
                 for request in batch {
                     // Attempt release even if the preceding press exchange failed.
-                    failed |= super::transport::request_async(&path, &request)
+                    failed |= super::transport::request_async(&path, &request, None)
                         .await
                         .is_err();
                 }

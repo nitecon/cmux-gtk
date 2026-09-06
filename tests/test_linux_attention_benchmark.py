@@ -53,6 +53,7 @@ def measure(root, report):
             assert result["first_opengl_context"] is not None
             return result
 
+        next_bell = time.monotonic() + 0.11
         for iteration in range(25):
             if iteration == 5:
                 report["before"] = snapshot()
@@ -60,6 +61,11 @@ def measure(root, report):
             row = {}
             for kind in ("input", "bell"):
                 token = f"{kind}-{iteration}"
+                report["progress"] = {"iteration": iteration, "operation": kind}
+                if kind == "bell":
+                    # Ghostty suppresses bells within 100 ms; pace independent bursts
+                    # after the preceding observed delivery rather than retrying input.
+                    time.sleep(max(0, next_bell - time.monotonic()))
                 tick = time.perf_counter_ns()
                 app.cli("send-text", token, "--id", target)
                 app.cli("send-key", "\r", "--id", target)
@@ -67,6 +73,7 @@ def measure(root, report):
                              "executed terminal acknowledgement")
                 if kind == "bell":
                     app.wait_for(attention, "native bell attention")
+                    next_bell = time.monotonic() + 0.11
                 row[kind + "_us"] = (time.perf_counter_ns() - tick) / 1000
             app.cli("clear-notification", workspace)
             assert not attention(), "clear did not remove attention"
@@ -86,6 +93,7 @@ def main():
     output = Path(os.environ.get("CMUX_ATTENTION_REPORT", "target/benchmarks/attention-input-release.json"))
     report = {"schema": 1, "workload": "background_terminal_input_and_bell", "status": "failed",
               "warmup": 5, "iterations": 20, "bells_per_burst": 64, "poll_interval_seconds": 0.1,
+              "minimum_bell_gap_seconds": 0.11,
               "includes": "CLI startup, socket dispatch, PTY input, child output, viewport readback and attention polling; no presentation latency claim",
               "samples": [], "before": None, "after": None}
     with artifact(output, report):

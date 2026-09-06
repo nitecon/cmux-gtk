@@ -24,7 +24,7 @@ pub fn spawn_motion_forwarder(
             });
             let _ = tokio::time::timeout(
                 Duration::from_secs(1),
-                transport::request_async(&daemon_socket_path, &request),
+                transport::request_async(&daemon_socket_path, &request, None),
             )
             .await;
             next_send = tokio::time::Instant::now() + interval;

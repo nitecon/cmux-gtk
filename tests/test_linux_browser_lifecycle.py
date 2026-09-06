@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import uuid
 
 from linux_app import running_app
 from process_support import linux_process_belongs_to, stop_process
@@ -78,6 +79,21 @@ def main():
                             records = [json.loads(line) for line in log.read(1024 * 1024).splitlines()]
                     except (FileNotFoundError, json.JSONDecodeError):
                         return False
+                    links = [record["fields"] for record in records
+                             if record["event"] == "browser.transport.request"
+                             and record["fields"].get("parent_trace_id") == trace]
+                    if len(links) < 2:
+                        return False
+                    completed = {record["fields"]["trace_id"]: record["fields"] for record in records
+                                 if record["event"] == "browser.activity.complete"
+                                 and record["fields"].get("parent_trace_id") == trace}
+                    for link in links:
+                        if link["trace_id"] not in completed:
+                            return False
+                        assert link["request_id"].startswith("cmux-")
+                        uuid.UUID(link["request_id"][5:])
+                        assert completed[link["trace_id"]]["outcome"] == "success"
+                        assert completed[link["trace_id"]]["duration_us"] >= 0
                     records = [record for record in records if record["fields"].get("trace_id") == trace]
                     stages = {record["fields"].get("stage") for record in records
                               if record["event"] == "browser.activity.complete"}
