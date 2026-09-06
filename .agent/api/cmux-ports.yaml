@@ -13,12 +13,12 @@ content:
     - name: Platform collector
       steps:
         - The caller supplies up to 256 PID and Linux start-tick identities. Worker-only scanning reads at most 4096 descriptors per process and two MiB per tcp/tcp6 table.
-        - Socket descriptor inodes intersect LISTEN entries in that process network namespace. Identity is rechecked after scanning; exited or reused identities are omitted and other I/O failures propagate.
+        - Socket descriptor inodes intersect LISTEN entries in that process network namespace. The application submits all matched processes as one batch. Each namespace table is read once per scan, bounded to 16 namespaces and 16384 listeners each; an open namespace handle prevents cached identity reuse while scanning. Identity is rechecked after scanning; exited or reused identities are omitted and other I/O failures propagate.
         - Results contain owning process identity, bind address, TCP port and inode. The separate process_tree helper discovers current descendants from a qualified root across all spawning threads, limited to 256 processes and 1024 threads per process. It checks parent identity around traversal and validates each child parent from the same stat record as its start ticks. Collection does not schedule work or mutate application state.
   verification:
     - A real platform TCP listener test checks attribution, changed-start-tick rejection and disappearance after socket close. Runtime execution is through Actions only.
   outstanding:
-    - Batch network tables and extend attribution to detached descendants with durable validated root ownership.
+    - Extend attribution to detached descendants with durable validated root ownership.
     - Add remote daemon collection and automatic forwarding with browser origin routing.
 
   application:

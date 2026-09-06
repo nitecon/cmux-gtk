@@ -41,7 +41,7 @@ fn scan(terminals: &[(Uuid, PathBuf)]) -> std::io::Result<Vec<Port>> {
         .map(|(id, tty)| listeners::terminal_device(tty).map(|device| (*id, device)))
         .collect::<Result<_, _>>()?;
     let tree = listeners::process_tree(listeners::identity(std::process::id())?)?;
-    let mut ports = Vec::new();
+    let mut owners = Vec::new();
     for process in tree {
         let Some(device) = listeners::controlling_terminal(process)? else {
             continue;
@@ -53,18 +53,27 @@ fn scan(terminals: &[(Uuid, PathBuf)]) -> std::io::Result<Vec<Port>> {
         if matches.len() != 1 {
             continue;
         }
-        for listener in listeners::listening_tcp(&[process])? {
-            if ports.len() >= 256 {
-                return Err(std::io::Error::other("workspace listener limit exceeded"));
-            }
-            ports.push(Port {
-                surface_uuid: matches[0].0,
-                address: listener.address,
-                port: listener.port,
-                pid: process.pid,
-                provenance: "local",
-            });
+        owners.push((process, matches[0].0));
+    }
+    let processes: Vec<_> = owners.iter().map(|(process, _)| *process).collect();
+    let mut ports = Vec::new();
+    for listener in listeners::listening_tcp(&processes)? {
+        if ports.len() >= 256 {
+            return Err(std::io::Error::other("workspace listener limit exceeded"));
         }
+        let Some((_, surface_uuid)) = owners
+            .iter()
+            .find(|(process, _)| *process == listener.process)
+        else {
+            continue;
+        };
+        ports.push(Port {
+            surface_uuid: *surface_uuid,
+            address: listener.address,
+            port: listener.port,
+            pid: listener.process.pid,
+            provenance: "local",
+        });
     }
     ports.sort_by_key(|port| (port.port, port.surface_uuid, port.pid, port.address));
     ports.dedup();

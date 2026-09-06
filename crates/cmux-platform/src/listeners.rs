@@ -1,6 +1,6 @@
 //! Bounded Linux TCP listener attribution for explicitly supplied process identities.
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
@@ -172,7 +172,14 @@ pub fn terminal_device(path: &std::path::Path) -> io::Result<u64> {
     Ok(metadata.rdev())
 }
 
+/// Keep each sampled namespace alive while its bounded listener table is reused during one scan.
+struct NamespaceTable {
+    _namespace: std::fs::File,
+    listeners: Vec<(IpAddr, u16, u64)>,
+}
+
 /// Inspect up to 256 explicitly qualified processes, 4096 descriptors each and 2 MiB per TCP table.
+/// Cache TCP tables once per observed network namespace (at most 16, with 16384 listeners each).
 /// Only LISTEN sockets with descriptors owned by the same unchanged process are returned.
 /// Exited/reused processes are omitted; other I/O failures remain errors, not an empty successful scan.
 /// No process discovery, launching, signalling, namespace changes or GTK work occurs here.
@@ -180,13 +187,18 @@ pub fn listening_tcp(processes: &[ProcessIdentity]) -> io::Result<Vec<Listener>>
     if processes.len() > 256 {
         return Err(invalid());
     }
+    use std::os::unix::fs::MetadataExt;
     let mut result = Vec::new();
+    let mut tables: HashMap<(u64, u64), NamespaceTable> = HashMap::new();
     for process in processes {
         if !matches_identity(*process)? {
             continue;
         }
         let base = PathBuf::from(format!("/proc/{}", process.pid));
-        let scan = || -> io::Result<Vec<Listener>> {
+        let mut scan = || -> io::Result<Vec<Listener>> {
+            let namespace_file = std::fs::File::open(base.join("ns/net"))?;
+            let namespace = namespace_file.metadata()?;
+            let key = (namespace.dev(), namespace.ino());
             let mut sockets = HashSet::new();
             for (count, entry) in std::fs::read_dir(base.join("fd"))?.enumerate() {
                 if count >= 4096 {
@@ -207,25 +219,45 @@ pub fn listening_tcp(processes: &[ProcessIdentity]) -> io::Result<Vec<Listener>>
                     sockets.insert(inode);
                 }
             }
-            let mut listeners = Vec::new();
-            for table in ["tcp", "tcp6"] {
-                let text = crate::filesystem::read_text_bounded(
-                    &base.join("net").join(table),
-                    2 * 1024 * 1024,
-                )?;
-                for line in text.lines().skip(1) {
-                    if let Some((address, port, inode)) = parse_listener(line) {
-                        if sockets.contains(&inode) {
-                            listeners.push(Listener {
-                                process: *process,
-                                address,
-                                port,
-                                inode,
-                            });
+            if tables.len() >= 16 && !tables.contains_key(&key) {
+                return Err(invalid());
+            }
+            if let std::collections::hash_map::Entry::Vacant(entry) = tables.entry(key) {
+                let mut parsed = Vec::new();
+                for table in ["tcp", "tcp6"] {
+                    let text = crate::filesystem::read_text_bounded(
+                        &base.join("net").join(table),
+                        2 * 1024 * 1024,
+                    )?;
+                    for line in text.lines().skip(1) {
+                        if let Some(listener) = parse_listener(line) {
+                            if parsed.len() >= 16384 {
+                                return Err(invalid());
+                            }
+                            parsed.push(listener);
                         }
                     }
                 }
+                entry.insert(NamespaceTable {
+                    _namespace: namespace_file,
+                    listeners: parsed,
+                });
             }
+            let after = std::fs::metadata(base.join("ns/net"))?;
+            if (after.dev(), after.ino()) != key {
+                return Ok(Vec::new());
+            }
+            let listeners = tables[&key]
+                .listeners
+                .iter()
+                .filter(|(_, _, inode)| sockets.contains(inode))
+                .map(|&(address, port, inode)| Listener {
+                    process: *process,
+                    address,
+                    port,
+                    inode,
+                })
+                .collect();
             Ok(listeners)
         };
         match scan() {
