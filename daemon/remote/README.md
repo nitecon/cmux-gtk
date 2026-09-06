@@ -81,3 +81,7 @@ Integration additions for the relay path:
 2. A background `ssh -N -R` process reverse-forwards a TCP port to the authenticated local relay server. The relay address is written to `~/.cmux/socket_addr` on the remote.
 3. Relay startup writes `~/.cmux/relay/<port>.daemon_path` so the wrapper can route each shell to the correct daemon binary when multiple local cmux instances or versions coexist.
 4. Relay startup writes `~/.cmux/relay/<port>.auth` with the relay ID and token needed for HMAC authentication.
+
+### Optional request correlation
+
+Stdio requests may carry a `trace_id` string using the 36-byte UUID hexadecimal/hyphen shape. For valid labels, responses echo `trace_id` and add nonnegative `handler_duration_us`, including rejected methods. Invalid string labels are omitted; non-string values fail request decoding. Duration measures synchronous handler execution with a monotonic clock and excludes input framing/decoding, output encoding/delivery and SSH transport. Existing untraced response shapes remain unchanged. This metadata does not establish delivery, remote cancellation, PTY completion or side-effect rollback. The GTK client currently sends these labels for remote terminal spawn and subscription setup; other traffic is not yet correlated end to end.

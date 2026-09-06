@@ -24,7 +24,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-workflow-") as directory:
     env = dict(os.environ, XDG_DATA_HOME=str(root / "data"),
                XDG_CONFIG_HOME=str(root / "config"), XDG_STATE_HOME=str(root / "state"),
                XDG_RUNTIME_DIR=str(root / "runtime"), GDK_BACKEND="x11",
-               LIBGL_ALWAYS_SOFTWARE="1", CMUX_NO_UPDATE="1", PATH=str(root / "bin") + ":" + os.environ["PATH"])
+               LIBGL_ALWAYS_SOFTWARE="1", CMUX_NO_UPDATE="1", CMUX_LOG=str(root / "events.jsonl"),
+               PATH=str(root / "bin") + ":" + os.environ["PATH"])
     shutil.copy2("target/cmuxd-remote", root / "data/cmux/bin/cmuxd-remote-linux-amd64")
     for key in ["host-key", "client-key"]:
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(root / key)], check=True)
@@ -126,6 +127,40 @@ Subsystem sftp internal-sftp
         assert (root / "remote" / name).read_text() == str(root / "remote")
         assert not (root / "local" / name).exists()
 
+    def remote_setup_traced():
+        """Require matching local request lifetimes and remote handler timings for both PTY setups."""
+        try:
+            with (root / "events.jsonl").open() as source:
+                lines = source.read(8 * 1024 * 1024).splitlines()
+        except FileNotFoundError:
+            return False
+        starts, completed = {}, []
+        for line in lines:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event["pid"] != app.pid:
+                continue
+            if event["event"] == "ssh.rpc.begin":
+                starts[event["fields"]["trace_id"]] = event["fields"]
+            elif event["event"] == "ssh.rpc.complete":
+                completed.append(event["fields"])
+        successful = [fields for fields in completed if fields["outcome"] == "success"]
+        if any(sum(fields["method"] == method for fields in successful) < 2
+               for method in ("session.spawn", "proxy.stream.subscribe")):
+            return False
+        for fields in successful:
+            identity = fields["trace_id"]
+            assert str(uuid.UUID(identity)) == identity
+            assert identity in starts
+            assert fields["request_id"] == starts[identity]["request_id"]
+            assert fields["workspace_id"] == starts[identity]["workspace_id"]
+            assert type(fields["remote_handler_duration_us"]) is int
+            assert fields["remote_handler_duration_us"] >= 0
+            assert fields["duration_us"] >= 0
+        return True
+
     try:
         eventually(lambda: subprocess.run([str(root / "bin/ssh"), "-o", "BatchMode=yes", "cmux-ci", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0)
         start()
@@ -137,6 +172,7 @@ Subsystem sftp internal-sftp
         remote_write("first-result")
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
+        eventually(remote_setup_traced)
         cli("reorder-workspace", remote_id, "0")
         eventually(lambda: session()["workspaces"][0]["uuid"] == remote_id)
         saved = session()

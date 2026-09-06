@@ -26,6 +26,45 @@ type notifyingBuffer struct {
 
 type failedOutput struct{}
 
+// TestStdioTraceCorrelation echoes validated IDs and handler time on both success and rejection.
+func TestStdioTraceCorrelation(t *testing.T) {
+	valid := "12345678-1234-4567-89ab-123456789abc"
+	for _, trace := range []string{valid, strings.ToUpper(valid), "", "secret-target", strings.Repeat("a", 1000), "12345678-1234-4567-89ab-123456789abz"} {
+		for _, method := range []string{"ping", "unknown"} {
+			request, err := json.Marshal(map[string]any{"id": 7, "method": method, "trace_id": trace})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output bytes.Buffer
+			if err := runStdioServer(bytes.NewReader(append(request, '\n')), &output); err != nil {
+				t.Fatal(err)
+			}
+			var response map[string]any
+			if err := json.Unmarshal(output.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response["id"] != float64(7) || response["ok"] != (method == "ping") {
+				t.Fatalf("unexpected response: %v", response)
+			}
+			if trace == valid || trace == strings.ToUpper(valid) {
+				if response["trace_id"] != trace {
+					t.Fatalf("trace not preserved: %v", response)
+				}
+				if duration, ok := response["handler_duration_us"].(float64); !ok || duration < 0 {
+					t.Fatalf("invalid duration: %v", response)
+				}
+			} else {
+				if _, ok := response["trace_id"]; ok {
+					t.Fatal("invalid trace reflected")
+				}
+				if _, ok := response["handler_duration_us"]; ok {
+					t.Fatal("untraced response gained timing metadata")
+				}
+			}
+		}
+	}
+}
+
 // Write models an SSH output stream whose consumer has disconnected.
 func (failedOutput) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 

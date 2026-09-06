@@ -11,6 +11,11 @@ pub(super) struct RpcWriter<W> {
 }
 
 impl<W: AsyncWrite + Unpin> RpcWriter<W> {
+    /// Identify the owning workspace for metadata-only request correlation.
+    pub(super) fn workspace_id(&self) -> u64 {
+        self.workspace_id
+    }
+
     /// Start a usable connection writer; the parent routing scope owns its lifetime.
     pub(super) fn new(writer: W, workspace_id: u64) -> Self {
         Self {

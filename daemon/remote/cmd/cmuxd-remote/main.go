@@ -12,14 +12,16 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 var version = "dev"
 
 type rpcRequest struct {
-	ID     any            `json:"id"`
-	Method string         `json:"method"`
-	Params map[string]any `json:"params"`
+	ID      any            `json:"id"`
+	Method  string         `json:"method"`
+	Params  map[string]any `json:"params"`
+	TraceID string         `json:"trace_id,omitempty"`
 }
 
 type rpcError struct {
@@ -28,10 +30,12 @@ type rpcError struct {
 }
 
 type rpcResponse struct {
-	ID     any       `json:"id,omitempty"`
-	OK     bool      `json:"ok"`
-	Result any       `json:"result,omitempty"`
-	Error  *rpcError `json:"error,omitempty"`
+	ID                any       `json:"id,omitempty"`
+	OK                bool      `json:"ok"`
+	Result            any       `json:"result,omitempty"`
+	Error             *rpcError `json:"error,omitempty"`
+	TraceID           string    `json:"trace_id,omitempty"`
+	HandlerDurationUS *int64    `json:"handler_duration_us,omitempty"`
 }
 
 type rpcEvent struct {
@@ -186,11 +190,35 @@ func runStdioServer(stdin io.Reader, stdout io.Writer) error {
 			continue
 		}
 
+		started := time.Now()
 		resp := server.handleRequest(req)
+		if validTraceID(req.TraceID) {
+			duration := time.Since(started).Microseconds()
+			resp.TraceID = req.TraceID
+			resp.HandlerDurationUS = &duration
+		}
 		if err := writer.writeResponse(resp); err != nil {
 			return err
 		}
 	}
+}
+
+// validTraceID accepts bounded UUID-shaped hexadecimal correlation labels without retaining arbitrary input.
+func validTraceID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index := range value {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if value[index] != '-' {
+				return false
+			}
+		} else if !((value[index] >= '0' && value[index] <= '9') ||
+			(value[index] >= 'a' && value[index] <= 'f') || (value[index] >= 'A' && value[index] <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // readRPCFrame bounds one newline-delimited request, drains oversized frames and accepts a final unterminated frame.

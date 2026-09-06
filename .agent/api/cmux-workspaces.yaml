@@ -22,6 +22,12 @@ content:
         - Upload to a unique staging filename, set permissions, and atomically rename it into place so running helpers are not overwritten during reconnect.
         - Each terminal surface owns its own remote context and stream identity. Start stream only after surface initialization; route output by that identity.
         - Persist host, remote folder and layout. Reconnect creates fresh remote shell sessions rather than recovering previous processes.
+    - name: Remote setup correlation
+      steps:
+        - session.spawn and proxy.stream.subscribe carry a generated trace_id. Local ssh.rpc.begin and ssh.rpc.complete records include workspace, request ID, fixed method, elapsed time and success/error/timeout/cancelled categories without request parameters.
+        - The owned daemon echoes valid UUID-shaped trace_id values and handler_duration_us in stdio responses; handler time excludes framing, JSON decode, response serialization, output delivery and transport. Invalid string labels are omitted.
+        - Missing trace metadata from older daemons remains compatible and remote duration is unknown. Present mismatched trace IDs or invalid durations retire the uncertain setup connection. No remote cancellation or side-effect rollback is implied.
+        - Connection/deployment/handshake parent tracing, input/output operation correlation and external browser propagation remain unfinished.
     - name: Workspace organization
       steps:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.

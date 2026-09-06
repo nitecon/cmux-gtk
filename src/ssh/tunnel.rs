@@ -506,8 +506,8 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
     writer: &RpcWriter<W>,
     pending: &PendingMap,
     id: u64,
-    method: &str,
-    request: serde_json::Value,
+    method: &'static str,
+    mut request: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let (sender, receiver) = oneshot::channel();
     pending
@@ -519,17 +519,52 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
         id,
         writer,
         settled: false,
+        trace_id: uuid::Uuid::new_v4(),
+        started: std::time::Instant::now(),
+        method,
+        outcome: "cancelled",
+        remote_duration_us: None,
     };
-    writer
-        .send(&request)
-        .await
-        .map_err(|error| format!("write {method} failed: {error}"))?;
+    request["trace_id"] = serde_json::json!(awaiting.trace_id);
+    crate::diagnostics::record(
+        "ssh.rpc.begin",
+        serde_json::json!({
+            "workspace_id": writer.workspace_id(), "trace_id": awaiting.trace_id,
+            "request_id": id, "method": method,
+        }),
+    );
+    writer.send(&request).await.map_err(|error| {
+        awaiting.outcome = "write_error";
+        format!("write {method} failed: {error}")
+    })?;
     let response = tokio::time::timeout(Duration::from_secs(15), receiver)
         .await
-        .map_err(|_| format!("{method} timed out"))?
-        .map_err(|_| format!("{method} response channel dropped"))?;
+        .map_err(|_| {
+            awaiting.outcome = "timeout";
+            format!("{method} timed out")
+        })?
+        .map_err(|_| {
+            awaiting.outcome = "response_channel_closed";
+            format!("{method} response channel dropped")
+        })?;
+    awaiting.outcome = "invalid_response";
     if response.get("id").and_then(|value| value.as_u64()) != Some(id) {
         return Err(format!("{method} response identity mismatch"));
+    }
+    if let Some(trace) = response.get("trace_id") {
+        if trace
+            .as_str()
+            .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            != Some(awaiting.trace_id)
+        {
+            return Err(format!("{method} trace identity mismatch"));
+        }
+        awaiting.remote_duration_us = Some(
+            response
+                .get("handler_duration_us")
+                .and_then(|value| value.as_u64())
+                .ok_or_else(|| format!("{method} handler duration invalid"))?,
+        );
     }
     let accepted = response
         .get("ok")
@@ -537,12 +572,14 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
         .ok_or_else(|| format!("{method} response status invalid"))?;
     awaiting.settled = true;
     if !accepted {
+        awaiting.outcome = "remote_error";
         let message = response
             .pointer("/error/message")
             .and_then(|value| value.as_str())
             .unwrap_or("remote request rejected");
         return Err(format!("{method} failed: {message}"));
     }
+    awaiting.outcome = "success";
     Ok(response)
 }
 
@@ -586,10 +623,24 @@ struct PendingRequest<'a, W: tokio::io::AsyncWrite + Unpin> {
     id: u64,
     writer: &'a RpcWriter<W>,
     settled: bool,
+    trace_id: uuid::Uuid,
+    started: std::time::Instant,
+    method: &'static str,
+    outcome: &'static str,
+    remote_duration_us: Option<u64>,
 }
 impl<W: tokio::io::AsyncWrite + Unpin> Drop for PendingRequest<'_, W> {
     /// Release the slot on every exit; only correlated boolean-status replies settle the request.
     fn drop(&mut self) {
+        crate::diagnostics::record(
+            "ssh.rpc.complete",
+            serde_json::json!({
+                "workspace_id": self.writer.workspace_id(), "trace_id": self.trace_id,
+                "request_id": self.id, "method": self.method, "outcome": self.outcome,
+                "duration_us": self.started.elapsed().as_micros(),
+                "remote_handler_duration_us": self.remote_duration_us,
+            }),
+        );
         if let Ok(mut pending) = self.pending.lock() {
             pending.remove(&self.id);
         }
@@ -729,16 +780,22 @@ mod request_tests {
                 let mut reader = BufReader::new(reader);
                 let mut line = String::new();
                 reader.read_line(&mut line).await.unwrap();
-                assert_eq!(
-                    serde_json::from_str::<serde_json::Value>(&line).unwrap(),
-                    request
-                );
+                let mut received: serde_json::Value = serde_json::from_str(&line).unwrap();
+                let trace = received
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("trace_id")
+                    .unwrap();
+                assert!(uuid::Uuid::parse_str(trace.as_str().unwrap()).is_ok());
+                assert_eq!(received, request);
                 let sender = pending
                     .lock()
                     .unwrap()
                     .remove(&42)
                     .expect("registered before write");
-                if let Some(reply) = reply {
+                if let Some(mut reply) = reply {
+                    reply["trace_id"] = trace;
+                    reply["handler_duration_us"] = serde_json::json!(7);
                     sender.send(reply).unwrap();
                 }
             };
@@ -764,6 +821,63 @@ mod request_tests {
                 should_retire
             );
             assert!(pending.lock().unwrap().is_empty());
+        }
+    }
+
+    /// Optional legacy replies remain valid; malformed or mismatched remote trace metadata retires the writer.
+    #[tokio::test]
+    async fn validates_optional_remote_trace_metadata() {
+        for mode in ["legacy", "matched", "mismatch", "invalid_duration"] {
+            let (pipe, reader) = tokio::io::duplex(4096);
+            let writer = RpcWriter::new(pipe, 0);
+            let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+            let respond = async {
+                let mut line = String::new();
+                BufReader::new(reader).read_line(&mut line).await.unwrap();
+                let request: serde_json::Value = serde_json::from_str(&line).unwrap();
+                let mut response = serde_json::json!({"id": 42, "ok": true});
+                if mode != "legacy" {
+                    response["trace_id"] = if mode == "mismatch" {
+                        serde_json::json!(uuid::Uuid::new_v4())
+                    } else {
+                        request["trace_id"].clone()
+                    };
+                    response["handler_duration_us"] = if mode == "invalid_duration" {
+                        serde_json::json!(-1)
+                    } else {
+                        serde_json::json!(0)
+                    };
+                }
+                pending
+                    .lock()
+                    .unwrap()
+                    .remove(&42)
+                    .unwrap()
+                    .send(response)
+                    .unwrap();
+            };
+            let (result, ()) = tokio::time::timeout(Duration::from_secs(1), async {
+                tokio::join!(
+                    request_remote(
+                        &writer,
+                        &pending,
+                        42,
+                        "session.spawn",
+                        serde_json::json!({"id": 42, "method": "session.spawn"})
+                    ),
+                    respond
+                )
+            })
+            .await
+            .unwrap();
+            let valid = matches!(mode, "legacy" | "matched");
+            assert_eq!(result.is_ok(), valid);
+            assert_eq!(
+                tokio::time::timeout(Duration::from_millis(30), writer.failed())
+                    .await
+                    .is_err(),
+                valid
+            );
         }
     }
 
