@@ -16,6 +16,7 @@ pub use socket_client::CliError;
 
 mod args;
 pub use args::{BrowserCommand, Cli, Commands};
+use std::io::Write;
 use std::time::Duration;
 
 /// Run the CLI with the parsed arguments.
@@ -87,7 +88,14 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     // Output formatted result
     let output = format::format_response(&method_name, &result, json_mode, use_color);
     if !output.is_empty() {
-        println!("{}", output);
+        // A downstream consumer may finish early (for example, head). Flush
+        // explicitly so other output failures reach the normal CLI error path.
+        let mut stdout = std::io::stdout().lock();
+        if let Err(error) = writeln!(stdout, "{output}").and_then(|()| stdout.flush()) {
+            if error.kind() != std::io::ErrorKind::BrokenPipe {
+                return Err(CliError::Output(format!("cannot write stdout: {error}")));
+            }
+        }
     }
 
     Ok(())

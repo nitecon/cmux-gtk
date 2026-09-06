@@ -115,6 +115,9 @@ jobs:
       - name: Test terminal pane close lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_terminal_pane_close.py
 
+      - name: Test CLI closed-pipe and output-error handling
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_cli_sigpipe_ignore.py
+
       - name: Test Linux socket access boundaries
         run: dbus-run-session -- xvfb-run -a python3 tests/test_socket_access.py
 

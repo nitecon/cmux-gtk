@@ -16,6 +16,8 @@ pub enum CliError {
     Command(String),
     /// Unexpected protocol-level error (malformed response, timeout, etc).
     Protocol(String),
+    /// The command completed, but its result could not be written to stdout.
+    Output(String),
 }
 
 impl std::fmt::Display for CliError {
@@ -24,7 +26,8 @@ impl std::fmt::Display for CliError {
         match self {
             CliError::Connection(message)
             | CliError::Command(message)
-            | CliError::Protocol(message) => f.write_str(message),
+            | CliError::Protocol(message)
+            | CliError::Output(message) => f.write_str(message),
         }
     }
 }

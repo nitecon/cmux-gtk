@@ -17,11 +17,9 @@ fn main() -> std::process::ExitCode {
             eprintln!("Error: {}", msg);
             std::process::ExitCode::from(2)
         }
-        Err(cli::CliError::Command(msg)) => {
-            eprintln!("Error: {}", msg);
-            std::process::ExitCode::from(1)
-        }
-        Err(cli::CliError::Protocol(msg)) => {
+        Err(
+            cli::CliError::Command(msg) | cli::CliError::Protocol(msg) | cli::CliError::Output(msg),
+        ) => {
             eprintln!("Error: {}", msg);
             std::process::ExitCode::from(1)
         }
