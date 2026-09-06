@@ -149,6 +149,9 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
         }
     };
     refresh(state);
+    if let Some(sender) = &state.inbox_updates {
+        sender.send_replace(());
+    }
     state.trigger_session_save();
     Ok(result)
 }

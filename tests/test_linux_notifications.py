@@ -8,7 +8,7 @@ import uuid
 
 from linux_app import running_app
 from process_support import stop_process
-from test_linux_resume_approval import quit_app
+from test_linux_resume_approval import quit_app, key, window
 
 
 def main():
@@ -56,8 +56,14 @@ def main():
                     else:
                         raise AssertionError("invalid or stale notification target was accepted")
                 assert len(messages()) == 2 and active() == initial["uuid"]
-                opened = json.loads(app.cli("notifications", "jump-to-unread", "--json"))
-                assert opened["id"] == ids[1] and opened["opened"]
+                key(window(app), "ctrl+shift+i")
+                app.wait_for(lambda: window(app, "Notifications — 1 unread"), "live unread panel")
+                extra = json.loads(app.cli("notify", "--surface", first["uuid"], "--title", "New while panel open", "--json"))
+                app.wait_for(lambda: window(app, "Notifications — 2 unread"), "live notification arrival")
+                app.cli("notifications", "dismiss", "--id", extra["id"])
+                app.wait_for(lambda: window(app, "Notifications — 1 unread"), "live notification removal")
+                key(window(app, "Notifications — 1 unread"), "alt+j")
+                app.wait_for(lambda: window(app, "Notifications — 1 unread") is None, "panel navigation close")
                 assert active() == second["uuid"]
                 assert all(row["is_read"] for row in messages())
                 app.cli("notifications", "dismiss", "--id", ids[0])

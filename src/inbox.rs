@@ -139,9 +139,9 @@ pub fn parse(method: &str, params: &Value) -> Result<Action, &'static str> {
         all_read: bool,
     }
     let selectors: Selectors =
-        serde_json::from_value(params.clone()).map_err(|_| "invalid notification selector")?;
+        Selectors::deserialize(params).map_err(|_| "invalid notification selector")?;
     let mut scope: Scope =
-        serde_json::from_value(params.clone()).map_err(|_| "invalid notification target UUID")?;
+        Scope::deserialize(params).map_err(|_| "invalid notification target UUID")?;
     match method {
         "notification.create"
         | "notification.create_for_surface"
@@ -152,8 +152,18 @@ pub fn parse(method: &str, params: &Value) -> Result<Action, &'static str> {
             if method == "notification.create_for_target" && scope.workspace_id.is_none() {
                 return Err("workspace_id is required");
             }
-            let content: Content = serde_json::from_value(params.clone())
-                .map_err(|_| "notification content must be strings")?;
+            for (field, limit) in [("title", 512), ("subtitle", 1024), ("body", 8192)] {
+                if let Some(value) = params.get(field) {
+                    let text = value
+                        .as_str()
+                        .ok_or("notification content must be strings")?;
+                    if text.len() > limit || text.contains('\0') {
+                        return Err("notification fields exceed limits or contain NUL");
+                    }
+                }
+            }
+            let content =
+                Content::deserialize(params).map_err(|_| "notification content must be strings")?;
             content.validate()?;
             Ok(Action::Create { scope, content })
         }

@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Notification inbox and exact target routing
 space: cmux-gtk
 slug: notification-inbox
-summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC and panel integration remain in progress.
+summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC and provider integration remain in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/inbox.rs
@@ -29,4 +29,6 @@ content:
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
     verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
-    outstanding: Live GTK panel, native OSC9/99/777 chunking, per-turn provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.
+    outstanding: Native OSC9/99/777 chunking, per-turn provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.
+
+    panel: View > Notifications or Ctrl+Shift+I opens one nonmodal live panel. Ctrl+Shift+U jumps to unread. A watch signal coalesces mutations; the GTK listener and action handlers hold weak references and closing aborts the listener. Rows render plain text, open exact targets or dismiss messages; bulk controls mark read or clear. Native CI checks live unread-title updates and navigation.

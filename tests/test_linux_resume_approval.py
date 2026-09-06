@@ -85,6 +85,8 @@ def main():
                 quit_app(app)
             output.unlink()
             with running_app(root) as app:
+                app.wait_for(lambda: json.loads(app.cli("health", "--id", surface, "--json"))["alive"],
+                             "restored native terminal readiness")
                 app.wait_for(lambda: bool(json.loads(app.cli("read-text", "--id", surface, "--json"))["text"].strip()),
                              "unapproved terminal shell")
                 assert not approved() and not output.exists()

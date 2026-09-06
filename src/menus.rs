@@ -189,6 +189,18 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    let action = gio::SimpleAction::new("notifications", None);
+    action.connect_activate({
+        let window = window.downgrade();
+        let state = state.clone();
+        move |_, _| {
+            if let Some(window) = window.upgrade() {
+                crate::inbox_view::show(&window, &state);
+            }
+        }
+    });
+    window.add_action(&action);
+
     // --- View section actions ---
 
     // win.toggle-sidebar
@@ -327,6 +339,7 @@ pub fn register_accels(app: &gtk4::Application, shortcuts: &crate::config::Short
     app.set_accels_for_action("win.paste", &["<Ctrl><Shift>v"]);
     app.set_accels_for_action("win.find", &["<Ctrl>f"]);
     app.set_accels_for_action("win.preferences", &["<Ctrl>comma"]);
+    app.set_accels_for_action("win.notifications", &["<Ctrl><Shift>i"]);
     app.set_accels_for_action("app.quit", &["<Ctrl>q"]);
 }
 
@@ -358,6 +371,7 @@ pub fn build_hamburger_menu() -> gio::Menu {
     // View section (D-12)
     let view_section = gio::Menu::new();
     view_section.append(Some("Toggle Sidebar"), Some("win.toggle-sidebar"));
+    view_section.append(Some("Notifications"), Some("win.notifications"));
     view_section.append(Some("Split Right"), Some("win.split-right"));
     view_section.append(Some("Split Down"), Some("win.split-down"));
     menu.append_section(Some("View"), &view_section);

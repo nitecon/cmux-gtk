@@ -154,6 +154,30 @@ pub fn install_shortcuts(
                     }
                     gtk4::glib::Propagation::Stop
                 }
+                None if (keyval.to_lower() == gtk4::gdk::Key::i
+                    || keyval.to_lower() == gtk4::gdk::Key::u)
+                    && mods.intersection(
+                        gtk4::gdk::ModifierType::CONTROL_MASK
+                            | gtk4::gdk::ModifierType::SHIFT_MASK
+                            | gtk4::gdk::ModifierType::ALT_MASK
+                            | gtk4::gdk::ModifierType::SUPER_MASK,
+                    ) == (gtk4::gdk::ModifierType::CONTROL_MASK
+                        | gtk4::gdk::ModifierType::SHIFT_MASK) =>
+                {
+                    if keyval.to_lower() == gtk4::gdk::Key::i {
+                        if let Some(window) = window.upgrade() {
+                            crate::inbox_view::show(&window, &state);
+                        }
+                    } else if let Err((code, _)) = crate::inbox_actions::handle(
+                        &mut state.borrow_mut(),
+                        crate::inbox::Action::JumpToUnread,
+                    ) {
+                        crate::diagnostics::event(format_args!(
+                            "notification.navigation outcome={code}"
+                        ));
+                    }
+                    gtk4::glib::Propagation::Stop
+                }
                 // Everything else passes through to Ghostty.
                 _ => gtk4::glib::Propagation::Proceed,
             }

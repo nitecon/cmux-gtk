@@ -27,6 +27,9 @@ pub struct AppState {
     next_display_number: usize,
     /// Bounded retained messages, separate from transient terminal BEL attention.
     pub inbox: crate::inbox::Inbox,
+    /// Coalesced change signal and non-owning panel reference; the panel owns its cancellable listener.
+    pub inbox_updates: Option<tokio::sync::watch::Sender<()>>,
+    pub inbox_window: glib::WeakRef<gtk4::Dialog>,
     /// Validated application-owned authority for automatic local terminal resume.
     pub resume_policy: crate::resume_policy::ResumePolicy,
     /// Sender for session snapshots to the debounce task.
@@ -73,6 +76,8 @@ impl AppState {
             session_tx: None,
             resume_policy: Default::default(),
             inbox: Default::default(),
+            inbox_updates: None,
+            inbox_window: Default::default(),
             ssh_event_tx: None,
             runtime_handle: None,
             ssh_task_handles: std::collections::HashMap::new(),

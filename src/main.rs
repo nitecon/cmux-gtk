@@ -12,6 +12,7 @@ mod ghostty;
 mod header_bar;
 mod inbox;
 mod inbox_actions;
+mod inbox_view;
 mod line_reader;
 mod menus;
 mod notification;
