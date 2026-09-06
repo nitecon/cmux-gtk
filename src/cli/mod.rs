@@ -10,6 +10,8 @@ mod browser_address;
 use cmux_platform::discovery;
 pub mod format;
 mod hooks;
+#[path = "../project_config.rs"]
+mod project_config;
 #[path = "../resume.rs"]
 #[allow(dead_code)]
 mod resume;
@@ -92,6 +94,22 @@ fn restore_terminal(
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
+    if let Commands::ProjectActions { directory } = &cli.command {
+        let global = std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|value| !value.is_empty())
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".config"))
+            })
+            .map(|base| base.join("cmux/cmux.json"));
+        let resolved =
+            project_config::resolve(directory, global.as_deref()).map_err(CliError::Command)?;
+        let output = serde_json::to_string_pretty(&resolved)
+            .map_err(|error| CliError::Command(error.to_string()))?;
+        println!("{output}");
+        return Ok(());
+    }
+
     if let Commands::Hooks {
         command: args::HookCommands::Setup { agent },
     } = &cli.command
@@ -363,6 +381,9 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
+        Commands::ProjectActions { .. } => {
+            unreachable!("project inspection runs before socket discovery")
+        }
         Commands::Update => unreachable!("update is handled before socket discovery"),
         Commands::Ping => ("system.ping", json!({})),
         Commands::Identify => ("system.identify", json!({})),

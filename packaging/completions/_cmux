@@ -34,7 +34,409 @@ _cmux() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-command-$line[1]:"
         case $line[1] in
-            (update)
+            (project-actions)
+_arguments "${_arguments_options[@]}" : \
+'--directory=[]:DIRECTORY:_files' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(hooks)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks_commands" \
+"*::: :->hooks" \
+&& ret=0
+
+    case $state in
+    (hooks)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-command-$line[1]:"
+        case $line[1] in
+            (setup)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::agent -- Agent provider (currently claude); omitted discovers available supported providers:_default' \
+&& ret=0
+;;
+(claude)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__claude_commands" \
+"*::: :->claude" \
+&& ret=0
+
+    case $state in
+    (claude)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-claude-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__claude__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-claude-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-command-$line[1]:"
+        case $line[1] in
+            (setup)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(claude)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__claude_commands" \
+"*::: :->claude" \
+&& ret=0
+
+    case $state in
+    (claude)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-claude-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(restore)
+_arguments "${_arguments_options[@]}" : \
+'--surface=[]:SURFACE:_default' \
+'--checkpoint=[]:CHECKPOINT:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--automatic[Require a current application-signed approval before executing]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(surface)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__surface_commands" \
+"*::: :->surface" \
+&& ret=0
+
+    case $state in
+    (surface)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-surface-command-$line[1]:"
+        case $line[1] in
+            (resume)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__surface__resume_commands" \
+"*::: :->resume" \
+&& ret=0
+
+    case $state in
+    (resume)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-surface-resume-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+'--surface=[]:SURFACE:_default' \
+'--shell=[]:SHELL:_default' \
+'--kind=[]:KIND:_default' \
+'--checkpoint=[]:CHECKPOINT:_default' \
+'--cwd=[]:CWD:_default' \
+'--name=[]:NAME:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+'--surface=[]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+'--surface=[]:SURFACE:_default' \
+'--checkpoint=[]:CHECKPOINT:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__surface__resume__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-surface-resume-help-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__surface__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-surface-help-command-$line[1]:"
+        case $line[1] in
+            (resume)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__surface__help__resume_commands" \
+"*::: :->resume" \
+&& ret=0
+
+    case $state in
+    (resume)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-surface-help-resume-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(update)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -236,6 +638,20 @@ _arguments "${_arguments_options[@]}" : \
 ':position -- Target position (0-indexed):_default' \
 && ret=0
 ;;
+(reorder-workspaces)
+_arguments "${_arguments_options[@]}" : \
+'*--order=[]:ORDER:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--dry-run[]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (list-surfaces)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -313,10 +729,23 @@ _arguments "${_arguments_options[@]}" : \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
-':key -- Key descriptor:_default' \
+':key -- Literal character (named key combinations are not supported):_default' \
 && ret=0
 ;;
 (read-text)
+_arguments "${_arguments_options[@]}" : \
+'--id=[Target surface ID (default\: focused)]:ID:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(read-scrollback)
 _arguments "${_arguments_options[@]}" : \
 '--id=[Target surface ID (default\: focused)]:ID:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -377,7 +806,7 @@ _arguments "${_arguments_options[@]}" : \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
-'::id -- Pane ID (default\: next):_default' \
+'::id -- Pane reference (pane\:N) or a surface UUID:_default' \
 && ret=0
 ;;
 (last-pane)
@@ -441,6 +870,304 @@ _arguments "${_arguments_options[@]}" : \
 ':text -- Text to type:_default' \
 && ret=0
 ;;
+(set-status)
+_arguments "${_arguments_options[@]}" : \
+'--icon=[]:ICON:_default' \
+'--color=[]:COLOR:_default' \
+'--priority=[]:PRIORITY:_default' \
+'--format=[]:FORMAT:(plain markdown)' \
+'--url=[]:URL:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':key:_default' \
+':value:_default' \
+&& ret=0
+;;
+(report-meta-block)
+_arguments "${_arguments_options[@]}" : \
+'--priority=[]:PRIORITY:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':key:_default' \
+':markdown:_default' \
+&& ret=0
+;;
+(clear-meta-block)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':key:_default' \
+&& ret=0
+;;
+(list-meta-blocks)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(clear-status)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':key:_default' \
+&& ret=0
+;;
+(ports)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--surface=[]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(list-status)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(set-progress)
+_arguments "${_arguments_options[@]}" : \
+'--label=[]:LABEL:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':value:_default' \
+&& ret=0
+;;
+(clear-progress)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notify)
+_arguments "${_arguments_options[@]}" : \
+'--title=[]:TITLE:_default' \
+'--subtitle=[]:SUBTITLE:_default' \
+'--body=[]:BODY:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--surface=[]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notifications)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__notifications_commands" \
+"*::: :->notifications" \
+&& ret=0
+
+    case $state in
+    (notifications)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-notifications-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[]:WORKSPACE:_default' \
+'--surface=[]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'(--workspace --surface)--caller[Clear messages attributed to this calling terminal using native identity]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(mark-read)
+_arguments "${_arguments_options[@]}" : \
+'--id=[]:ID:_default' \
+'--workspace=[]:WORKSPACE:_default' \
+'--surface=[]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--all[]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(dismiss)
+_arguments "${_arguments_options[@]}" : \
+'--id=[]:ID:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--all-read[]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(open)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(jump-to-unread)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__notifications__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-notifications-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mark-read)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(dismiss)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(open)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(jump-to-unread)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (list-notifications)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -463,7 +1190,7 @@ _arguments "${_arguments_options[@]}" : \
 '--verbose[Verbose output (connection info to stderr)]' \
 '-h[Print help]' \
 '--help[Print help]' \
-':id -- Notification ID:_default' \
+':id -- Workspace UUID (legacy alias; notifications clear supports explicit scopes):_default' \
 && ret=0
 ;;
 (browser)
@@ -954,7 +1681,111 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-help-command-$line[1]:"
         case $line[1] in
-            (update)
+            (project-actions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(hooks)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks_commands" \
+"*::: :->hooks" \
+&& ret=0
+
+    case $state in
+    (hooks)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-command-$line[1]:"
+        case $line[1] in
+            (setup)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(claude)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__claude_commands" \
+"*::: :->claude" \
+&& ret=0
+
+    case $state in
+    (claude)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-claude-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(restore)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(surface)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__surface_commands" \
+"*::: :->surface" \
+&& ret=0
+
+    case $state in
+    (surface)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-surface-command-$line[1]:"
+        case $line[1] in
+            (resume)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__surface__resume_commands" \
+"*::: :->resume" \
+&& ret=0
+
+    case $state in
+    (resume)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-surface-resume-command-$line[1]:"
+        case $line[1] in
+            (set)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(show)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(update)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1018,6 +1849,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(reorder-workspaces)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (list-surfaces)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1043,6 +1878,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (read-text)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(read-scrollback)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1081,6 +1920,86 @@ _arguments "${_arguments_options[@]}" : \
 (type)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(set-status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(report-meta-block)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear-meta-block)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list-meta-blocks)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear-status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(ports)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list-status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(set-progress)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear-progress)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notify)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notifications)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__notifications_commands" \
+"*::: :->notifications" \
+&& ret=0
+
+    case $state in
+    (notifications)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-notifications-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(clear)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mark-read)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(dismiss)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(open)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(jump-to-unread)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (list-notifications)
 _arguments "${_arguments_options[@]}" : \
@@ -1218,6 +2137,10 @@ esac
 (( $+functions[_cmux_commands] )) ||
 _cmux_commands() {
     local commands; commands=(
+'project-actions:Inspect resolved project actions and their source files without running them' \
+'hooks:Install and receive native agent session hooks' \
+'restore:Execute this terminal'\''s saved manual resume command in the calling terminal' \
+'surface:Manage persistent terminal surface state' \
 'update:Update a self-managed cmux installation' \
 'ping:Ping the running cmux instance' \
 'identify:Show cmux instance identity (version, platform, pid)' \
@@ -1234,14 +2157,16 @@ _cmux_commands() {
 'prev-workspace:Switch to previous workspace' \
 'last-workspace:Switch to last active workspace' \
 'reorder-workspace:Reorder a workspace' \
+'reorder-workspaces:Reorder listed workspaces first, retaining the relative order of all others' \
 'list-surfaces:List all surfaces' \
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
 'close-surface:Close a surface by ID' \
 'send-text:Send text to a surface' \
-'send-key:Send a key event to a surface' \
-'read-text:Read text from a surface' \
-'health:Check surface health' \
+'send-key:Send one literal character to a terminal surface' \
+'read-text:Read current terminal viewport text (up to 256 KiB)' \
+'read-scrollback:Capture recent terminal history as bounded VT text (up to 2,000 rows and 256 KiB)' \
+'health:Check native terminal availability and pane attention' \
 'refresh:Refresh a surface' \
 'list-panes:List all panes' \
 'focus-pane:Focus a pane' \
@@ -1250,6 +2175,17 @@ _cmux_commands() {
 'current-window:Show current window info' \
 'layout:Show layout tree' \
 'type:Type text into the focused terminal' \
+'set-status:Set a keyed status in a workspace sidebar' \
+'report-meta-block:Publish a keyed multiline Markdown summary' \
+'clear-meta-block:Remove a keyed Markdown summary' \
+'list-meta-blocks:List retained Markdown summaries' \
+'clear-status:Clear one sidebar status key' \
+'ports:List attributed listening ports without changing workspace selection' \
+'list-status:List workspace status entries and progress' \
+'set-progress:Set determinate workspace progress from zero to one' \
+'clear-progress:Clear workspace progress' \
+'notify:Deliver a notification to a terminal without changing focus' \
+'notifications:Inspect, read, dismiss and navigate notification history' \
 'list-notifications:List notifications' \
 'clear-notification:Clear a notification' \
 'browser:Browser automation (agent primary interface)' \
@@ -1569,10 +2505,25 @@ _cmux__capabilities_commands() {
     local commands; commands=()
     _describe -t commands 'cmux capabilities commands' commands "$@"
 }
+(( $+functions[_cmux__clear-meta-block_commands] )) ||
+_cmux__clear-meta-block_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux clear-meta-block commands' commands "$@"
+}
 (( $+functions[_cmux__clear-notification_commands] )) ||
 _cmux__clear-notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux clear-notification commands' commands "$@"
+}
+(( $+functions[_cmux__clear-progress_commands] )) ||
+_cmux__clear-progress_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux clear-progress commands' commands "$@"
+}
+(( $+functions[_cmux__clear-status_commands] )) ||
+_cmux__clear-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux clear-status commands' commands "$@"
 }
 (( $+functions[_cmux__close-surface_commands] )) ||
 _cmux__close-surface_commands() {
@@ -1617,6 +2568,10 @@ _cmux__health_commands() {
 (( $+functions[_cmux__help_commands] )) ||
 _cmux__help_commands() {
     local commands; commands=(
+'project-actions:Inspect resolved project actions and their source files without running them' \
+'hooks:Install and receive native agent session hooks' \
+'restore:Execute this terminal'\''s saved manual resume command in the calling terminal' \
+'surface:Manage persistent terminal surface state' \
 'update:Update a self-managed cmux installation' \
 'ping:Ping the running cmux instance' \
 'identify:Show cmux instance identity (version, platform, pid)' \
@@ -1633,14 +2588,16 @@ _cmux__help_commands() {
 'prev-workspace:Switch to previous workspace' \
 'last-workspace:Switch to last active workspace' \
 'reorder-workspace:Reorder a workspace' \
+'reorder-workspaces:Reorder listed workspaces first, retaining the relative order of all others' \
 'list-surfaces:List all surfaces' \
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
 'close-surface:Close a surface by ID' \
 'send-text:Send text to a surface' \
-'send-key:Send a key event to a surface' \
-'read-text:Read text from a surface' \
-'health:Check surface health' \
+'send-key:Send one literal character to a terminal surface' \
+'read-text:Read current terminal viewport text (up to 256 KiB)' \
+'read-scrollback:Capture recent terminal history as bounded VT text (up to 2,000 rows and 256 KiB)' \
+'health:Check native terminal availability and pane attention' \
 'refresh:Refresh a surface' \
 'list-panes:List all panes' \
 'focus-pane:Focus a pane' \
@@ -1649,6 +2606,17 @@ _cmux__help_commands() {
 'current-window:Show current window info' \
 'layout:Show layout tree' \
 'type:Type text into the focused terminal' \
+'set-status:Set a keyed status in a workspace sidebar' \
+'report-meta-block:Publish a keyed multiline Markdown summary' \
+'clear-meta-block:Remove a keyed Markdown summary' \
+'list-meta-blocks:List retained Markdown summaries' \
+'clear-status:Clear one sidebar status key' \
+'ports:List attributed listening ports without changing workspace selection' \
+'list-status:List workspace status entries and progress' \
+'set-progress:Set determinate workspace progress from zero to one' \
+'clear-progress:Clear workspace progress' \
+'notify:Deliver a notification to a terminal without changing focus' \
+'notifications:Inspect, read, dismiss and navigate notification history' \
 'list-notifications:List notifications' \
 'clear-notification:Clear a notification' \
 'browser:Browser automation (agent primary interface)' \
@@ -1811,10 +2779,25 @@ _cmux__help__capabilities_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help capabilities commands' commands "$@"
 }
+(( $+functions[_cmux__help__clear-meta-block_commands] )) ||
+_cmux__help__clear-meta-block_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help clear-meta-block commands' commands "$@"
+}
 (( $+functions[_cmux__help__clear-notification_commands] )) ||
 _cmux__help__clear-notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help clear-notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__clear-progress_commands] )) ||
+_cmux__help__clear-progress_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help clear-progress commands' commands "$@"
+}
+(( $+functions[_cmux__help__clear-status_commands] )) ||
+_cmux__help__clear-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help clear-status commands' commands "$@"
 }
 (( $+functions[_cmux__help__close-surface_commands] )) ||
 _cmux__help__close-surface_commands() {
@@ -1861,6 +2844,49 @@ _cmux__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help help commands' commands "$@"
 }
+(( $+functions[_cmux__help__hooks_commands] )) ||
+_cmux__help__hooks_commands() {
+    local commands; commands=(
+'setup:Install supported hooks while preserving unrelated agent configuration' \
+'claude:Receive a Claude Code hook payload on stdin' \
+    )
+    _describe -t commands 'cmux help hooks commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude_commands] )) ||
+_cmux__help__hooks__claude_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks claude commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude__notification_commands] )) ||
+_cmux__help__hooks__claude__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks claude notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude__session-end_commands] )) ||
+_cmux__help__hooks__claude__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks claude session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude__session-start_commands] )) ||
+_cmux__help__hooks__claude__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks claude session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude__stop_commands] )) ||
+_cmux__help__hooks__claude__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks claude stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__setup_commands] )) ||
+_cmux__help__hooks__setup_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks setup commands' commands "$@"
+}
 (( $+functions[_cmux__help__identify_commands] )) ||
 _cmux__help__identify_commands() {
     local commands; commands=()
@@ -1881,6 +2907,11 @@ _cmux__help__layout_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help layout commands' commands "$@"
 }
+(( $+functions[_cmux__help__list-meta-blocks_commands] )) ||
+_cmux__help__list-meta-blocks_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help list-meta-blocks commands' commands "$@"
+}
 (( $+functions[_cmux__help__list-notifications_commands] )) ||
 _cmux__help__list-notifications_commands() {
     local commands; commands=()
@@ -1890,6 +2921,11 @@ _cmux__help__list-notifications_commands() {
 _cmux__help__list-panes_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help list-panes commands' commands "$@"
+}
+(( $+functions[_cmux__help__list-status_commands] )) ||
+_cmux__help__list-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help list-status commands' commands "$@"
 }
 (( $+functions[_cmux__help__list-surfaces_commands] )) ||
 _cmux__help__list-surfaces_commands() {
@@ -1916,20 +2952,82 @@ _cmux__help__next-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help next-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__help__notifications_commands] )) ||
+_cmux__help__notifications_commands() {
+    local commands; commands=(
+'list:List retained messages and read state' \
+'clear:Remove all messages, or messages in an explicit workspace/surface scope' \
+'mark-read:Mark a message, a workspace/surface scope, or all messages read without focus changes' \
+'dismiss:Remove one message or all previously read messages' \
+'open:Focus the exact terminal referenced by a message' \
+'jump-to-unread:Focus the most recent unread message'\''s terminal' \
+    )
+    _describe -t commands 'cmux help notifications commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__clear_commands] )) ||
+_cmux__help__notifications__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications clear commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__dismiss_commands] )) ||
+_cmux__help__notifications__dismiss_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications dismiss commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__jump-to-unread_commands] )) ||
+_cmux__help__notifications__jump-to-unread_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications jump-to-unread commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__list_commands] )) ||
+_cmux__help__notifications__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications list commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__mark-read_commands] )) ||
+_cmux__help__notifications__mark-read_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications mark-read commands' commands "$@"
+}
+(( $+functions[_cmux__help__notifications__open_commands] )) ||
+_cmux__help__notifications__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notifications open commands' commands "$@"
+}
+(( $+functions[_cmux__help__notify_commands] )) ||
+_cmux__help__notify_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help notify commands' commands "$@"
+}
 (( $+functions[_cmux__help__ping_commands] )) ||
 _cmux__help__ping_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help ping commands' commands "$@"
+}
+(( $+functions[_cmux__help__ports_commands] )) ||
+_cmux__help__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help ports commands' commands "$@"
 }
 (( $+functions[_cmux__help__prev-workspace_commands] )) ||
 _cmux__help__prev-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help prev-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__help__project-actions_commands] )) ||
+_cmux__help__project-actions_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help project-actions commands' commands "$@"
+}
 (( $+functions[_cmux__help__raw_commands] )) ||
 _cmux__help__raw_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help raw commands' commands "$@"
+}
+(( $+functions[_cmux__help__read-scrollback_commands] )) ||
+_cmux__help__read-scrollback_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help read-scrollback commands' commands "$@"
 }
 (( $+functions[_cmux__help__read-text_commands] )) ||
 _cmux__help__read-text_commands() {
@@ -1951,6 +3049,21 @@ _cmux__help__reorder-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help reorder-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__help__reorder-workspaces_commands] )) ||
+_cmux__help__reorder-workspaces_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help reorder-workspaces commands' commands "$@"
+}
+(( $+functions[_cmux__help__report-meta-block_commands] )) ||
+_cmux__help__report-meta-block_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help report-meta-block commands' commands "$@"
+}
+(( $+functions[_cmux__help__restore_commands] )) ||
+_cmux__help__restore_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help restore commands' commands "$@"
+}
 (( $+functions[_cmux__help__select-workspace_commands] )) ||
 _cmux__help__select-workspace_commands() {
     local commands; commands=()
@@ -1966,10 +3079,51 @@ _cmux__help__send-text_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help send-text commands' commands "$@"
 }
+(( $+functions[_cmux__help__set-progress_commands] )) ||
+_cmux__help__set-progress_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help set-progress commands' commands "$@"
+}
+(( $+functions[_cmux__help__set-status_commands] )) ||
+_cmux__help__set-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help set-status commands' commands "$@"
+}
 (( $+functions[_cmux__help__split_commands] )) ||
 _cmux__help__split_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help split commands' commands "$@"
+}
+(( $+functions[_cmux__help__surface_commands] )) ||
+_cmux__help__surface_commands() {
+    local commands; commands=(
+'resume:Register or inspect a saved resume command (does not execute it)' \
+    )
+    _describe -t commands 'cmux help surface commands' commands "$@"
+}
+(( $+functions[_cmux__help__surface__resume_commands] )) ||
+_cmux__help__surface__resume_commands() {
+    local commands; commands=(
+'set:' \
+'show:' \
+'clear:' \
+    )
+    _describe -t commands 'cmux help surface resume commands' commands "$@"
+}
+(( $+functions[_cmux__help__surface__resume__clear_commands] )) ||
+_cmux__help__surface__resume__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help surface resume clear commands' commands "$@"
+}
+(( $+functions[_cmux__help__surface__resume__set_commands] )) ||
+_cmux__help__surface__resume__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help surface resume set commands' commands "$@"
+}
+(( $+functions[_cmux__help__surface__resume__show_commands] )) ||
+_cmux__help__surface__resume__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help surface resume show commands' commands "$@"
 }
 (( $+functions[_cmux__help__type_commands] )) ||
 _cmux__help__type_commands() {
@@ -1980,6 +3134,136 @@ _cmux__help__type_commands() {
 _cmux__help__update_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help update commands' commands "$@"
+}
+(( $+functions[_cmux__hooks_commands] )) ||
+_cmux__hooks_commands() {
+    local commands; commands=(
+'setup:Install supported hooks while preserving unrelated agent configuration' \
+'claude:Receive a Claude Code hook payload on stdin' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude_commands] )) ||
+_cmux__hooks__claude_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks claude commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help_commands] )) ||
+_cmux__hooks__claude__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks claude help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__help_commands] )) ||
+_cmux__hooks__claude__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__notification_commands] )) ||
+_cmux__hooks__claude__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__session-end_commands] )) ||
+_cmux__hooks__claude__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__session-start_commands] )) ||
+_cmux__hooks__claude__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__stop_commands] )) ||
+_cmux__hooks__claude__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__notification_commands] )) ||
+_cmux__hooks__claude__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__session-end_commands] )) ||
+_cmux__hooks__claude__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__session-start_commands] )) ||
+_cmux__hooks__claude__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__stop_commands] )) ||
+_cmux__hooks__claude__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help_commands] )) ||
+_cmux__hooks__help_commands() {
+    local commands; commands=(
+'setup:Install supported hooks while preserving unrelated agent configuration' \
+'claude:Receive a Claude Code hook payload on stdin' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude_commands] )) ||
+_cmux__hooks__help__claude_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help claude commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude__notification_commands] )) ||
+_cmux__hooks__help__claude__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help claude notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude__session-end_commands] )) ||
+_cmux__hooks__help__claude__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help claude session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude__session-start_commands] )) ||
+_cmux__hooks__help__claude__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help claude session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude__stop_commands] )) ||
+_cmux__hooks__help__claude__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help claude stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__help_commands] )) ||
+_cmux__hooks__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__setup_commands] )) ||
+_cmux__hooks__help__setup_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__setup_commands] )) ||
+_cmux__hooks__setup_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks setup commands' commands "$@"
 }
 (( $+functions[_cmux__identify_commands] )) ||
 _cmux__identify_commands() {
@@ -2001,6 +3285,11 @@ _cmux__layout_commands() {
     local commands; commands=()
     _describe -t commands 'cmux layout commands' commands "$@"
 }
+(( $+functions[_cmux__list-meta-blocks_commands] )) ||
+_cmux__list-meta-blocks_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux list-meta-blocks commands' commands "$@"
+}
 (( $+functions[_cmux__list-notifications_commands] )) ||
 _cmux__list-notifications_commands() {
     local commands; commands=()
@@ -2010,6 +3299,11 @@ _cmux__list-notifications_commands() {
 _cmux__list-panes_commands() {
     local commands; commands=()
     _describe -t commands 'cmux list-panes commands' commands "$@"
+}
+(( $+functions[_cmux__list-status_commands] )) ||
+_cmux__list-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux list-status commands' commands "$@"
 }
 (( $+functions[_cmux__list-surfaces_commands] )) ||
 _cmux__list-surfaces_commands() {
@@ -2036,20 +3330,131 @@ _cmux__next-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux next-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__notifications_commands] )) ||
+_cmux__notifications_commands() {
+    local commands; commands=(
+'list:List retained messages and read state' \
+'clear:Remove all messages, or messages in an explicit workspace/surface scope' \
+'mark-read:Mark a message, a workspace/surface scope, or all messages read without focus changes' \
+'dismiss:Remove one message or all previously read messages' \
+'open:Focus the exact terminal referenced by a message' \
+'jump-to-unread:Focus the most recent unread message'\''s terminal' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux notifications commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__clear_commands] )) ||
+_cmux__notifications__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications clear commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__dismiss_commands] )) ||
+_cmux__notifications__dismiss_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications dismiss commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help_commands] )) ||
+_cmux__notifications__help_commands() {
+    local commands; commands=(
+'list:List retained messages and read state' \
+'clear:Remove all messages, or messages in an explicit workspace/surface scope' \
+'mark-read:Mark a message, a workspace/surface scope, or all messages read without focus changes' \
+'dismiss:Remove one message or all previously read messages' \
+'open:Focus the exact terminal referenced by a message' \
+'jump-to-unread:Focus the most recent unread message'\''s terminal' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux notifications help commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__clear_commands] )) ||
+_cmux__notifications__help__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help clear commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__dismiss_commands] )) ||
+_cmux__notifications__help__dismiss_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help dismiss commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__help_commands] )) ||
+_cmux__notifications__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help help commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__jump-to-unread_commands] )) ||
+_cmux__notifications__help__jump-to-unread_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help jump-to-unread commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__list_commands] )) ||
+_cmux__notifications__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help list commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__mark-read_commands] )) ||
+_cmux__notifications__help__mark-read_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help mark-read commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__help__open_commands] )) ||
+_cmux__notifications__help__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications help open commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__jump-to-unread_commands] )) ||
+_cmux__notifications__jump-to-unread_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications jump-to-unread commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__list_commands] )) ||
+_cmux__notifications__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications list commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__mark-read_commands] )) ||
+_cmux__notifications__mark-read_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications mark-read commands' commands "$@"
+}
+(( $+functions[_cmux__notifications__open_commands] )) ||
+_cmux__notifications__open_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notifications open commands' commands "$@"
+}
+(( $+functions[_cmux__notify_commands] )) ||
+_cmux__notify_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux notify commands' commands "$@"
+}
 (( $+functions[_cmux__ping_commands] )) ||
 _cmux__ping_commands() {
     local commands; commands=()
     _describe -t commands 'cmux ping commands' commands "$@"
+}
+(( $+functions[_cmux__ports_commands] )) ||
+_cmux__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux ports commands' commands "$@"
 }
 (( $+functions[_cmux__prev-workspace_commands] )) ||
 _cmux__prev-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux prev-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__project-actions_commands] )) ||
+_cmux__project-actions_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux project-actions commands' commands "$@"
+}
 (( $+functions[_cmux__raw_commands] )) ||
 _cmux__raw_commands() {
     local commands; commands=()
     _describe -t commands 'cmux raw commands' commands "$@"
+}
+(( $+functions[_cmux__read-scrollback_commands] )) ||
+_cmux__read-scrollback_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux read-scrollback commands' commands "$@"
 }
 (( $+functions[_cmux__read-text_commands] )) ||
 _cmux__read-text_commands() {
@@ -2071,6 +3476,21 @@ _cmux__reorder-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux reorder-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__reorder-workspaces_commands] )) ||
+_cmux__reorder-workspaces_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux reorder-workspaces commands' commands "$@"
+}
+(( $+functions[_cmux__report-meta-block_commands] )) ||
+_cmux__report-meta-block_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux report-meta-block commands' commands "$@"
+}
+(( $+functions[_cmux__restore_commands] )) ||
+_cmux__restore_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux restore commands' commands "$@"
+}
 (( $+functions[_cmux__select-workspace_commands] )) ||
 _cmux__select-workspace_commands() {
     local commands; commands=()
@@ -2086,10 +3506,120 @@ _cmux__send-text_commands() {
     local commands; commands=()
     _describe -t commands 'cmux send-text commands' commands "$@"
 }
+(( $+functions[_cmux__set-progress_commands] )) ||
+_cmux__set-progress_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux set-progress commands' commands "$@"
+}
+(( $+functions[_cmux__set-status_commands] )) ||
+_cmux__set-status_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux set-status commands' commands "$@"
+}
 (( $+functions[_cmux__split_commands] )) ||
 _cmux__split_commands() {
     local commands; commands=()
     _describe -t commands 'cmux split commands' commands "$@"
+}
+(( $+functions[_cmux__surface_commands] )) ||
+_cmux__surface_commands() {
+    local commands; commands=(
+'resume:Register or inspect a saved resume command (does not execute it)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux surface commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help_commands] )) ||
+_cmux__surface__help_commands() {
+    local commands; commands=(
+'resume:Register or inspect a saved resume command (does not execute it)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux surface help commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help__help_commands] )) ||
+_cmux__surface__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface help help commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help__resume_commands] )) ||
+_cmux__surface__help__resume_commands() {
+    local commands; commands=(
+'set:' \
+'show:' \
+'clear:' \
+    )
+    _describe -t commands 'cmux surface help resume commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help__resume__clear_commands] )) ||
+_cmux__surface__help__resume__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface help resume clear commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help__resume__set_commands] )) ||
+_cmux__surface__help__resume__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface help resume set commands' commands "$@"
+}
+(( $+functions[_cmux__surface__help__resume__show_commands] )) ||
+_cmux__surface__help__resume__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface help resume show commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume_commands] )) ||
+_cmux__surface__resume_commands() {
+    local commands; commands=(
+'set:' \
+'show:' \
+'clear:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux surface resume commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__clear_commands] )) ||
+_cmux__surface__resume__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume clear commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__help_commands] )) ||
+_cmux__surface__resume__help_commands() {
+    local commands; commands=(
+'set:' \
+'show:' \
+'clear:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux surface resume help commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__help__clear_commands] )) ||
+_cmux__surface__resume__help__clear_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume help clear commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__help__help_commands] )) ||
+_cmux__surface__resume__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume help help commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__help__set_commands] )) ||
+_cmux__surface__resume__help__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume help set commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__help__show_commands] )) ||
+_cmux__surface__resume__help__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume help show commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__set_commands] )) ||
+_cmux__surface__resume__set_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume set commands' commands "$@"
+}
+(( $+functions[_cmux__surface__resume__show_commands] )) ||
+_cmux__surface__resume__show_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux surface resume show commands' commands "$@"
 }
 (( $+functions[_cmux__type_commands] )) ||
 _cmux__type_commands() {

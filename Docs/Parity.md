@@ -346,3 +346,7 @@ The isolated SSH browser test now supplies a hostname only through a private rem
 ### SOCKS handshake overload coverage
 
 Added bounded handshake gauges/outcome counters and workspace-qualified timing events. Actions coverage fills all sixteen slots, rejects the next client, observes deadline cleanup and verifies subsequent browser navigation. Strict Clippy and syntax checks pass; execution remains pending. Full transferred-data overload remains a separate gate.
+
+### Project configuration resolution foundation
+
+Added [project action resolution](ProjectActions.md) and offline `cmux project-actions --directory PATH`, preserving global/nearest-project precedence and winning source paths under bounded regular-file reads. Upstream source resolves an ambiguity in its dogfood documentation: actions use nearest local plus global fallback; hierarchy lookup is separate for hooks. Typed validation, execution, palette and remote config remain open. Strict Clippy passes; runtime verification is pending Actions.

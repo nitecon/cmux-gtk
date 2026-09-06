@@ -33,6 +33,11 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Inspect resolved project actions and their source files without running them
+    ProjectActions {
+        #[arg(long, default_value = ".")]
+        directory: std::path::PathBuf,
+    },
     /// Install and receive native agent session hooks
     Hooks {
         #[command(subcommand)]

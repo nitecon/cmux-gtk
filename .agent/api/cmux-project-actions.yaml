@@ -1,0 +1,19 @@
+app: cmux-gtk
+title: Project action configuration resolution
+space: cmux-gtk
+slug: project-actions
+summary: Bounded read-only cmux.json action resolution and outstanding execution/palette integration.
+kind: agent_context
+source_format: agent_context
+source_ref: src/project_config.rs
+labels: [configuration, actions, cli]
+content:
+  purpose: Resolve project action definitions with source provenance without executing or trusting files.
+  resolution:
+    - Global XDG config followed by nearest canonical-directory ancestor config. Prefer .cmux/cmux.json over cmux.json at each level. Whole local action entries replace matching global IDs.
+    - Regular files only, symlinks followed, nonblocking platform open rejects FIFO/device paths. Files bounded to256KiB, ancestors64, final actions256 and ID bytes128.
+    - cmux project-actions --directory PATH returns JSON before socket discovery. Other configuration sections and type-specific action validation are not applied yet.
+  verification:
+    - Directory fixture covers preferred file, nearest ancestor, global fallback and provenance. Runtime belongs to Actions; strict Clippy passes locally.
+  outstanding:
+    - Typed schema, GTK/RPC discovery, execution trust, palette, target semantics, workspace layouts and remote configuration reads.

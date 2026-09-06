@@ -55,6 +55,22 @@ pub fn load_or_create_secret(path: &Path) -> io::Result<[u8; 32]> {
     }
 }
 
+/// Open a regular file for bounded worker reads, rejecting FIFOs/devices without waiting for a peer.
+/// Follows symlinks; validates the opened descriptor so a path replacement cannot bypass the type check.
+pub fn open_regular_read(path: &Path) -> io::Result<std::fs::File> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "expected a regular file",
+        ));
+    }
+    Ok(file)
+}
+
 /// Read a complete UTF-8 file without retaining more than limit plus one input bytes.
 /// Oversize or invalid UTF-8 returns InvalidData; filesystem errors pass through.
 /// Follows symlinks and performs blocking I/O; callers own path selection and worker scheduling.

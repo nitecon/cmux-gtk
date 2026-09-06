@@ -21,7 +21,7 @@ Suppress JSON output for browser commands (browser defaults to JSON)
 \fB\-v\fR, \fB\-\-verbose\fR
 Verbose output (connection info to stderr)
 .TP
-\fB\-\-color\fR \fI<COLOR>\fR [default: auto]
+\fB\-\-color\fR \fI<COLOR>\fR
 Color mode: always, never, auto
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -30,6 +30,18 @@ Print help
 \fB\-V\fR, \fB\-\-version\fR
 Print version
 .SH SUBCOMMANDS
+.TP
+cmux\-project\-actions(1)
+Inspect resolved project actions and their source files without running them
+.TP
+cmux\-hooks(1)
+Install and receive native agent session hooks
+.TP
+cmux\-restore(1)
+Execute this terminal\*(Aqs saved manual resume command in the calling terminal
+.TP
+cmux\-surface(1)
+Manage persistent terminal surface state
 .TP
 cmux\-update(1)
 Update a self\-managed cmux installation
@@ -79,6 +91,9 @@ Switch to last active workspace
 cmux\-reorder\-workspace(1)
 Reorder a workspace
 .TP
+cmux\-reorder\-workspaces(1)
+Reorder listed workspaces first, retaining the relative order of all others
+.TP
 cmux\-list\-surfaces(1)
 List all surfaces
 .TP
@@ -95,13 +110,16 @@ cmux\-send\-text(1)
 Send text to a surface
 .TP
 cmux\-send\-key(1)
-Send a key event to a surface
+Send one literal character to a terminal surface
 .TP
 cmux\-read\-text(1)
-Read text from a surface
+Read current terminal viewport text (up to 256 KiB)
+.TP
+cmux\-read\-scrollback(1)
+Capture recent terminal history as bounded VT text (up to 2,000 rows and 256 KiB)
 .TP
 cmux\-health(1)
-Check surface health
+Check native terminal availability and pane attention
 .TP
 cmux\-refresh(1)
 Refresh a surface
@@ -126,6 +144,39 @@ Show layout tree
 .TP
 cmux\-type(1)
 Type text into the focused terminal
+.TP
+cmux\-set\-status(1)
+Set a keyed status in a workspace sidebar
+.TP
+cmux\-report\-meta\-block(1)
+Publish a keyed multiline Markdown summary
+.TP
+cmux\-clear\-meta\-block(1)
+Remove a keyed Markdown summary
+.TP
+cmux\-list\-meta\-blocks(1)
+List retained Markdown summaries
+.TP
+cmux\-clear\-status(1)
+Clear one sidebar status key
+.TP
+cmux\-ports(1)
+List attributed listening ports without changing workspace selection
+.TP
+cmux\-list\-status(1)
+List workspace status entries and progress
+.TP
+cmux\-set\-progress(1)
+Set determinate workspace progress from zero to one
+.TP
+cmux\-clear\-progress(1)
+Clear workspace progress
+.TP
+cmux\-notify(1)
+Deliver a notification to a terminal without changing focus
+.TP
+cmux\-notifications(1)
+Inspect, read, dismiss and navigate notification history
 .TP
 cmux\-list\-notifications(1)
 List notifications
