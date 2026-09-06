@@ -1,1 +1,0 @@
-../tests/test_visual_typing_char_by_char.py
