@@ -50,3 +50,7 @@ content:
     - Ports expose forwarded_local_port, null for local or not-yet-forwarded services. Local binds prefer the remote port and fall back to an ephemeral port on conflict. Unknown destinations are never accepted from local clients.
     - Proxy data routing never awaits local writes on the shared SSH reader. Invalid/full queues retire the client route and emit a rejection event. Client cleanup queues remote close through existing control admission; full connection teardown is the cleanup fallback.
     - Runtime verification and full forwarding gates in Docs/RemoteForwarding.md remain pending, including half-close, acknowledged close, reconnect/overload and browser subresource routing.
+
+  proxy_half_close:
+    - The daemon advertises proxy.shutdown_write, requiring a registered TCP stream_id. It sends FIN without removing the stream or closing the response reader; missing/non-TCP streams fail explicitly.
+    - Forwarded local EOF invokes shutdown_write and continues reading until remote EOF or listener cancellation. The Go real-TCP test and SSH integration fixture verify response-after-request-EOF. Reverse half-close and older-daemon compatibility remain outstanding.

@@ -169,7 +169,14 @@ async fn client(
                 .await
                 .map_err(|_| "local proxy read failed")?;
             if count == 0 {
-                return Ok::<(), String>(());
+                transport
+                    .call(
+                        "proxy.shutdown_write",
+                        serde_json::json!({"stream_id":stream}),
+                    )
+                    .await?;
+                // Keep the response direction alive until its EOF or service cancellation.
+                return std::future::pending::<Result<(), String>>().await;
             }
             let data = base64::engine::general_purpose::STANDARD.encode(&bytes[..count]);
             transport

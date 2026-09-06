@@ -450,3 +450,27 @@ func (s *rpcServer) registerStream(conn net.Conn) string {
 	s.streams[streamID] = &streamState{conn: conn}
 	return streamID
 }
+
+// handleProxyShutdownWrite sends TCP FIN without retiring the stream's readable response direction.
+// PTYs and other non-TCP streams are rejected; only the registered connection is eligible.
+func (s *rpcServer) handleProxyShutdownWrite(req rpcRequest) rpcResponse {
+	fail := func(code, message string) rpcResponse {
+		return rpcResponse{ID: req.ID, OK: false, Error: &rpcError{Code: code, Message: message}}
+	}
+	id, ok := getStringParam(req.Params, "stream_id")
+	if !ok || id == "" {
+		return fail("invalid_params", "proxy.shutdown_write requires stream_id")
+	}
+	stream, ok := s.getStream(id)
+	if !ok {
+		return fail("not_found", "stream not found")
+	}
+	connection, ok := stream.conn.(*net.TCPConn)
+	if !ok {
+		return fail("invalid_params", "stream does not support TCP half-close")
+	}
+	if err := connection.CloseWrite(); err != nil {
+		return fail("write_failed", "TCP write shutdown failed")
+	}
+	return rpcResponse{ID: req.ID, OK: true, Result: map[string]any{"write_closed": true}}
+}

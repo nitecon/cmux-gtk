@@ -325,6 +325,7 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 					"proxy.socks5",
 					"proxy.stream",
 					"proxy.stream.push",
+					"proxy.shutdown_write",
 				},
 			},
 		}
@@ -342,6 +343,8 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 		return s.handleProxyOpen(req)
 	case "proxy.close":
 		return s.handleProxyClose(req)
+	case "proxy.shutdown_write":
+		return s.handleProxyShutdownWrite(req)
 	case "proxy.write":
 		return s.handleProxyWrite(req)
 	case "proxy.stream.subscribe":

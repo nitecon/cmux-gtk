@@ -238,7 +238,9 @@ Subsystem sftp internal-sftp
                                    "s.settimeout(0.1)\n"
                                    "while not (root/'listener-stop').exists():\n"
                                    " try:\n"
-                                   "  c,_=s.accept();c.sendall(b'cmux-forwarded-'*8192);c.close()\n"
+                                   "  c,_=s.accept();c.settimeout(5)\n"
+                                   "  while c.recv(32768): pass\n"
+                                   "  c.sendall(b'cmux-forwarded-'*8192);c.close()\n"
                                    " except socket.timeout: pass\n"
                                    "s.close()\n")
         cli("send-text", "python3 " + shlex.quote(str(listener_script)) + " &")
@@ -256,6 +258,8 @@ Subsystem sftp internal-sftp
         forwarded_port = next(row["forwarded_local_port"] for row in remote_ports() if row["port"] == listener_port)
         with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
             forwarded.settimeout(10)
+            forwarded.sendall(b"request finished")
+            forwarded.shutdown(socket.SHUT_WR)
             payload = bytearray()
             while chunk := forwarded.recv(32768):
                 payload.extend(chunk)
