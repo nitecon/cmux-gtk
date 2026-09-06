@@ -80,6 +80,24 @@ def main():
                 assert active() == initial["uuid"]
                 app.cli("notifications", "clear", "--workspace", first["workspace_uuid"])
                 assert messages() == [] and active() == initial["uuid"]
+                reachable = json.loads(app.cli("notify", "--surface", first["uuid"], "--title", "Reachable", "--json"))
+                stale = json.loads(app.cli("notify", "--surface", second["uuid"], "--title", "Closed terminal", "--json"))
+                app.cli("close-surface", second["uuid"])
+                app.wait_for(lambda: all(row["uuid"] != second["uuid"] for row in app.surfaces()), "closed notification target")
+                try:
+                    app.cli("notifications", "open", stale["id"])
+                except subprocess.CalledProcessError:
+                    pass
+                else:
+                    raise AssertionError("explicit stale message redirected focus")
+                assert active() == initial["uuid"]
+                opened = json.loads(app.cli("notifications", "jump-to-unread", "--json"))
+                assert opened["id"] == reachable["id"] and active() == first["uuid"]
+                assert next(row for row in messages() if row["id"] == stale["id"])["is_read"] is False
+                app.cli("select-workspace", initial["workspace_uuid"])
+                assert json.loads(app.cli("notifications", "jump-to-unread", "--json"))["opened"] is False
+                assert active() == initial["uuid"]
+
         finally:
             stop_process(wm)
     print("notification targeting, history, read/navigation semantics and retained memory bounds passed")

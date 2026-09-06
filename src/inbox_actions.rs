@@ -130,7 +130,7 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
                 .records
                 .iter()
                 .rev()
-                .find(|record| !record.is_read)
+                .find(|record| !record.is_read && saved_target(state, record).is_ok())
                 .map(|record| record.id);
             match id {
                 Some(id) => open(state, id)?,
@@ -146,6 +146,27 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
     Ok(result)
 }
 
+/// Resolve retained identity without guessing an active terminal for a workspace-only message.
+/// Closed terminals stay unavailable even when their old workspace has a different selected terminal.
+fn saved_target(state: &AppState, record: &Record) -> Result<(usize, Option<Uuid>), Error> {
+    let index = state
+        .workspaces
+        .iter()
+        .position(|workspace| workspace.uuid == record.workspace_id)
+        .ok_or(("not_found", "notification workspace not found"))?;
+    if let Some(surface) = record.surface_id {
+        if state
+            .split_engines
+            .get(index)
+            .and_then(|engine| engine.find_pane_id_by_uuid(&surface.to_string()))
+            .is_none()
+        {
+            return Err(("not_found", "notification surface not found"));
+        }
+    }
+    Ok((index, record.surface_id))
+}
+
 /// Select the exact saved terminal tab and mark only this message read after successful routing.
 fn open(state: &mut AppState, id: Uuid) -> Result<Value, Error> {
     let record = state
@@ -155,18 +176,12 @@ fn open(state: &mut AppState, id: Uuid) -> Result<Value, Error> {
         .find(|record| record.id == id)
         .cloned()
         .ok_or(("not_found", "notification not found"))?;
-    let (index, surface) = target(
-        state,
-        &Scope {
-            workspace_id: Some(record.workspace_id),
-            surface_id: record.surface_id,
-        },
-    )?;
+    let (index, surface) = saved_target(state, &record)?;
     state.switch_to_index(index);
-    if record.surface_id.is_some()
-        && !state.split_engines[index].focus_surface(&surface.to_string())
-    {
-        return Err(("not_found", "notification surface not found"));
+    if let Some(surface) = surface {
+        if !state.split_engines[index].focus_surface(&surface.to_string()) {
+            return Err(("not_found", "notification surface not found"));
+        }
     }
     let record = state
         .inbox

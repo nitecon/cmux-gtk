@@ -116,3 +116,8 @@ The existing Ghostty TTY getter supplies live evidence and its allocation is rel
 Plain `cmux notify` now sends inherited CMUX surface/workspace hints as ambient caller evidence and discovers a TTY from its standard descriptors through the platform library. Explicit `--workspace` or `--surface` uses direct targeting without importing conflicting ambient selectors. `cmux notifications clear --caller` shares caller attribution; its flags conflict with explicit clear scopes. No subprocess or file scan is used for TTY discovery.
 
 The caller CI scenario now invokes the real CLI from an inactive terminal with CMUX identity variables removed, and from a captured-output process with a deliberately stale ambient workspace hint. It checks native TTY fallback, stable surface rehoming, explicit override and caller-scoped clear. Runtime evidence remains pending. Fresh nested shell TTY reporting and remote relay identity rewriting remain open.
+
+
+## Unread navigation checkpoint
+
+Jump-to-unread now skips records whose saved workspace or terminal is closed, matching the upstream notification navigation coordinator's search for an openable record. Explicit message open still rejects a closed target without redirecting. If no retained unread message is reachable, the API returns opened=false and preserves focus/history. Workspace-only opens resolve the workspace independently of active terminal availability. Native inbox CI adds closed-target rejection, older reachable-message navigation and an all-stale no-op case. Runtime verification remains pending; upstream's separate non-message workspace/window unread fallback remains part of the broader attention/window matrix.

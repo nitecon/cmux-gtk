@@ -24,7 +24,7 @@ content:
     - name: Navigate and restore
       steps:
         - notification.open requires a notification id, validates the original target, selects that exact workspace and sibling terminal tab, then marks the message read. Closed targets return not_found rather than redirecting.
-        - notification.jump_to_unread opens the newest unread record; an empty unread history returns opened=false. CLI notifications open and jump-to-unread map directly.
+        - notification.jump_to_unread opens the newest reachable unread record, skipping closed targets without mutating their history; no reachable message returns opened=false. CLI notifications open and jump-to-unread map directly.
         - Session snapshots retain at most 256 messages and 1 MiB of accounted content/identity data. Read records are evicted first, then the oldest unread record. Startup validates retained field lengths and reconciles pane/sidebar indicators.
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
