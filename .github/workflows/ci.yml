@@ -97,6 +97,7 @@ jobs:
         run: |
           python3 tests/test_socket_discovery.py
           python3 tests/test_cli_socket_autodiscovery.py
+          python3 tests_v2/test_cli_support.py
           python3 tests/test_socket_transport.py
           python3 tests/test_python_client.py
           python3 tests/test_benchmark_report.py
