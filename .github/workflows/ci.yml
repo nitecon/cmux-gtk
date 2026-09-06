@@ -233,6 +233,22 @@ jobs:
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_history_benchmark.py
 
+      - name: Setup Node for real browser integration
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Install pinned external browser benchmark tools
+        timeout-minutes: 5
+        run: |
+          npm install --prefix target/browser-tools --no-audit --no-fund agent-browser@0.31.1
+          target/browser-tools/node_modules/.bin/agent-browser install --with-deps
+          echo "$PWD/target/browser-tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Benchmark optimized real browser DOM and preview
+        timeout-minutes: 5
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_browser_benchmark.py
+
       - name: Preserve benchmark results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

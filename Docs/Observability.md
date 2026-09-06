@@ -203,3 +203,6 @@ Native input/attention/history artifacts share private exclusive-file creation, 
 
 
 [Baseline a20fc10d](Benchmarks/a20fc10d/README.md) preserves the successful optimized native input/bell and real SSH lifecycle artifacts from run 34011183573 without rewriting their measurements. The newer history-churn fixture, shared native summaries and updater changes still require their own cumulative CI confirmation.
+
+
+The real-browser CI workload installs external `agent-browser@0.31.1` separately and serves an isolated local HTML page to actual Chromium. It requires streamed frames to become GTK textures, then measures fill, click, snapshot and evaluation over five warmup and ten measured cycles. Each cycle verifies the input value and incremented DOM counter while the original terminal remains selected. URL-substring waiting and daemon-error propagation are functional checks outside the timed cycles. `real-browser-release.json` retains tool/browser identity, raw samples, percentiles and app resource/CPU deltas; browser/daemon/HTTP-server CPU is excluded. Texture assignment is not compositor presentation. All application runtime execution remains in Actions; initial evidence is pending.

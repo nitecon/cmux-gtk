@@ -480,7 +480,8 @@ impl BrowserManager {
         }
     }
 
-    /// Add a fresh protocol identity and action to caller-owned parameters.
+    /// Adapt public command fields to the daemon wire contract and add a fresh request identity.
+    /// Explicit daemon field names take precedence over their cmux aliases.
     fn command_request(action: &str, params: Value) -> Value {
         let req_id = format!("cmux-{}", Uuid::new_v4());
         let mut request = if let Value::Object(map) = params {
@@ -488,10 +489,33 @@ impl BrowserManager {
         } else {
             Value::Object(serde_json::Map::new())
         };
-        request
-            .as_object_mut()
-            .unwrap()
-            .insert("id".to_string(), Value::String(req_id));
+        let fields = request.as_object_mut().unwrap();
+        let aliases: &[(&str, &str)] = match action {
+            "click" => &[("target", "selector")],
+            "fill" => &[("target", "selector"), ("text", "value")],
+            "snapshot" => &[("max_depth", "maxDepth")],
+            "wait" => &[("timeout_ms", "timeout"), ("load_state", "loadState")],
+            _ => &[],
+        };
+        for &(source, target) in aliases {
+            if let Some(value) = fields.remove(source) {
+                fields.entry(target).or_insert(value);
+            }
+        }
+        if action == "wait" {
+            if let Some(Value::String(substring)) = fields.remove("url_contains") {
+                if !fields.get("function").is_some_and(Value::is_string) {
+                    fields.insert(
+                        "function".into(),
+                        Value::String(format!(
+                            "location.href.includes({})",
+                            serde_json::to_string(&substring).unwrap()
+                        )),
+                    );
+                }
+            }
+        }
+        fields.insert("id".to_string(), Value::String(req_id));
         request
             .as_object_mut()
             .unwrap()

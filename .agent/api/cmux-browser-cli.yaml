@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Browser CLI and snapshot worker ownership
 space: cmux-gtk
 slug: browser-cli-workers
-summary: Public agent-browser CLI response validation, bounded worker execution and outstanding synchronous lifecycle paths.
+summary: Public agent-browser CLI and socket adaptation, bounded workers, lifecycle ownership and real-browser verification.
 kind: agent_context
 source_format: agent_context
 source_ref: src/browser/cli.rs
@@ -11,9 +11,15 @@ content:
   purpose: BrowserManager owns a unique external daemon session. Worker CLI execution, response decoding and snapshot formatting release GTK model borrows before I/O. This documents existing implementation, not deferred agent feature parity.
   workflows:
     - name: Public CLI execution
-      description: src/browser/cli.rs run uses session and JSON arguments, null stdin, four-MiB stdout, 64-KiB stderr and a fifteen-second overall deadline. execute drains both pipes and waits concurrently; failure kills and reaps the direct child. Cancellation uses Tokio kill-on-drop. Descendant browser daemon ownership remains with BrowserManager.
+      description: src/browser/cli.rs run uses session and JSON arguments, null stdin, four-MiB stdout, 64-KiB stderr and a fifteen-second overall deadline. shared task.run_output drains both pipes and waits concurrently; failure kills and reaps the direct child. Cancellation uses Tokio kill-on-drop. Descendant browser daemon ownership remains with BrowserManager.
     - name: Response decoding
       description: Reject unsuccessful child status before JSON parsing, reject oversized captured pipes, require an object response and reject non-boolean explicit success values or success false. Missing success retains raw-object compatibility. Move data out of the envelope, including explicit null; otherwise return the complete object. Errors do not expose raw stdout or stderr.
+    - name: Socket parameter adaptation
+      description: Existing handler action aliases map eval/goto/gethtml to evaluate/navigate/innerhtml. BrowserManager command_request maps click/fill target to selector, fill text to value, snapshot max_depth to maxDepth and wait timeout_ms/load_state to timeout/loadState. Explicit daemon fields win. A URL substring wait uses a JSON-escaped location.href.includes expression unless an explicit function is supplied.
+    - name: Socket response validation
+      description: Preserve object response envelopes for existing callers, allowing absent success for legacy peers. Reject explicit success false, non-boolean success and non-object responses so backend errors cannot become successful outer cmux replies. Do not expose backend error payloads in transport errors.
+    - name: Real browser evidence
+      description: CI installs agent-browser 0.31.1 independently with Node 24 and Chromium support, then uses the optimized app against a fixture-owned HTTP page. Require actual DOM mutations, snapshots, URL waiting, non-focus behavior, assigned GTK preview textures and CLI failure for a rejected evaluation. Record tool version, browser user agent, raw timing and app resources. This does not add deferred session resume or additional agent feature families.
     - name: Navigation
       description: History and explicit URL entry share one admission slot, ordered commands and address refresh within one fifteen-second sequence deadline. Expiration cancels the current CLI child, releases admission and records browser.navigation.timeout with trace identity and budget. Overlap rejects rather than retaining an unbounded queue. Widget destruction and manager shutdown cancel owned navigation. Mapped-tab navigation has a separate latest-destination worker sharing the same admission slot.
     - name: Mapped tab selection

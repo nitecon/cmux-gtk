@@ -53,12 +53,46 @@ fn parse_response(response: &[u8]) -> io::Result<Value> {
             "browser response exceeds 4 MiB",
         ));
     }
-    serde_json::from_slice(response).map_err(Into::into)
+    let value: Value = serde_json::from_slice(response)?;
+    if !value.is_object() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "browser response is not an object",
+        ));
+    }
+    match value.get("success") {
+        Some(Value::Bool(false)) => {
+            return Err(io::Error::other("browser daemon rejected command"))
+        }
+        Some(Value::Bool(true)) | None => {}
+        Some(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid browser success status",
+            ))
+        }
+    }
+    Ok(value)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Daemon failures and malformed status envelopes cannot become successful cmux responses.
+    #[test]
+    fn daemon_status_validation() {
+        for response in [
+            br#"{"success":false,"error":"private page detail"}"#.as_slice(),
+            br#"{"success":"true"}"#.as_slice(),
+            b"[]".as_slice(),
+        ] {
+            let error = parse_response(response).unwrap_err();
+            assert!(!error.to_string().contains("private page detail"));
+        }
+        assert!(parse_response(br#"{"success":true,"data":{}}"#).is_ok());
+        assert!(parse_response(br#"{"legacy":"response"}"#).is_ok());
+    }
 
     /// Aborting an in-flight exchange closes the real socket instead of retaining a waiting peer.
     #[tokio::test]
