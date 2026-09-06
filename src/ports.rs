@@ -14,6 +14,97 @@ pub struct Port {
     provenance: &'static str,
 }
 
+/// Validated daemon listener payload; attribution to a GTK surface happens only after stream checks.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct RemotePort {
+    pub address: std::net::IpAddr,
+    pub port: u16,
+    pub pid: u32,
+    pub provenance: String,
+}
+
+/// A stream-qualified remote observation; None records a failed or unavailable scan.
+pub type RemoteObservation = (String, Option<Vec<RemotePort>>);
+
+/// Resolve only current remote contexts to GTK surface UUIDs; reconnect, EOF and incomplete data remain unknown.
+fn remote(state: &crate::app_state::AppState, index: usize) -> Option<Vec<Port>> {
+    let workspace = &state.workspaces[index];
+    if workspace.connection_state != crate::workspace::ConnectionState::Connected {
+        return None;
+    }
+    let bridge = state.workspace_bridges.get(&workspace.id)?;
+    let contexts = bridge.contexts.lock().ok()?;
+    let observations = bridge.listeners.lock().ok()?;
+    let engine = &state.split_engines[index];
+    let mut ports = Vec::new();
+    for (uuid, _, _) in engine.all_panes() {
+        let Some(surface) = engine.find_surface_by_uuid(&uuid.to_string()) else {
+            continue;
+        };
+        let context = contexts.values().find(|context| {
+            context
+                .surface_ptr
+                .load(std::sync::atomic::Ordering::Acquire)
+                == surface as usize
+        })?;
+        if context
+            .eof_received
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            continue;
+        }
+        let stream = context.stream_id.lock().ok()?.clone()?;
+        let (observed_stream, rows) = observations.get(&context.pane_id)?;
+        if *observed_stream != stream {
+            return None;
+        }
+        for row in rows.as_ref()? {
+            if ports.len() >= 256 {
+                return None;
+            }
+            ports.push(Port {
+                surface_uuid: uuid,
+                address: row.address,
+                port: row.port,
+                pid: row.pid,
+                provenance: "remote",
+            });
+        }
+    }
+    ports.sort_by_key(|port| (port.port, port.surface_uuid, port.pid, port.address));
+    ports.dedup();
+    Some(ports)
+}
+
+/// Apply a changed observation to the model and dedicated label without session saves or focus changes.
+pub(crate) fn publish(
+    state: &mut crate::app_state::AppState,
+    index: usize,
+    value: Option<Vec<Port>>,
+) {
+    if state.workspaces[index].ports == value {
+        return;
+    }
+    state.workspaces[index].ports = value;
+    if let Some(container) = state
+        .sidebar_list
+        .row_at_index(index as i32)
+        .and_then(|row| row.child())
+        .and_then(|row| row.first_child())
+    {
+        let mut child = container.first_child();
+        while let Some(widget) = child {
+            child = widget.next_sibling();
+            if widget.has_css_class("workspace-ports") {
+                if let Ok(label) = widget.downcast::<gtk4::Label>() {
+                    render(&label, state.workspaces[index].ports.as_deref());
+                }
+                break;
+            }
+        }
+    }
+}
+
 /// Copy native TTY metadata synchronously while GTK guarantees surface lifetime.
 fn terminals(state: &crate::app_state::AppState, index: usize) -> Vec<(Uuid, PathBuf)> {
     let Some(engine) = state.split_engines.get(index) else {
@@ -112,13 +203,15 @@ pub fn start(state: &crate::app_state::AppStateRef, window: &gtk4::ApplicationWi
                 let Some(state) = weak.upgrade() else {
                     break;
                 };
-                let state = state.borrow();
+                let mut state = state.borrow_mut();
                 if state.workspaces.is_empty() {
                     continue;
                 }
                 let index = cursor % state.workspaces.len();
                 cursor = cursor.wrapping_add(1);
                 if state.workspaces[index].remote_target.is_some() {
+                    let value = remote(&state, index);
+                    publish(&mut state, index, value);
                     continue;
                 }
                 (state.workspaces[index].uuid, terminals(&state, index))
@@ -149,25 +242,8 @@ pub fn start(state: &crate::app_state::AppStateRef, window: &gtk4::ApplicationWi
             else {
                 continue;
             };
-            if terminals(&state, index) == tty && state.workspaces[index].ports != value {
-                state.workspaces[index].ports = value;
-                if let Some(container) = state
-                    .sidebar_list
-                    .row_at_index(index as i32)
-                    .and_then(|row| row.child())
-                    .and_then(|row| row.first_child())
-                {
-                    let mut child = container.first_child();
-                    while let Some(widget) = child {
-                        child = widget.next_sibling();
-                        if widget.has_css_class("workspace-ports") {
-                            if let Ok(label) = widget.downcast::<gtk4::Label>() {
-                                render(&label, state.workspaces[index].ports.as_deref());
-                            }
-                            break;
-                        }
-                    }
-                }
+            if terminals(&state, index) == tty {
+                publish(&mut state, index, value);
             }
         }
     });

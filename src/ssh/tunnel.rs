@@ -353,6 +353,63 @@ async fn run_proxy_routing(
 
     let _open_guard = AbortOnDrop(open_handle.abort_handle());
 
+    // Poll one current PTY at a time; dropping the connection cancels request ownership and the poller.
+    let ports_writer = writer.clone();
+    let ports_bridge = bridge.clone();
+    let ports_pending = pending.clone();
+    let ports_handle = tokio::spawn(async move {
+        let mut cursor = 0usize;
+        loop {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let target = {
+                let streams = ports_bridge.streams.lock().unwrap();
+                let mut live: Vec<_> = streams
+                    .iter()
+                    .filter(|(_, stream)| !stream.stream_id.is_empty())
+                    .map(|(&id, stream)| (id, stream.stream_id.clone()))
+                    .collect();
+                live.sort_by_key(|(id, _)| *id);
+                if live.is_empty() {
+                    continue;
+                }
+                let target = live[cursor % live.len()].clone();
+                cursor = cursor.wrapping_add(1);
+                target
+            };
+            let id = ports_bridge.next_id();
+            let request = serde_json::json!({"jsonrpc":"2.0","id":id,"method":"ports.list","params":{"stream_id":target.1}});
+            let response =
+                request_remote(&ports_writer, &ports_pending, id, "ports.list", request).await;
+            let rows = response.ok().and_then(|value| {
+                let result = value.get("result")?;
+                if result.get("stream_id")?.as_str()? != target.1 {
+                    return None;
+                }
+                let rows = result.get("ports")?.as_array()?;
+                if rows.len() > 256 {
+                    return None;
+                }
+                let rows: Vec<crate::ports::RemotePort> =
+                    serde_json::from_value(serde_json::Value::Array(rows.clone())).ok()?;
+                rows.iter()
+                    .all(|row| row.port > 0 && row.pid > 0 && row.provenance == "remote")
+                    .then_some(rows)
+            });
+            let streams = ports_bridge.streams.lock().unwrap();
+            if streams
+                .get(&target.0)
+                .is_some_and(|stream| stream.stream_id == target.1)
+            {
+                ports_bridge
+                    .listeners
+                    .lock()
+                    .unwrap()
+                    .insert(target.0, (target.1, rows));
+            }
+        }
+    });
+    let _ports_guard = AbortOnDrop(ports_handle.abort_handle());
+
     // Write path: consume WriteRequests and send as JSON-RPC to SSH stdin
     let write_writer = writer.clone();
     let write_bridge = bridge.clone();

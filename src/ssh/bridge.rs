@@ -23,6 +23,8 @@ pub struct WriteRequest {
 
 /// Manages the mapping between local panes and remote proxy streams.
 pub struct SshBridge {
+    /// Latest bounded observations keyed by live remote surface context, invalidated on reconnect.
+    pub listeners: Mutex<HashMap<u64, crate::ports::RemoteObservation>>,
     /// Maps pane_id -> stream state
     pub streams: Arc<Mutex<HashMap<u64, PaneStream>>>,
     pub contexts: Mutex<HashMap<u64, Arc<IoWriteContext>>>,
@@ -50,6 +52,7 @@ impl SshBridge {
     pub fn new() -> Self {
         let (write_tx, write_rx) = Outbound::new();
         Self {
+            listeners: Mutex::new(HashMap::new()),
             streams: Arc::new(Mutex::new(HashMap::new())),
             contexts: Mutex::new(HashMap::new()),
             changed: tokio::sync::Notify::new(),
@@ -80,6 +83,7 @@ impl SshBridge {
 
     /// Remove routing state and request closure of the associated remote PTY when present.
     pub fn remove_context(&self, id: u64) {
+        self.listeners.lock().unwrap().remove(&id);
         self.contexts.lock().unwrap().remove(&id);
         if let Some(stream) = self.streams.lock().unwrap().remove(&id) {
             self.stream_to_pane
@@ -117,6 +121,7 @@ impl SshBridge {
 
     /// Clear all stream state (for reconnect -- old streams are stale).
     pub fn clear_stream_ids(&self) {
+        self.listeners.lock().unwrap().clear();
         if let Ok(contexts) = self.contexts.lock() {
             for ctx in contexts.values() {
                 *ctx.stream_id.lock().unwrap() = None;
@@ -177,6 +182,7 @@ impl SshBridge {
 
     /// Remove a pane's stream mapping (on close or EOF).
     pub fn remove_pane(&self, pane_id: u64) {
+        self.listeners.lock().unwrap().remove(&pane_id);
         let stream_id = if let Ok(mut streams) = self.streams.lock() {
             streams.remove(&pane_id).map(|ps| ps.stream_id)
         } else {

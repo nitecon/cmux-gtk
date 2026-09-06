@@ -229,6 +229,29 @@ Subsystem sftp internal-sftp
         assert all(p == str(root / "local") for p in launches())
         cli("select-workspace", remote_id)
         remote_write("first-result")
+        # Discover a service started inside the actual SSH PTY, without selecting it while polling.
+        listener_script = root / "remote" / "listener.py"
+        listener_script.write_text("import socket,pathlib,time\n"
+                                   "root=pathlib.Path(__file__).parent\n"
+                                   "s=socket.socket();s.bind(('127.0.0.1',0));s.listen()\n"
+                                   "(root/'listener-port').write_text(str(s.getsockname()[1]))\n"
+                                   "while not (root/'listener-stop').exists():time.sleep(0.05)\n"
+                                   "s.close()\n")
+        cli("send-text", "python3 " + shlex.quote(str(listener_script)) + " &")
+        cli("send-key", "\r")
+        eventually(lambda: (root / "remote/listener-port").exists())
+        listener_port = int((root / "remote/listener-port").read_text())
+        cli("select-workspace", second_remote_id)
+        def remote_ports():
+            """Read the originating workspace through the normal CLI with remote provenance intact."""
+            return json.loads(cli("ports", "--workspace", remote_id, "--json"))["ports"]
+        eventually(lambda: remote_ports() and any(row["port"] == listener_port and row["provenance"] == "remote"
+                                                  for row in remote_ports()))
+        assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
+        (root / "remote/listener-stop").touch()
+        eventually(lambda: remote_ports() is not None and not any(row["port"] == listener_port for row in remote_ports()))
+        cli("select-workspace", remote_id)
+
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
         eventually(remote_setup_traced)

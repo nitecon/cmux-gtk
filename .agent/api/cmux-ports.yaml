@@ -36,5 +36,11 @@ content:
   remote_daemon:
     - The Linux daemon advertises ports.list with required stream_id. It accepts only a currently registered PTY connection, captures the owned shell PID/start ticks, walks its current descendants and matches listening TCP/IPv6 socket inodes to their file descriptors.
     - Collection limits processes to 256, threads to 1024 per process, descriptors to 4096 per process, TCP tables to two MiB, child lists to 64 KiB and results to 256. Root and per-process identity are rechecked; a stream retired during collection cannot publish a successful result.
-    - Remote records contain address, port, pid and remote provenance. Missing, non-PTY, unsupported-platform and failed scans return explicit errors. Desktop polling, remote UI publication, table batching and automatic forwarding are still outstanding.
+    - Remote records contain address, port, pid and remote provenance. Missing, non-PTY, unsupported-platform and failed scans return explicit errors. Remote table batching and automatic forwarding are still outstanding.
     - Go Actions coverage launches a real listener helper from the registered PTY, excludes a listener owned by the test caller and rejects a retired stream. Local Go build passes; runtime verification pending.
+
+  remote_desktop:
+    - Each connected SSH routing task polls one current PTY stream every two seconds through the existing bounded correlated request transport. Connection teardown aborts the poller and its pending request.
+    - Validated observations require at most 256 rows, nonzero PID/port, remote provenance and a matching response stream_id. The bridge retains only current stream observations and clears them on reconnect or context removal.
+    - GTK maps observations through the current remote context pointer and stream identity to the real surface UUID. Disconnected, changed or incompletely observed streams are unavailable; EOF contexts contribute no listeners. The shared sidebar and ports.list API preserve remote provenance without selecting a workspace.
+    - The existing real SSH Actions launch fixture starts a remote PTY child listener, observes it while another workspace is selected, and requires removal after the service exits. Runtime evidence pending.

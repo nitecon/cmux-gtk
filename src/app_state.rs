@@ -358,6 +358,9 @@ impl AppState {
     pub fn update_connection_state(&mut self, workspace_id: u64, state: ConnectionState) {
         if let Some(idx) = self.workspaces.iter().position(|ws| ws.id == workspace_id) {
             self.workspaces[idx].connection_state = state.clone();
+            if state != ConnectionState::Connected {
+                crate::ports::publish(self, idx, None);
+            }
             // Update sidebar subtitle
             if let Some(row) = self.sidebar_list.row_at_index(idx as i32) {
                 if let Some(hbox) = row.child().and_downcast::<gtk4::Box>() {
