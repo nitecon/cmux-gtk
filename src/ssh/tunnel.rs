@@ -426,28 +426,13 @@ async fn open_remote_stream(
         }
     });
 
-    // Register oneshot for response
-    let (resp_tx, resp_rx) = oneshot::channel();
-    if let Ok(mut map) = pending.lock() {
-        map.insert(spawn_id, resp_tx);
-    }
-
-    let _spawn_request = PendingRequest(pending.clone(), spawn_id);
-    writer
-        .send(&spawn_rpc)
-        .await
-        .map_err(|error| format!("write session.spawn failed: {error}"))?;
-
-    // Await response
-    let resp = tokio::time::timeout(std::time::Duration::from_secs(15), resp_rx)
-        .await
-        .map_err(|_| "session.spawn timed out".to_string())?
-        .map_err(|_| "session.spawn response channel dropped".to_string())?;
+    let resp = request_remote(writer, pending, spawn_id, "session.spawn", spawn_rpc).await?;
 
     let stream_id = resp
         .get("result")
         .and_then(|r| r.get("stream_id"))
         .and_then(|v| v.as_str())
+        .filter(|id| !id.is_empty())
         .ok_or_else(|| {
             let err_msg = resp
                 .get("error")
@@ -470,16 +455,7 @@ async fn open_remote_stream(
         }
     };
     if !registered {
-        let _ = bridge
-            .write_tx
-            .lock()
-            .unwrap()
-            .send(crate::ssh::bridge::WriteRequest {
-                stream_id,
-                data_base64: String::new(),
-                close: true,
-                resize: None,
-            });
+        bridge.request_close(stream_id);
         return Err("terminal closed while its remote PTY was starting".into());
     }
 
@@ -494,22 +470,12 @@ async fn open_remote_stream(
         }
     });
 
-    let (sub_tx, sub_rx) = oneshot::channel();
-    if let Ok(mut map) = pending.lock() {
-        map.insert(sub_id, sub_tx);
+    if let Err(error) =
+        request_remote(writer, pending, sub_id, "proxy.stream.subscribe", sub_rpc).await
+    {
+        bridge.request_close(stream_id.clone());
+        return Err(error);
     }
-
-    let _subscribe_request = PendingRequest(pending.clone(), sub_id);
-    writer
-        .send(&sub_rpc)
-        .await
-        .map_err(|error| format!("write proxy.stream.subscribe failed: {error}"))?;
-
-    // Await subscribe response
-    let _sub_resp = tokio::time::timeout(std::time::Duration::from_secs(15), sub_rx)
-        .await
-        .map_err(|_| "proxy.stream.subscribe timed out".to_string())?
-        .map_err(|_| "proxy.stream.subscribe response channel dropped".to_string())?;
 
     bridge.mark_subscribed(pane_id);
     eprintln!("cmux: remote terminal={pane_id} stream={stream_id} subscribed");
@@ -523,6 +489,42 @@ async fn open_remote_stream(
         .await;
 
     Ok(stream_id)
+}
+
+/// Register before writing, await a correlated successful response and remove the slot on every exit.
+/// The existing fifteen-second reply budget begins after the separately bounded request write.
+async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
+    writer: &RpcWriter<W>,
+    pending: &PendingMap,
+    id: u64,
+    method: &str,
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let (sender, receiver) = oneshot::channel();
+    pending
+        .lock()
+        .map_err(|_| "remote response registry unavailable".to_string())?
+        .insert(id, sender);
+    let _request = PendingRequest(pending.clone(), id);
+    writer
+        .send(&request)
+        .await
+        .map_err(|error| format!("write {method} failed: {error}"))?;
+    let response = tokio::time::timeout(Duration::from_secs(15), receiver)
+        .await
+        .map_err(|_| format!("{method} timed out"))?
+        .map_err(|_| format!("{method} response channel dropped"))?;
+    if response.get("id").and_then(|value| value.as_u64()) != Some(id) {
+        return Err(format!("{method} response identity mismatch"));
+    }
+    if response.get("ok").and_then(|value| value.as_bool()) != Some(true) {
+        let message = response
+            .pointer("/error/message")
+            .and_then(|value| value.as_str())
+            .unwrap_or("remote request rejected");
+        return Err(format!("{method} failed: {message}"));
+    }
+    Ok(response)
 }
 
 /// Start an SSH process with cmuxd-remote in stdio mode.
@@ -563,7 +565,9 @@ struct PendingRequest(PendingMap, u64);
 impl Drop for PendingRequest {
     /// Remove an outstanding response slot on success, error or future cancellation.
     fn drop(&mut self) {
-        self.0.lock().unwrap().remove(&self.1);
+        if let Ok(mut pending) = self.0.lock() {
+            pending.remove(&self.1);
+        }
     }
 }
 
@@ -662,5 +666,95 @@ mod stderr_tests {
             .unwrap_err()
             .is_cancelled());
         assert!(writer.write_all(b"closed").await.is_err());
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+    use tokio::io::AsyncBufReadExt;
+
+    /// Real request delivery requires correlated ok=true replies and cleans slots after every response outcome.
+    #[tokio::test]
+    async fn validates_remote_response_and_releases_slot() {
+        for reply in [
+            Some(serde_json::json!({"id": 42, "ok": true, "result": {}})),
+            Some(
+                serde_json::json!({"id": 42, "ok": false, "error": {"message": "subscription refused"}}),
+            ),
+            Some(serde_json::json!({"id": 43, "ok": true, "result": {}})),
+            None,
+        ] {
+            let expected = reply
+                .as_ref()
+                .is_some_and(|value| value["id"] == 42 && value["ok"] == true);
+            let (pipe, reader) = tokio::io::duplex(4096);
+            let writer = RpcWriter::new(pipe, 0);
+            let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+            let request =
+                serde_json::json!({"id": 42, "method": "proxy.stream.subscribe", "params": {}});
+            let respond = async {
+                let mut reader = BufReader::new(reader);
+                let mut line = String::new();
+                reader.read_line(&mut line).await.unwrap();
+                assert_eq!(
+                    serde_json::from_str::<serde_json::Value>(&line).unwrap(),
+                    request
+                );
+                let sender = pending
+                    .lock()
+                    .unwrap()
+                    .remove(&42)
+                    .expect("registered before write");
+                if let Some(reply) = reply {
+                    sender.send(reply).unwrap();
+                }
+            };
+            let (result, ()) = tokio::time::timeout(Duration::from_secs(1), async {
+                tokio::join!(
+                    request_remote(
+                        &writer,
+                        &pending,
+                        42,
+                        "proxy.stream.subscribe",
+                        request.clone()
+                    ),
+                    respond
+                )
+            })
+            .await
+            .unwrap();
+            assert_eq!(result.is_ok(), expected);
+            assert!(pending.lock().unwrap().is_empty());
+        }
+    }
+
+    /// Cancellation while awaiting a peer response removes the slot without leaving a response waiter.
+    #[tokio::test]
+    async fn cancellation_releases_pending_request() {
+        let writer = Arc::new(RpcWriter::new(tokio::io::sink(), 0));
+        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let task_pending = pending.clone();
+        let task = tokio::spawn(async move {
+            request_remote(
+                &writer,
+                &task_pending,
+                43,
+                "session.spawn",
+                serde_json::json!({"id": 43}),
+            )
+            .await
+        });
+        let guard = AbortOnDrop(task.abort_handle());
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while !pending.lock().unwrap().contains_key(&43) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        drop(guard);
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(pending.lock().unwrap().is_empty());
     }
 }

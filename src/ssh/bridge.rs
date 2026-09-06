@@ -84,14 +84,19 @@ impl SshBridge {
                 .unwrap()
                 .remove(&stream.stream_id);
             if !stream.stream_id.is_empty() {
-                let _ = self.write_tx.lock().unwrap().send(WriteRequest {
-                    stream_id: stream.stream_id,
-                    data_base64: String::new(),
-                    close: true,
-                    resize: None,
-                });
+                self.request_close(stream.stream_id);
             }
         }
+    }
+
+    /// Queue best-effort closure for a known remote stream; transport teardown owns failed delivery.
+    pub(crate) fn request_close(&self, stream_id: String) {
+        let _ = self.write_tx.lock().unwrap().send(WriteRequest {
+            stream_id,
+            data_base64: String::new(),
+            close: true,
+            resize: None,
+        });
     }
 
     /// Take the write receiver for use in the proxy routing loop.

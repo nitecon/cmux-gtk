@@ -36,3 +36,5 @@ Socket startup receives a runtime handle and command sender, not application sta
 `src/ssh/writer.rs` serializes every SSH request (hello, PTY creation/subscription and terminal input/control) through one deadline-aware writer. A persistent retirement signal ties partial-write failure or cancellation to the routing lifetime. The adapter caps encoded frames with the existing bounded JSON serializer; no second writer actor or queue is introduced.
 
 `src/ssh/handshake.rs` validates daemon identity and required capabilities under one hello-exchange deadline before terminal routing starts. The same buffered reader passes into routing so prefetched response/event bytes are not discarded.
+
+SSH session creation and subscription share `request_remote` for response-slot registration before writing, bounded reply waiting, success/identity validation and cancellation cleanup. Known remote stream closure requests share `SshBridge::request_close`, including failed subscription setup.
