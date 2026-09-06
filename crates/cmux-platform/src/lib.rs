@@ -11,6 +11,7 @@ compile_error!("cmux-platform currently supports Linux only");
 pub mod discovery;
 pub mod filesystem;
 pub mod installation;
+pub mod local_socket;
 pub mod notification;
 pub mod paths;
 pub mod peer;

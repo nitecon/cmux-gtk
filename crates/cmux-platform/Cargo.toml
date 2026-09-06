@@ -9,6 +9,7 @@ gtk = ["dep:gtk4", "dep:cc"]
 
 [dependencies]
 libc = "0.2"
+socket2 = "0.6.3"
 gtk4 = { version = "0.10.3", features = ["v4_8"], optional = true }
 
 [build-dependencies]

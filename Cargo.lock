@@ -337,6 +337,7 @@ dependencies = [
  "cc",
  "gtk4",
  "libc",
+ "socket2",
 ]
 
 [[package]]

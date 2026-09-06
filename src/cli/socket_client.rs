@@ -47,14 +47,8 @@ pub struct SocketClient {
 impl SocketClient {
     /// Connect to the cmux socket at the given path with the specified timeout.
     pub fn connect(path: &str, timeout: Duration) -> Result<Self, CliError> {
-        let stream = UnixStream::connect(path)
+        let stream = cmux_platform::local_socket::connect(std::path::Path::new(path), timeout)
             .map_err(|e| CliError::Connection(format!("cannot connect to {}: {}", path, e)))?;
-        stream
-            .set_read_timeout(Some(timeout))
-            .map_err(|e| CliError::Connection(format!("set_read_timeout: {}", e)))?;
-        stream
-            .set_write_timeout(Some(timeout))
-            .map_err(|e| CliError::Connection(format!("set_write_timeout: {}", e)))?;
         let writer = stream
             .try_clone()
             .map_err(|e| CliError::Connection(format!("clone stream: {}", e)))?;
