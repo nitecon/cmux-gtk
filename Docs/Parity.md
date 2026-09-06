@@ -210,3 +210,9 @@ The fixture emitted `file:///path` in OSC 7, but the pinned native `stream_handl
 ## Workspace move shortcuts checkpoint
 
 Ctrl+Shift+Page Up / Page Down now move the selected workspace through the same model operation used by drag/drop and single-workspace CLI reorder. At either boundary the action is a no-op, preserving terminal focus and identity. `[shortcuts]` accepts `move_workspace_up` and `move_workspace_down` GTK accelerator overrides. The native batch-order fixture now also sends actual keyboard events and verifies direction, nonwrapping boundaries and an additional normal restart. Strict clippy, Python syntax and diff checks pass locally; Actions runtime evidence remains pending.
+
+## Automatic local Git metadata checkpoint
+
+Workspace rows now show local branch and dirty state, and workspace-list responses include a transient `git` observation. One bounded background Git process at a time visits workspaces round-robin, using the selected terminal's reported directory or explicit launch directory. Results are discarded after a directory change or workspace closure; applying them preserves focus and does not save sessions or overwrite agent statuses. Remote workspaces are excluded until remote discovery is implemented.
+
+The parser uses Git's documented [porcelain-v2 status format](https://git-scm.com/docs/git-status#_porcelain_format_version_2). Execution, stdout/stderr and cleanup waits are bounded; inherited Git routing/config environment overrides and fsmonitor hooks are disabled. Diagnostics correlate workspace identity and probe duration/outcome without file paths or branch content. Actions coverage uses real repository commits, branch changes, background edits and terminal directory changes. Strict clippy and fixture syntax pass locally; runtime evidence is pending. PR/MR association, remote Git and project/diff views remain incomplete.

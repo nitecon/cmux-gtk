@@ -325,6 +325,15 @@ pub fn workspace_row_content(workspace: &crate::workspace::Workspace) -> gtk4::B
     subtitle.add_css_class("dim-label");
     subtitle.set_visible(!workspace.subtitle().is_empty());
     vbox.append(&subtitle);
+    let git = gtk4::Label::new(None);
+    git.set_xalign(0.0);
+    git.set_single_line_mode(true);
+    git.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    git.set_max_width_chars(28);
+    git.add_css_class("workspace-git");
+    git.add_css_class("dim-label");
+    crate::git_metadata::render(&git, workspace.git.as_ref());
+    vbox.append(&git);
     let metadata = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
     metadata.add_css_class("workspace-metadata");
     crate::workspace_metadata::render(&metadata, &workspace.metadata);

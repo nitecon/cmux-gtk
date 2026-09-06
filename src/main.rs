@@ -9,6 +9,7 @@ mod browser_timeout;
 mod config;
 mod diagnostics;
 mod ghostty;
+mod git_metadata;
 mod header_bar;
 mod inbox;
 mod inbox_actions;
@@ -441,6 +442,8 @@ fn build_ui(
             }
         }
     }
+
+    crate::git_metadata::start(&state, &window);
 
     // Attach command receiver to GTK main loop via glib::MainContext::default().spawn_local.
     // This replaces the old glib::MainContext::channel pattern (removed in glib 0.18+).

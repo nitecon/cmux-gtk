@@ -171,6 +171,8 @@ jobs:
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_sidebar_metadata.py
       - name: Atomic workspace batch reorder
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_workspace_reorder_many.py
+      - name: Automatic local Git metadata
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_git_metadata.py
       - name: Desktop notification action routing
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_desktop_notifications.py
       - name: Caller notification attribution

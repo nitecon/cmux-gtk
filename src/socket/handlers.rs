@@ -19,6 +19,7 @@ fn workspace_record(state: &crate::app_state::AppState, index: usize) -> Option<
         "index": index,
         "id": workspace.uuid,
         "uuid": workspace.uuid,
+        "git": workspace.git,
         "title": workspace.name,
         "name": workspace.name,
         "working_directory": workspace.working_directory.as_ref().map(|path| path.to_string_lossy()),

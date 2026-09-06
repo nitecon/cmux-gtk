@@ -90,6 +90,8 @@ pub struct Workspace {
     pub working_directory: Option<PathBuf>,
     /// Connection state for remote workspaces.
     pub connection_state: ConnectionState,
+    /// Latest local Git observation; refreshed independently of persisted agent metadata.
+    pub git: Option<crate::git_metadata::GitMetadata>,
     pub color: Option<String>,
     pub startup_script: Option<PathBuf>,
     pub remote_directory: Option<String>,
@@ -108,6 +110,7 @@ impl Workspace {
             has_attention: false,
             last_notification: None,
             metadata: Default::default(),
+            git: None,
             color: None,
             startup_script: None,
             remote_directory: None,
