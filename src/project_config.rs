@@ -28,6 +28,7 @@ pub struct Resolved {
     pub directory: PathBuf,
     pub sources: Vec<PathBuf>,
     pub actions: BTreeMap<String, Action>,
+    pub commands: BTreeMap<String, Action>,
 }
 
 /// Resolve the shared user configuration path without opening files or expanding project content.
@@ -106,6 +107,46 @@ fn merge(resolved: &mut Resolved, source: PathBuf, value: Value) -> Result<(), S
             }
         }
     }
+    if let Some(commands) = value.get("commands") {
+        let commands = commands.as_array().ok_or("commands must be an array")?;
+        if commands.len() > 256 {
+            return Err("project command registry exceeds 256 entries".into());
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for definition in commands {
+            let name = definition
+                .get("name")
+                .and_then(Value::as_str)
+                .filter(|name| {
+                    !name.trim().is_empty()
+                        && name.len() <= 128
+                        && !name.chars().any(char::is_control)
+                })
+                .ok_or("command name must be a nonempty bounded string")?;
+            if !seen.insert(name) {
+                continue;
+            }
+            let (intent, target) = project_action::parse(definition)?;
+            resolved.commands.insert(
+                name.to_string(),
+                Action {
+                    source: source.clone(),
+                    fingerprint: fingerprint(
+                        &resolved.directory,
+                        &source,
+                        &format!("command:{name}"),
+                        definition,
+                    )?,
+                    definition: definition.clone(),
+                    intent,
+                    target,
+                },
+            );
+            if resolved.commands.len() > 256 {
+                return Err("project command registry exceeds 256 entries".into());
+            }
+        }
+    }
     resolved.sources.push(source);
     Ok(())
 }
@@ -124,6 +165,7 @@ pub fn resolve(directory: &Path, global: Option<&Path>) -> Result<Resolved, Stri
         directory: directory.clone(),
         sources: Vec::new(),
         actions: BTreeMap::new(),
+        commands: BTreeMap::new(),
     };
     if let Some(global) = global {
         if let Some(value) = read(global)? {
@@ -137,8 +179,20 @@ pub fn resolve(directory: &Path, global: Option<&Path>) -> Result<Resolved, Stri
         for candidate in [parent.join(".cmux/cmux.json"), parent.join("cmux.json")] {
             if let Some(value) = read(&candidate)? {
                 merge(&mut resolved, candidate, value)?;
-                return Ok(resolved);
+                return bind_command_references(resolved);
             }
+        }
+    }
+    bind_command_references(resolved)
+}
+
+/// Include the winning named definition in review identity so indirect edits cannot reuse approval.
+fn bind_command_references(mut resolved: Resolved) -> Result<Resolved, String> {
+    for (id, action) in &mut resolved.actions {
+        if let project_action::Intent::WorkspaceCommand { name } = &action.intent {
+            let command = resolved.commands.get(name);
+            let content = serde_json::json!({"action":action.definition,"command":command.map(|entry| (&entry.source, &entry.definition))});
+            action.fingerprint = fingerprint(&resolved.directory, &action.source, id, &content)?;
         }
     }
     Ok(resolved)
@@ -147,6 +201,45 @@ pub fn resolve(directory: &Path, global: Option<&Path>) -> Result<Resolved, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Local named definitions override global ones; indirect changes invalidate action review.
+    #[test]
+    fn named_command_precedence_and_reference_identity() {
+        let mut resolved = Resolved {
+            directory: PathBuf::from("/project"),
+            sources: Vec::new(),
+            actions: BTreeMap::new(),
+            commands: BTreeMap::new(),
+        };
+        merge(&mut resolved, PathBuf::from("/global.json"), serde_json::json!({
+            "actions":{"launch":{"type":"workspaceCommand","name":"dev"}},
+            "commands":[{"name":"dev","workspace":{"cwd":"global"}}, {"name":"other","command":"pwd"}]
+        })).unwrap();
+        merge(&mut resolved, PathBuf::from("/project/cmux.json"), serde_json::json!({
+            "commands":[{"name":"dev","workspace":{"cwd":"first"}}, {"name":"dev","workspace":{"cwd":"duplicate"}}]
+        })).unwrap();
+        let mut resolved = bind_command_references(resolved).unwrap();
+        assert_eq!(resolved.commands.len(), 2);
+        assert_eq!(
+            resolved.commands["dev"].definition["workspace"]["cwd"],
+            "first"
+        );
+        assert_eq!(
+            resolved.commands["dev"].source,
+            PathBuf::from("/project/cmux.json")
+        );
+        let reviewed = resolved.actions["launch"].fingerprint.clone();
+        merge(
+            &mut resolved,
+            PathBuf::from("/project/cmux.json"),
+            serde_json::json!({
+                "commands":[{"name":"dev","workspace":{"cwd":"changed"}}]
+            }),
+        )
+        .unwrap();
+        let resolved = bind_command_references(resolved).unwrap();
+        assert_ne!(resolved.actions["launch"].fingerprint, reviewed);
+    }
 
     /// Reviewed identity changes with command, target, source, action ID or captured directory.
     #[test]

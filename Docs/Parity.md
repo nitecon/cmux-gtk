@@ -396,3 +396,7 @@ The browser lifecycle fixture now holds a project browser startup while the targ
 ### Project agent execution
 
 Agent intents now share reviewed command execution and target behavior, with upstream provider aliases and shell-argument trimming. Custom bounded CLI names work through the terminal shell. Tests cover alias/argument semantics and live custom-agent output in the project directory; runtime pending Actions. Provider hooks and resume integration remain separate open matrix items.
+
+### Named workspace command discovery
+
+Config resolution now exposes bounded named commands with local precedence, source and typed definition. Workspace-command action review identities bind referenced command content and source to detect indirect edits. Tests cover local/global precedence, first duplicate and reference invalidation; runtime pending Actions. Workspace layout launch and restart behavior remain open.

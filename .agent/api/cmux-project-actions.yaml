@@ -71,3 +71,8 @@ content:
     - Agent intents execute via existing reviewed command targets. Trimmed claudeCode/claude-code map to claude, openCode/open-code to opencode; args remain trimmed shell text with quoting/expansion.
     - CLI-name validation remains ASCII alphanumeric/dot/underscore/hyphen; arbitrary paths/Unicode names unsupported. Shell resolves installed executables; cmux does not install providers.
     - Matches inspected upstream CmuxConfigAction.terminalCommand. Alias tests and custom printf agent GTK fixture cover exact quoted output; runtime pending Actions. Provider hooks/resume remain separate work.
+
+  named_commands:
+    - Resolved commands map retains source/raw definition/typed intent/fingerprint. Local whole-entry precedence and first duplicate name within each file match upstream loadAll; names128bytes, input/merged registries256.
+    - workspaceCommand action fingerprints include referenced command source and full definition or absence, rejecting indirect edits on later execution.
+    - Discovery does not execute named definitions. Layout launch, restart semantics and complete command-specific validation remain outstanding. Precedence/duplicate/reference-invalidation tests await Actions.
