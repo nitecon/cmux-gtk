@@ -104,6 +104,34 @@ pub enum Commands {
         #[arg(long, value_name = "PATH")]
         cwd: Option<String>,
     },
+    /// Create a first-class remote workspace with SSH management
+    Ssh {
+        destination: String,
+        #[arg(long, default_value = "ssh", value_parser = ["ssh", "mosh"])]
+        transport: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        directory: Option<String>,
+    },
+    /// Create a remote workspace using Mosh for interactive terminals
+    Mosh {
+        destination: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        directory: Option<String>,
+    },
+    /// Create a roaming Mosh terminal attached to a named remote tmux session
+    MoshTmux {
+        destination: String,
+        #[arg(long, default_value = "main")]
+        session: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        directory: Option<String>,
+    },
     /// Select a workspace by ID
     SelectWorkspace {
         /// Workspace UUID

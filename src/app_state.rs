@@ -316,23 +316,64 @@ impl AppState {
                 .any(|group| group.id == *group_id)
         });
         workspace.startup_script = ws.startup_script.clone();
-        workspace.remote_directory = ws.remote_directory.clone();
+        workspace.remote_directory = ws
+            .remote_directory
+            .clone()
+            .filter(|value| value.starts_with('/') && !value.contains('\0'));
         workspace.working_directory = ws.working_directory.clone();
+        workspace.terminal_transport = ws.terminal_transport;
+        workspace.terminal_profile = ws.terminal_profile;
+        workspace.terminal_tmux_session = ws
+            .terminal_tmux_session
+            .clone()
+            .filter(|value| crate::remote_transport::validate_tmux_session(value).is_ok());
+        if matches!(
+            workspace.terminal_profile,
+            crate::remote_transport::TerminalProfile::Tmux
+        ) && workspace.terminal_tmux_session.is_none()
+        {
+            workspace.terminal_tmux_session = Some("main".into());
+        }
 
-        workspace.remote_target = ws.remote_target.clone();
+        workspace.remote_target = ws
+            .remote_target
+            .clone()
+            .filter(|target| crate::workspace::validate_ssh_target(target).is_ok());
+        if workspace.remote_target.is_none() {
+            workspace.terminal_transport = Default::default();
+            workspace.terminal_profile = Default::default();
+            workspace.terminal_tmux_session = None;
+        }
         let remote_bridge = ws.remote_target.as_ref().map(|_| {
             let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
             *bridge.directory.lock().unwrap() = ws.remote_directory.clone();
             workspace.connection_state = ConnectionState::Reconnecting(0);
             bridge
         });
-        let remote_launch =
-            remote_bridge
-                .as_ref()
-                .map(|bridge| crate::ghostty::surface::SurfaceIoMode::Remote {
+        let remote_launch = remote_bridge.as_ref().and_then(|bridge| {
+            (workspace.terminal_transport == crate::remote_transport::TerminalTransport::Ssh).then(
+                || crate::ghostty::surface::SurfaceIoMode::Remote {
                     bridge: bridge.clone(),
                     ssh_tx: self.ssh_event_tx.clone().unwrap(),
-                });
+                },
+            )
+        });
+        let launch_command =
+            if workspace.terminal_transport == crate::remote_transport::TerminalTransport::Mosh {
+                workspace.remote_target.as_deref().map(|target| {
+                    crate::remote_transport::mosh_command(
+                        target,
+                        workspace.remote_directory.as_deref(),
+                        &workspace.terminal_profile,
+                        workspace.terminal_tmux_session.as_deref(),
+                    )
+                    .expect("validated persisted Mosh transport")
+                })
+            } else {
+                ws.startup_script
+                    .as_deref()
+                    .map(crate::workspace::startup_command)
+            };
 
         let row = self.build_sidebar_row(&workspace);
 
@@ -342,9 +383,7 @@ impl AppState {
             &ws.layout,
             ws.active_pane_uuid.as_deref(),
             ws.working_directory.clone(),
-            ws.startup_script
-                .as_deref()
-                .map(crate::workspace::startup_command),
+            launch_command,
             remote_launch,
             &self.resume_policy,
             ws.launch_environment.clone(),
@@ -404,47 +443,81 @@ impl AppState {
         row
     }
 
-    /// Create a remote SSH workspace. Returns workspace id.
-    /// The bridge is used to create an IoWriteContext for the initial pane's manual I/O mode surface.
-    pub fn create_remote_workspace(
+    /// Create a remote workspace whose interactive PTY may use Mosh while SSH owns management.
+    pub fn create_remote_workspace_with_transport(
         &mut self,
         target: String,
         bridge: &std::sync::Arc<crate::ssh::bridge::SshBridge>,
+        remote_directory: Option<String>,
+        transport: crate::remote_transport::TerminalTransport,
+        profile: crate::remote_transport::TerminalProfile,
+        tmux_session: Option<String>,
     ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         let display_number = self.next_display_number;
         self.next_display_number += 1;
 
-        let workspace = Workspace::new_remote(id, display_number, target);
+        let mut workspace = Workspace::new_remote(id, display_number, target);
+        workspace.remote_directory = remote_directory;
+        workspace.terminal_transport = transport;
+        workspace.terminal_profile = profile;
+        workspace.terminal_tmux_session = tmux_session;
         let row = self.build_sidebar_row(&workspace);
         self.sidebar_list.append(&row);
 
         // Create remote surface with manual I/O mode
         let pane_id = id * 1000;
-        let remote_launch = crate::ghostty::surface::SurfaceIoMode::Remote {
-            bridge: bridge.clone(),
-            ssh_tx: self
-                .ssh_event_tx
-                .clone()
-                .expect("SSH event channel initialized"),
+        let mosh_command =
+            (transport == crate::remote_transport::TerminalTransport::Mosh).then(|| {
+                crate::remote_transport::mosh_command(
+                    workspace.remote_target.as_deref().unwrap_or_default(),
+                    workspace.remote_directory.as_deref(),
+                    &workspace.terminal_profile,
+                    workspace.terminal_tmux_session.as_deref(),
+                )
+                .expect("validated remote transport")
+            });
+        let io_mode = if let Some(command) = mosh_command.clone() {
+            crate::ghostty::surface::SurfaceIoMode::Configured {
+                command: Some(command),
+                initial_input: None,
+                environment: Default::default(),
+            }
+        } else {
+            crate::ghostty::surface::SurfaceIoMode::Remote {
+                bridge: bridge.clone(),
+                ssh_tx: self
+                    .ssh_event_tx
+                    .clone()
+                    .expect("SSH event channel initialized"),
+            }
         };
         let (gl_area, _) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             None,
             None,
             pane_id,
-            remote_launch.clone(),
+            io_mode.clone(),
         );
         let mut engine = SplitEngine::new(self.ghostty_app, gl_area, pane_id, None);
-
-        engine.remote_launch = Some(remote_launch);
+        if transport == crate::remote_transport::TerminalTransport::Ssh {
+            engine.remote_launch = Some(io_mode);
+        } else {
+            engine.launch_command = mosh_command;
+        }
         let page_name = workspace.stack_page_name.clone();
         self.stack
             .add_named(&engine.root_widget(), Some(&page_name));
 
         self.workspaces.push(workspace);
         self.split_engines.push(engine);
+
+        crate::diagnostics::record(
+            "workspace.remote.terminal",
+            serde_json::json!({"workspace_id":id,"transport":transport,
+                "profile":profile,"outcome":"created"}),
+        );
 
         let new_index = self.workspaces.len() - 1;
         self.switch_to_index(new_index);
@@ -1137,6 +1210,9 @@ impl AppState {
                             startup_script: ws.startup_script.clone(),
                             remote_target: ws.remote_target.clone(),
                             remote_directory: ws.remote_directory.clone(),
+                            terminal_transport: ws.terminal_transport,
+                            terminal_profile: ws.terminal_profile,
+                            terminal_tmux_session: ws.terminal_tmux_session.clone(),
                             working_directory: ws.working_directory.clone(),
                             active_pane_uuid,
                             layout,

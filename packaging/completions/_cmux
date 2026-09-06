@@ -565,6 +565,53 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(ssh)
+_arguments "${_arguments_options[@]}" : \
+'--transport=[]:TRANSPORT:(ssh mosh)' \
+'--name=[]:NAME:_default' \
+'--directory=[]:DIRECTORY:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':destination:_default' \
+&& ret=0
+;;
+(mosh)
+_arguments "${_arguments_options[@]}" : \
+'--name=[]:NAME:_default' \
+'--directory=[]:DIRECTORY:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':destination:_default' \
+&& ret=0
+;;
+(mosh-tmux)
+_arguments "${_arguments_options[@]}" : \
+'--session=[]:SESSION:_default' \
+'--name=[]:NAME:_default' \
+'--directory=[]:DIRECTORY:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':destination:_default' \
+&& ret=0
+;;
 (select-workspace)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -1911,6 +1958,18 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(ssh)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mosh)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(mosh-tmux)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (select-workspace)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2261,6 +2320,9 @@ _cmux_commands() {
 'current-workspace:Show the current workspace' \
 'raw:Send an arbitrary JSON-RPC method' \
 'new-workspace:Create a new workspace' \
+'ssh:Create a first-class remote workspace with SSH management' \
+'mosh:Create a remote workspace using Mosh for interactive terminals' \
+'mosh-tmux:Create a roaming Mosh terminal attached to a named remote tmux session' \
 'select-workspace:Select a workspace by ID' \
 'close-workspace:Close a workspace by ID' \
 'rename-workspace:Rename a workspace' \
@@ -2713,6 +2775,9 @@ _cmux__help_commands() {
 'current-workspace:Show the current workspace' \
 'raw:Send an arbitrary JSON-RPC method' \
 'new-workspace:Create a new workspace' \
+'ssh:Create a first-class remote workspace with SSH management' \
+'mosh:Create a remote workspace using Mosh for interactive terminals' \
+'mosh-tmux:Create a roaming Mosh terminal attached to a named remote tmux session' \
 'select-workspace:Select a workspace by ID' \
 'close-workspace:Close a workspace by ID' \
 'rename-workspace:Rename a workspace' \
@@ -3099,6 +3164,16 @@ _cmux__help__list-workspaces_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help list-workspaces commands' commands "$@"
 }
+(( $+functions[_cmux__help__mosh_commands] )) ||
+_cmux__help__mosh_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help mosh commands' commands "$@"
+}
+(( $+functions[_cmux__help__mosh-tmux_commands] )) ||
+_cmux__help__mosh-tmux_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help mosh-tmux commands' commands "$@"
+}
 (( $+functions[_cmux__help__new-workspace_commands] )) ||
 _cmux__help__new-workspace_commands() {
     local commands; commands=()
@@ -3255,6 +3330,11 @@ _cmux__help__set-status_commands() {
 _cmux__help__split_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help split commands' commands "$@"
+}
+(( $+functions[_cmux__help__ssh_commands] )) ||
+_cmux__help__ssh_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help ssh commands' commands "$@"
 }
 (( $+functions[_cmux__help__surface_commands] )) ||
 _cmux__help__surface_commands() {
@@ -3492,6 +3572,16 @@ _cmux__list-workspaces_commands() {
     local commands; commands=()
     _describe -t commands 'cmux list-workspaces commands' commands "$@"
 }
+(( $+functions[_cmux__mosh_commands] )) ||
+_cmux__mosh_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux mosh commands' commands "$@"
+}
+(( $+functions[_cmux__mosh-tmux_commands] )) ||
+_cmux__mosh-tmux_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux mosh-tmux commands' commands "$@"
+}
 (( $+functions[_cmux__new-workspace_commands] )) ||
 _cmux__new-workspace_commands() {
     local commands; commands=()
@@ -3697,6 +3787,11 @@ _cmux__set-status_commands() {
 _cmux__split_commands() {
     local commands; commands=()
     _describe -t commands 'cmux split commands' commands "$@"
+}
+(( $+functions[_cmux__ssh_commands] )) ||
+_cmux__ssh_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux ssh commands' commands "$@"
 }
 (( $+functions[_cmux__surface_commands] )) ||
 _cmux__surface_commands() {

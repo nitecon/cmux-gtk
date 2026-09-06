@@ -29,6 +29,9 @@ fn workspace_record(state: &crate::app_state::AppState, index: usize) -> Option<
                 "reconnect_attempt": match workspace.connection_state { crate::workspace::ConnectionState::Reconnecting(attempt) => Some(attempt), _ => None },
                 "browser_proxy_port": port,
                 "browser_proxy_ready": bridge.and_then(|bridge| bridge.browser_proxy_ready()).is_some(),
+                "terminal_transport": workspace.terminal_transport,
+                "terminal_profile": workspace.terminal_profile,
+                "terminal_tmux_session": workspace.terminal_tmux_session,
             })
         }),
         "title": workspace.name,
@@ -485,17 +488,34 @@ fn handle_socket_command_traced(
             remote_target,
             name,
             working_directory,
+            remote_directory,
+            terminal_transport,
+            terminal_profile,
+            terminal_tmux_session,
             resp_tx,
         } => {
             if let Some(target) = remote_target {
                 // SSH workspace creation per D-13, D-15
                 // Create per-workspace bridge for SSH I/O routing
                 let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
-                let id = state
-                    .borrow_mut()
-                    .create_remote_workspace(target.clone(), &bridge);
+                *bridge.directory.lock().unwrap() = remote_directory.clone();
+                let id = state.borrow_mut().create_remote_workspace_with_transport(
+                    target.clone(),
+                    &bridge,
+                    remote_directory,
+                    terminal_transport,
+                    terminal_profile,
+                    terminal_tmux_session,
+                );
                 let uuid_str = {
-                    let s = state.borrow();
+                    let mut s = state.borrow_mut();
+                    if let Some(name) = name.filter(|value| !value.trim().is_empty()) {
+                        if let Some(index) =
+                            s.workspaces.iter().position(|workspace| workspace.id == id)
+                        {
+                            s.rename_workspace_at(index, name);
+                        }
+                    }
                     s.workspaces
                         .iter()
                         .find(|ws| ws.id == id)
@@ -511,7 +531,11 @@ fn handle_socket_command_traced(
                         .and_then(|value| uuid::Uuid::parse_str(value).ok()),
                     "rpc",
                 );
-                let _ = resp_tx.send(ok(req_id, json!({"uuid": uuid_str, "remote": true})));
+                let _ = resp_tx.send(ok(
+                    req_id,
+                    json!({"uuid": uuid_str, "remote": true,
+                    "terminal_transport":terminal_transport,"terminal_profile":terminal_profile}),
+                ));
             } else {
                 let id = if let Some(path) = working_directory {
                     state

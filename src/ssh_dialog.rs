@@ -47,6 +47,11 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
     let directory = gtk4::Entry::new();
     directory.set_placeholder_text(Some("Remote folder (optional, e.g. /opt/project)"));
     vbox.append(&directory);
+    let transport = gtk4::DropDown::from_strings(&["SSH terminal", "Mosh terminal"]);
+    transport.set_tooltip_text(Some(
+        "Mosh roams across network changes; SSH remains the management connection",
+    ));
+    vbox.append(&transport);
     let error = gtk4::Label::new(None);
     error.set_wrap(true);
     error.add_css_class("error");
@@ -86,7 +91,17 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
                     error.set_text("Use an absolute remote folder path.");
                     return;
                 }
-                trigger_ssh_connect(&state, target, (!directory.is_empty()).then_some(directory));
+                let terminal_transport = if transport.selected() == 1 {
+                    crate::remote_transport::TerminalTransport::Mosh
+                } else {
+                    crate::remote_transport::TerminalTransport::Ssh
+                };
+                trigger_ssh_connect(
+                    &state,
+                    target,
+                    (!directory.is_empty()).then_some(directory),
+                    terminal_transport,
+                );
                 dialog.close();
             }
         }
@@ -124,12 +139,22 @@ pub fn show_ssh_dialog(app: &gtk4::Application, state: Rc<RefCell<AppState>>) {
 }
 
 /// Create an SSH workspace using the same pattern as the socket handler.
-fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory: Option<String>) {
+fn trigger_ssh_connect(
+    state: &Rc<RefCell<AppState>>,
+    target: String,
+    directory: Option<String>,
+    transport: crate::remote_transport::TerminalTransport,
+) {
     let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::new());
     *bridge.directory.lock().unwrap() = directory.clone();
-    let id = state
-        .borrow_mut()
-        .create_remote_workspace(target.clone(), &bridge);
+    let id = state.borrow_mut().create_remote_workspace_with_transport(
+        target.clone(),
+        &bridge,
+        directory.clone(),
+        transport,
+        crate::remote_transport::TerminalProfile::Shell,
+        None,
+    );
     {
         let mut s = state.borrow_mut();
         let index = s.workspaces.iter().position(|w| w.id == id).unwrap();

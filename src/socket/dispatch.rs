@@ -234,11 +234,105 @@ async fn dispatch_request(
             } else {
                 None
             };
+            let remote_directory = params
+                .get("remote_directory")
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            if remote_directory
+                .as_deref()
+                .is_some_and(|value| !value.starts_with('/') || value.contains('\0'))
+            {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "remote_directory must be an absolute path",
+                );
+            }
+            let terminal_transport = match params
+                .get("terminal_transport")
+                .and_then(|value| value.as_str())
+                .unwrap_or("ssh")
+            {
+                "ssh" => crate::remote_transport::TerminalTransport::Ssh,
+                "mosh" if remote_target.is_some() => {
+                    crate::remote_transport::TerminalTransport::Mosh
+                }
+                "mosh" => {
+                    return err(
+                        req_id,
+                        "invalid_params",
+                        "Mosh terminal transport requires an SSH remote workspace",
+                    )
+                }
+                _ => {
+                    return err(
+                        req_id,
+                        "invalid_params",
+                        "terminal_transport must be ssh or mosh",
+                    )
+                }
+            };
+            let terminal_profile = match params
+                .get("terminal_profile")
+                .and_then(|value| value.as_str())
+                .unwrap_or("shell")
+            {
+                "shell" => crate::remote_transport::TerminalProfile::Shell,
+                "tmux" => crate::remote_transport::TerminalProfile::Tmux,
+                _ => {
+                    return err(
+                        req_id,
+                        "invalid_params",
+                        "terminal_profile must be shell or tmux",
+                    )
+                }
+            };
+            let mut terminal_tmux_session = params
+                .get("terminal_tmux_session")
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            if matches!(
+                terminal_profile,
+                crate::remote_transport::TerminalProfile::Tmux
+            ) && crate::remote_transport::validate_tmux_session(
+                terminal_tmux_session.as_deref().unwrap_or("main"),
+            )
+            .is_err()
+            {
+                return err(req_id, "invalid_params", "invalid tmux session name");
+            }
+            if matches!(
+                terminal_profile,
+                crate::remote_transport::TerminalProfile::Tmux
+            ) && terminal_transport != crate::remote_transport::TerminalTransport::Mosh
+            {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "tmux terminal profile requires Mosh transport",
+                );
+            }
+            if matches!(
+                terminal_profile,
+                crate::remote_transport::TerminalProfile::Tmux
+            ) {
+                terminal_tmux_session.get_or_insert_with(|| "main".into());
+            } else if terminal_tmux_session.is_some() {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "terminal_tmux_session requires the tmux profile",
+                );
+            }
             commands::SocketCommand::WorkspaceCreate {
                 req_id: req_id.clone(),
                 remote_target,
                 name,
                 working_directory,
+                remote_directory,
+                terminal_transport,
+                terminal_profile,
+                terminal_tmux_session,
                 resp_tx,
             }
         }

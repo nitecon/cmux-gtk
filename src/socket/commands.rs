@@ -77,6 +77,10 @@ pub enum SocketCommand {
         remote_target: Option<String>,
         name: Option<String>,
         working_directory: Option<std::path::PathBuf>,
+        remote_directory: Option<String>,
+        terminal_transport: crate::remote_transport::TerminalTransport,
+        terminal_profile: crate::remote_transport::TerminalProfile,
+        terminal_tmux_session: Option<String>,
         resp_tx: RespTx,
     },
     /// `id` is the workspace UUID string from the client.

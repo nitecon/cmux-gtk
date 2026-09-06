@@ -23,6 +23,7 @@ mod ports;
 mod preferences;
 mod project_config;
 mod project_palette;
+mod remote_transport;
 mod resume;
 mod resume_command;
 mod resume_policy;

@@ -417,6 +417,36 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             }
             ("workspace.create", Value::Object(params))
         }
+        Commands::Ssh {
+            destination,
+            transport,
+            name,
+            directory,
+        } => (
+            "workspace.create",
+            json!({"remote_target":destination,"terminal_transport":transport,
+                "name":name,"remote_directory":directory}),
+        ),
+        Commands::Mosh {
+            destination,
+            name,
+            directory,
+        } => (
+            "workspace.create",
+            json!({"remote_target":destination,"terminal_transport":"mosh",
+                "name":name,"remote_directory":directory}),
+        ),
+        Commands::MoshTmux {
+            destination,
+            session,
+            name,
+            directory,
+        } => (
+            "workspace.create",
+            json!({"remote_target":destination,"terminal_transport":"mosh",
+                "terminal_profile":"tmux","terminal_tmux_session":session,
+                "name":name,"remote_directory":directory}),
+        ),
         Commands::SelectWorkspace { id } => ("workspace.select", json!({"id": id})),
         Commands::CloseWorkspace { id } => ("workspace.close", json!({"id": id})),
         Commands::RenameWorkspace { id, name } => {

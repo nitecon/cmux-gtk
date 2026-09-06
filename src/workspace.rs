@@ -99,6 +99,9 @@ pub struct Workspace {
     pub group_id: Option<Uuid>,
     pub startup_script: Option<PathBuf>,
     pub remote_directory: Option<String>,
+    pub terminal_transport: crate::remote_transport::TerminalTransport,
+    pub terminal_profile: crate::remote_transport::TerminalProfile,
+    pub terminal_tmux_session: Option<String>,
 }
 
 impl Workspace {
@@ -120,6 +123,9 @@ impl Workspace {
             group_id: None,
             startup_script: None,
             remote_directory: None,
+            terminal_transport: Default::default(),
+            terminal_profile: Default::default(),
+            terminal_tmux_session: None,
             remote_target: None,
             working_directory: None,
             connection_state: ConnectionState::Local,
@@ -142,8 +148,14 @@ impl Workspace {
     /// Describe the complete launch location for tooltips and workspace metadata.
     pub fn location(&self) -> String {
         if let Some(target) = &self.remote_target {
+            let scheme =
+                if self.terminal_transport == crate::remote_transport::TerminalTransport::Mosh {
+                    "mosh"
+                } else {
+                    "ssh"
+                };
             format!(
-                "ssh://{}{}",
+                "{scheme}://{}{}",
                 target,
                 self.remote_directory.as_deref().unwrap_or("")
             )

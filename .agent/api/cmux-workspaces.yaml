@@ -32,6 +32,12 @@ content:
         - Upload to a unique staging filename, set permissions, and atomically rename it into place so running helpers are not overwritten during reconnect.
         - Each terminal surface owns its own remote context and stream identity. Start stream only after surface initialization; route output by that identity.
         - Persist host, remote folder and layout. Reconnect creates fresh remote shell sessions rather than recovering previous processes.
+    - name: Mosh terminal transport
+      steps:
+        - cmux ssh DESTINATION --transport mosh and cmux mosh create an SSH-managed remote workspace whose interactive Ghostty PTY runs the local Mosh client. cmux mosh-tmux adds a validated named remote tmux attach profile. The SSH daemon connection continues to own browser routing, ports, management and reconnect state.
+        - The terminal command resolves local mosh, requires its Mosh 1.4 experimental remote-IP option, and probes mosh-server through the same bounded SSH options. It uses proxy address resolution so SSH aliases work without local destination DNS. Missing/incompatible local Mosh, missing remote mosh-server or an uncertain probe prints a stage-specific message and replaces the terminal with direct SSH.
+        - Transport, shell-or-tmux profile and optional session name persist in the workspace snapshot. Restore reconstructs Mosh terminal commands before GTK realization and separately restarts the SSH management lane. Sidebar locations use mosh:// for these workspaces.
+        - workspace.remote.terminal records workspace ID and fixed transport/profile values without destination, command or directory. Builder tests execute fake SSH/Mosh programs in GitHub Actions and verify capability gating and argument routing; runtime proof is pending.
     - name: Remote setup correlation
       steps:
         - session.spawn and proxy.stream.subscribe carry a generated trace_id. Local ssh.rpc.begin and ssh.rpc.complete records include workspace, request ID, fixed method, elapsed time and success/error/timeout/cancelled categories without request parameters.
@@ -71,7 +77,7 @@ content:
       description: Close and reap the PTY or proxy connection belonging to stream_id.
   schemas:
     workspace_session:
-      fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, color, group_id, active_pane_uuid, layout]
+      fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, terminal_transport, terminal_profile, terminal_tmux_session, color, group_id, active_pane_uuid, layout]
       compatibility: New optional fields default to null when reading older session files. Session ordering is array ordering.
     workspace_group:
       fields: [id, name, color, collapsed]

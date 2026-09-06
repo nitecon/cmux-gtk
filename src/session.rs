@@ -22,6 +22,12 @@ pub struct WorkspaceSession {
     pub remote_target: Option<String>,
     #[serde(default)]
     pub remote_directory: Option<String>,
+    #[serde(default)]
+    pub terminal_transport: crate::remote_transport::TerminalTransport,
+    #[serde(default)]
+    pub terminal_profile: crate::remote_transport::TerminalProfile,
+    #[serde(default)]
+    pub terminal_tmux_session: Option<String>,
     /// Directory all local terminals in this workspace start in.
     #[serde(default)]
     pub working_directory: Option<PathBuf>,
@@ -511,6 +517,9 @@ mod tests {
                 startup_script: None,
                 remote_target: None,
                 remote_directory: None,
+                terminal_transport: Default::default(),
+                terminal_profile: Default::default(),
+                terminal_tmux_session: None,
                 working_directory: Some(PathBuf::from("/tmp")),
                 active_pane_uuid: None,
                 layout: SplitNodeData::Leaf {
