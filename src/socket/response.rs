@@ -28,8 +28,9 @@ pub(super) fn encode(mut response: Value) -> String {
     });
     match bytes {
         Some(mut bytes) => {
-            bytes.pop(); // The transport owns the newline write.
-                         // serde_json always produces UTF-8; keep this conversion checked.
+            // The transport owns the newline write.
+            bytes.pop();
+            // serde_json always produces UTF-8; keep this conversion checked.
             String::from_utf8(bytes).unwrap_or_else(|_| fallback_error().to_owned())
         }
         None => fallback_error().to_owned(),
@@ -54,6 +55,21 @@ pub(super) fn err(req_id: Value, code: &str, message: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A complete line may exactly fill the budget; one additional payload byte returns a small error.
+    #[test]
+    fn exact_line_budget() {
+        let overhead = encode(ok(json!(1), json!(""))).len() + 1;
+        let payload = "x".repeat(MAX_RESPONSE_BYTES - overhead);
+        let encoded = encode(ok(json!(1), json!(payload)));
+        assert_eq!(encoded.len() + 1, MAX_RESPONSE_BYTES);
+        let decoded: Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded["ok"], true);
+        let oversized = encode(ok(json!(1), json!(format!("{payload}x"))));
+        let decoded: Value = serde_json::from_str(&oversized).unwrap();
+        assert_eq!(decoded["id"], 1);
+        assert_eq!(decoded["error"]["code"], "response_too_large");
+    }
 
     /// Escaping overflow becomes a valid correlated error, rather than a partial serialized result.
     #[test]
