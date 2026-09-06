@@ -24,6 +24,8 @@ fn merge_claude_hooks(settings: &mut Value, binary: &Path) -> Result<(), CliErro
     for (event, command) in [
         ("SessionStart", "session-start"),
         ("SessionEnd", "session-end"),
+        ("Stop", "stop"),
+        ("Notification", "notification"),
     ] {
         let entries = hooks
             .entry(event)
@@ -96,7 +98,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
         .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&path))
         .map_err(|error| CliError::Command(format!("save Claude hooks: {error}")))?;
     println!(
-        "Installed Claude session-start/session-end hooks in {}",
+        "Installed Claude session and notification hooks in {}",
         path.display()
     );
     Ok(())
@@ -118,6 +120,8 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
     let expected = match event {
         ClaudeHookEvent::SessionStart => "SessionStart",
         ClaudeHookEvent::SessionEnd => "SessionEnd",
+        ClaudeHookEvent::Stop => "Stop",
+        ClaudeHookEvent::Notification => "Notification",
     };
     if payload.get("hook_event_name").and_then(Value::as_str) != Some(expected) {
         return Err(CliError::Command(
@@ -167,8 +171,62 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
                 json!({"surface_id": surface, "checkpoint_id": id}),
             )?;
         }
+        ClaudeHookEvent::Stop | ClaudeHookEvent::Notification => {
+            let (title_key, title_default, body_key, body_default) =
+                if matches!(event, ClaudeHookEvent::Stop) {
+                    (
+                        "title",
+                        "Claude response ready",
+                        "last_assistant_message",
+                        "Claude has finished responding.",
+                    )
+                } else {
+                    (
+                        "title",
+                        "Claude needs attention",
+                        "message",
+                        "Claude needs your attention.",
+                    )
+                };
+            let title = notification_text(&payload, title_key, title_default, 512)?;
+            let body = notification_text(&payload, body_key, body_default, 8192)?;
+            let subtitle = if matches!(event, ClaudeHookEvent::Notification) {
+                notification_text(&payload, "notification_type", "", 1024)?
+            } else {
+                String::new()
+            };
+            client.call(
+                "notification.create_for_surface",
+                json!({"surface_id":surface,"title":title,"subtitle":subtitle,"body":body}),
+            )?;
+        }
     }
     Ok(())
+}
+
+/// Fit native hook text into inbox limits at a UTF-8 boundary, with explicit visible truncation.
+fn notification_text(
+    payload: &Value,
+    key: &str,
+    default: &str,
+    limit: usize,
+) -> Result<String, CliError> {
+    let text = match payload.get(key) {
+        None | Some(Value::Null) => default,
+        Some(Value::String(text)) => text,
+        _ => return Err(CliError::Command(format!("{key} must be a string"))),
+    };
+    if text.contains('\0') {
+        return Err(CliError::Command(format!("{key} must not contain NUL")));
+    }
+    if text.len() <= limit {
+        return Ok(text.into());
+    }
+    let mut boundary = limit - 3;
+    while !text.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    Ok(format!("{}...", &text[..boundary]))
 }
 
 #[cfg(test)]

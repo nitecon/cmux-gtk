@@ -294,11 +294,13 @@ pub enum HookCommands {
     },
 }
 
-/// Session-level Claude events; per-turn notification hooks are a separate inbox integration.
+/// Claude session lifecycle and per-turn attention events.
 #[derive(Clone, Copy, Subcommand)]
 pub enum ClaudeHookEvent {
     SessionStart,
     SessionEnd,
+    Stop,
+    Notification,
 }
 
 /// Manual resume binding controls; automatic execution is a separate hook policy.

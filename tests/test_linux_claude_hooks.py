@@ -40,15 +40,16 @@ def main():
         assert invalid.returncode != 0 and settings_path.read_text() == "{broken"
         settings_path.write_bytes(first)
         with running_app(root, {"PATH": env["PATH"], "CLAUDE_CONFIG_DIR": str(config)}) as app:
+            initial = next(row for row in app.surfaces() if row["active"])
             app.cli("new-workspace", "--name", "hook-target")
             target = next(row["uuid"] for row in app.surfaces() if row["active"])
             hook_env = dict(app.environment, CMUX_SURFACE_ID=target, CMUX_SOCKET=str(app.socket_path))
             native_id = "session-with-'quotes'"
 
-            def event(name, session_id, valid=True):
+            def event(name, session_id, valid=True, **extra):
                 """Run the actual installed shell command with native JSON on stdin and bounded waits."""
                 result = subprocess.run(["/bin/sh", "-c", commands[name]], env=hook_env,
-                                        input=json.dumps({"hook_event_name": name, "session_id": session_id, "cwd": str(root)}),
+                                        input=json.dumps(dict({"hook_event_name": name, "session_id": session_id, "cwd": str(root)}, **extra)),
                                         text=True, capture_output=True, timeout=10)
                 assert (result.returncode == 0) == valid, result.stderr
 
@@ -61,6 +62,17 @@ def main():
             subprocess.run(["/bin/sh", "-c", binding["command"]], check=True, timeout=10,
                            env=dict(hook_env, HOOK_ARGV_OUT=str(argv_output)))
             assert argv_output.read_text().splitlines() == ["--resume", native_id]
+            app.cli("select-workspace", initial["workspace_uuid"])
+            event("Stop", native_id, last_assistant_message="Build finished", stop_hook_active=False)
+            event("Notification", native_id, title="Permission needed", message="λ" * 5000, notification_type="permission_prompt")
+            notifications = json.loads(app.cli("notifications", "list", "--json"))["notifications"]
+            assert len(notifications) == 2
+            assert notifications[0]["body"] == "Build finished"
+            assert notifications[1]["title"] == "Permission needed" and notifications[1]["subtitle"] == "permission_prompt"
+            assert len(notifications[1]["body"].encode()) <= 8192 and notifications[1]["body"].endswith("...")
+            assert all(row["surface_id"] == target and not row["is_read"] for row in notifications)
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == initial["uuid"]
+            assert json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"] == binding
             event("SessionEnd", "older-session", valid=False)
             assert json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"] == binding
             event("SessionEnd", native_id)
