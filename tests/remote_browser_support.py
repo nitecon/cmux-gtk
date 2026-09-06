@@ -34,7 +34,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
-        if self.path == '/script.js':
+        if self.path == '/dns.html':
+            body = ('<title>remote-dns-' + identity + '</title>').encode()
+        elif self.path == '/script.js':
             body = ("window.scriptOrigin=" + json.dumps("remote-script-" + identity) + ";").encode()
         elif self.path == '/relative.js':
             body = b'window.relativeOrigin="remote-relative";'
@@ -114,6 +116,14 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
         eventually(lambda: loaded(*surfaces[0]))
         eventually(lambda: loaded(*surfaces[1]))
 
+        for surface, identity in surfaces:
+            remote_dns_url = f'http://cmux-browser.invalid:{decoy.server_port}/dns.html'
+            assert json.loads(cli('browser', 'goto', surface, remote_dns_url))['success']
+            title = json.loads(cli('browser', 'eval', surface, 'document.title'))
+            assert title['success'] and title['data']['result'] == 'remote-dns-' + identity
+            assert json.loads(cli('browser', 'goto', surface, url))['success']
+            eventually(lambda: loaded(surface, identity))
+
         def endpoint(workspace):
             """Observe the automatically forwarded endpoint for the same remote port."""
             rows = json.loads(cli('ports', '--workspace', workspace, '--json'))['ports'] or []
@@ -189,7 +199,7 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
                                     'local_decoy_requests': len(requests),
                                     'workspace_transport': remote_records,
                                     'reconnect_us': reconnect_us, 'reconnected_transport': reconnected,
-                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation']}
+                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation', 'remote-only hostname resolution']}
     finally:
         try:
             cleanup.close()

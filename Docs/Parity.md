@@ -338,3 +338,7 @@ Extended the real remote browser fixture to two namespaces serving different scr
 ### Remote browser reconnect scenario
 
 Added workspace connection/proxy observations and a real SSH reconnect scenario that retains browser DOM/session identity and its stable proxy port, rejects requests before service restart without local fallback, and restores resource loading after a new-generation PTY subscription. Second-workspace content remains independent. Strict Clippy and syntax checks pass; runtime evidence is pending Actions.
+
+### Remote-only browser hostname coverage
+
+The isolated SSH browser test now supplies a hostname only through a private remote hosts-file mount. Both workspace browsers must resolve it and receive their distinct remote page identity. Syntax checks pass; runtime evidence remains pending Actions.

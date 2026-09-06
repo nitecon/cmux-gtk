@@ -81,9 +81,12 @@ Subsystem sftp internal-sftp
             # Verify the client retries deployment itself after a failed upload.
             wrapper.write_text(f'#!/bin/sh\nif [ ! -e {root}/scp-attempted ]; then touch {root}/scp-attempted; exit 1; fi\nexec {invocation}\n')
         if command == "ssh" and remote_browser:
-            # Isolate each actual daemon/PTY in its own remote network namespace.
-            remote_command = shlex.join(["sudo", "unshare", "--net", "--", "/bin/sh", "-c",
-                "ip link set lo up; exec " + shlex.join(["runuser", "-u", getpass.getuser(), "--",
+            # Private mounts provide remote-only name resolution without changing the host hosts file.
+            hosts_file = root / "remote-hosts"
+            hosts_file.write_text("127.0.0.1 localhost cmux-browser.invalid\n::1 localhost\n")
+            remote_command = shlex.join(["sudo", "unshare", "--net", "--mount", "--", "/bin/sh", "-c",
+                "set -e; mount --make-rprivate /; " + shlex.join(["mount", "--bind", str(hosts_file), "/etc/hosts"]) +
+                "; ip link set lo up; exec " + shlex.join(["runuser", "-u", getpass.getuser(), "--",
                     str(Path.home() / ".local/bin/cmuxd-remote"), "serve", "--stdio"])])
             wrapper.write_text("#!/usr/bin/env python3\nimport os,sys\n"
                 "args=sys.argv[1:]\n"
