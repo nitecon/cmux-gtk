@@ -12,6 +12,27 @@ from sidebar_support import parse_sidebar_state, wait_for_state_field, wait_for_
 class SidebarSupport(unittest.TestCase):
     """Exercise text edge cases and observation behavior used by legacy scenarios."""
 
+    def test_listener_observation_distinguishes_errors(self):
+        """Failed or partial lsof output cannot be interpreted as successful listener removal."""
+        from test_sidebar_ports import _listener_pids
+        for code, stdout, stderr, expected in (
+            (0, "12\n34\n", "", [12, 34]),
+            (1, "", "", []),
+            (2, "", "", None),
+            (1, "12\n", "", None),
+            (0, "", "permission warning", None),
+            (0, "invalid\n", "", None),
+            (0, "0\n", "", None),
+        ):
+            result = subprocess.CompletedProcess([], code, stdout, stderr)
+            with self.subTest(code=code, stdout=stdout, stderr=stderr), \
+                    patch("test_sidebar_ports.subprocess.run", return_value=result):
+                if expected is None:
+                    with self.assertRaises((RuntimeError, ValueError)):
+                        _listener_pids(12345)
+                else:
+                    self.assertEqual(_listener_pids(12345), expected)
+
     def test_failed_server_readiness_reaps_child(self):
         """The launcher retains cleanup ownership until it can return a ready server handle."""
         from test_sidebar_ports import _start_external_server

@@ -1074,3 +1074,9 @@ Cumulative run 34000244562 at 6e896826 completed successfully, including Linux C
 The retained port probe now terminates and reaps its external HTTP server if readiness fails before returning the handle. Removed duplicate caller kill/wait branches, including kill-without-reap paths, in favor of stop_process. Each lsof subprocess has a two-second timeout so it cannot indefinitely occupy a polling attempt. Documented the port-selection bind race, observation semantics and remaining shell-launched-server cleanup limitation.
 
 Added a real-child failed-readiness case to the existing sidebar helper CI suite; it calls only the launcher helper, not the upstream sidebar integration scenario. Python syntax and diff checks pass; no local tests ran. The full port attribution scenario still depends on legacy APIs, treats nonzero lsof status as absence and needs broader ownership/API migration before it can establish Linux application coverage.
+
+### Distinguish listener observation failure from absence
+
+Both lsof pollers now use one documented PID observation function. Empty clean status-1 output is treated as no match; warnings, other exit statuses, partial failed output and invalid PID rows raise observation errors. The retrying waiter can recover from these errors but they cannot satisfy the disappearance predicate. Explicit +w restores warnings suppressed by terse -t output. Exit-status and warning behavior were checked against the [upstream lsof manual](https://lsof.readthedocs.io/en/stable/manpage/). This remains an observation under the invoking user's visibility, not proof that all system processes were inspected.
+
+Added CI helper cases covering observed PIDs, clean absence, partial output, warnings and malformed identities. Python syntax and diff checks pass; no local tests ran. Full legacy sidebar attribution remains outside this helper verification.

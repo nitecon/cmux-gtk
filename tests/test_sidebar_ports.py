@@ -139,6 +139,33 @@ def _assert_port_absent_for_duration(client: cmux, port: int, duration: float = 
         time.sleep(interval)
 
 
+def _listener_pids(port: int) -> list[int]:
+    """Observe lsof listener PIDs with a two-second subprocess budget.
+
+    Only clean no-match output is accepted as empty. Tool errors, warnings and
+    malformed identities fail observation; this is not a system-wide permission guarantee.
+    """
+    result = subprocess.run(
+        ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t", "+w"],
+        capture_output=True, text=True, timeout=2,
+    )
+    if result.stderr.strip() or result.returncode not in (0, 1):
+        raise RuntimeError(f"lsof observation failed (exit={result.returncode}): {result.stderr.strip()}")
+    if result.returncode == 1:
+        if result.stdout.strip():
+            raise RuntimeError("lsof returned partial output with a failed status")
+        return []
+    pids = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not line.isdecimal() or int(line) <= 0:
+            raise ValueError("lsof returned an invalid listener PID")
+        pids.append(int(line))
+    return pids
+
+
 def _wait_for_lsof_listen_pid(port: int, expected_pid: int | None, timeout: float = 8.0) -> int:
     """
     Wait until `lsof -iTCP:<port> -sTCP:LISTEN` returns a pid.
@@ -146,24 +173,8 @@ def _wait_for_lsof_listen_pid(port: int, expected_pid: int | None, timeout: floa
     """
 
     def pred():
-        """Return the matching port or listener observation for the enclosing retry loop."""
-        result = subprocess.run(
-            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        if result.returncode != 0:
-            return None
-        pids = []
-        for line in (result.stdout or "").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                pids.append(int(line))
-            except ValueError:
-                continue
+        """Return the expected listener, or the first observed listener when no identity is required."""
+        pids = _listener_pids(port)
         if not pids:
             return None
         if expected_pid is not None and expected_pid not in pids:
@@ -175,16 +186,10 @@ def _wait_for_lsof_listen_pid(port: int, expected_pid: int | None, timeout: floa
 
 
 def _wait_for_lsof_listen_gone(port: int, timeout: float = 8.0) -> None:
-    """Retry bounded lsof observations until no listener is reported; nonzero status is treated as absent by this legacy probe."""
+    """Wait for a clean empty observation; tool failures are retried and cannot satisfy absence."""
     def pred():
-        """Return the matching port or listener observation for the enclosing retry loop."""
-        result = subprocess.run(
-            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
-            capture_output=True,
-            text=True,
-            timeout=2,
-        )
-        return result.returncode != 0 or not (result.stdout or "").strip()
+        """Require successful observation with no listener identities."""
+        return not _listener_pids(port)
 
     _wait_for(pred, timeout=timeout, interval=0.15, label=f"lsof no LISTEN for {port}")
 
