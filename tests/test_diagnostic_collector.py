@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Verify interval CPU accounting without sampling a local application."""
 import importlib.util
+import json
+import os
 from pathlib import Path
 import unittest
+import tempfile
 from copy import deepcopy
 
 SPEC = importlib.util.spec_from_file_location("cmux_collector", Path(__file__).resolve().parents[1] / "scripts/collect-cmux-diagnostics.py")
@@ -33,6 +36,51 @@ class CpuAccounting(unittest.TestCase):
                       record(1, 200, 200), record(float("nan"), 200, 200), record(2, 99, 300)]:
             with self.subTest(after=after):
                 self.assertIsNone(COLLECTOR.cpu_percent(before, after))
+
+    def test_log_tails_filter_and_bound_records(self):
+        """Retain valid matching envelopes, report incomplete/corrupt lines and cap tail retention."""
+        envelope = {"schema": 1, "pid": 42, "event": "rpc.complete", "fields": {"trace_id": "fixture"}}
+        line = json.dumps(envelope).encode() + b"\n"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            other = json.dumps({**envelope, "pid": 43}).encode() + b"\n"
+            path.write_bytes(line + other + b"not-json\n" + b"{unfinished")
+            result = COLLECTOR.log_tail(path, {42})
+            self.assertEqual(result["status"], "collected")
+            self.assertEqual(result["records"], [envelope])
+            self.assertEqual(result["other_process"], 1)
+            self.assertEqual(result["discarded"], 2)
+            path.write_bytes(b"x" * COLLECTOR.LOG_TAIL_BYTES + b"\n" + line)
+            result = COLLECTOR.log_tail(path, {42})
+            self.assertTrue(result["truncated"])
+            self.assertEqual(result["records"], [envelope])
+            path.write_bytes(line * (COLLECTOR.LOG_RECORD_COUNT + 1))
+            result = COLLECTOR.log_tail(path, {42})
+            self.assertEqual(len(result["records"]), COLLECTOR.LOG_RECORD_COUNT)
+            self.assertTrue(result["truncated"])
+            path.write_bytes(json.dumps({**envelope, "fields": {"value": float("nan")}}).encode() + b"\n")
+            self.assertEqual(COLLECTOR.log_tail(path, {42})["discarded"], 1)
+
+    def test_log_collection_handles_rotation_and_unsafe_file_types(self):
+        """Missing backups are normal; missing active logs, symlinks and FIFOs produce bounded failures."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.jsonl"
+            report = {"samples": [record(1, 0, 0)]}
+            self.assertEqual(COLLECTOR.collect_logs(path, report)["status"], "failed")
+            path.write_text("")
+            result = COLLECTOR.collect_logs(path, report)
+            self.assertEqual(result["status"], "collected")
+            self.assertEqual(result["previous"]["status"], "missing")
+            self.assertEqual(COLLECTOR.collect_logs(path, {"samples": []})["error_kind"], "no_process_identity")
+            backup = Path(str(path) + ".1")
+            backup.write_text('{"schema":1,"pid":42,"event":"fixture","fields":{}}\n')
+            self.assertEqual(len(COLLECTOR.collect_logs(path, report)["previous"]["records"]), 1)
+            path.unlink()
+            path.symlink_to(backup)
+            self.assertEqual(COLLECTOR.log_tail(path, {42})["status"], "failed")
+            path.unlink()
+            os.mkfifo(path)
+            self.assertEqual(COLLECTOR.log_tail(path, {42})["status"], "failed")
 
     def test_idle_evidence(self):
         """Keep raw measurements while rejecting debug builds, churn, failed samples and counter resets."""

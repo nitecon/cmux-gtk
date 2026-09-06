@@ -9,8 +9,13 @@ import os
 from pathlib import Path
 import platform
 import re
+import stat
 import subprocess
 import time
+
+LOG_TAIL_BYTES = 512 * 1024
+LOG_RECORD_BYTES = 64 * 1024
+LOG_RECORD_COUNT = 2048
 
 
 def sample(binary, socket):
@@ -132,6 +137,72 @@ def idle_evidence(report, settle_seconds, revision):
     return report
 
 
+def log_tail(path, pids):
+    """Read a bounded regular-file tail, retaining complete diagnostic records for sampled processes.
+
+    Rotation and concurrent writes can omit records; this is incident context,
+    not a transactional log export. Paths and invalid raw lines are not retained.
+    """
+    result = {"records": [], "discarded": 0, "other_process": 0, "truncated": False}
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as source:
+            metadata = os.fstat(source.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError("not a regular file")
+            offset = max(0, metadata.st_size - LOG_TAIL_BYTES)
+            source.seek(offset)
+            content = source.read(min(metadata.st_size, LOG_TAIL_BYTES))
+            result["truncated"] = offset > 0
+        if offset:
+            _, _, content = content.partition(b"\n")
+            result["discarded"] += 1
+        lines = content.split(b"\n")
+        if lines[-1]:
+            result["discarded"] += 1
+        for line in lines[:-1]:
+            try:
+                if len(line) + 1 > LOG_RECORD_BYTES:
+                    raise ValueError("record too large")
+                record = json.loads(line)
+                if (not isinstance(record, dict) or type(record.get("schema")) is not int
+                        or record["schema"] != 1 or type(record.get("pid")) is not int
+                        or not isinstance(record.get("event"), str)
+                        or not isinstance(record.get("fields"), dict)):
+                    raise ValueError("invalid diagnostic envelope")
+                if record["pid"] not in pids:
+                    result["other_process"] += 1
+                    continue
+                json.dumps(record, allow_nan=False)
+                result["records"].append(record)
+            except (ValueError, UnicodeError, RecursionError):
+                result["discarded"] += 1
+        if len(result["records"]) > LOG_RECORD_COUNT:
+            result["discarded"] += len(result["records"]) - LOG_RECORD_COUNT
+            result["records"] = result["records"][-LOG_RECORD_COUNT:]
+            result["truncated"] = True
+        result["status"] = "collected"
+    except FileNotFoundError:
+        result.update(status="missing")
+    except (OSError, ValueError) as error:
+        result.update(status="failed", error_kind=type(error).__name__)
+    return result
+
+
+def collect_logs(path, report):
+    """Attach explicit active/previous log tails, filtered to successful sampled process identities."""
+    pids = {sample["snapshot"]["pid"] for sample in report["samples"]
+            if "error" not in sample and isinstance(sample.get("snapshot"), dict)
+            and type(sample["snapshot"].get("pid")) is int and sample["snapshot"]["pid"] > 0}
+    if not pids:
+        return {"status": "failed", "error_kind": "no_process_identity"}
+    previous = log_tail(Path(str(path) + ".1"), pids)
+    active = log_tail(path, pids)
+    failed = active["status"] != "collected" or previous["status"] == "failed"
+    return {"status": "failed" if failed else "collected", "active": active, "previous": previous,
+            "max_bytes_per_file": LOG_TAIL_BYTES, "max_records_per_file": LOG_RECORD_COUNT}
+
+
 def main():
     """Validate collection bounds and create a private report without overwriting files."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -140,6 +211,7 @@ def main():
     parser.add_argument("--samples", type=int, default=12)
     parser.add_argument("--interval", type=float, default=5)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--log", type=Path, help="include bounded active and .1 diagnostic log tails")
     parser.add_argument("--idle-benchmark", action="store_true", help="require optimized idle resource evidence")
     parser.add_argument("--settle", type=float, default=10, help="idle benchmark settling seconds (default: 10)")
     args = parser.parse_args()
@@ -164,12 +236,15 @@ def main():
         report = collect(args.binary, args.socket, args.samples, args.interval)
         if args.idle_benchmark:
             idle_evidence(report, args.settle, revision)
+        if args.log:
+            report["logs"] = collect_logs(args.log, report)
         json.dump(report, output, indent=2)
         output.write("\n")
     failures = sum("error" in sample for sample in report["samples"])
     print(f"wrote {args.output}: {args.samples} samples, {failures} failed, "
-          f"status={report.get('status', 'failed' if failures else 'collected')}")
-    return 1 if failures or report.get("status") == "failed" else 0
+          f"status={report.get('status', 'failed' if failures else 'collected')}, "
+          f"logs={report.get('logs', {}).get('status', 'not_requested')}")
+    return 1 if failures or report.get("status") == "failed" or report.get("logs", {}).get("status") == "failed" else 0
 
 
 if __name__ == "__main__":

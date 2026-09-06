@@ -120,10 +120,15 @@ def main():
                 subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
                                 "--binary", str(binary_dir / "cmux"), "--socket", str(socket),
                                 "--samples", "2", "--interval", "0.01",
+                                "--log", str(root / "events.jsonl"),
                                 "--output", str(report_path)], env=env, check=True, timeout=30)
                 report = json.loads(report_path.read_text())
                 assert len(report["samples"]) == 2
                 assert report_path.stat().st_mode & 0o777 == 0o600
+                assert report["logs"]["status"] == "collected"
+                events = report["logs"]["active"]["records"]
+                assert events and all(event["pid"] == app.pid for event in events)
+                assert any(event["event"] == "rpc.complete" for event in events)
                 for sample in report["samples"]:
                     assert sample["snapshot"]["pid"] == app.pid
                     assert sample["trace_id"]
