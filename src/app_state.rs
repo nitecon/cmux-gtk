@@ -617,10 +617,12 @@ impl AppState {
 
     /// Trigger a debounced session save. Call after any workspace/pane mutation.
     /// Snapshots SessionData on the main thread (safe for Rc) and sends to the
-    /// tokio debounce task which handles the file I/O.
+    /// tokio debounce task which handles the file I/O. Records GTK construction
+    /// and publication cost separately from the worker's serialization/write timing.
     pub fn trigger_session_save(&self) {
         // Snapshot on GTK; the worker shares ownership rather than cloning the tree.
         if let Some(ref tx) = self.session_tx {
+            let started = std::time::Instant::now();
             let session = crate::session::SessionData {
                 version: 3, // Per-pane terminal/browser tabs and persisted URLs
                 active_index: self.active_index,
@@ -661,7 +663,17 @@ impl AppState {
                     })
                     .collect(),
             };
-            let _ = tx.send(Some(std::sync::Arc::new(session)));
+            let construction_us = started.elapsed().as_micros() as u64;
+            let published = tx.send(Some(std::sync::Arc::new(session))).is_ok();
+            crate::diagnostics::record(
+                "session.snapshot",
+                serde_json::json!({
+                    "outcome": if published { "published" } else { "worker_closed" },
+                    "workspaces": self.workspaces.len(),
+                    "construction_us": construction_us,
+                    "duration_us": started.elapsed().as_micros() as u64,
+                }),
+            );
         }
     }
 }

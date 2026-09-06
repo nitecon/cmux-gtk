@@ -29,6 +29,10 @@ content:
         - The owned daemon echoes valid UUID-shaped trace_id values and handler_duration_us in stdio responses; handler time excludes framing, JSON decode, response serialization, output delivery and transport. Invalid string labels are omitted.
         - Missing trace metadata from older daemons remains compatible and remote duration is unknown. Present mismatched trace IDs or invalid durations retire the uncertain setup connection. No remote cancellation or side-effect rollback is implied.
         - Each connection attempt owns ssh.connection.begin/stage/complete records through deployment, handshake, routing, GTK admission and backoff; aborted attempts report cancelled with their current phase. Setup RPC parent_trace_id links to this identity. Hello carries it to the daemon and shares response metadata validation with setup requests. Input/output operation correlation and external browser propagation remain unfinished.
+    - name: Session persistence diagnostics
+      steps:
+        - session.snapshot records GTK construction_us, total duration_us, workspace count and published or worker_closed outcome without user content. Publication cost includes replaced-snapshot destruction and excludes diagnostic recording.
+        - session.save records worker serialization and atomic-write timing. Latest-value coalescing prevents one-to-one snapshot/save mapping; publication does not guarantee durability and shutdown does not explicitly drain the session writer.
     - name: Workspace organization
       steps:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.

@@ -109,6 +109,14 @@ def main():
                     if not saves:
                         return False
                     latest = saves[-1]
+                    snapshots = [record["fields"] for record in records
+                                 if record["event"] == "session.snapshot"
+                                 and record["fields"]["workspaces"] >= 2]
+                    assert snapshots, "save missing GTK snapshot construction evidence"
+                    snapshot = snapshots[-1]
+                    assert snapshot["outcome"] == "published"
+                    assert snapshot["construction_us"] >= 0
+                    assert snapshot["duration_us"] >= snapshot["construction_us"]
                     assert latest["outcome"] == "success"
                     assert latest["bytes"] > 0
                     assert latest["serialization_write_us"] >= 0
