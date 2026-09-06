@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError  # noqa: E402
 from sidebar_support import parse_sidebar_state as _parse_sidebar_state
+from sidebar_support import wait_for_observation as _wait_for
 
 
 # Historically, ports detection only checked a small allowlist. This test
@@ -31,22 +32,6 @@ from sidebar_support import parse_sidebar_state as _parse_sidebar_state
 # "work" only for the allowlist.
 _HISTORICAL_ALLOWLIST = {8000, 8080, 8888, 5173, 3000, 3001, 5000, 5432}
 _PREFERRED_BIND_HOST = "127.0.0.1"
-
-
-def _wait_for(predicate, timeout: float, interval: float, label: str):
-    start = time.time()
-    last_error: Exception | None = None
-    while time.time() - start < timeout:
-        try:
-            value = predicate()
-            if value:
-                return value
-        except Exception as e:
-            last_error = e
-        time.sleep(interval)
-    if last_error is not None:
-        raise AssertionError(f"Timed out waiting for {label}. Last error: {last_error}")
-    raise AssertionError(f"Timed out waiting for {label}.")
 
 
 def _find_free_allowed_port() -> int:

@@ -24,23 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux  # noqa: E402
 from sidebar_support import parse_sidebar_state as _parse_sidebar_state
-
-
-def _wait_for(predicate, timeout: float, interval: float, label: str):
-    start = time.time()
-    last_error: Exception | None = None
-    while time.time() - start < timeout:
-        try:
-            value = predicate()
-            if value:
-                return value
-        except Exception as e:
-            last_error = e
-        time.sleep(interval)
-    extra = ""
-    if last_error is not None:
-        extra = f" Last error: {last_error}"
-    raise AssertionError(f"Timed out waiting for {label}.{extra}")
+from sidebar_support import wait_for_observation as _wait_for
 
 
 def _wait_for_focused_cwd(

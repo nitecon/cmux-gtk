@@ -1062,3 +1062,9 @@ Preserve requirements if terminal file-drop support is introduced: filenames wit
 ### Remove false success from the retained new-tab rendering probe
 
 The legacy new-tab snapshot probe no longer accepts failed original and fallback visual deltas merely because render_stats reports the app inactive. Both deltas below threshold now fail with snapshot context. Its success message no longer claims immediate rendering, since the scenario includes waits and permits targeted socket input fallback. Documented focus polling, snapshot retry filtering, pixel-ratio behavior and runner scope, plus the blank-screen runner's terminal-text limitation. These are retained upstream probes awaiting Linux API migration; no new GTK coverage is claimed. Python syntax and diff checks pass; no local tests ran.
+
+### Share retrying sidebar observation and document forced-report limits
+
+Three directory/port probes now share wait_for_observation instead of duplicating exception-retrying wall-clock loops. It delegates deadline handling to the existing monotonic waiter, returns the first truthy observation and retains the last transient failure as both timeout detail and exception cause. The existing field waiter continues to fail immediately on client errors; the two contracts remain explicit. Added CI helper cases for recovery and preserved causes. Documented directory/Git helpers and nested predicates, including the limitation that forced report fallbacks verify displayed state transitions rather than automatic discovery. Python syntax and diff checks pass; no local tests ran.
+
+Cumulative run 34000244562 at 6e896826 completed successfully, including Linux CLI discovery, shared PTY cleanup and closed-pipe/output-error coverage. Later browser sequence deadlines, marker replacement and bounded socket serialization still await cumulative CI.

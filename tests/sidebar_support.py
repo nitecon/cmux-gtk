@@ -3,6 +3,35 @@
 from process_support import wait_until
 
 
+def wait_for_observation(predicate, timeout: float, interval: float, label: str):
+    """Retry legacy transient observation errors and return the first truthy result.
+
+    The monotonic budget includes predicate work but cannot interrupt it. On
+    expiry, retain the last caught exception in the message and exception chain.
+    Use the fail-fast field waiter when client failures must propagate immediately.
+    """
+    value = None
+    last_error = None
+
+    def observe():
+        """Capture one observation or retain its transient error for deadline diagnostics."""
+        nonlocal value, last_error
+        try:
+            value = predicate()
+            return bool(value)
+        except Exception as error:
+            last_error = error
+            return False
+
+    try:
+        wait_until(observe, label, timeout=timeout, interval=interval)
+    except AssertionError as error:
+        if last_error is not None:
+            raise AssertionError(f"{error}. Last error: {last_error}") from last_error
+        raise
+    return value
+
+
 def parse_sidebar_state(text: str) -> dict[str, str]:
     """Read top-level key/value rows, ignoring two-space-indented child rows.
 

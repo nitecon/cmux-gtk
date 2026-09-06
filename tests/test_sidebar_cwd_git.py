@@ -23,22 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cmux import cmux, cmuxError  # noqa: E402
 from sidebar_support import parse_sidebar_state as _parse_sidebar_state
-
-
-def _wait_for(predicate, timeout: float, interval: float, label: str):
-    start = time.time()
-    last_error: Exception | None = None
-    while time.time() - start < timeout:
-        try:
-            value = predicate()
-            if value:
-                return value
-        except Exception as e:
-            last_error = e
-        time.sleep(interval)
-    if last_error is not None:
-        raise AssertionError(f"Timed out waiting for {label}. Last error: {last_error}")
-    raise AssertionError(f"Timed out waiting for {label}.")
+from sidebar_support import wait_for_observation as _wait_for
 
 
 def _wait_for_state_field(
@@ -48,7 +33,9 @@ def _wait_for_state_field(
     timeout: float = 6.0,
     interval: float = 0.1,
 ) -> dict[str, str]:
+    """Retry observations until the requested legacy sidebar field matches exactly."""
     def pred():
+        """Return the observed sidebar snapshot only when the requested field or branch matches."""
         state = _parse_sidebar_state(client.sidebar_state())
         return state if state.get(key) == expected else None
 
@@ -62,7 +49,9 @@ def _wait_for_git_branch(
     interval: float = 0.15,
     allow_force_fallback: bool = True,
 ) -> dict[str, str]:
+    """Wait for a branch name; optional forced reporting checks state transitions but cannot prove automatic discovery."""
     def pred():
+        """Return the observed sidebar snapshot only when the requested field or branch matches."""
         state = _parse_sidebar_state(client.sidebar_state())
         raw = state.get("git_branch", "")
         branch = raw.split(" ", 1)[0]  # "main dirty" -> "main", "none" -> "none"
@@ -87,10 +76,12 @@ def _wait_for_git_branch(
 
 
 def _git(cwd: Path, *args: str) -> None:
+    """Run a fixture Git command with output suppressed, propagating nonzero status."""
     subprocess.run(["git", *args], cwd=str(cwd), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _init_git_repo(repo: Path) -> None:
+    """Create a committed fixture repository with local author identity and normalize its initial branch to main."""
     repo.mkdir(parents=True, exist_ok=True)
     _git(repo, "init")
     _git(repo, "config", "user.email", "cmux-test@example.com")
@@ -113,6 +104,7 @@ def _send_cd_and_wait(
     timeout: float = 6.0,
     interval: float = 0.1,
 ) -> dict[str, str]:
+    """Retry shell directory changes and optionally force a legacy directory report after automatic reporting fails."""
     expected = str(target.resolve())
     last_error: AssertionError | None = None
     for _ in range(attempts):
@@ -138,6 +130,7 @@ def _send_cd_and_wait(
 
 
 def main() -> int:
+    """Exercise legacy directory and branch transitions, disabling forced reporting for the foreground-command case."""
     tag = os.environ.get("CMUX_TAG") or ""
     if not tag:
         print("Tip: set CMUX_TAG=<tag> when running this test to avoid socket conflicts.")
