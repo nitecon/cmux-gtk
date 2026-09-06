@@ -276,3 +276,5 @@ See `LICENSE` for the full text.
 ## Upstream
 
 Linux port of [cmux](https://github.com/manaflow-ai/cmux) by [manaflow-ai](https://github.com/manaflow-ai).
+
+Desktop message delivery uses `notify-send` 0.8 or newer and the notification service in your desktop session. DEB/RPM/Homebrew dependencies and the development setup include the helper. For an archive installation, install `libnotify-bin` on Debian/Ubuntu or `libnotify` on Fedora/Arch; inbox messages remain available if desktop delivery fails.

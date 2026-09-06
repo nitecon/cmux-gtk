@@ -8,6 +8,7 @@ URL:            https://github.com/nitecon/cmux-gtk
 # Pre-built binary package -- no Source0, no %build
 AutoReqProv:    no
 
+Requires:       libnotify >= 0.8
 Requires:       gtk4
 Requires:       fontconfig
 Requires:       freetype

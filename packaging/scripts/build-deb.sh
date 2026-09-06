@@ -84,7 +84,7 @@ Architecture: amd64
 Maintainer: cmux <noreply@cmux.dev>
 Section: x11
 Priority: optional
-Depends: libgtk-4-1, libfontconfig1, libfreetype6, libonig5, libgl1, libegl1, libharfbuzz0b, libglib2.0-0, libcairo2, libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, libepoxy0, libxkbcommon0, libgraphene-1.0-0, libc++1, libc++abi1, libxml2-16 | libxml2
+Depends: libnotify-bin (>= 0.8), libgtk-4-1, libfontconfig1, libfreetype6, libonig5, libgl1, libegl1, libharfbuzz0b, libglib2.0-0, libcairo2, libpango-1.0-0, libpangocairo-1.0-0, libpangoft2-1.0-0, libepoxy0, libxkbcommon0, libgraphene-1.0-0, libc++1, libc++abi1, libxml2-16 | libxml2
 Homepage: https://github.com/nitecon/cmux-gtk
 Description: GPU-accelerated terminal multiplexer
  cmux provides tabs, splits, workspaces, and socket CLI control

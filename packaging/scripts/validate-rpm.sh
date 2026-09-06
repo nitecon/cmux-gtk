@@ -83,7 +83,7 @@ check "Architecture is x86_64" grep -q 'Architecture.*x86_64' "$INFO_FILE"
 # --- Dependency checks (RPM-02) ---
 echo ""
 echo "Dependencies:"
-for dep in gtk4 fontconfig freetype oniguruma mesa-libGL harfbuzz glib2 cairo pango libcxx libcxxabi libxml2; do
+for dep in libnotify gtk4 fontconfig freetype oniguruma mesa-libGL harfbuzz glib2 cairo pango libcxx libcxxabi libxml2; do
     check "Requires $dep" grep -q "$dep" "$REQUIRES_FILE"
 done
 

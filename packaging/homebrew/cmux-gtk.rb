@@ -19,6 +19,7 @@ cask "cmux-gtk" do
     freetype
     gtk4
     llvm
+    libnotify
     oniguruma
   ]
 

@@ -140,6 +140,9 @@ check "Architecture: amd64" \
 check "Version is non-empty" \
     grep -qE "^Version: .+" "$CONTROL_FILE"
 
+check "Depends contains libnotify-bin" \
+    grep -q "^Depends:.*libnotify-bin" "$CONTROL_FILE"
+
 check "Depends contains libgtk-4-1" \
     grep -q "^Depends:.*libgtk-4-1" "$CONTROL_FILE"
 
