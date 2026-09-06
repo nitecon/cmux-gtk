@@ -31,3 +31,4 @@
   - crates/cmux-platform/src/local_socket.rs
   - src/line_reader.rs
   - src/ssh/writer.rs
+  - src/ssh/handshake.rs

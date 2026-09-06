@@ -94,24 +94,6 @@ pub async fn run_ssh_lifecycle(
                 let was_reconnect = attempt > 0;
                 let mut connected = false;
 
-                // D-07: inject reconnect message if this was a reconnection
-                if was_reconnect {
-                    {
-                        let ids: Vec<u64> =
-                            bridge.streams.lock().unwrap().keys().copied().collect();
-                        for pane_id in ids {
-                            let msg =
-                                b"\r\n\x1b[32m[Reconnected \xe2\x80\x94 new session]\x1b[0m\r\n";
-                            let _ = ssh_tx
-                                .send(SshEvent::RemoteOutput {
-                                    pane_id,
-                                    data: msg.to_vec(),
-                                })
-                                .await;
-                        }
-                    }
-                }
-
                 let stdin = child.stdin.take();
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
@@ -124,13 +106,48 @@ pub async fn run_ssh_lifecycle(
 
                 if let (Some(writer), Some(reader)) = (stdin, stdout) {
                     let writer = Arc::new(RpcWriter::new(BufWriter::new(writer), workspace_id));
-                    let hello =
-                        serde_json::json!({"jsonrpc":"2.0","id":1,"method":"hello","params":{}});
-                    if let Err(error) = writer.send(&hello).await {
-                        eprintln!("cmux: SSH handshake write failed: {error}");
+                    let mut reader = BufReader::new(reader);
+                    let started = std::time::Instant::now();
+                    let result =
+                        super::handshake::establish(&writer, &mut reader, Duration::from_secs(15))
+                            .await;
+                    crate::diagnostics::record(
+                        "ssh.handshake.complete",
+                        serde_json::json!({
+                            "workspace_id": workspace_id, "duration_us": started.elapsed().as_micros() as u64,
+                            "outcome": if result.is_ok() { "success" } else { "error" },
+                            "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
+                        }),
+                    );
+                    if let Err(error) = result {
+                        eprintln!("cmux: SSH handshake failed: {error}");
                     } else {
-                        connected =
-                            run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
+                        connected = true;
+                        let _ = ssh_tx
+                            .send(SshEvent::StateChanged {
+                                workspace_id,
+                                state: ConnectionState::Connected,
+                            })
+                            .await;
+                        // D-07: inject reconnect message if this was a reconnection
+                        if was_reconnect {
+                            {
+                                let ids: Vec<u64> =
+                                    bridge.streams.lock().unwrap().keys().copied().collect();
+                                for pane_id in ids {
+                                    let msg =
+                                b"\r\n\x1b[32m[Reconnected \xe2\x80\x94 new session]\x1b[0m\r\n";
+                                    let _ = ssh_tx
+                                        .send(SshEvent::RemoteOutput {
+                                            pane_id,
+                                            data: msg.to_vec(),
+                                        })
+                                        .await;
+                                }
+                            }
+                        }
+
+                        run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
                     }
                 }
 
@@ -211,11 +228,10 @@ pub async fn run_ssh_lifecycle(
 async fn run_proxy_routing(
     workspace_id: u64,
     writer: Arc<RpcWriter<BufWriter<tokio::process::ChildStdin>>>,
-    reader: tokio::process::ChildStdout,
+    reader: BufReader<tokio::process::ChildStdout>,
     bridge: &Arc<SshBridge>,
     ssh_tx: &SshEventTx,
-) -> bool {
-    let connected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+) {
     let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
 
     // Take (or recreate on reconnect) the write channel receiver from bridge
@@ -229,9 +245,8 @@ async fn run_proxy_routing(
     let read_bridge = bridge.clone();
     let read_ssh_tx = ssh_tx.clone();
     let read_pending = pending.clone();
-    let read_connected = connected.clone();
     let read_handle = tokio::spawn(async move {
-        let mut buf_reader = BufReader::new(reader);
+        let mut buf_reader = reader;
         loop {
             match crate::line_reader::next_line(
                 &mut buf_reader,
@@ -243,18 +258,6 @@ async fn run_proxy_routing(
                 Ok(None) => break,
                 Ok(Some(line)) => {
                     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
-                        if msg.get("id").and_then(|v| v.as_u64()) == Some(1)
-                            && msg.get("ok").and_then(|v| v.as_bool()) == Some(true)
-                        {
-                            read_connected.store(true, std::sync::atomic::Ordering::Release);
-                            eprintln!("cmux: SSH workspace={workspace_id} handshake complete");
-                            let _ = read_ssh_tx
-                                .send(SshEvent::StateChanged {
-                                    workspace_id,
-                                    state: ConnectionState::Connected,
-                                })
-                                .await;
-                        }
                         handle_incoming_message(&msg, &read_bridge, &read_ssh_tx, &read_pending)
                             .await;
                     }
@@ -354,7 +357,6 @@ async fn run_proxy_routing(
         _ = writer.failed() => {},
     }
     // Scope-owned abort guards cancel every remaining companion.
-    connected.load(std::sync::atomic::Ordering::Acquire)
 }
 
 /// Handle an incoming JSON message from cmuxd-remote.

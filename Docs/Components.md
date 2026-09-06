@@ -34,3 +34,5 @@ Socket startup receives a runtime handle and command sender, not application sta
 `src/task.rs` owns companion-task abort guards and the shared direct-child reap policy. SSH requests a normal-exit grace period after routing ends; failed browser CLI operations request immediate termination. Launchers retain kill-on-drop ownership, while the helper bounds the reap wait and returns status/forced-termination evidence.
 
 `src/ssh/writer.rs` serializes every SSH request (hello, PTY creation/subscription and terminal input/control) through one deadline-aware writer. A persistent retirement signal ties partial-write failure or cancellation to the routing lifetime. The adapter caps encoded frames with the existing bounded JSON serializer; no second writer actor or queue is introduced.
+
+`src/ssh/handshake.rs` validates daemon identity and required capabilities under one hello-exchange deadline before terminal routing starts. The same buffered reader passes into routing so prefetched response/event bytes are not discarded.
