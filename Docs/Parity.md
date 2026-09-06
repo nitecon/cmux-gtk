@@ -326,3 +326,7 @@ Added a workspace-retained SOCKS5 endpoint, bounded generation-qualified admissi
 ### Remote browser launch integration
 
 UI, RPC and restored browser managers now capture their owning workspace proxy, retain its bridge through shutdown and pass explicit SOCKS/loopback settings after bounded readiness. Added child-process argument coverage; strict Clippy passes, runtime verification pending. Actions 34057511902 passed at 77ab1590 for the earlier half-close implementation. This does not verify the later SOCKS transport or browser wiring. Full remote web-origin and reconnect evidence remain open.
+
+### Isolated browser-origin Actions coverage
+
+Added a real SSH network-namespace mode with a same-port local decoy and real Chromium assertions for redirects, relative/absolute scripts, loopback fetches, WebSockets and background workspace selection. New Actions step writes remote-browser-release.json. Syntax checks pass; runtime results are pending. This does not yet establish remote-only DNS, multi-workspace same-port isolation or reconnect behavior.

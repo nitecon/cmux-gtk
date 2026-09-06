@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-workflow-") as directory:
               "transport": "loopback OpenSSH with real owned Go daemon",
               "includes": "Cold startup, deployment retry, readiness polling and remote marker execution; heterogeneous phases are not a steady-state latency distribution",
               "startups": [], "operations": []}
+    remote_browser = os.environ.get("CMUX_REMOTE_BROWSER") == "1"
     completed = False
     forced_shutdown = None
     for name in ["runtime", "bin", "local", "remote", "data/cmux/bin"]:
@@ -40,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-workflow-") as directory:
                XDG_RUNTIME_DIR=str(root / "runtime"), GDK_BACKEND="x11",
                LIBGL_ALWAYS_SOFTWARE="1", CMUX_NO_UPDATE="1", CMUX_LOG=str(root / "events.jsonl"),
                PATH=str(root / "bin") + ":" + os.environ["PATH"])
+    if remote_browser:
+        env["AGENT_BROWSER_SOCKET_DIR"] = str(root / "browser-sockets")
     shutil.copy2("target/cmuxd-remote", root / "data/cmux/bin/cmuxd-remote-linux-amd64")
     for key in ["host-key", "client-key"]:
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(root / key)], check=True)
@@ -77,6 +80,16 @@ Subsystem sftp internal-sftp
         else:
             # Verify the client retries deployment itself after a failed upload.
             wrapper.write_text(f'#!/bin/sh\nif [ ! -e {root}/scp-attempted ]; then touch {root}/scp-attempted; exit 1; fi\nexec {invocation}\n')
+        if command == "ssh" and remote_browser:
+            # Isolate each actual daemon/PTY in its own remote network namespace.
+            remote_command = shlex.join(["sudo", "unshare", "--net", "--", "/bin/sh", "-c",
+                "ip link set lo up; exec " + shlex.join(["runuser", "-u", getpass.getuser(), "--",
+                    str(Path.home() / ".local/bin/cmuxd-remote"), "serve", "--stdio"])])
+            wrapper.write_text("#!/usr/bin/env python3\nimport os,sys\n"
+                "args=sys.argv[1:]\n"
+                "if args[-3:]==['.local/bin/cmuxd-remote','serve','--stdio']:\n"
+                f" args[-3:]=[{remote_command!r}]\n"
+                f"os.execv('/usr/bin/ssh',['ssh','-F',{str(config)!r},*args])\n")
         wrapper.chmod(0o755)
     ssh_log = (root / "sshd.log").open("w+")
     subprocess.run(["sudo", "mkdir", "-p", "/run/sshd"], check=True)
@@ -100,9 +113,9 @@ Subsystem sftp internal-sftp
         workspace(second_remote_id, "Second SSH project", remote_target="cmux-ci", remote_directory=str(root / "remote")),
     ])))
 
-    def cli(*args):
+    def cli(*args, timeout=15):
         """Run the selected CLI against this isolated application with a fifteen-second process timeout."""
-        return subprocess.check_output([str(binary_dir / "cmux"), "--socket", str(socket_path), *args], env=env, text=True, timeout=15)
+        return subprocess.check_output([str(binary_dir / "cmux"), "--socket", str(socket_path), *args], env=env, text=True, timeout=timeout)
 
     def start():
         """Remove a stale fixture socket, launch GTK and wait for its control socket to appear."""
@@ -271,7 +284,8 @@ Subsystem sftp internal-sftp
         eventually(lambda: any(row["port"] == listener_port and row.get("forwarded_local_port") for row in (remote_ports() or [])))
         forwarded_port = next(row["forwarded_local_port"] for row in remote_ports() if row["port"] == listener_port)
         # Loopback SSH shares this host: the real remote listener already occupies its preferred port.
-        assert forwarded_port != listener_port, "forwarding did not publish its collision fallback port"
+        if not remote_browser:
+            assert forwarded_port != listener_port, "forwarding did not publish its collision fallback port"
         forwarding_before = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
         with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
             forwarded.settimeout(10)
@@ -339,6 +353,10 @@ Subsystem sftp internal-sftp
         assert json.loads(cli("ping", "--json"))["pong"]
         cli("select-workspace", remote_id)
 
+        if remote_browser:
+            from remote_browser_support import verify_remote_browser
+            verify_remote_browser(root, cli, eventually, remote_id, local_id, report)
+            cli("select-workspace", remote_id)
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
         eventually(remote_setup_traced)
