@@ -210,6 +210,7 @@ def test_browser_back_forward_socket_commands(client: cmux) -> tuple[bool, str]:
 
 
 def main():
+    """Run retained legacy navigation scenarios and report failures; their socket APIs still need GTK migration."""
     client = cmux()
     client.connect()
 

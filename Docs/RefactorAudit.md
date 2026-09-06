@@ -1032,3 +1032,9 @@ Replaced the legacy Xcode-discovering SIGPIPE test with the Linux build and isol
 ### Document retained split-probe contracts
 
 Added function contracts to three retained split probes covering snapshot baselines/deltas, target-versus-background activity thresholds, pane lookup and dimensions, screenshot response handling, rectangle overlap and sampled attachment health. Their descriptions distinguish targeted socket input from keyboard focus and discrete health samples from continuous rendering. These scenarios still depend on upstream panel_snapshot/layout_debug/EmptyPanelView APIs; their retained regression intent is not proof of Linux coverage. No behavior changed. Python syntax and diff checks passed; no local tests ran. Refreshed the top-level tracked-function inventory and CI status without claiming completion of remaining documentation or migration work.
+
+### Retire the WKWebView custom-keybinding harness
+
+Removed test_browser_custom_keybinds.py after confirming no repository caller and no owned implementation of its focus_webview, set_shortcut or simulate_shortcut APIs. It exercised macOS command/option combinations and WKWebView first-responder routing, not this port's browser adapter. Original source is recoverable at 6e896826.
+
+Preserve the applicable active browser regression requirement: with browser content focused, both configured pane-navigation bindings and default bindings must move focus to the intended terminal; control-modified keys must retain shortcut meaning. Verify through actual Linux keyboard events and the receiving terminal, with isolated browser pages and restored settings. The existing terminal-only keyboard-routing test does not cover browser-origin focus. The broader back/forward navigation scenarios remain for migration, with their runner contract now documented. Python syntax and diff checks pass; no local tests ran.
