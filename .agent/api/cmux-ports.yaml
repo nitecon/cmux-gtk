@@ -1,0 +1,22 @@
+app: cmux-gtk
+title: Attributed listener discovery
+space: cmux-gtk
+slug: workspace-listeners
+summary: Linux process-qualified TCP listener collection and remaining workspace/remote integration.
+kind: agent_context
+source_format: agent_context
+source_ref: crates/cmux-platform/src/listeners.rs
+labels: [ports, workspace, remote, observability]
+content:
+  purpose: Attribute development listeners to terminal-owned processes rather than machine-wide port numbers.
+  workflows:
+    - name: Platform collector
+      steps:
+        - The caller supplies up to 256 PID and Linux start-tick identities. Worker-only scanning reads at most 4096 descriptors per process and two MiB per tcp/tcp6 table.
+        - Socket descriptor inodes intersect LISTEN entries in that process network namespace. Identity is rechecked after scanning; exited or reused identities are omitted and other I/O failures propagate.
+        - Results contain owning process identity, bind address, TCP port and inode. Collection does not discover descendants, schedule work or mutate application state.
+  verification:
+    - A real platform TCP listener test checks attribution, changed-start-tick rejection and disappearance after socket close. Runtime execution is through Actions only.
+  outstanding:
+    - Register terminal process roots, discover descendants, batch network tables, schedule bounded background collection and publish per-surface/workspace provenance.
+    - Add sidebar and CLI/socket ports, remote daemon collection and automatic forwarding with browser origin routing.
