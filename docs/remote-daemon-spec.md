@@ -5,10 +5,12 @@ Tracking issue: https://github.com/manaflow-ai/cmux/issues/151
 Primary PR: https://github.com/manaflow-ai/cmux/pull/1296
 CLI relay PR: https://github.com/manaflow-ai/cmux/pull/374
 
-This document is the working source of truth for:
-1. what is implemented now
-2. what is intentionally temporary
-3. what must be built next
+This is a historical upstream remote-SSH design snapshot. Its implementation statuses,
+linked upstream changes and retained test names do not establish current Rust/GTK
+behavior or CI coverage. Use [Architecture](../Docs/Architecture.md),
+[Components](../Docs/Components.md) and [RefactorAudit](../Docs/RefactorAudit.md)
+for the current implementation and outstanding work. Method families below remain
+research inputs for the separately deferred agent/remote parity scope.
 
 ## 1. Document Type
 

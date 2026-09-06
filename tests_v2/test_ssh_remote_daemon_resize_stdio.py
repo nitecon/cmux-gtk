@@ -17,6 +17,7 @@ from scenario_support import require as _must
 
 
 def _daemon_module_dir() -> Path:
+    """Resolve the repository-owned Go module relative to this fixture, independent of cwd."""
     return Path(__file__).resolve().parents[1] / "daemon" / "remote"
 
 
@@ -28,6 +29,11 @@ def _rpc(
     *,
     timeout_s: float = 5.0,
 ) -> dict:
+    """Send one request and require a JSON response with the same ID.
+
+    The timeout bounds readiness polling only: buffered writes, readline and stderr
+    capture may still block. The caller owns daemon lifetime and pipe cleanup.
+    """
     if proc.stdin is None or proc.stdout is None:
         raise cmuxError("daemon subprocess stdio pipes are not available")
 
@@ -61,6 +67,7 @@ def _rpc(
 
 
 def _as_int(value: object, field: str) -> int:
+    """Accept JSON integer values or integral floats, rejecting booleans and other types."""
     if isinstance(value, bool):
         raise cmuxError(f"{field} should be numeric, got bool")
     if isinstance(value, int):
@@ -73,6 +80,7 @@ def _as_int(value: object, field: str) -> int:
 
 
 def _assert_effective(resp: dict, want_cols: int, want_rows: int, label: str) -> None:
+    """Require protocol success and an exact effective grid, preserving operation context on error."""
     _must(resp.get("ok") is True, f"{label} should return ok=true: {resp}")
     result = resp.get("result") or {}
     got_cols = _as_int(result.get("effective_cols"), "effective_cols")
@@ -84,6 +92,11 @@ def _assert_effective(resp: dict, want_cols: int, want_rows: int, label: str) ->
 
 
 def main() -> int:
+    """Run a Go daemon and verify attach/resize/detach/reconnect size coordination over stdio.
+
+    Missing Go skips the fixture. Cleanup targets the go-run wrapper; independently
+    surviving daemon children are not proven reaped by this harness.
+    """
     if shutil.which("go") is None:
         print("SKIP: go is not available")
         return 0
