@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 79 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 364 functions in 61 `tests` files, and 456 among 612 functions in 78 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 364 functions in 61 `tests` files, and 343 among 499 functions in 61 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1206,3 +1206,29 @@ Removed `tests_v2/test_cli_global_flags_and_v1_error_contract.py`: it rewrote a 
 Twelve matching wall-clock loops now use two small scenario adapters over `tests/process_support.py::wait_until`, exposed in `tests_v2` through a source symlink. The adapters preserve the four-second palette/window and eight-second remote defaults, interval keyword names and exact cmuxError timeout messages. Other loops with different defaults or exception-retry policies remain untouched. The common loop accepts an optional deadline exception, raised only on expiry; predicate exceptions propagate unchanged. Non-finite timing values are rejected and the final sleep remains clamped to the remaining monotonic budget. Callbacks still need their own bounded I/O because a synchronous predicate cannot be interrupted.
 
 CI helper cases exercise a predicate becoming ready, wall-clock independence, a long interval with a short deadline, exact remote timeout messaging, predicate exception identity and invalid timing arguments. Local checks parsed Python and checked whitespace only. The new process-support symlink is excluded from unique source/function counts; no second polling implementation was copied into the v2 directory.
+
+### Retire upstream command-palette debug harnesses
+
+Removed seventeen `tests_v2/test_command_palette_*.py` files after verifying that every harness requires `debug.command_palette.*` endpoints absent from the GTK dispatcher. No maintained workflow or script invokes them. Historical phase notes mention this family as out of scope, not as executable GTK validation. This removes obsolete test implementations, not the GTK palette or the following retained product/coverage requirements:
+
+| Former harness suffix | Retained behavior requirement |
+| --- | --- |
+| backspace_go_back | Backspace clears selected rename text; another Backspace on empty input returns to the command list. |
+| focus | Opening the palette moves keyboard input away from the terminal. |
+| focus_lock_workspace_spawn | A spawning shell cannot steal focus or reset the palette query selection. |
+| fuzzy_ranking | A rename query ranks a rename action first and Enter runs that displayed action. |
+| modes | Command/search modes have distinct entry shortcuts, toggle reliably, and select the searched workspace on Enter. |
+| navigation_keys | Arrow keys and supported Ctrl+N/J/P/K bindings move list selection consistently. |
+| rename_enter | Enter applies the edited name and dismisses the palette. |
+| rename_select_all | The configured select-all behavior persists through rename-input interaction. |
+| search_action_sync | Query replacement updates displayed results and the executed action together. |
+| search_typing_stability | Typing appends to the query without repeatedly reselecting and replacing it. |
+| shortcut_hint_sync | Displayed command shortcut hints track editable bindings. |
+| switcher_all_windows | Cross-window switching lists and reaches workspaces owned by other windows where multi-window support applies. |
+| switcher_cross_workspace_surface_focus | Explicit surface selection survives workspace switching and stale remembered focus. |
+| switcher_renamed_surface | Surface names participate in switcher search and navigation. |
+| switcher_surface_precedence | Matching a surface ranks that target ahead of a workspace matched only through surface metadata. |
+| switcher_type_labels | Workspace and surface results have distinguishable type labels. |
+| window_scope | Opening a palette affects only the active window. |
+
+These are historical requirements for later GTK behavior coverage and deferred parity, not newly implemented features. The inherited workspace-only switcher expectation recorded by the removed root omnibar harness conflicts with later surface-inclusive switcher scenarios; do not treat both as simultaneously satisfied. Resolve that product contract within the deferred parity scope. No current GTK coverage claim rests on deleting these files.
