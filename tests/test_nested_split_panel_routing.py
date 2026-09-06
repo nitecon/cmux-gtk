@@ -27,11 +27,13 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _baseline_all(c: cmux, panel_ids: list[str], label: str) -> None:
+    """Capture one labeled baseline per panel through the legacy snapshot API."""
     for pid in panel_ids:
         c.panel_snapshot(pid, label=f"{label}_base_{pid[:6]}")
 
 
 def _after_all(c: cmux, panel_ids: list[str], label: str) -> dict[str, int]:
+    """Capture each panel again and return its reported changed-pixel count."""
     diffs: dict[str, int] = {}
     for pid in panel_ids:
         snap = c.panel_snapshot(pid, label=f"{label}_after_{pid[:6]}")
@@ -40,6 +42,7 @@ def _after_all(c: cmux, panel_ids: list[str], label: str) -> dict[str, int]:
 
 
 def _assert_routing(diffs: dict[str, int], target: str, *, min_changed: int = 250, ratio: float = 3.0) -> None:
+    """Require target pixel activity above the minimum and relative to positive non-target activity; counts alone do not prove keyboard focus."""
     tgt = diffs.get(target)
     if tgt is None:
         raise cmuxError(f"missing diff for target {target}")
@@ -56,6 +59,7 @@ def _assert_routing(diffs: dict[str, int], target: str, *, min_changed: int = 25
 
 
 def main() -> int:
+    """Create three legacy panes and compare targeted socket input against snapshot changes and terminal text; leaves workspace cleanup to the caller."""
     with cmux(SOCKET_PATH) as c:
         c.activate_app()
         c.new_workspace()

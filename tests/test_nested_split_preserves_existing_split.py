@@ -30,18 +30,21 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 def _layout_obj(payload: dict) -> dict:
     # layout_debug returns {"layout": {...}, "selectedPanels": [...], ...}
     # but allow passing the inner layout object directly.
+    """Accept either the legacy layout envelope or its inner layout object."""
     if isinstance(payload.get("layout"), dict):
         return payload["layout"]
     return payload
 
 
 def _sorted_panes_by_x(payload: dict) -> list[dict]:
+    """Return panes sorted by numeric x coordinate, treating a missing x value as zero."""
     layout = _layout_obj(payload)
     panes = layout.get("panes") or []
     return sorted(panes, key=lambda p: float((p.get("frame") or {}).get("x", 0.0)))
 
 
 def _selected_panels_by_pane(payload: dict) -> dict[str, dict]:
+    """Index selected-panel rows with a pane ID; later duplicate rows replace earlier ones."""
     out: dict[str, dict] = {}
     for row in payload.get("selectedPanels") or []:
         pid = row.get("paneId")
@@ -51,6 +54,7 @@ def _selected_panels_by_pane(payload: dict) -> dict[str, dict]:
 
 
 def _assert_stable_layout(payload: dict, *, expected_panes: int, min_wh: float = 80.0) -> None:
+    """Require the expected pane count, selected panel identities, window attachment and minimum pane/view dimensions."""
     panes = _sorted_panes_by_x(payload)
     if len(panes) != expected_panes:
         raise cmuxError(f"expected {expected_panes} panes, got {len(panes)}")
@@ -89,11 +93,13 @@ def _assert_stable_layout(payload: dict, *, expected_panes: int, min_wh: float =
 
 
 def _take_screenshot(c: cmux, label: str) -> str:
+    """Request a legacy labeled screenshot and return its stripped response; this helper does not decode or validate the image."""
     resp = c._send_command(f"screenshot {label}")
     return resp.strip()
 
 
 def main() -> int:
+    """Split the right pane again and poll for the original left pane plus three usable views; capture a screenshot on failure."""
     with cmux(SOCKET_PATH) as c:
         c.new_workspace()
         time.sleep(0.35)

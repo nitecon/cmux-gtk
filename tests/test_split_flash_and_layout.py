@@ -20,10 +20,12 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _rect_area(r: dict) -> float:
+    """Compute area after clamping each missing or negative dimension to zero."""
     return max(0.0, float(r.get("width", 0.0))) * max(0.0, float(r.get("height", 0.0)))
 
 
 def _rect_intersection_area(a: dict, b: dict) -> float:
+    """Return overlap area for two axis-aligned rectangles, or zero when their bounds do not overlap."""
     ax1 = float(a["x"])
     ay1 = float(a["y"])
     ax2 = ax1 + float(a["width"])
@@ -45,6 +47,7 @@ def _rect_intersection_area(a: dict, b: dict) -> float:
 
 
 def _assert_selected_panels_healthy(payload: dict, *, min_wh: float = 80.0) -> None:
+    """Require attached visible selected views of minimum size and, when pane bounds exist, at least half-overlap with the smaller rectangle."""
     selected = payload.get("selectedPanels") or []
     if not selected:
         raise cmuxError("layout_debug returned no selectedPanels")
@@ -92,6 +95,7 @@ def _assert_no_transient_detach_or_hide(
     cadence_s: float = 0.005,
     max_false_samples: int = 2,
 ) -> None:
+    """Count sampled terminal detach/hide reports over a wall-clock interval and reject counts above tolerance; sampling cannot prove absence between observations."""
     false_in_window: dict[str, int] = {}
     hidden_true: dict[str, int] = {}
     deadline = time.time() + duration_s
@@ -120,6 +124,7 @@ def _assert_no_transient_detach_or_hide(
 
 
 def main() -> int:
+    """Exercise upstream programmatic and drag splits using EmptyPanelView counters and layout/health probes; requires APIs not migrated to GTK."""
     with cmux(SOCKET_PATH) as c:
         # Run on a fresh workspace to avoid state carry-over from restored sessions.
         test_workspace = c.new_workspace()
