@@ -1,8 +1,7 @@
-//! Browser command framing shared by asynchronous RPC and remaining synchronous UI callers.
+//! Bounded asynchronous browser command framing and admission.
 
 use serde_json::Value;
-use std::io::{self, BufRead, BufReader, Read, Write};
-use std::os::unix::net::UnixStream;
+use std::io;
 use std::path::Path;
 use std::time::Duration;
 
@@ -18,15 +17,6 @@ pub(crate) fn snapshot() -> Value {
         "in_flight": EXCHANGE_CAPACITY - EXCHANGES.available_permits(),
         "rejected": REJECTED.load(std::sync::atomic::Ordering::Relaxed),
     })
-}
-
-/// Connect and exchange one command with bounded response memory and socket I/O timeouts.
-/// This function blocks its caller; connection establishment has no explicit deadline.
-pub(super) fn request(path: &Path, request: &Value) -> Result<Value, String> {
-    let stream = UnixStream::connect(path)
-        .map_err(|error| format!("Failed to connect to daemon socket: {error}"))?;
-    exchange(stream, request, Duration::from_secs(5))
-        .map_err(|error| format!("Browser daemon exchange failed: {error}"))
 }
 
 /// Exchange asynchronously with an overall five-second deadline and at most sixteen active requests.
@@ -55,20 +45,7 @@ pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value,
         .map_err(|error| format!("Browser daemon exchange failed: {error}"))
 }
 
-/// Write one JSON line and read one bounded response; timeout applies to individual socket I/O calls.
-fn exchange(mut stream: UnixStream, request: &Value, timeout: Duration) -> io::Result<Value> {
-    stream.set_read_timeout(Some(timeout))?;
-    stream.set_write_timeout(Some(timeout))?;
-    serde_json::to_writer(&mut stream, request)?;
-    stream.write_all(b"\n")?;
-    let mut response = Vec::new();
-    BufReader::new(stream)
-        .take(MAX_RESPONSE_BYTES + 1)
-        .read_until(b'\n', &mut response)?;
-    parse_response(&response)
-}
-
-/// Apply the shared response-size and JSON validation contract to either transport mode.
+/// Validate response size and JSON before exposing data to the caller.
 fn parse_response(response: &[u8]) -> io::Result<Value> {
     if response.len() as u64 > MAX_RESPONSE_BYTES {
         return Err(io::Error::new(
@@ -141,55 +118,65 @@ mod tests {
     }
 
     /// A connected peer that never answers must return a socket timeout instead of blocking indefinitely.
-    #[test]
-    fn silent_peer_times_out() {
-        let (client, _peer) = UnixStream::pair().unwrap();
-        let error = exchange(
-            client,
-            &serde_json::json!({"action": "ping"}),
-            Duration::from_millis(30),
-        )
-        .unwrap_err();
-        assert!(matches!(
-            error.kind(),
-            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-        ));
+    #[tokio::test]
+    async fn silent_peer_times_out() {
+        let path = std::env::temp_dir().join(format!("cmux-silent-{}.sock", uuid::Uuid::new_v4()));
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let payload = serde_json::json!({"action":"ping"});
+        let request = request_async(&path, &payload);
+        let server = async {
+            let (peer, _) = listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            drop(peer);
+        };
+        let (result, ()) = tokio::join!(request, server);
+        assert!(result.unwrap_err().contains("five-second deadline"));
+        std::fs::remove_file(path).unwrap();
     }
 
     /// Exercise actual socket framing and reject a peer response larger than the memory budget.
-    #[test]
-    fn response_bounds() {
+    #[tokio::test]
+    async fn response_bounds() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
         for oversized in [false, true] {
-            let (client, peer) = UnixStream::pair().unwrap();
-            let server = std::thread::spawn(move || {
-                peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-                peer.set_write_timeout(Some(Duration::from_secs(5)))
-                    .unwrap();
-                let mut reader = BufReader::new(peer);
+            let path = std::env::temp_dir().join(format!(
+                "cmux-response-bounds-{}.sock",
+                uuid::Uuid::new_v4()
+            ));
+            let listener = tokio::net::UnixListener::bind(&path).unwrap();
+            let server = tokio::spawn(async move {
+                let (peer, _) = listener.accept().await.unwrap();
+                let mut reader = tokio::io::BufReader::new(peer);
                 let mut command = String::new();
-                reader.read_line(&mut command).unwrap();
+                reader.read_line(&mut command).await.unwrap();
                 assert_eq!(
                     serde_json::from_str::<Value>(&command).unwrap()["action"],
                     "ping"
                 );
-                let mut peer = reader.into_inner();
                 if oversized {
-                    let _ = peer.write_all(&vec![b'x'; MAX_RESPONSE_BYTES as usize + 1]);
+                    let _ = reader
+                        .get_mut()
+                        .write_all(&vec![b'x'; MAX_RESPONSE_BYTES as usize + 1])
+                        .await;
                 } else {
-                    peer.write_all(b"{\"success\":true}\n").unwrap();
+                    reader
+                        .get_mut()
+                        .write_all(b"{\"success\":true}\n")
+                        .await
+                        .unwrap();
                 }
             });
-            let result = exchange(
-                client,
-                &serde_json::json!({"action": "ping"}),
-                Duration::from_secs(5),
-            );
+            let result = request_async(&path, &serde_json::json!({"action":"ping"})).await;
             if oversized {
-                assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+                assert!(result.unwrap_err().contains("4 MiB"));
             } else {
                 assert_eq!(result.unwrap()["success"], true);
             }
-            server.join().unwrap();
+            tokio::time::timeout(Duration::from_secs(5), server)
+                .await
+                .unwrap()
+                .unwrap();
+            std::fs::remove_file(path).unwrap();
         }
     }
 }

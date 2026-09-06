@@ -847,123 +847,27 @@ fn handle_socket_command_traced(
             workspace,
             resp_tx,
         } => {
-            let mut s = state.borrow_mut();
-            // Lazy-init BrowserManager per D-05
-            if s.browser_manager.is_none() {
-                s.browser_manager = Some(crate::browser::BrowserManager::new());
+            let mut params = json!({"url": url});
+            if let Some(workspace) = workspace {
+                params["workspace"] = json!(workspace);
             }
-            let bm = s.browser_manager.as_mut().unwrap();
-            // Ensure daemon is running (auto-start per D-05)
-            if let Err(e) = bm.ensure_daemon() {
-                let _ = resp_tx.send(err(req_id, "daemon_error", &e));
-                return;
-            }
-            // Build params for agent-browser, including workspace if provided
-            let mut open_params = serde_json::json!({"url": url});
-            if let Some(ref ws) = workspace {
-                open_params["workspace"] = serde_json::json!(ws);
-            }
-            match bm.send_command("navigate", open_params) {
-                Ok(result) => {
-                    // Allocate surface ref (D-06)
-                    s.browser_surface_counter += 1;
-                    let ref_id = s.browser_surface_counter;
-                    let uuid = result
-                        .get("id")
-                        .or_else(|| result.get("surface_id"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown")
-                        .to_string();
-                    s.browser_surface_refs.insert(ref_id, uuid.clone());
-                    // Augment response with surface_ref
-                    let mut response = result.clone();
-                    if let Some(obj) = response.as_object_mut() {
-                        obj.insert(
-                            "surface_ref".to_string(),
-                            serde_json::json!(format!("surface:{}", ref_id)),
-                        );
-                        obj.insert("uuid".to_string(), serde_json::json!(uuid));
-                    }
-                    // Create preview pane and auto-enable streaming
-                    let picture = {
-                        let engine = s.active_split_engine_mut();
-                        if let Some(eng) = engine {
-                            find_preview_picture(&eng.root)
-                                .or_else(|| eng.split_active_with_preview().map(|w| w.picture))
-                        } else {
-                            None
-                        }
-                    };
-                    // Enable streaming so the preview pane shows the page
-                    let runtime = s.runtime_handle.clone();
-                    let bm = s.browser_manager.as_mut().unwrap();
-                    let _ = bm.send_command("stream_enable", serde_json::json!({}));
-                    if let Some(pic) = picture {
-                        if let Some(ref rt) = runtime {
-                            let _ = bm.start_stream(rt, pic);
-                        }
-                    }
-                    let _ = resp_tx.send(ok(req_id, response));
-                }
-                Err(e) => {
-                    let _ = resp_tx.send(err(req_id, "browser_error", &e));
-                }
-            }
+            start_browser_lifecycle(
+                state,
+                crate::browser::StartupRequest::Open(params),
+                req_id,
+                resp_tx,
+                trace_id,
+            );
         }
 
         SocketCommand::BrowserStreamEnable { req_id, resp_tx } => {
-            let mut s = state.borrow_mut();
-            if s.browser_manager.is_none() {
-                s.browser_manager = Some(crate::browser::BrowserManager::new());
-            }
-            let bm = s.browser_manager.as_mut().unwrap();
-            if let Err(e) = bm.ensure_daemon() {
-                let _ = resp_tx.send(err(req_id, "daemon_error", &e));
-                return;
-            }
-            match bm.send_command("stream_enable", serde_json::json!({})) {
-                Ok(result) => {
-                    // Find the Picture widget from the Preview pane in the active workspace.
-                    // If no preview pane exists yet, create one first.
-                    let picture = {
-                        let engine = s.active_split_engine_mut();
-                        if let Some(eng) = engine {
-                            // Try to find existing Preview node's Picture
-                            find_preview_picture(&eng.root).or_else(|| {
-                                // No preview pane yet -- create one
-                                eng.split_active_with_preview().map(|w| w.picture)
-                            })
-                        } else {
-                            None
-                        }
-                    };
-
-                    // Wire the WebSocket stream to the Picture widget (Gap 1 fix)
-                    if let Some(pic) = picture {
-                        let runtime = s.runtime_handle.clone();
-                        let bm = s.browser_manager.as_mut().unwrap();
-                        if let Some(ref rt) = runtime {
-                            match bm.start_stream(rt, pic) {
-                                Ok(()) => {
-                                    // stream wired to preview pane
-                                }
-                                Err(e) => {
-                                    eprintln!("cmux: stream enable failed: {}", e);
-                                }
-                            }
-                        } else {
-                            // no runtime handle
-                        }
-                    } else {
-                        // no preview pane available
-                    }
-
-                    let _ = resp_tx.send(ok(req_id, result));
-                }
-                Err(e) => {
-                    let _ = resp_tx.send(err(req_id, "stream_error", &e));
-                }
-            }
+            start_browser_lifecycle(
+                state,
+                crate::browser::StartupRequest::Stream,
+                req_id,
+                resp_tx,
+                trace_id,
+            );
         }
 
         SocketCommand::BrowserStreamDisable { req_id, resp_tx } => {
@@ -1073,6 +977,130 @@ fn handle_socket_command_traced(
             ));
         }
     }
+}
+
+/// Initialize and command the daemon on Tokio, then apply surviving results on GTK without stealing focus.
+fn start_browser_lifecycle(
+    state: &std::rc::Rc<std::cell::RefCell<crate::app_state::AppState>>,
+    request: crate::browser::StartupRequest,
+    req_id: Value,
+    mut resp_tx: super::commands::RespTx,
+    trace_id: Option<String>,
+) {
+    let is_open = matches!(request, crate::browser::StartupRequest::Open(_));
+    let trace = trace_id
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .unwrap_or_else(uuid::Uuid::new_v4);
+    let (session, workspace, mut task) = {
+        let mut s = state.borrow_mut();
+        let Some(runtime) = s.runtime_handle.clone() else {
+            let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
+            return;
+        };
+        let workspace = s
+            .workspaces
+            .get(s.active_index)
+            .map(|workspace| workspace.uuid);
+        let browser = s
+            .browser_manager
+            .get_or_insert_with(crate::browser::BrowserManager::new);
+        (
+            browser.session_identity(),
+            workspace,
+            runtime.spawn(browser.startup_async(request, trace)),
+        )
+    };
+    let guard = crate::task::AbortOnDrop(task.abort_handle());
+    let state = std::rc::Rc::downgrade(state);
+    glib::MainContext::default().spawn_local(async move {
+        let _guard = guard;
+        let mut activity = crate::browser::metrics::Activity::begin("rpc_startup", Some(trace));
+        let completed = tokio::select! {
+            biased;
+            _ = resp_tx.closed() => { task.abort(); let _ = task.await; return; }
+            result = &mut task => result,
+        };
+        let (binary, mut result) = match completed {
+            Ok(Ok(result)) => result,
+            Ok(Err(error)) => {
+                activity.finish("error");
+                let _ = resp_tx.send(err(req_id, error.code, &error.message));
+                return;
+            }
+            Err(_) => {
+                activity.finish("task_error");
+                let _ = resp_tx.send(err(req_id, "daemon_error", "Browser startup worker failed"));
+                return;
+            }
+        };
+        let Some(state) = state.upgrade() else {
+            return;
+        };
+        let (new_widgets, picture, runtime) = {
+            let mut s = state.borrow_mut();
+            if !s
+                .browser_manager
+                .as_mut()
+                .is_some_and(|browser| browser.install_startup(&session, binary))
+            {
+                activity.finish("stale_manager");
+                let _ = resp_tx.send(err(req_id, "not_running", "Browser session was replaced"));
+                return;
+            }
+            let index = workspace.and_then(|id| {
+                s.workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == id)
+            });
+            let Some(index) = index else {
+                activity.finish("missing_workspace");
+                let _ = resp_tx.send(err(
+                    req_id,
+                    "not_found",
+                    "Target workspace closed during browser startup",
+                ));
+                return;
+            };
+            if is_open {
+                s.browser_surface_counter += 1;
+                let ref_id = s.browser_surface_counter;
+                let uuid = result
+                    .get("id")
+                    .or_else(|| result.get("surface_id"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown")
+                    .to_owned();
+                s.browser_surface_refs.insert(ref_id, uuid.clone());
+                if let Some(fields) = result.as_object_mut() {
+                    fields.insert("surface_ref".into(), json!(format!("surface:{ref_id}")));
+                    fields.insert("uuid".into(), json!(uuid));
+                }
+            }
+            let mut widgets = None;
+            let picture = s.split_engines.get_mut(index).and_then(|engine| {
+                find_preview_picture(&engine.root).or_else(|| {
+                    widgets = engine.add_preview(false);
+                    widgets.as_ref().map(|widgets| widgets.picture.clone())
+                })
+            });
+            (widgets, picture, s.runtime_handle.clone())
+        };
+        if let Some(widgets) = new_widgets {
+            crate::browser::ui::wire_browser_tab(&state, widgets);
+        } else if let (Some(picture), Some(runtime)) = (picture, runtime) {
+            if let Some(browser) = state.borrow_mut().browser_manager.as_mut() {
+                if browser.start_stream(&runtime, picture).is_err() {
+                    crate::diagnostics::record(
+                        "browser.rpc.stream_attach_failed",
+                        json!({"trace_id": trace}),
+                    );
+                }
+            }
+        }
+        activity.finish("success");
+        let _ = resp_tx.send(ok(req_id, result));
+    });
 }
 
 /// Deliver a browser exchange off GTK, preserving endpoint errors and cancelling when its caller leaves.

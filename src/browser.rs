@@ -16,7 +16,6 @@ pub(crate) mod transport;
 pub use discovery::agent_browser_available;
 use discovery::{find_system_chrome, which_agent_browser};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use uuid::Uuid;
 
 /// Build the shared public CLI viewport arguments without shell interpretation.
@@ -49,6 +48,29 @@ pub async fn drain_shutdown(mut tasks: tokio::task::JoinSet<()>) {
             serde_json::json!({"budget_ms": 7000}),
         );
         tasks.shutdown().await;
+    }
+}
+
+/// Startup intent shared by GTK preview actions and socket lifecycle requests.
+pub(crate) enum StartupRequest {
+    Preview(String),
+    Open(Value),
+    Stream,
+}
+
+/// Public endpoint code and safe startup/exchange detail for response delivery.
+#[derive(Debug)]
+pub(crate) struct StartupError {
+    pub code: &'static str,
+    pub message: String,
+}
+impl From<String> for StartupError {
+    /// Classify discovery and public CLI initialization failures as daemon errors.
+    fn from(message: String) -> Self {
+        Self {
+            code: "daemon_error",
+            message,
+        }
     }
 }
 
@@ -118,85 +140,18 @@ impl BrowserManager {
         Self::agent_browser_socket_dir().join(format!("{}.stream", self.session_name))
     }
 
-    /// Probe socket acceptance synchronously without issuing a browser command.
-    fn daemon_ready(&self) -> bool {
-        std::os::unix::net::UnixStream::connect(self.daemon_socket_path()).is_ok()
-    }
-
-    /// Auto-start the agent-browser daemon (D-05).
-    pub fn ensure_daemon(&mut self) -> Result<(), String> {
-        // Find an explicitly configured, installed, packaged, or locally linked binary.
-        let binary_path = which_agent_browser().ok_or_else(|| {
-            "agent-browser is not installed; browser panes are unavailable. Install it with: npm install -g agent-browser && agent-browser install"
-                .to_string()
-        })?;
-        self.binary_path = Some(binary_path.clone());
-
-        if self.daemon_ready() {
-            return Ok(());
-        }
-
-        // Create socket dir if needed.
-        let socket_dir = Self::agent_browser_socket_dir();
-        std::fs::create_dir_all(&socket_dir).map_err(|e| {
-            format!(
-                "Failed to create socket dir {}: {}",
-                socket_dir.display(),
-                e
-            )
-        })?;
-
-        // Use the public CLI to launch the browser and its daemon. The old
-        // AGENT_BROWSER_DAEMON entry point is private and has changed between
-        // releases, which defeated using an unpinned installation.
-        let mut command = Command::new(&binary_path);
-        command
-            .arg("--session")
-            .arg(&self.session_name)
-            .env("AGENT_BROWSER_SESSION", &self.session_name)
-            .env("AGENT_BROWSER_STREAM_PORT", "0")
-            .stdin(Stdio::null());
-
-        // Ubuntu's AppArmor policy can reject the downloaded Chrome for
-        // Testing sandbox. Prefer an installed, sandboxed browser when one is
-        // available, while honoring the user's explicit agent-browser choice.
-        if std::env::var_os("AGENT_BROWSER_EXECUTABLE_PATH").is_none() {
-            if let Some(browser) = find_system_chrome() {
-                command.arg("--executable-path").arg(browser);
-            }
-        }
-        command.arg("open").arg("about:blank");
-
-        let output = command
-            .output()
-            .map_err(|e| format!("Failed to launch agent-browser: {}", e))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("agent-browser failed to launch: {}", stderr.trim()));
-        }
-
-        // Poll daemon_ready() with 200ms intervals, up to 50 retries (10s).
-        for _ in 0..50 {
-            std::thread::sleep(std::time::Duration::from_millis(200));
-            if self.daemon_ready() {
-                self.preview_state = PreviewState::Connected;
-                return Ok(());
-            }
-        }
-
-        Err("agent-browser daemon failed to start within 10 seconds".to_string())
-    }
-
-    /// Prepare a preview off GTK, sharing navigation admission and manager cancellation.
-    /// Return the resolved executable for GTK to install only if this manager still owns the result.
-    fn prepare_preview_async(
+    /// Initialize and execute a browser lifecycle transaction off GTK under shared admission and cancellation.
+    /// Return its executable and response for the originating manager to apply; preserve endpoint error codes.
+    pub(crate) fn startup_async(
         &self,
-        url: String,
+        request: StartupRequest,
         trace_id: Uuid,
-    ) -> impl std::future::Future<Output = Result<PathBuf, String>> + Send + 'static {
+    ) -> impl std::future::Future<Output = Result<(PathBuf, Value), StartupError>> + Send + 'static
+    {
         let session = self.session_name.clone();
         let binary = self.binary_path.clone();
         let socket_dir = Self::agent_browser_socket_dir();
+        let socket_path = self.daemon_socket_path();
         let permit = self.navigation_gate.clone().try_acquire_owned();
         let mut shutdown = self.navigation_shutdown.subscribe();
         async move {
@@ -204,7 +159,7 @@ impl BrowserManager {
                 "Browser navigation unavailable or already in progress".to_string()
             })?);
             if *shutdown.borrow() {
-                return Err("Browser manager stopped".to_string());
+                return Err("Browser manager stopped".to_string().into());
             }
             let prepare = async move {
                 let discovery_permit = permit.clone();
@@ -227,33 +182,104 @@ impl BrowserManager {
                     .map_err(|error| {
                         format!("Failed to create browser socket directory: {error}")
                     })?;
-                cli::start(&binary, &session, chrome.as_deref(), &url, trace_id).await?;
-                // Preserve the existing best-effort stream-enable behavior.
-                // start_stream validates the separately advertised port.
-                if cli::run(&binary, &session, &["stream", "enable"], trace_id)
-                    .await
-                    .is_err()
-                {
-                    crate::diagnostics::record(
-                        "browser.preview.stream_enable.failed",
-                        serde_json::json!({"trace_id": trace_id}),
-                    );
+                let ready = tokio::net::UnixStream::connect(&socket_path).await.is_ok();
+                if let StartupRequest::Preview(url) = &request {
+                    cli::start(&binary, &session, chrome.as_deref(), url, trace_id).await?;
+                } else if !ready {
+                    cli::start(
+                        &binary,
+                        &session,
+                        chrome.as_deref(),
+                        "about:blank",
+                        trace_id,
+                    )
+                    .await?;
                 }
-                Ok(binary)
+                let result = match request {
+                    StartupRequest::Preview(_) => {
+                        if cli::run(&binary, &session, &["stream", "enable"], trace_id)
+                            .await
+                            .is_err()
+                        {
+                            crate::diagnostics::record(
+                                "browser.preview.stream_enable.failed",
+                                serde_json::json!({"trace_id": trace_id}),
+                            );
+                        }
+                        Value::Null
+                    }
+                    StartupRequest::Open(params) => {
+                        let response = transport::request_async(
+                            &socket_path,
+                            &Self::command_request("navigate", params),
+                        )
+                        .await
+                        .map_err(|message| StartupError {
+                            code: "browser_error",
+                            message,
+                        })?;
+                        let _ = transport::request_async(
+                            &socket_path,
+                            &Self::command_request("stream_enable", serde_json::json!({})),
+                        )
+                        .await;
+                        response
+                    }
+                    StartupRequest::Stream => transport::request_async(
+                        &socket_path,
+                        &Self::command_request("stream_enable", serde_json::json!({})),
+                    )
+                    .await
+                    .map_err(|message| StartupError {
+                        code: "stream_error",
+                        message,
+                    })?,
+                };
+                Ok((binary, result))
             };
             tokio::select! {
                 biased;
-                _ = shutdown.changed() => Err("Browser manager stopped".to_string()),
+                _ = shutdown.changed() => Err("Browser manager stopped".to_string().into()),
                 result = tokio::time::timeout(std::time::Duration::from_secs(15), prepare) => {
                     result.unwrap_or_else(|_| {
                         crate::diagnostics::record("browser.preview.startup.timeout", serde_json::json!({
                             "trace_id": trace_id, "budget_ms": 15_000,
                         }));
-                        Err("Browser preview startup deadline exceeded".to_string())
+                        Err("Browser preview startup deadline exceeded".to_string().into())
                     })
                 }
             }
         }
+    }
+
+    /// Prepare an existing or new GTK preview through the same bounded startup transaction.
+    fn prepare_preview_async(
+        &self,
+        url: String,
+        trace_id: Uuid,
+    ) -> impl std::future::Future<Output = Result<PathBuf, String>> + Send + 'static {
+        let startup = self.startup_async(StartupRequest::Preview(url), trace_id);
+        async move {
+            startup
+                .await
+                .map(|(binary, _)| binary)
+                .map_err(|error| error.message)
+        }
+    }
+
+    /// Capture manager identity for a worker result that must not update a replacement manager.
+    pub(crate) fn session_identity(&self) -> String {
+        self.session_name.clone()
+    }
+
+    /// Install the executable only when this manager still owns the startup completion.
+    pub(crate) fn install_startup(&mut self, session: &str, binary: PathBuf) -> bool {
+        if self.session_name != session {
+            return false;
+        }
+        self.binary_path = Some(binary);
+        self.preview_state = PreviewState::Connected;
+        true
     }
 
     /// Coalesce mapped-tab destinations on an owned worker after browser initialization.
@@ -416,14 +442,6 @@ impl BrowserManager {
         if let Some(queue) = self.input_queue.as_mut() {
             queue.release_keys();
         }
-    }
-
-    /// Send a newline-delimited JSON command to the daemon socket.
-    pub fn send_command(&self, action: &str, params: Value) -> Result<Value, String> {
-        transport::request(
-            &self.daemon_socket_path(),
-            &Self::command_request(action, params),
-        )
     }
 
     /// Prepare owned request data on GTK; perform socket I/O when polled on the async runtime.
@@ -818,6 +836,57 @@ esac
         .map(|command| format!("{session_name} {command}\n"))
         .concat();
         assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// An already-running daemon receives open/stream actions without restarting or resetting its URL.
+    #[tokio::test]
+    async fn rpc_startup_reuses_ready_daemon() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+        let directory = std::env::temp_dir().join(format!("cmux-rpc-start-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let mut browser = BrowserManager::new();
+        browser.session_name = directory.join("browser").to_string_lossy().into_owned();
+        browser.binary_path = Some(directory.join("must-not-be-executed"));
+        let listener = tokio::net::UnixListener::bind(browser.daemon_socket_path()).unwrap();
+        let server = tokio::spawn(async move {
+            for action in ["", "navigate", "stream_enable", "", "stream_enable"] {
+                let (peer, _) = listener.accept().await.unwrap();
+                let mut peer = tokio::io::BufReader::new(peer);
+                let mut line = String::new();
+                peer.read_line(&mut line).await.unwrap();
+                if action.is_empty() {
+                    assert!(line.is_empty());
+                    continue;
+                }
+                let request: Value = serde_json::from_str(&line).unwrap();
+                assert_eq!(request["action"], action);
+                if action == "navigate" {
+                    assert_eq!(request["url"], "https://example.test");
+                }
+                peer.get_mut()
+                    .write_all(b"{\"surface_id\":\"fixture\"}\n")
+                    .await
+                    .unwrap();
+            }
+        });
+        let (_, opened) = browser
+            .startup_async(
+                StartupRequest::Open(serde_json::json!({"url":"https://example.test"})),
+                Uuid::new_v4(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(opened["surface_id"], "fixture");
+        let (_, streaming) = browser
+            .startup_async(StartupRequest::Stream, Uuid::new_v4())
+            .await
+            .unwrap();
+        assert_eq!(streaming["surface_id"], "fixture");
+        tokio::time::timeout(std::time::Duration::from_secs(3), server)
+            .await
+            .unwrap()
+            .unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
 

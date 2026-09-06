@@ -843,6 +843,11 @@ impl SplitEngine {
 
     /// Create and select a browser surface tab in the focused pane.
     pub fn split_active_with_preview(&mut self) -> Option<crate::browser::PreviewPaneWidgets> {
+        self.add_preview(true)
+    }
+
+    /// Append a browser surface, optionally selecting it and moving keyboard focus to its address.
+    pub fn add_preview(&mut self, select: bool) -> Option<crate::browser::PreviewPaneWidgets> {
         let active_id = self.active_pane_id;
         let widgets = crate::browser::create_preview_pane(active_id);
 
@@ -875,11 +880,13 @@ impl SplitEngine {
                 widgets: widgets.clone(),
                 uuid: widgets.uuid,
             },
-            true,
+            select,
         );
         self.root.update_focus_css(active_id);
-        widgets.url_entry.grab_focus();
-        widgets.url_entry.select_region(0, -1);
+        if select {
+            widgets.url_entry.grab_focus();
+            widgets.url_entry.select_region(0, -1);
+        }
 
         Some(widgets)
     }
