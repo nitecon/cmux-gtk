@@ -21,6 +21,20 @@ use tokio::{
 #[derive(Default)]
 pub struct Routes(Mutex<HashMap<String, mpsc::Sender<Vec<u8>>>>);
 impl Routes {
+    /// Install a fresh stream route atomically; a duplicate never replaces or retires its existing owner.
+    fn register(&self, stream: &str) -> Result<mpsc::Receiver<Vec<u8>>, String> {
+        let mut routes = self.0.lock().unwrap();
+        if routes.contains_key(stream) {
+            return Err("duplicate proxy stream".into());
+        }
+        if routes.len() >= 16 {
+            return Err("proxy route capacity exceeded".into());
+        }
+        let (sender, receiver) = mpsc::channel(16);
+        routes.insert(stream.to_owned(), sender);
+        Ok(receiver)
+    }
+
     /// Consume known proxy events without awaiting client I/O; overload closes that client route.
     pub fn event(&self, stream: &str, event: &str, message: &serde_json::Value) -> bool {
         let mut routes = self.0.lock().unwrap();
@@ -124,20 +138,21 @@ async fn client(
         .filter(|id| !id.is_empty() && id.len() <= super::outbound::MAX_STREAM_ID)
         .ok_or("invalid proxy stream")?
         .to_owned();
+    let mut incoming = match transport.bridge.proxy_routes.register(&stream) {
+        Ok(incoming) => incoming,
+        Err(error) => {
+            if error == "proxy route capacity exceeded" {
+                transport.bridge.request_close(stream);
+            }
+            return Err(error);
+        }
+    };
     let owner = ClientOwner {
         transport: transport.clone(),
         stream: stream.clone(),
     };
     if *stop.borrow() {
         return Ok(());
-    }
-    let (sender, mut incoming) = mpsc::channel(16);
-    {
-        let mut routes = transport.bridge.proxy_routes.0.lock().unwrap();
-        if routes.contains_key(&stream) {
-            return Err("duplicate proxy stream".into());
-        }
-        routes.insert(stream.clone(), sender);
     }
     transport
         .call(
@@ -192,6 +207,8 @@ async fn listener(
     mut stop: watch::Receiver<bool>,
     permits: Arc<Semaphore>,
 ) {
+    let local_port = listener.local_addr().ok().map(|address| address.port());
+    let (client_stop, client_receiver) = watch::channel(false);
     let mut clients = JoinSet::new();
     loop {
         tokio::select! {
@@ -201,7 +218,7 @@ async fn listener(
             accepted = listener.accept() => {
                 let Ok((socket, _)) = accepted else { break; };
                 let Ok(permit) = permits.clone().try_acquire_owned() else { continue; };
-                let transport = transport.clone(); let stop = stop.clone();
+                let transport = transport.clone(); let stop = client_receiver.clone();
                 clients.spawn(async move {
                     let _permit = permit;
                     let result = client(transport, socket, remote, stop).await;
@@ -211,6 +228,13 @@ async fn listener(
         }
     }
     drop(listener);
+    let _ = client_stop.send(true);
+    {
+        let mut published = transport.bridge.forwarded.lock().unwrap();
+        if published.get(&remote).copied() == local_port {
+            published.remove(&remote);
+        }
+    }
     while clients.join_next().await.is_some() {}
 }
 
@@ -243,7 +267,7 @@ pub(super) async fn run(
             .take(256)
             .collect();
         active.retain(|remote, stop| {
-            if desired.contains(remote) {
+            if desired.contains(remote) && !stop.is_closed() {
                 true
             } else {
                 let _ = stop.send(true);
@@ -284,5 +308,33 @@ pub(super) async fn run(
                 permits.clone(),
             ));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Duplicate registration preserves the first receiver; overload closes its route rather than dropping bytes silently.
+    #[test]
+    fn proxy_routes_preserve_ownership_and_retire_overload() {
+        let routes = Routes::default();
+        let mut receiver = routes.register("one").unwrap();
+        assert!(routes.register("one").is_err());
+        let message = serde_json::json!({"data_base64":"eA=="});
+        assert!(routes.event("one", "proxy.stream.data", &message));
+        assert_eq!(receiver.try_recv().unwrap(), b"x");
+        for _ in 0..16 {
+            assert!(routes.event("one", "proxy.stream.data", &message));
+        }
+        assert!(routes.event("one", "proxy.stream.data", &message));
+        assert!(!routes.event("one", "proxy.stream.data", &message));
+        for _ in 0..16 {
+            assert_eq!(receiver.try_recv().unwrap(), b"x");
+        }
+        assert!(matches!(
+            receiver.try_recv(),
+            Err(mpsc::error::TryRecvError::Disconnected)
+        ));
     }
 }
