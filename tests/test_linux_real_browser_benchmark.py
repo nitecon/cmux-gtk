@@ -15,6 +15,7 @@ import time
 
 from benchmark_support import artifact, summarize_us, resource_delta
 from linux_app import running_app
+from browser_process_support import BrowserProcesses
 from test_multi_workspace_focus import selected_surface
 
 
@@ -36,6 +37,7 @@ def measure(root, report):
     (root / "index.html").write_text(PAGE)
     browser_dir = root / "browser"
     browser_dir.mkdir()
+    browser_processes = BrowserProcesses(browser_dir)
     binary = shutil.which("agent-browser")
     if binary is None:
         raise RuntimeError("agent-browser is required for the real browser benchmark")
@@ -92,6 +94,7 @@ def measure(root, report):
             for iteration in range(15):
                 if iteration == 5:
                     report["before"] = resources()
+                    report["browser_processes_before"] = browser_processes.sample()
                     started = time.monotonic()
                 sample = {}
                 value = f"fixture-{iteration}"
@@ -111,7 +114,13 @@ def measure(root, report):
                 assert selected_surface(app) == terminal, "browser automation stole terminal focus"
                 if iteration >= 5:
                     report["samples"].append(sample)
+                    report.setdefault("browser_process_samples", []).append(browser_processes.sample())
             report["after"] = resources()
+            report["browser_processes_after"] = browser_processes.sample()
+            assert report["browser_processes_after"]["daemon_count"] == 1
+            assert report["browser_processes_after"]["process_count"] > 1
+            report["browser_pss_growth_bytes"] = (report["browser_processes_after"]["pss_bytes"]
+                                                  - report["browser_processes_before"]["pss_bytes"])
             report["elapsed_seconds"] = time.monotonic() - started
             report["resource_delta"] = resource_delta(report["before"], report["after"], report["elapsed_seconds"])
             report["latency_us"] = {key: summarize_us([row[key] for row in report["samples"]])
@@ -140,6 +149,8 @@ def measure(root, report):
             second_open = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/", timeout=35))
             assert second_open["success"] is True and second_open["uuid"] != opened["uuid"]
             second = second_open["surface_ref"]
+            report["two_browser_processes"] = browser_processes.sample()
+            assert report["two_browser_processes"]["daemon_count"] == 2
 
             def other_browser(*args):
                 """Route commands to the second real browser surface without changing selection."""
@@ -184,6 +195,8 @@ def measure(root, report):
             report["independent_browser_surfaces"] = "passed"
             app.cli("browser", "close")
             app.wait_for(lambda: not list(browser_dir.glob("*.pid")), "browser daemon shutdown")
+            app.wait_for(lambda: not browser_processes.live_observed(), "sampled Chromium and daemon process exit")
+            report["browser_process_cleanup"] = "passed"
     finally:
         # Only session PID files in this fixture-owned directory are eligible for cleanup.
         try:
