@@ -1,5 +1,6 @@
 """Shared assertions and bounded Linux subprocesses for retained protocol scenarios."""
 import locale
+import math
 import os
 import selectors
 import signal
@@ -25,8 +26,8 @@ def run_command(cmd: list[str], *, env: dict[str, str] | None = None,
     arguments and child output, which can contain credentials. Bounds apply even
     when check=False. Docker/SSH mutations already completed are not rolled back.
     """
-    if timeout <= 0 or output_limit <= 0:
-        raise ValueError("command timeout and output limit must be positive")
+    if not math.isfinite(timeout) or timeout <= 0 or not isinstance(output_limit, int) or output_limit <= 0:
+        raise ValueError("command timeout must be finite and positive; output limit must be a positive integer")
     deadline = time.monotonic() + timeout
     with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           start_new_session=True) as process:

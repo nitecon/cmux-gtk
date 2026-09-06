@@ -43,6 +43,22 @@ class ScenarioSupportTests(unittest.TestCase):
         self.assertEqual(result.stdout, "a" * 65536)
         self.assertEqual(result.stderr, "b" * 65536)
 
+    def test_command_bounds_validate_before_spawn(self):
+        """Invalid limits reject execution; exact byte limits preserve complete output."""
+        with tempfile.TemporaryDirectory(prefix="cmux-command-validation-") as directory:
+            marker = Path(directory) / "started"
+            command = [sys.executable, "-c", "from pathlib import Path; Path(" + repr(str(marker)) + ").touch()"]
+            for limits in ({"timeout": float("nan")}, {"timeout": float("inf")},
+                           {"timeout": 0}, {"timeout": -1}, {"output_limit": 0},
+                           {"output_limit": 1.5}, {"output_limit": float("inf")}):
+                with self.assertRaises(ValueError):
+                    run_command(command, **limits)
+                self.assertFalse(marker.exists())
+        result = run_command([sys.executable, "-c", "import os; os.write(1,b'a'*1024); os.write(2,b'b'*1024)"],
+                             output_limit=1024)
+        self.assertEqual(result.stdout, "a" * 1024)
+        self.assertEqual(result.stderr, "b" * 1024)
+
     def test_command_limits_reap_children(self):
         """Deadline and either-pipe overflow terminate and reap actual owned child processes."""
         with tempfile.TemporaryDirectory(prefix="cmux-command-limits-") as directory:
