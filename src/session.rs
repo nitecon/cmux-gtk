@@ -118,40 +118,64 @@ impl<R: Read> Read for Utf8Reader<R> {
 /// Stream a session from a path with strict UTF-8 and a 64-KiB input buffer.
 /// The deserialized model still scales with session size; no new file-size limit is imposed.
 pub fn load_session_from(path: &Path) -> Option<SessionData> {
-    let source = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!("cmux: no session file at {}", path.display());
-            return None;
-        }
-        Err(e) => {
-            eprintln!("cmux: session file read error: {e}");
-            return None;
-        }
-    };
-    let reader = BufReader::with_capacity(
-        64 * 1024,
-        Utf8Reader {
-            source,
-            tail: Vec::new(),
-        },
-    );
-    match serde_json::from_reader::<_, SessionData>(reader) {
-        Ok(data) => {
-            if data.version != 1 && data.version != 2 && data.version != 3 {
-                eprintln!(
-                    "cmux: session version {} not supported, ignoring",
-                    data.version
-                );
+    let started = std::time::Instant::now();
+    let mut outcome = "success";
+    let mut error_category = None;
+    let mut version = None;
+    let result = (|| {
+        let source = match std::fs::File::open(path) {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                outcome = "missing";
+                eprintln!("cmux: no session file at {}", path.display());
                 return None;
             }
-            Some(data)
+            Err(e) => {
+                outcome = "read_error";
+                error_category = Some(format!("{:?}", e.kind()));
+                eprintln!("cmux: session file read error: {e}");
+                return None;
+            }
+        };
+        let reader = BufReader::with_capacity(
+            64 * 1024,
+            Utf8Reader {
+                source,
+                tail: Vec::new(),
+            },
+        );
+        match serde_json::from_reader::<_, SessionData>(reader) {
+            Ok(data) => {
+                version = Some(data.version);
+                if data.version != 1 && data.version != 2 && data.version != 3 {
+                    outcome = "unsupported_version";
+                    eprintln!(
+                        "cmux: session version {} not supported, ignoring",
+                        data.version
+                    );
+                    return None;
+                }
+                Some(data)
+            }
+            Err(e) => {
+                outcome = "decode_error";
+                error_category = Some(format!("{:?}", e.classify()));
+                eprintln!("cmux: session JSON invalid: {e}");
+                None
+            }
         }
-        Err(e) => {
-            eprintln!("cmux: session JSON invalid: {e}");
-            None
-        }
-    }
+    })();
+    crate::diagnostics::record(
+        "session.load",
+        serde_json::json!({
+            "outcome": outcome,
+            "duration_us": started.elapsed().as_micros(),
+            "version": version,
+            "workspaces": result.as_ref().map(|data| data.workspaces.len()),
+            "error_category": error_category,
+        }),
+    );
+    result
 }
 
 #[cfg(test)]
