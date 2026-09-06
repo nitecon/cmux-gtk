@@ -170,6 +170,13 @@ fn handle_socket_command_traced(
                 "window.current",
                 "notification.list",
                 "notification.clear",
+                "notification.create",
+                "notification.create_for_surface",
+                "notification.create_for_target",
+                "notification.mark_read",
+                "notification.dismiss",
+                "notification.open",
+                "notification.jump_to_unread",
                 // Browser lifecycle + streaming
                 "browser.open",
                 "browser.close",
@@ -858,28 +865,22 @@ fn handle_socket_command_traced(
                     })
                 })
                 .collect();
-            let _ = resp_tx.send(ok(req_id, json!({"notifications": notifications})));
+            let _ = resp_tx.send(ok(
+                req_id,
+                json!({"notifications": s.inbox.records, "workspace_attention": notifications}),
+            ));
         }
 
-        SocketCommand::NotificationClear {
+        SocketCommand::Inbox {
             req_id,
-            id,
+            action,
             resp_tx,
         } => {
-            // SOCK-05: No focus side effects. Clears attention without switching workspace.
-            let idx = {
-                let s = state.borrow();
-                s.workspaces.iter().position(|ws| ws.uuid.to_string() == id)
+            let response = match crate::inbox_actions::handle(&mut state.borrow_mut(), action) {
+                Ok(value) => ok(req_id, value),
+                Err((code, message)) => err(req_id, code, message),
             };
-            match idx {
-                Some(i) => {
-                    state.borrow_mut().clear_workspace_attention(i);
-                    let _ = resp_tx.send(ok(req_id, json!({})));
-                }
-                None => {
-                    let _ = resp_tx.send(err(req_id, "not_found", "workspace not found"));
-                }
-            }
+            let _ = resp_tx.send(response);
         }
 
         // -- browser.* (Phase 8: D-04 lifecycle + streaming) --

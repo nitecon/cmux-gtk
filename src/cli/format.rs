@@ -183,13 +183,13 @@ fn format_notification_list(result: &Value, color: bool) -> String {
     let mut lines = Vec::new();
     for n in notifications {
         let id = n.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let id_short = &id[..id.len().min(8)];
-        let attention = n
-            .get("attention")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+        let attention = !n.get("is_read").and_then(|v| v.as_bool()).unwrap_or(false);
         let marker = if attention { "!" } else { " " };
-        let line = format!("{} {}", marker, id_short);
+        let title = n
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("Notification");
+        let line = format!("{marker} {id} {title}");
         if attention && color {
             lines.push(green(&line, true));
         } else {

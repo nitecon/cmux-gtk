@@ -39,11 +39,11 @@ def measure(root, report):
         app.cli("send-text", "exec python3 -u " + shlex.quote(str(probe)), "--id", target)
         app.cli("send-key", "\r", "--id", target)
         app.wait_for(lambda: "CMUX_PROBE_READY" in app.cli("read-text", "--id", target), "probe output")
-        workspace = json.loads(app.cli("list-notifications", "--json"))["notifications"][0]["workspace_uuid"]
+        workspace = json.loads(app.cli("list-notifications", "--json"))["workspace_attention"][0]["workspace_uuid"]
 
         def attention():
             """Read this workspace's current attention without selecting it or moving focus."""
-            rows = json.loads(app.cli("list-notifications", "--json"))["notifications"]
+            rows = json.loads(app.cli("list-notifications", "--json"))["workspace_attention"]
             return next(row["has_attention"] for row in rows if row["workspace_uuid"] == workspace)
 
         def snapshot():

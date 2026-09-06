@@ -1,0 +1,32 @@
+app: cmux-gtk
+title: Notification inbox and exact target routing
+space: cmux-gtk
+slug: notification-inbox
+summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC and panel integration remain in progress.
+kind: agent_context
+source_format: agent_context
+source_ref: src/inbox.rs
+labels: [notification, inbox, cli, session, observability]
+content:
+  purpose: Deliver agent messages without stealing focus and retain enough bounded history to navigate back to their exact terminals.
+  workflows:
+    - name: Deliver and inspect
+      steps:
+        - cmux notify accepts --title, --subtitle, --body, --workspace and --surface. Surface/workspace default from CMUX_SURFACE_ID and CMUX_WORKSPACE_ID when available; the backend resolves omitted targets to the current terminal.
+        - notification.create accepts workspace_id and surface_id; create_for_surface requires surface_id; create_for_target requires both. Explicit stale, malformed and conflicting targets fail without fallback or focus changes.
+        - Titles allow 512 bytes, subtitles 1024 and bodies 8192; all reject NUL. Focused current-terminal delivery creates an already-read record. Other delivery creates unread history, pane rings and sidebar dots.
+        - notification.list returns notifications with id, workspace_id, surface_id, title, subtitle, body, created_at and is_read. Legacy workspace BEL attention rows are now under workspace_attention. CLI notifications list and list-notifications use this result.
+    - name: Mutate history without focus
+      steps:
+        - notification.mark_read selects exactly one of id, workspace_id (optionally surface_id), or all=true. tab_id aliases workspace_id. It retains records and marks only matching unread records read.
+        - notification.dismiss selects id or all_read=true and removes those records. notification.clear removes all history or an explicit workspace/surface scope. Its legacy id field aliases workspace_id; caller-based resolution is explicitly unsupported.
+        - CLI notifications mark-read, dismiss and clear expose these operations. Legacy clear-notification takes a workspace UUID. No history mutation selects another workspace or terminal.
+    - name: Navigate and restore
+      steps:
+        - notification.open requires a notification id, validates the original target, selects that exact workspace and sibling terminal tab, then marks the message read. Closed targets return not_found rather than redirecting.
+        - notification.jump_to_unread opens the newest unread record; an empty unread history returns opened=false. CLI notifications open and jump-to-unread map directly.
+        - Session snapshots retain at most 256 messages and 1 MiB of accounted content/identity data. Read records are evicted first, then the oldest unread record. Startup validates retained field lengths and reconciles pane/sidebar indicators.
+        - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
+  operations:
+    verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
+    outstanding: Live GTK panel, native OSC9/99/777 chunking, per-turn provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.

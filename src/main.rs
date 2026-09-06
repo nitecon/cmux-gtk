@@ -10,6 +10,8 @@ mod config;
 mod diagnostics;
 mod ghostty;
 mod header_bar;
+mod inbox;
+mod inbox_actions;
 mod line_reader;
 mod menus;
 mod notification;
@@ -46,6 +48,7 @@ window { background-color: #1a1a1a; }
 .workspace-list row:hover:not(.active-workspace) { background-color: #2e2e2e; }
 .workspace-list row.active-workspace { background-color: #5b8dd9; }
 .workspace-list row.active-workspace label { color: #ffffff; font-weight: 600; }
+.notification-unread { box-shadow: inset 0 0 0 2px #5b8dd9; }
 .active-pane { border: 1px solid #5b8dd9; }
 .rename-entry { font-size: 14px; padding: 2px 4px; }
 /* GtkPaned separator styling — makes divider visible on dark backgrounds.
@@ -350,6 +353,10 @@ fn build_ui(
         s.ssh_event_tx = Some(ssh_event_tx);
         s.runtime_handle = Some(runtime_handle.clone());
         s.browser_shutdown_tasks = browser_shutdown_tasks;
+        s.inbox = saved_session
+            .as_ref()
+            .map(|session| session.inbox.clone().validated())
+            .unwrap_or_default();
         s.resume_policy = saved_session
             .as_ref()
             .map(|session| session.resume_policy.clone().validated())
@@ -644,6 +651,7 @@ fn build_ui(
 
     // 8. Present the window
     crate::window_state::install(&window);
+    crate::inbox_actions::refresh(&state.borrow());
     window.present();
 
     // Browser widgets are part of the saved pane tree; reconnect them only after

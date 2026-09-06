@@ -165,6 +165,9 @@ jobs:
       - name: Test signed resume approval and automatic PTY restart
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_resume_approval.py
 
+      - name: Test notification history and exact terminal routing
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_notifications.py
+
       - name: Test process diagnostics and request correlation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diagnostics.py
 

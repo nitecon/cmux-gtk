@@ -437,15 +437,24 @@ async fn dispatch_request(
             req_id: req_id.clone(),
             resp_tx,
         },
-        "notification.clear" => commands::SocketCommand::NotificationClear {
-            req_id: req_id.clone(),
-            id: params
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            resp_tx,
-        },
+        "notification.create"
+        | "notification.create_for_surface"
+        | "notification.create_for_target"
+        | "notification.clear"
+        | "notification.mark_read"
+        | "notification.dismiss"
+        | "notification.open"
+        | "notification.jump_to_unread" => {
+            let action = match crate::inbox::parse(&method, &params) {
+                Ok(action) => action,
+                Err(message) => return err(req_id, "invalid_params", message),
+            };
+            commands::SocketCommand::Inbox {
+                req_id: req_id.clone(),
+                action,
+                resp_tx,
+            }
+        }
 
         "browser.open" => commands::SocketCommand::BrowserOpen {
             req_id: req_id.clone(),

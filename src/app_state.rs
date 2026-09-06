@@ -25,6 +25,8 @@ pub struct AppState {
     next_id: u64,
     /// Next display number for default names ("Workspace N").
     next_display_number: usize,
+    /// Bounded retained messages, separate from transient terminal BEL attention.
+    pub inbox: crate::inbox::Inbox,
     /// Validated application-owned authority for automatic local terminal resume.
     pub resume_policy: crate::resume_policy::ResumePolicy,
     /// Sender for session snapshots to the debounce task.
@@ -70,6 +72,7 @@ impl AppState {
             next_display_number: 1,
             session_tx: None,
             resume_policy: Default::default(),
+            inbox: Default::default(),
             ssh_event_tx: None,
             runtime_handle: None,
             ssh_task_handles: std::collections::HashMap::new(),
@@ -610,12 +613,19 @@ impl AppState {
     }
 
     /// Update the sidebar dot visibility for workspace at `index`.
-    fn update_sidebar_attention(&self, index: usize) {
+    pub(crate) fn update_sidebar_attention(&self, index: usize) {
         if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
             let has_attention = self
                 .workspaces
                 .get(index)
-                .map(|ws| ws.has_attention)
+                .map(|ws| {
+                    ws.has_attention
+                        || self
+                            .inbox
+                            .records
+                            .iter()
+                            .any(|record| record.workspace_id == ws.uuid && !record.is_read)
+                })
                 .unwrap_or(false);
             // Row layout: GtkBox(H) > [GtkBox(V) > [GtkLabel(name)], GtkLabel(dot)]
             if let Some(hbox) = row.child().and_downcast::<gtk4::Box>() {
@@ -664,6 +674,7 @@ impl AppState {
                 version: 3, // Per-pane terminal/browser tabs and persisted URLs
                 active_index: self.active_index,
                 resume_policy: self.resume_policy.clone(),
+                inbox: self.inbox.clone(),
                 workspaces: self
                     .workspaces
                     .iter()

@@ -182,9 +182,9 @@ pub enum SocketCommand {
         req_id: Value,
         resp_tx: RespTx,
     },
-    NotificationClear {
+    Inbox {
         req_id: Value,
-        id: String,
+        action: crate::inbox::Action,
         resp_tx: RespTx,
     },
 

@@ -34,6 +34,8 @@ pub struct SessionData {
     pub workspaces: Vec<WorkspaceSession>,
     #[serde(default)]
     pub resume_policy: crate::resume_policy::ResumePolicy,
+    #[serde(default)]
+    pub inbox: crate::inbox::Inbox,
 }
 
 /// Immutable snapshot shared by GTK publication and the worker without cloning the pane tree.
@@ -363,6 +365,7 @@ mod tests {
         SessionData {
             version: 1,
             resume_policy: Default::default(),
+            inbox: Default::default(),
             active_index: 0,
             workspaces: vec![WorkspaceSession {
                 uuid: "test-uuid-1".to_string(),

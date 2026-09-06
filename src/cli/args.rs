@@ -201,11 +201,29 @@ pub enum Commands {
     },
 
     // -- Notification commands --
+    /// Deliver a notification to a terminal without changing focus
+    Notify {
+        #[arg(long, default_value = "Notification")]
+        title: String,
+        #[arg(long, default_value = "")]
+        subtitle: String,
+        #[arg(long, default_value = "")]
+        body: String,
+        #[arg(long, env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+        #[arg(long, env = "CMUX_SURFACE_ID")]
+        surface: Option<String>,
+    },
+    /// Inspect, read, dismiss and navigate notification history
+    Notifications {
+        #[command(subcommand)]
+        command: NotificationCommands,
+    },
     /// List notifications
     ListNotifications,
     /// Clear a notification
     ClearNotification {
-        /// Notification ID
+        /// Workspace UUID (legacy alias; notifications clear supports explicit scopes)
         id: String,
     },
 
@@ -213,6 +231,42 @@ pub enum Commands {
     /// Browser automation (agent primary interface)
     #[command(subcommand)]
     Browser(BrowserCommand),
+}
+
+/// Inbox operations share the socket's exact notification and target identities.
+#[derive(Subcommand)]
+pub enum NotificationCommands {
+    /// List retained messages and read state
+    List,
+    /// Remove all messages, or messages in an explicit workspace/surface scope
+    Clear {
+        #[arg(long)]
+        workspace: Option<String>,
+        #[arg(long)]
+        surface: Option<String>,
+    },
+    /// Mark a message, a workspace/surface scope, or all messages read without focus changes
+    MarkRead {
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+        #[arg(long)]
+        surface: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// Remove one message or all previously read messages
+    Dismiss {
+        #[arg(long)]
+        id: Option<String>,
+        #[arg(long)]
+        all_read: bool,
+    },
+    /// Focus the exact terminal referenced by a message
+    Open { id: String },
+    /// Focus the most recent unread message's terminal
+    JumpToUnread,
 }
 
 /// Surface operations grouped to match upstream command spelling.

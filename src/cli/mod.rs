@@ -490,6 +490,39 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::Type { text } => ("debug.type", json!({"text": text})),
 
         Commands::ListNotifications => ("notification.list", json!({})),
+        Commands::Notify {
+            title,
+            subtitle,
+            body,
+            workspace,
+            surface,
+        } => (
+            "notification.create",
+            json!({
+                "title":title,"subtitle":subtitle,"body":body,"workspace_id":workspace,"surface_id":surface
+            }),
+        ),
+        Commands::Notifications { command } => match command {
+            args::NotificationCommands::List => ("notification.list", json!({})),
+            args::NotificationCommands::Clear { workspace, surface } => (
+                "notification.clear",
+                json!({"workspace_id":workspace,"surface_id":surface}),
+            ),
+            args::NotificationCommands::MarkRead {
+                id,
+                workspace,
+                surface,
+                all,
+            } => (
+                "notification.mark_read",
+                json!({"id":id,"workspace_id":workspace,"surface_id":surface,"all":all}),
+            ),
+            args::NotificationCommands::Dismiss { id, all_read } => {
+                ("notification.dismiss", json!({"id":id,"all_read":all_read}))
+            }
+            args::NotificationCommands::Open { id } => ("notification.open", json!({"id":id})),
+            args::NotificationCommands::JumpToUnread => ("notification.jump_to_unread", json!({})),
+        },
         Commands::ClearNotification { id } => ("notification.clear", json!({"id": id})),
 
         Commands::Browser(cmd) => browser_command_to_rpc(cmd),
