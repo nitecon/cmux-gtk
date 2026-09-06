@@ -35,13 +35,16 @@ fn terminal_target(
 ) -> Result<crate::ghostty::ffi::ghostty_surface_t, (&'static str, &'static str)> {
     let surface = {
         let state = state.borrow();
-        state
-            .split_engines
-            .get(state.active_index)
-            .and_then(|engine| match id {
-                Some(id) => engine.find_surface_by_uuid(id),
-                None => engine.root.find_surface_for_pane(engine.active_pane_id),
-            })
+        match id {
+            Some(id) => state
+                .split_engines
+                .iter()
+                .find_map(|engine| engine.find_surface_by_uuid(id)),
+            None => state
+                .split_engines
+                .get(state.active_index)
+                .and_then(|engine| engine.root.find_surface_for_pane(engine.active_pane_id)),
+        }
     }
     .filter(|surface| !surface.is_null())
     .ok_or(("not_found", "live terminal surface not found"))?;
