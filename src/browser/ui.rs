@@ -204,9 +204,7 @@ pub(crate) fn wire_browser_tab(
         let runtime = s.runtime_handle.clone();
         let bm = s.browser_manager.as_mut().unwrap();
         if let Some(ref rt) = runtime {
-            if let Err(e) = bm.start_stream(rt, picture) {
-                eprintln!("cmux: browser start_stream failed: {e}");
-            }
+            bm.start_stream(rt, picture, None);
         }
     } // drop borrow
 

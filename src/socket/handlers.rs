@@ -1090,12 +1090,7 @@ fn start_browser_lifecycle(
             crate::browser::ui::wire_browser_tab(&state, widgets);
         } else if let (Some(picture), Some(runtime)) = (picture, runtime) {
             if let Some(browser) = state.borrow_mut().browser_manager.as_mut() {
-                if browser.start_stream(&runtime, picture).is_err() {
-                    crate::diagnostics::record(
-                        "browser.rpc.stream_attach_failed",
-                        json!({"trace_id": trace}),
-                    );
-                }
+                browser.start_stream(&runtime, picture, Some(activity.id));
             }
         }
         activity.finish("success");

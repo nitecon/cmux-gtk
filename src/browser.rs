@@ -498,12 +498,6 @@ impl BrowserManager {
         request
     }
 
-    /// Read the bounded stream-port advertisement for this manager's daemon.
-    pub fn read_stream_port(&self) -> Result<u16, String> {
-        read_stream_port_file(&self.stream_port_path())
-            .map_err(|error| format!("Failed to read browser stream port: {error}"))
-    }
-
     /// Cancel and release the frame reader; repeated calls are harmless.
     fn stop_stream(&mut self) {
         if let Some(task) = self.stream_task.take() {
@@ -544,18 +538,23 @@ impl BrowserManager {
 
     /// Connect to the agent-browser stream WebSocket and start forwarding
     /// decoded JPEG frames to GTK through a latest-value channel.
+    /// Metadata reads and connection errors are asynchronous diagnostics; Streaming means scheduled.
     /// Immutable shared bytes avoid copying the JPEG when GTK consumes it.
     pub fn start_stream(
         &mut self,
         runtime: &tokio::runtime::Handle,
         picture: gtk4::Picture,
-    ) -> Result<(), String> {
-        let port = self.read_stream_port()?;
+        trace: Option<Uuid>,
+    ) {
         self.stop_stream();
-        self.stream_task = Some(stream::start(runtime, port, picture));
+        self.stream_task = Some(stream::start(
+            runtime,
+            self.stream_port_path(),
+            picture,
+            trace,
+        ));
 
         self.preview_state = PreviewState::Streaming;
-        Ok(())
     }
 }
 
@@ -667,13 +666,15 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
 }
 
 /// Read at most 64 bytes of daemon metadata and require a nonzero TCP port.
-/// Performs blocking file I/O; invalid contents are excluded from errors.
-fn read_stream_port_file(path: &std::path::Path) -> std::io::Result<u16> {
-    use std::io::Read;
+/// Uses Tokio filesystem workers; the stream owner supplies cancellation and a deadline.
+async fn read_stream_port_file(path: &std::path::Path) -> std::io::Result<u16> {
+    use tokio::io::AsyncReadExt;
     let mut bytes = Vec::new();
-    std::fs::File::open(path)?
+    tokio::fs::File::open(path)
+        .await?
         .take(65)
-        .read_to_end(&mut bytes)?;
+        .read_to_end(&mut bytes)
+        .await?;
     let invalid = || {
         std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -1122,12 +1123,12 @@ fi
     }
 
     /// Real port files accept valid advertisements and reject oversized or unusable ports.
-    #[test]
-    fn stream_port_files_are_bounded() {
+    #[tokio::test]
+    async fn stream_port_files_are_bounded() {
         let path = std::env::temp_dir().join(format!("cmux-port-{}", Uuid::new_v4()));
         for valid in [b"1".as_slice(), b"65535\n"] {
             std::fs::write(&path, valid).unwrap();
-            assert!(read_stream_port_file(&path).is_ok());
+            assert!(read_stream_port_file(&path).await.is_ok());
         }
         for invalid in [
             b"0".as_slice(),
@@ -1139,13 +1140,13 @@ fi
         ] {
             std::fs::write(&path, invalid).unwrap();
             assert_eq!(
-                read_stream_port_file(&path).unwrap_err().kind(),
+                read_stream_port_file(&path).await.unwrap_err().kind(),
                 std::io::ErrorKind::InvalidData
             );
         }
         std::fs::remove_file(&path).unwrap();
         assert_eq!(
-            read_stream_port_file(&path).unwrap_err().kind(),
+            read_stream_port_file(&path).await.unwrap_err().kind(),
             std::io::ErrorKind::NotFound
         );
     }

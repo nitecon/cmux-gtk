@@ -6,12 +6,38 @@ use gtk4::prelude::*;
 /// Start the stream reader and weak-widget delivery; the caller owns cancelling the returned task.
 pub(super) fn start(
     runtime: &tokio::runtime::Handle,
-    port: u16,
+    port_path: std::path::PathBuf,
     picture: gtk4::Picture,
+    trace: Option<uuid::Uuid>,
 ) -> tokio::task::JoinHandle<()> {
     let (frame_tx, frame_rx) = tokio::sync::watch::channel(None::<glib::Bytes>);
     glib::MainContext::default().spawn_local(deliver(picture, frame_rx, runtime.clone()));
-    runtime.spawn(receive(format!("ws://127.0.0.1:{port}"), frame_tx))
+    runtime.spawn(async move {
+        let mut activity = metrics::Activity::begin("stream_metadata", trace);
+        let metadata = tokio::select! {
+            biased;
+            _ = frame_tx.closed() => return,
+            result = tokio::time::timeout(
+                std::time::Duration::from_secs(5),
+                super::read_stream_port_file(&port_path),
+            ) => result,
+        };
+        let port = match metadata {
+            Ok(Ok(port)) => {
+                activity.finish("success");
+                port
+            }
+            Ok(Err(_)) => {
+                activity.finish("error");
+                return;
+            }
+            Err(_) => {
+                activity.finish("timeout");
+                return;
+            }
+        };
+        receive(format!("ws://127.0.0.1:{port}"), frame_tx).await;
+    })
 }
 
 /// Receive bounded envelopes until transport failure, task cancellation or delivery receiver closure.

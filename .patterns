@@ -22,3 +22,4 @@
   - src/browser.rs
   - src/browser/input_queue.rs
   - src/browser/mapped.rs
+  - src/browser/stream.rs
