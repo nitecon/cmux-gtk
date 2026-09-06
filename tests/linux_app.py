@@ -61,7 +61,21 @@ def running_app(root, extra_environment=None, extra_arguments=None):
         app = Application(process, environment, root / "runtime/cmux/cmux.sock")
         failed = False
         try:
-            app.wait_for(app.socket_path.exists, "application socket")
+            def protocol_ready():
+                """A crashed process can leave its socket pathname; require a responding server."""
+                if not app.socket_path.exists():
+                    return False
+                try:
+                    response = subprocess.run(
+                        [str(binary_dir / "cmux"), "--socket", str(app.socket_path), "ping"],
+                        env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=1, check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    return False
+                return response.returncode == 0
+
+            app.wait_for(protocol_ready, "application protocol readiness")
             yield app
         except BaseException:
             failed = True
