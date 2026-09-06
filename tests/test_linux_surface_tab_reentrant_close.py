@@ -94,6 +94,19 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
                 app.wait_for(lambda: not app.children(), "split terminal process exit")
                 assert {surface["uuid"] for surface in app.surfaces()} == {browser_id}
                 app.cli("ping")
+            # The last browser cannot be removed under the workspace final-surface policy.
+            # Rejection must preserve both the visible tab and its live daemon reference.
+            rejected = subprocess.run(
+                [str(Path(app.environment.get("CMUX_BIN_DIR", "target/debug")) / "cmux"),
+                 "--socket", str(app.socket_path), "browser", "close", "--surface", browser_id],
+                env=app.environment, capture_output=True, text=True, timeout=15,
+            )
+            assert rejected.returncode != 0 and "cannot close the final surface" in rejected.stderr
+            browsers = json.loads(app.cli("browser", "list"))["surfaces"]
+            assert len(browsers) == 1 and browsers[0]["uuid"] == browser_id
+            assert browsers[0]["status"] == "connected", browsers
+            assert json.loads(app.cli("browser", "eval", browser_id, "document.title"))["success"] is True
+            assert {surface["uuid"] for surface in app.surfaces()} == {browser_id}
             assert not recorded("PANIC")
     finally:
         # The mock is a detached child of its CLI, not of this fixture. Normal cmux

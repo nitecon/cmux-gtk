@@ -60,7 +60,7 @@ content:
     - Every successful browser open creates a distinct GTK surface and private daemon session, preserving other pages and terminal focus.
     - Commands resolve short references or live GTK UUIDs locally and omit backend surface selectors. An omitted target selects the active browser or sole live browser; ambiguity fails explicitly.
     - Browser list enumerates actual GTK surfaces with workspace UUID, saved URL and connected, starting or suspended state.
-    - Explicit close removes only that surface and retires its private manager; close without a selector removes all browser surfaces, including suspended ones.
+    - Explicit close removes only that surface and then retires its private manager; close without a selector attempts all browser surfaces, including suspended ones. The keyboard close action shares the same model operation. The final surface of a workspace follows the ordinary close policy and cannot be removed; rejection preserves its session and returns close_failed, while earlier successful closes remain applied.
     - Successful daemon results carrying data.url update only the original surviving surface and schedule session persistence. Navigation lacking URL metadata and page-driven changes still require reconciliation.
     - Startup cancellation owns provisional daemon retirement; window shutdown drains all installed and provisional sessions through shared bounded close tasks.
     - Independent real-page DOM, history, target isolation and close survival are covered by the Actions browser benchmark. Aggregate browser-process memory and resident-page admission remain separate verification gaps.

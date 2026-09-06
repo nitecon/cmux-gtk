@@ -1161,14 +1161,19 @@ fn handle_socket_command_traced(
                     ));
                     return;
                 };
+                let mut rejected = false;
                 for id in targets {
-                    s.shutdown_browser_surface(id);
-                    for engine in &mut s.split_engines {
-                        engine.close_surface_and_empty_pane(id);
-                    }
+                    rejected |= !matches!(
+                        s.close_browser_surface(id),
+                        crate::split_engine::CloseSurfaceResult::Closed
+                    );
                 }
-                s.trigger_session_save();
-                let _ = resp_tx.send(ok(req_id, json!({"success":true,"data":{}})));
+                let response = if rejected {
+                    err(req_id, "close_failed", "cannot close the final surface of a workspace; that browser remains running")
+                } else {
+                    ok(req_id, json!({"success":true,"data":{}}))
+                };
+                let _ = resp_tx.send(response);
                 return;
             }
             let s = state.borrow();

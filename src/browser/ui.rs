@@ -893,7 +893,16 @@ fn finish_browser_navigation(
 
 /// Close the browser preview and shut down the daemon (Ctrl+Shift+Q).
 pub fn handle_browser_close(state: &Rc<RefCell<AppState>>) {
-    state.borrow_mut().shutdown_browser();
+    let mut state = state.borrow_mut();
+    let targets: Vec<_> = state
+        .split_engines
+        .iter()
+        .flat_map(|engine| engine.browser_tabs())
+        .map(|widgets| widgets.uuid)
+        .collect();
+    for id in targets {
+        state.close_browser_surface(id);
+    }
 }
 
 #[cfg(test)]

@@ -758,6 +758,29 @@ impl AppState {
         }
     }
 
+    /// Close an existing browser tab before retiring its daemon; a rejected final-pane close keeps it usable.
+    /// GTK-only, with the same final-workspace policy as ordinary surface closure.
+    pub fn close_browser_surface(
+        &mut self,
+        id: uuid::Uuid,
+    ) -> crate::split_engine::CloseSurfaceResult {
+        use crate::split_engine::CloseSurfaceResult;
+        let Some(index) = self.split_engines.iter().position(|engine| {
+            engine
+                .browser_tabs()
+                .iter()
+                .any(|widgets| widgets.uuid == id)
+        }) else {
+            return CloseSurfaceResult::NotFound;
+        };
+        let result = self.split_engines[index].close_surface_and_empty_pane(id);
+        if matches!(result, CloseSurfaceResult::Closed) {
+            self.shutdown_browser_surface(id);
+            self.trigger_session_save();
+        }
+        result
+    }
+
     /// Retire exactly one browser surface without disturbing sibling sessions or focus.
     pub fn shutdown_browser_surface(&mut self, id: uuid::Uuid) {
         self.browser_surface_refs
