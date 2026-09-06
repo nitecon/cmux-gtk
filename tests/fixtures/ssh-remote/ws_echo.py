@@ -15,6 +15,10 @@ GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 def _recv_exact(conn: socket.socket, n: int, pending: bytearray | None = None) -> bytes:
+    """Consume buffered bytes before blocking for the remainder; raise on early EOF.
+
+    The caller owns any socket timeout and must bound the requested byte count.
+    """
     data = bytearray()
     if pending:
         take = min(len(pending), n)
@@ -30,6 +34,10 @@ def _recv_exact(conn: socket.socket, n: int, pending: bytearray | None = None) -
 
 
 def _recv_until(conn: socket.socket, marker: bytes, limit: int = 8192) -> tuple[bytes, bytearray]:
+    """Read through a delimiter, preserving trailing frame bytes for the next read.
+
+    Reject EOF or a receive buffer exceeding the limit, including trailing bytes.
+    """
     data = bytearray()
     while marker not in data:
         chunk = conn.recv(1024)
@@ -43,6 +51,10 @@ def _recv_until(conn: socket.socket, marker: bytes, limit: int = 8192) -> tuple[
 
 
 def _read_frame(conn: socket.socket, pending: bytearray | None = None) -> tuple[int, bytes]:
+    """Decode one fixture frame and unmask its payload when a mask is supplied.
+
+    This trusted fixture parser neither validates fragmentation nor caps payloads.
+    """
     first, second = _recv_exact(conn, 2, pending)
     opcode = first & 0x0F
     masked = (second & 0x80) != 0
@@ -60,6 +72,7 @@ def _read_frame(conn: socket.socket, pending: bytearray | None = None) -> tuple[
 
 
 def _send_frame(conn: socket.socket, opcode: int, payload: bytes) -> None:
+    """Send one final, unmasked server frame using the appropriate length encoding."""
     first = 0x80 | (opcode & 0x0F)
     length = len(payload)
     if length < 126:
@@ -72,6 +85,10 @@ def _send_frame(conn: socket.socket, opcode: int, payload: bytes) -> None:
 
 
 def handle_client(conn: socket.socket) -> None:
+    """Upgrade one connection, echo text, answer ping/close, and always close the socket.
+
+    Other opcodes are ignored; receive and protocol errors escape to the worker.
+    """
     try:
         request, pending = _recv_until(conn, b"\r\n\r\n")
         headers_raw = request.decode("utf-8", errors="replace").split("\r\n")
@@ -119,6 +136,10 @@ def handle_client(conn: socket.socket) -> None:
 
 
 def main() -> int:
+    """Listen on the configured fixture address until externally stopped.
+
+    Each accepted connection owns a daemon thread; process exit ends all workers.
+    """
     parser = argparse.ArgumentParser(description="WebSocket echo server")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=43174)
