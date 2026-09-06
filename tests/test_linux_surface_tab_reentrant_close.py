@@ -37,6 +37,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             "AGENT_BROWSER_SOCKET_DIR": str(browser_dir),
             "CMUX_AGENT_BROWSER": str(mock_browser), "CMUX_LOG": str(diagnostic_log),
         }) as app:
+            app.cli("focus-surface", browser_id)
             app.wait_for(lambda: recorded(f"browser tab wiring complete uuid={browser_id}"), "browser wiring")
             panes = json.loads(app.cli("list-panes", "--json"))["panes"]
             assert len(panes) == 1, panes
@@ -97,8 +98,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
     finally:
         # The mock is a detached child of its CLI, not of this fixture. Normal cmux
         # shutdown sends close; retain explicit signalling for failed startup paths.
-        pid_file = browser_dir / "mock.pid"
-        if pid_file.exists():
+        for pid_file in browser_dir.glob("*.pid"):
             try:
                 os.kill(int(pid_file.read_text().strip()), signal.SIGTERM)
             except (ProcessLookupError, FileNotFoundError):

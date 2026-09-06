@@ -10,6 +10,40 @@ use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// Own provisional startup cleanup across completion, cancellation and dropped GTK futures.
+pub(crate) struct StartupOwner {
+    state: std::rc::Weak<RefCell<AppState>>,
+    session: String,
+}
+
+impl StartupOwner {
+    /// Capture only weak application ownership; successful installation removes the provisional slot.
+    pub(crate) fn new(state: &Rc<RefCell<AppState>>, session: String) -> Self {
+        Self {
+            state: Rc::downgrade(state),
+            session,
+        }
+    }
+}
+
+impl Drop for StartupOwner {
+    /// Cleanup is deferred if GTK emits destruction inside an existing model borrow.
+    fn drop(&mut self) {
+        /// Retire the matching provisional owner without reentrant GTK borrowing.
+        fn retire(state: std::rc::Weak<RefCell<AppState>>, session: String) {
+            let Some(owner) = state.upgrade() else {
+                return;
+            };
+            if let Ok(mut owner) = owner.try_borrow_mut() {
+                owner.cancel_browser_startup(&session);
+            } else {
+                glib::idle_add_local_once(move || retire(state, session));
+            };
+        }
+        retire(self.state.clone(), self.session.clone());
+    }
+}
+
 /// Start preview initialization on Tokio and install its pane in the originally requested workspace.
 /// No GTK borrow spans I/O; shutdown cancels startup and stale manager/workspace results are ignored.
 pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
@@ -28,6 +62,10 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             activity.finish("missing_workspace");
             return;
         };
+        if s.browser_manager.is_some() {
+            activity.finish("overlap_rejected");
+            return;
+        }
         let browser = s
             .browser_manager
             .get_or_insert_with(super::BrowserManager::new);
@@ -37,8 +75,12 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             runtime.spawn(browser.prepare_preview_async("about:blank".into(), activity.id)),
         )
     };
+    let owner = StartupOwner::new(state, session.clone());
+    let cancel = crate::task::AbortOnDrop(task.abort_handle());
     let state = Rc::downgrade(state);
     glib::MainContext::default().spawn_local(async move {
+        let _owner = owner;
+        let _cancel = cancel;
         let binary = match task.await {
             Ok(Ok(binary)) => binary,
             Ok(Err(error)) => {
@@ -87,94 +129,140 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
     });
 }
 
-/// Reconnect the existing saved browser tabs sequentially on Tokio, retaining only surface identities.
-/// Closed tabs and replaced managers are skipped; one live daemon session still serves the last restored tab.
+/// Register lazy initialization for saved panes; hidden pages retain only their saved URL and widgets.
 pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
-    let (tabs, session) = {
-        let mut s = state.borrow_mut();
-        let tabs: Vec<_> = s
-            .split_engines
-            .iter()
-            .flat_map(|engine| engine.browser_tabs())
-            .map(|widgets| widgets.uuid)
-            .collect();
-        if tabs.is_empty() {
-            return;
+    let tabs: Vec<_> = state
+        .borrow()
+        .split_engines
+        .iter()
+        .flat_map(|engine| engine.browser_tabs())
+        .collect();
+    for widgets in tabs {
+        let uuid = widgets.uuid;
+        {
+            let mut state = state.borrow_mut();
+            if !state
+                .browser_surface_refs
+                .values()
+                .any(|value| value == &uuid.to_string())
+            {
+                state.browser_surface_counter += 1;
+                let reference = state.browser_surface_counter;
+                state
+                    .browser_surface_refs
+                    .insert(reference, uuid.to_string());
+            }
         }
-        let browser = s
-            .browser_manager
-            .get_or_insert_with(super::BrowserManager::new);
-        (tabs, browser.session_name.clone())
-    };
-    let state = Rc::downgrade(state);
+        let weak = Rc::downgrade(state);
+        widgets
+            .container
+            .connect_map(move |_| schedule_browser_restore(weak.clone(), uuid));
+        let weak = Rc::downgrade(state);
+        widgets.container.connect_destroy(move |_| {
+            if let Some(state) = weak.upgrade() {
+                retire_surface(state, uuid);
+            }
+        });
+        if widgets.container.is_mapped() {
+            schedule_browser_restore(Rc::downgrade(state), uuid);
+        }
+    }
+}
+
+/// Defer map signals past GTK model mutations; one manager identity prevents duplicate starts.
+fn schedule_browser_restore(state: std::rc::Weak<RefCell<AppState>>, uuid: uuid::Uuid) {
+    glib::idle_add_local_once(move || restore_browser_surface(state, uuid));
+}
+
+/// Start one visible restored surface through serialized worker admission and widget-owned cancellation.
+fn restore_browser_surface(state: std::rc::Weak<RefCell<AppState>>, uuid: uuid::Uuid) {
     glib::MainContext::default().spawn_local(async move {
-        for uuid in tabs {
-            let mut activity = super::metrics::Activity::begin("preview_restore", None);
-            let completion = {
-                let Some(state) = state.upgrade() else {
-                    return;
-                };
-                let s = state.borrow();
-                let Some(widgets) = find_browser_tab(&s, uuid) else {
-                    continue;
-                };
-                let (Some(browser), Some(runtime)) =
-                    (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
-                else {
-                    return;
-                };
-                if browser.session_name != session {
-                    return;
-                }
-                let url = widgets.url_entry.text().to_string();
-                let url = if url.is_empty() {
-                    "about:blank".into()
-                } else {
-                    url
-                };
-                let task = runtime.spawn(browser.prepare_preview_async(url, activity.id));
-                widget_task_result(&widgets.container, task)
-            };
-            let binary = match completion.await {
-                Some(Ok(Ok(binary))) => binary,
-                Some(Ok(Err(error))) => {
-                    activity.finish("error");
-                    eprintln!("cmux: failed to restore browser tab: {error}");
-                    continue;
-                }
-                Some(Err(_)) => {
-                    activity.finish("task_error");
-                    continue;
-                }
-                None => {
-                    activity.finish("cancelled");
-                    continue;
-                }
-            };
+        let mut activity = super::metrics::Activity::begin("preview_restore", None);
+        let (session, completion) = {
             let Some(state) = state.upgrade() else {
                 return;
             };
-            let widgets = {
-                let mut s = state.borrow_mut();
-                let Some(browser) = s
-                    .browser_manager
-                    .as_mut()
-                    .filter(|browser| browser.session_name == session)
-                else {
-                    return;
-                };
-                browser.binary_path = Some(binary);
-                browser.preview_state = super::PreviewState::Connected;
-                find_browser_tab(&s, uuid)
+            let mut s = state.borrow_mut();
+            let Some(widgets) = find_browser_tab(&s, uuid) else {
+                return;
             };
-            if let Some(widgets) = widgets {
-                wire_browser_tab(&state, widgets, activity.id);
-                activity.finish("success");
-            } else {
-                activity.finish("missing_surface");
+            if !widgets.container.is_mapped() || s.browser_sessions.contains_key(&uuid) {
+                return;
             }
+            let gate = s.browser_restore_gate.clone();
+            let Some(runtime) = s.runtime_handle.clone() else {
+                return;
+            };
+            let browser = s
+                .browser_sessions
+                .entry(uuid)
+                .or_insert_with(super::BrowserManager::new);
+            let session = browser.session_identity();
+            let url = widgets.url_entry.text().to_string();
+            let prepare = browser.prepare_preview_async(
+                if url.is_empty() {
+                    "about:blank".into()
+                } else {
+                    url
+                },
+                activity.id,
+            );
+            let task = runtime.spawn(async move {
+                let _permit = gate
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| "browser restore stopped".to_owned())?;
+                prepare.await
+            });
+            (session, widget_task_result(&widgets.container, task))
+        };
+        let completed = completion.await;
+        let Some(state) = state.upgrade() else {
+            return;
+        };
+        let widgets = {
+            let mut s = state.borrow_mut();
+            match completed {
+                Some(Ok(Ok(binary))) => {
+                    let Some(browser) = s
+                        .browser_sessions
+                        .get_mut(&uuid)
+                        .filter(|browser| browser.session_identity() == session)
+                    else {
+                        return;
+                    };
+                    browser.binary_path = Some(binary);
+                    browser.preview_state = super::PreviewState::Connected;
+                    find_browser_tab(&s, uuid)
+                }
+                _ => {
+                    activity.finish("error_or_cancelled");
+                    s.shutdown_browser_surface(uuid);
+                    None
+                }
+            }
+        };
+        if let Some(widgets) = widgets {
+            wire_browser_tab(&state, widgets, activity.id);
+            activity.finish("success");
+        } else {
+            state.borrow_mut().shutdown_browser_surface(uuid);
         }
     });
+}
+
+/// Defer retirement when GTK destruction is emitted during a model mutation.
+fn retire_surface(state: Rc<RefCell<AppState>>, id: uuid::Uuid) {
+    if let Ok(mut state) = state.try_borrow_mut() {
+        state.shutdown_browser_surface(id);
+    } else {
+        let state = Rc::downgrade(&state);
+        glib::idle_add_local_once(move || {
+            if let Some(state) = state.upgrade() {
+                retire_surface(state, id);
+            }
+        });
+    }
 }
 
 /// Find a surviving browser surface by its identity without persisting references across worker I/O.
@@ -187,7 +275,7 @@ fn find_browser_tab(state: &AppState, uuid: uuid::Uuid) -> Option<super::Preview
 }
 
 /// Attach streaming, navigation and input handlers to a browser tab with an initialized manager.
-/// GTK widget handlers stay on the main thread; mapped tabs restore their saved URL.
+/// GTK handlers capture stable surface identity; mapping an existing tab never navigates it.
 pub(crate) fn wire_browser_tab(
     state: &Rc<RefCell<AppState>>,
     widgets: crate::browser::PreviewPaneWidgets,
@@ -203,28 +291,35 @@ pub(crate) fn wire_browser_tab(
     {
         let mut s = state.borrow_mut();
         let runtime = s.runtime_handle.clone();
-        let bm = s.browser_manager.as_mut().unwrap();
+        if !s.browser_sessions.contains_key(&surface_uuid) {
+            if let Some(browser) = s.browser_manager.take() {
+                s.browser_sessions.insert(surface_uuid, browser);
+            }
+        }
+        let Some(bm) = s.browser_sessions.get_mut(&surface_uuid) else {
+            return;
+        };
         if let Some(ref rt) = runtime {
             bm.start_stream(rt, picture, Some(trace));
         }
+        if !s
+            .browser_surface_refs
+            .values()
+            .any(|id| id == &surface_uuid.to_string())
+        {
+            s.browser_surface_counter += 1;
+            let reference = s.browser_surface_counter;
+            s.browser_surface_refs
+                .insert(reference, surface_uuid.to_string());
+        }
     } // drop borrow
 
-    // agent-browser uses one independently managed browser session. When a
-    // saved browser surface becomes visible again, restore that surface's URL.
-    let mapped_visibility = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
-        widgets.container.is_mapped(),
-    ));
-    widgets.container.connect_map({
-        let state = Rc::downgrade(state);
-        let entry = url_entry.downgrade();
-        let visible = mapped_visibility.clone();
-        move |_| {
-            visible.store(true, std::sync::atomic::Ordering::Release);
-            restore_mapped_browser_url(state.clone(), entry.clone(), visible.clone());
-        }
-    });
-    widgets.container.connect_unmap(move |_| {
-        mapped_visibility.store(false, std::sync::atomic::Ordering::Release);
+    let closing_state = Rc::downgrade(state);
+    widgets.container.connect_destroy(move |_| {
+        let Some(state) = closing_state.upgrade() else {
+            return;
+        };
+        retire_surface(state, surface_uuid);
     });
 
     // Step 3b: Wire nav button signals (D-06, D-07)
@@ -246,7 +341,7 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_back) = state_for_back.upgrade() else {
                 return;
             };
-            run_browser_navigation(&state_for_back, &entry_for_back, "back");
+            run_browser_navigation(&state_for_back, surface_uuid, &entry_for_back, "back");
         });
 
         // Forward button
@@ -256,7 +351,7 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_fwd) = state_for_fwd.upgrade() else {
                 return;
             };
-            run_browser_navigation(&state_for_fwd, &entry_for_fwd, "forward");
+            run_browser_navigation(&state_for_fwd, surface_uuid, &entry_for_fwd, "forward");
         });
 
         // Reload button
@@ -266,7 +361,7 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_reload) = state_for_reload.upgrade() else {
                 return;
             };
-            run_browser_navigation(&state_for_reload, &entry_for_reload, "reload");
+            run_browser_navigation(&state_for_reload, surface_uuid, &entry_for_reload, "reload");
         });
 
         // Go button: reads URL entry, auto-prepends https://, navigates
@@ -277,7 +372,12 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_go) = state_for_go.upgrade() else {
                 return;
             };
-            navigate_browser_entry(&state_for_go, &url_entry_for_go, &picture_for_go);
+            navigate_browser_entry(
+                &state_for_go,
+                surface_uuid,
+                &url_entry_for_go,
+                &picture_for_go,
+            );
         });
     }
 
@@ -285,7 +385,7 @@ pub(crate) fn wire_browser_tab(
     let motion_tx = {
         let s = state.borrow();
         let runtime = s.runtime_handle.clone();
-        let bm = s.browser_manager.as_ref();
+        let bm = s.browser_sessions.get(&surface_uuid);
         match (runtime, bm) {
             (Some(rt), Some(bm)) => Some(crate::browser::spawn_motion_forwarder(
                 &rt,
@@ -303,7 +403,7 @@ pub(crate) fn wire_browser_tab(
             if let (Some(state), Some(picture)) =
                 (state_for_viewport.upgrade(), picture_for_viewport.upgrade())
             {
-                resize_browser_preview(&state, &picture);
+                resize_browser_preview(&state, surface_uuid, &picture);
             }
         });
     }
@@ -329,7 +429,7 @@ pub(crate) fn wire_browser_tab(
                 return;
             };
 
-            forward_mouse_input(&state_for_click, vec![
+            forward_mouse_input(&state_for_click, surface_uuid, vec![
                 serde_json::json!({"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1}),
                 serde_json::json!({"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1}),
             ]);
@@ -376,6 +476,7 @@ pub(crate) fn wire_browser_tab(
 
             if forward_mouse_input(
                 &state_for_scroll,
+                surface_uuid,
                 vec![serde_json::json!({
                     "type": "mouseWheel", "x": cx, "y": cy, "deltaX": 0, "deltaY": delta_y,
                 })],
@@ -399,7 +500,7 @@ pub(crate) fn wire_browser_tab(
             let Some(params) = keyboard_event(keyval, mods, true) else {
                 return gtk4::glib::Propagation::Proceed;
             };
-            if forward_key_input(&state, keycode, true, params) {
+            if forward_key_input(&state, surface_uuid, keycode, true, params) {
                 gtk4::glib::Propagation::Stop
             } else {
                 gtk4::glib::Propagation::Proceed
@@ -411,21 +512,21 @@ pub(crate) fn wire_browser_tab(
                 return;
             };
             if let Some(params) = keyboard_event(keyval, mods, false) {
-                forward_key_input(&state, keycode, false, params);
+                forward_key_input(&state, surface_uuid, keycode, false, params);
             }
         });
         let focus = gtk4::EventControllerFocus::new();
         let state_for_blur = Rc::downgrade(state);
         let session_for_blur = state
             .borrow()
-            .browser_manager
-            .as_ref()
+            .browser_sessions
+            .get(&surface_uuid)
             .map(|browser| browser.session_name.clone());
         focus.connect_leave(move |_| {
             if let (Some(state), Some(session)) =
                 (state_for_blur.upgrade(), session_for_blur.as_ref())
             {
-                release_browser_keys(state, session.clone());
+                release_browser_keys(state, surface_uuid, session.clone());
             }
         });
         picture_ref.add_controller(focus);
@@ -440,7 +541,7 @@ pub(crate) fn wire_browser_tab(
         let Some(state_for_entry) = state_for_entry.upgrade() else {
             return;
         };
-        navigate_browser_entry(&state_for_entry, entry, &picture_for_nav);
+        navigate_browser_entry(&state_for_entry, surface_uuid, entry, &picture_for_nav);
     });
 
     // Step 6: DevTools toggle (D-10)
@@ -468,7 +569,7 @@ pub(crate) fn wire_browser_tab(
                 scrolled.set_vexpand(true);
                 scrolled.add_css_class("devtools-overlay");
                 overlay.add_overlay(&scrolled);
-                load_devtools_snapshot(&state_for_devtools, &label);
+                load_devtools_snapshot(&state_for_devtools, surface_uuid, &label);
             }
         } else {
             // Remove the DevTools overlay
@@ -545,12 +646,16 @@ fn widget_task_result<T: 'static>(
 
 /// Start bounded snapshot I/O on Tokio without holding application state across execution.
 /// The overlay label owns result delivery and cancels the exchange when destroyed.
-fn load_devtools_snapshot(state: &Rc<RefCell<AppState>>, label: &gtk4::Label) {
+fn load_devtools_snapshot(
+    state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
+    label: &gtk4::Label,
+) {
     let mut activity = crate::browser::metrics::Activity::begin("devtools_snapshot", None);
     let task = {
         let state = state.borrow();
         let (Some(browser), Some(runtime)) = (
-            state.browser_manager.as_ref(),
+            state.browser_sessions.get(&surface_uuid),
             state.runtime_handle.as_ref(),
         ) else {
             activity.finish("unavailable");
@@ -597,37 +702,12 @@ fn finish_devtools_snapshot(
         label.set_text(&text);
     });
 }
-
-/// Submit the current visible address without GTK I/O; defer reentrant model borrows using weak owners.
-fn restore_mapped_browser_url(
-    state: std::rc::Weak<RefCell<AppState>>,
-    entry: glib::WeakRef<gtk4::Entry>,
-    visible: std::sync::Arc<std::sync::atomic::AtomicBool>,
-) {
-    let Some(widget) = entry.upgrade().filter(|widget| widget.is_mapped()) else {
-        return;
-    };
-    let Some(owner) = state.upgrade() else {
-        return;
-    };
-    let Ok(mut s) = owner.try_borrow_mut() else {
-        glib::idle_add_local_once(move || restore_mapped_browser_url(state, entry, visible));
-        return;
-    };
-    let url = widget.text().to_string();
-    if url.is_empty() {
-        return;
-    }
-    let Some(runtime) = s.runtime_handle.clone() else {
-        return;
-    };
-    if let Some(browser) = s.browser_manager.as_mut() {
-        browser.queue_mapped_url(&runtime, url, &visible);
-    }
-}
-
 /// Run initial viewport sizing on Tokio; destruction cancels I/O and GTK never awaits under a model borrow.
-fn resize_browser_preview(state: &Rc<RefCell<AppState>>, picture: &gtk4::Picture) {
+fn resize_browser_preview(
+    state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
+    picture: &gtk4::Picture,
+) {
     let (width, height) = (picture.width(), picture.height());
     if width <= 0 || height <= 0 {
         return;
@@ -635,9 +715,10 @@ fn resize_browser_preview(state: &Rc<RefCell<AppState>>, picture: &gtk4::Picture
     let mut activity = super::metrics::Activity::begin("viewport", None);
     let task = {
         let s = state.borrow();
-        let (Some(browser), Some(runtime)) =
-            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
-        else {
+        let (Some(browser), Some(runtime)) = (
+            s.browser_sessions.get(&surface_uuid),
+            s.runtime_handle.as_ref(),
+        ) else {
             activity.finish("unavailable");
             return;
         };
@@ -658,11 +739,11 @@ fn resize_browser_preview(state: &Rc<RefCell<AppState>>, picture: &gtk4::Picture
 }
 
 /// Release held keys for the originating manager; defer focus signals emitted during model mutation.
-fn release_browser_keys(state: Rc<RefCell<AppState>>, session: String) {
+fn release_browser_keys(state: Rc<RefCell<AppState>>, surface_uuid: uuid::Uuid, session: String) {
     if let Ok(mut s) = state.try_borrow_mut() {
         if let Some(browser) = s
-            .browser_manager
-            .as_mut()
+            .browser_sessions
+            .get_mut(&surface_uuid)
             .filter(|browser| browser.session_name == session)
         {
             browser.release_input_keys();
@@ -671,26 +752,31 @@ fn release_browser_keys(state: Rc<RefCell<AppState>>, session: String) {
         let state = Rc::downgrade(&state);
         glib::idle_add_local_once(move || {
             if let Some(state) = state.upgrade() {
-                release_browser_keys(state, session);
+                release_browser_keys(state, surface_uuid, session);
             }
         });
     }
 }
 
 /// Admit a mouse gesture under a short GTK borrow; the manager owns ordered socket delivery.
-fn forward_mouse_input(state: &Rc<RefCell<AppState>>, events: Vec<serde_json::Value>) -> bool {
+fn forward_mouse_input(
+    state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
+    events: Vec<serde_json::Value>,
+) -> bool {
     let mut s = state.borrow_mut();
     let Some(runtime) = s.runtime_handle.clone() else {
         return false;
     };
-    s.browser_manager
-        .as_mut()
+    s.browser_sessions
+        .get_mut(&surface_uuid)
         .is_some_and(|browser| browser.queue_mouse(&runtime, events))
 }
 
 /// Admit a physical key transition without blocking GTK, reserving future release capacity.
 fn forward_key_input(
     state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
     physical: u32,
     pressed: bool,
     params: serde_json::Value,
@@ -699,20 +785,26 @@ fn forward_key_input(
     let Some(runtime) = s.runtime_handle.clone() else {
         return false;
     };
-    s.browser_manager
-        .as_mut()
+    s.browser_sessions
+        .get_mut(&surface_uuid)
         .is_some_and(|browser| browser.queue_key(&runtime, physical, pressed, params))
 }
 
 /// Run history navigation on Tokio and update its surviving address widget on GTK.
 /// Widget destruction cancels the child operation; no AppState borrow crosses an await.
-fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, command: &str) {
+fn run_browser_navigation(
+    state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
+    entry: &gtk4::Entry,
+    command: &str,
+) {
     let mut activity = crate::browser::metrics::Activity::begin("history_navigation", None);
     let task = {
         let s = state.borrow();
-        let (Some(browser), Some(runtime)) =
-            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
-        else {
+        let (Some(browser), Some(runtime)) = (
+            s.browser_sessions.get(&surface_uuid),
+            s.runtime_handle.as_ref(),
+        ) else {
             activity.finish("unavailable");
             return;
         };
@@ -724,6 +816,7 @@ fn run_browser_navigation(state: &Rc<RefCell<AppState>>, entry: &gtk4::Entry, co
 /// Normalize a typed address and submit viewport/open commands through the shared navigation gate.
 fn navigate_browser_entry(
     state: &Rc<RefCell<AppState>>,
+    surface_uuid: uuid::Uuid,
     entry: &gtk4::Entry,
     picture: &gtk4::Picture,
 ) {
@@ -736,9 +829,10 @@ fn navigate_browser_entry(
     let mut activity = crate::browser::metrics::Activity::begin("url_navigation", None);
     let task = {
         let s = state.borrow();
-        let (Some(browser), Some(runtime)) =
-            (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
-        else {
+        let (Some(browser), Some(runtime)) = (
+            s.browser_sessions.get(&surface_uuid),
+            s.runtime_handle.as_ref(),
+        ) else {
             activity.finish("unavailable");
             return;
         };

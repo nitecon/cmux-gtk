@@ -128,7 +128,7 @@ def main():
                     target = json.loads(app.cli("new-workspace", "--json"))["uuid"]
                     before = app.surfaces()
                     finish_open(pending, browser_dir, True)
-                    assert app.surfaces() == before, "browser completion changed the new workspace"
+                    assert [row for row in app.surfaces() if row["workspace_uuid"] == target] == [row for row in before if row["workspace_uuid"] == target], "browser completion changed the new workspace"
                     assert json.loads(app.cli("current-workspace", "--json"))["uuid"] == target
 
                 for invalid in (str(uuid.uuid4()), 17):
@@ -159,8 +159,7 @@ def main():
                     assert app.surfaces() == before, "stale completion mutated another workspace"
                 app.cli("ping")
         finally:
-            pid_file = browser_dir / "mock.pid"
-            if pid_file.exists():
+            for pid_file in browser_dir.glob("*.pid"):
                 try:
                     os.kill(int(pid_file.read_text().strip()), signal.SIGTERM)
                 except (ProcessLookupError, FileNotFoundError):

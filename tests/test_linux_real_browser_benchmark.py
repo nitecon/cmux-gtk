@@ -137,6 +137,22 @@ def measure(root, report):
 
             app.wait_for(failure_correlated, "failed browser exchange correlation")
             assert selected_surface(app) == terminal
+            second_open = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/", timeout=35))
+            assert second_open["success"] is True and second_open["uuid"] != opened["uuid"]
+            second = second_open["surface_ref"]
+
+            def other_browser(*args):
+                """Route commands to the second real browser surface without changing selection."""
+                result = json.loads(app.cli("browser", args[0], second, *args[1:]))
+                assert result["success"] is True
+                return result["data"]
+
+            assert other_browser("eval", "window.count")["result"] == 0
+            other_browser("fill", "#name", "second page")
+            other_browser("click", "#increment")
+            assert browser("eval", "({value: document.querySelector('#name').value, count: window.count})")["result"] == {"value": "fixture-14", "count": 15}
+            assert other_browser("eval", "({value: document.querySelector('#name').value, count: window.count})")["result"] == {"value": "second page", "count": 1}
+            assert selected_surface(app) == terminal
             local_page = root / "local page #?.html"
             (root / "local-style.css").write_text("h1 { color: rgb(12, 34, 56); }")
             (root / "local-script.js").write_text("window.localScriptReady = 'relative script loaded';")
@@ -159,6 +175,13 @@ def measure(root, report):
             assert browser("eval", "location.href")["result"] == local_page.as_uri()
             assert selected_surface(app) == terminal, "document/history navigation stole focus"
             report["local_document_and_history"] = "passed"
+            assert other_browser("eval", "({value: document.querySelector('#name').value, count: window.count})")["result"] == {"value": "second page", "count": 1}
+            app.cli("browser", "close", "--surface", second)
+            assert browser("eval", "document.title")["result"] == "Local document"
+            stale = subprocess.run(["target/release/cmux", "--socket", str(app.socket_path), "browser", "eval", second, "document.title"],
+                                   env=app.environment, capture_output=True, text=True, timeout=15)
+            assert stale.returncode != 0, "closed browser reference redirected to surviving page"
+            report["independent_browser_surfaces"] = "passed"
             app.cli("browser", "close")
             app.wait_for(lambda: not list(browser_dir.glob("*.pid")), "browser daemon shutdown")
     finally:

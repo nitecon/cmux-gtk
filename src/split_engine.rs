@@ -1226,22 +1226,6 @@ impl SplitEngine {
     }
 }
 
-/// Return the first browser picture in a subtree for socket-driven frames.
-pub fn first_browser_picture(node: &SplitNode) -> Option<gtk4::Picture> {
-    match node {
-        SplitNode::Leaf { surfaces, .. } => surfaces.borrow().iter().find_map(|surface| {
-            if let PaneSurface::Browser { widgets, .. } = surface {
-                Some(widgets.picture.clone())
-            } else {
-                None
-            }
-        }),
-        SplitNode::Split { start, end, .. } => {
-            first_browser_picture(start).or_else(|| first_browser_picture(end))
-        }
-    }
-}
-
 /// Collect browser widgets with their stable surface IDs across the pane tree.
 fn collect_browser_tabs(node: &SplitNode, out: &mut Vec<crate::browser::PreviewPaneWidgets>) {
     match node {

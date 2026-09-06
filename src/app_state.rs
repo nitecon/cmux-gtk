@@ -44,8 +44,12 @@ pub struct AppState {
     /// Maps workspace_id -> SshBridge for remote workspaces.
     pub workspace_bridges:
         std::collections::HashMap<u64, std::sync::Arc<crate::ssh::bridge::SshBridge>>,
-    /// Browser preview daemon manager (Phase 8).
+    /// Provisional session owned by an in-flight UI or RPC startup until a surface is created.
     pub browser_manager: Option<crate::browser::BrowserManager>,
+    /// Serialize lazy browser restoration without launching hidden pages.
+    pub browser_restore_gate: std::sync::Arc<tokio::sync::Semaphore>,
+    /// Independent live or starting daemon sessions, keyed by the owning GTK surface UUID.
+    pub browser_sessions: std::collections::HashMap<uuid::Uuid, crate::browser::BrowserManager>,
     /// Retain asynchronous daemon-close tasks for the post-GTK shutdown drain.
     pub browser_shutdown_tasks: crate::browser::ShutdownTasks,
     /// Next browser surface short-ref counter (monotonically increasing, per D-06).
@@ -83,6 +87,8 @@ impl AppState {
             ssh_task_handles: std::collections::HashMap::new(),
             workspace_bridges: std::collections::HashMap::new(),
             browser_manager: None,
+            browser_sessions: std::collections::HashMap::new(),
+            browser_restore_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
             browser_shutdown_tasks: Default::default(),
             browser_surface_counter: 0,
             browser_surface_refs: std::collections::HashMap::new(),
@@ -715,9 +721,19 @@ impl AppState {
 
     /// Remove the manager and cancel its local work now; close its daemon on Tokio without GTK I/O.
     pub fn shutdown_browser(&mut self) {
-        let Some(browser) = self.browser_manager.take() else {
-            return;
-        };
+        let sessions = std::mem::take(&mut self.browser_sessions);
+        for (_, browser) in sessions {
+            self.retire_browser_session(browser);
+        }
+        if let Some(browser) = self.browser_manager.take() {
+            self.retire_browser_session(browser);
+        }
+        self.browser_surface_refs.clear();
+    }
+
+    /// Transfer one session's shutdown future to the shared bounded post-GTK drain.
+    /// Local input, navigation and frame workers stop synchronously before the asynchronous close.
+    fn retire_browser_session(&mut self, browser: crate::browser::BrowserManager) {
         let close = browser.shutdown();
         if let Some(runtime) = self.runtime_handle.as_ref() {
             let mut tasks = self.browser_shutdown_tasks.borrow_mut();
@@ -729,6 +745,28 @@ impl AppState {
                 "browser.shutdown.runtime_unavailable",
                 serde_json::json!({}),
             );
+        }
+    }
+
+    /// Retire exactly one browser surface without disturbing sibling sessions or focus.
+    pub fn shutdown_browser_surface(&mut self, id: uuid::Uuid) {
+        self.browser_surface_refs
+            .retain(|_, value| value != &id.to_string());
+        if let Some(browser) = self.browser_sessions.remove(&id) {
+            self.retire_browser_session(browser);
+        }
+    }
+
+    /// Retire a failed provisional startup only if its session still owns the admission slot.
+    pub fn cancel_browser_startup(&mut self, session: &str) {
+        if self
+            .browser_manager
+            .as_ref()
+            .is_some_and(|browser| browser.session_identity() == session)
+        {
+            if let Some(browser) = self.browser_manager.take() {
+                self.retire_browser_session(browser);
+            }
         }
     }
 

@@ -81,8 +81,38 @@ fn resolve_surface_ref(
             return Err((format!("surface:{} not found", n), available));
         }
     }
-    // Treat as UUID directly
-    Ok(surface_ref.to_string())
+    if let Ok(id) = uuid::Uuid::parse_str(surface_ref) {
+        if refs
+            .values()
+            .any(|value| uuid::Uuid::parse_str(value).ok() == Some(id))
+        {
+            return Ok(id.to_string());
+        }
+    }
+    Err((
+        "browser surface not found".into(),
+        refs.keys().map(|key| format!("surface:{key}")).collect(),
+    ))
+}
+
+/// Resolve explicit browser identity or the selected browser; a sole session is an unambiguous fallback.
+fn browser_target(state: &crate::app_state::AppState, target: Option<&str>) -> Option<uuid::Uuid> {
+    if let Some(target) = target {
+        let value = resolve_surface_ref(target, &state.browser_surface_refs).ok()?;
+        let id = uuid::Uuid::parse_str(&value).ok()?;
+        return state.browser_sessions.contains_key(&id).then_some(id);
+    }
+    let selected = state
+        .split_engines
+        .get(state.active_index)
+        .and_then(|engine| engine.active_pane_uuid())
+        .and_then(|id| uuid::Uuid::parse_str(&id).ok());
+    selected
+        .filter(|id| state.browser_sessions.contains_key(id))
+        .or_else(|| {
+            (state.browser_sessions.len() == 1)
+                .then(|| *state.browser_sessions.keys().next().unwrap())
+        })
 }
 
 /// Dispatch a SocketCommand on the GTK main thread.
@@ -1011,6 +1041,41 @@ fn handle_socket_command_traced(
         }
 
         SocketCommand::BrowserStreamEnable { req_id, resp_tx } => {
+            let s = state.borrow();
+            if !s.browser_sessions.is_empty() {
+                let Some(browser) =
+                    browser_target(&s, None).and_then(|id| s.browser_sessions.get(&id))
+                else {
+                    let _ = resp_tx.send(err(
+                        req_id,
+                        "surface_not_found",
+                        "select a browser surface for streaming",
+                    ));
+                    return;
+                };
+                let Some(runtime) = s.runtime_handle.clone() else {
+                    let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
+                    return;
+                };
+                let exchange = browser.send_command_async(
+                    "stream_enable",
+                    json!({}),
+                    trace_id
+                        .as_deref()
+                        .and_then(|id| uuid::Uuid::parse_str(id).ok()),
+                );
+                drop(s);
+                spawn_browser_exchange(
+                    &runtime,
+                    exchange,
+                    req_id,
+                    resp_tx,
+                    "stream_error",
+                    trace_id,
+                );
+                return;
+            }
+            drop(s);
             start_browser_lifecycle(
                 state,
                 crate::browser::StartupRequest::Stream,
@@ -1022,7 +1087,8 @@ fn handle_socket_command_traced(
 
         SocketCommand::BrowserStreamDisable { req_id, resp_tx } => {
             let s = state.borrow();
-            let Some(browser) = s.browser_manager.as_ref() else {
+            let Some(browser) = browser_target(&s, None).and_then(|id| s.browser_sessions.get(&id))
+            else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
                 return;
             };
@@ -1050,17 +1116,18 @@ fn handle_socket_command_traced(
 
         SocketCommand::BrowserList { req_id, resp_tx } => {
             let s = state.borrow();
-            let surfaces: Vec<serde_json::Value> = s
-                .browser_surface_refs
-                .iter()
-                .map(|(ref_id, uuid)| {
-                    serde_json::json!({
-                        "ref": format!("surface:{}", ref_id),
-                        "uuid": uuid,
-                        "status": "registered",
-                    })
-                })
-                .collect();
+            let surfaces: Vec<_> = s.split_engines.iter().enumerate().flat_map(|(index, engine)| {
+                engine.browser_tabs().into_iter().map(move |widgets| (index, widgets))
+            }).map(|(index, widgets)| {
+                let id = widgets.uuid;
+                let reference = s.browser_surface_refs.iter().find(|(_, value)| *value == &id.to_string()).map(|(reference, _)| format!("surface:{reference}"));
+                let status = match s.browser_sessions.get(&id) {
+                    Some(browser) if matches!(browser.preview_state, crate::browser::PreviewState::Connected) => "connected",
+                    Some(_) => "starting",
+                    None => "suspended",
+                };
+                json!({"ref":reference,"uuid":id,"workspace_uuid":s.workspaces[index].uuid,"status":status,"url":widgets.url_entry.text().to_string()})
+            }).collect();
             let _ = resp_tx.send(ok(req_id, serde_json::json!({"surfaces": surfaces})));
         }
 
@@ -1072,24 +1139,51 @@ fn handle_socket_command_traced(
             surface_ref,
             resp_tx,
         } => {
-            let s = state.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                // Resolve surface ref if provided
-                if let Some(ref sref) = surface_ref {
-                    match resolve_surface_ref(sref, &s.browser_surface_refs) {
-                        Ok(uuid) => {
-                            if let Some(obj) = params.as_object_mut() {
-                                obj.remove("surface_ref");
-                                obj.insert("surface_id".to_string(), serde_json::json!(uuid));
-                            }
-                        }
-                        Err((msg, available)) => {
-                            let mut response = err(req_id, "surface_not_found", &msg);
-                            response["available"] = json!(available);
-                            let _ = resp_tx.send(response);
-                            return;
-                        }
+            if action == "close" {
+                let mut s = state.borrow_mut();
+                let targets: Vec<_> = if surface_ref.is_none() {
+                    s.split_engines
+                        .iter()
+                        .flat_map(|engine| engine.browser_tabs())
+                        .map(|widgets| widgets.uuid)
+                        .collect()
+                } else if let Some(id) = surface_ref
+                    .as_deref()
+                    .and_then(|target| resolve_surface_ref(target, &s.browser_surface_refs).ok())
+                    .and_then(|value| uuid::Uuid::parse_str(&value).ok())
+                {
+                    vec![id]
+                } else {
+                    let _ = resp_tx.send(err(
+                        req_id,
+                        "surface_not_found",
+                        "browser surface not found",
+                    ));
+                    return;
+                };
+                for id in targets {
+                    s.shutdown_browser_surface(id);
+                    for engine in &mut s.split_engines {
+                        engine.close_surface_and_empty_pane(id);
                     }
+                }
+                s.trigger_session_save();
+                let _ = resp_tx.send(ok(req_id, json!({"success":true,"data":{}})));
+                return;
+            }
+            let s = state.borrow();
+            let Some(id) = browser_target(&s, surface_ref.as_deref()) else {
+                let _ = resp_tx.send(err(
+                    req_id,
+                    "surface_not_found",
+                    "select or specify a live browser surface",
+                ));
+                return;
+            };
+            if let Some(bm) = s.browser_sessions.get(&id) {
+                if let Some(params) = params.as_object_mut() {
+                    params.remove("surface_ref");
+                    params.remove("surface_id");
                 }
                 // Translate cmux CLI action names to agent-browser action names
                 let daemon_action = match action.as_str() {
@@ -1105,6 +1199,7 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
                     return;
                 };
+                let session = bm.session_identity();
                 let exchange = bm.send_command_async(
                     daemon_action,
                     params,
@@ -1112,15 +1207,54 @@ fn handle_socket_command_traced(
                         .as_deref()
                         .and_then(|id| uuid::Uuid::parse_str(id).ok()),
                 );
+                let (url_tx, url_rx) = tokio::sync::oneshot::channel();
                 drop(s);
                 spawn_browser_exchange(
                     &runtime,
-                    exchange,
+                    async move {
+                        let result = exchange.await?;
+                        if result.get("success").and_then(Value::as_bool) != Some(false) {
+                            if let Some(url) = result
+                                .get("data")
+                                .and_then(|data| data.get("url"))
+                                .and_then(Value::as_str)
+                                .filter(|url| url.len() <= 8192)
+                            {
+                                let _ = url_tx.send(url.to_owned());
+                            }
+                        }
+                        Ok(result)
+                    },
                     req_id,
                     resp_tx,
                     "browser_error",
                     trace_id,
                 );
+                let weak = std::rc::Rc::downgrade(state);
+                glib::MainContext::default().spawn_local(async move {
+                    let Ok(url) = url_rx.await else {
+                        return;
+                    };
+                    let Some(state) = weak.upgrade() else {
+                        return;
+                    };
+                    let s = state.borrow();
+                    if s.browser_sessions
+                        .get(&id)
+                        .is_none_or(|browser| browser.session_identity() != session)
+                    {
+                        return;
+                    }
+                    if let Some(widgets) = s
+                        .split_engines
+                        .iter()
+                        .flat_map(|engine| engine.browser_tabs())
+                        .find(|widgets| widgets.uuid == id)
+                    {
+                        widgets.url_entry.set_text(&url);
+                        s.trigger_session_save();
+                    }
+                });
             } else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
             }
@@ -1136,7 +1270,12 @@ fn start_browser_lifecycle(
     mut resp_tx: super::commands::RespTx,
     trace_id: Option<String>,
 ) {
-    let is_open = matches!(request, crate::browser::StartupRequest::Open(_));
+    let initial_url = match &request {
+        crate::browser::StartupRequest::Open(params) => {
+            params.get("url").and_then(Value::as_str).map(str::to_owned)
+        }
+        _ => None,
+    };
     let trace = trace_id
         .as_deref()
         .and_then(|id| uuid::Uuid::parse_str(id).ok())
@@ -1173,6 +1312,10 @@ fn start_browser_lifecycle(
                 .get(s.active_index)
                 .map(|workspace| workspace.uuid),
         };
+        if s.browser_manager.is_some() {
+            let _ = resp_tx.send(err(req_id, "busy", "another browser is starting"));
+            return;
+        }
         let browser = s
             .browser_manager
             .get_or_insert_with(crate::browser::BrowserManager::new);
@@ -1183,9 +1326,11 @@ fn start_browser_lifecycle(
         )
     };
     let guard = crate::task::AbortOnDrop(task.abort_handle());
+    let owner = crate::browser::ui::StartupOwner::new(state, session.clone());
     let state = std::rc::Rc::downgrade(state);
     glib::MainContext::default().spawn_local(async move {
         let _guard = guard;
+        let _owner = owner;
         let mut activity = crate::browser::metrics::Activity::begin("rpc_startup", Some(trace));
         let completed = tokio::select! {
             biased;
@@ -1208,7 +1353,7 @@ fn start_browser_lifecycle(
         let Some(state) = state.upgrade() else {
             return;
         };
-        let (new_widgets, picture, runtime) = {
+        let new_widgets = {
             let mut s = state.borrow_mut();
             if !s
                 .browser_manager
@@ -1233,37 +1378,33 @@ fn start_browser_lifecycle(
                 ));
                 return;
             };
-            if is_open {
+            let widgets = s
+                .split_engines
+                .get_mut(index)
+                .and_then(|engine| engine.add_preview(false));
+            if let Some(widgets) = &widgets {
+                if let Some(url) = &initial_url {
+                    widgets.url_entry.set_text(url);
+                }
                 s.browser_surface_counter += 1;
                 let ref_id = s.browser_surface_counter;
-                let uuid = result
-                    .get("id")
-                    .or_else(|| result.get("surface_id"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_owned();
-                s.browser_surface_refs.insert(ref_id, uuid.clone());
+                let id = widgets.uuid;
+                s.browser_surface_refs.insert(ref_id, id.to_string());
                 if let Some(fields) = result.as_object_mut() {
                     fields.insert("surface_ref".into(), json!(format!("surface:{ref_id}")));
-                    fields.insert("uuid".into(), json!(uuid));
+                    fields.insert("uuid".into(), json!(id));
                 }
             }
-            let mut widgets = None;
-            let picture = s.split_engines.get_mut(index).and_then(|engine| {
-                find_preview_picture(&engine.root).or_else(|| {
-                    widgets = engine.add_preview(false);
-                    widgets.as_ref().map(|widgets| widgets.picture.clone())
-                })
-            });
-            (widgets, picture, s.runtime_handle.clone())
+            widgets
         };
         if let Some(widgets) = new_widgets {
             crate::browser::ui::wire_browser_tab(&state, widgets, activity.id);
-        } else if let (Some(picture), Some(runtime)) = (picture, runtime) {
-            if let Some(browser) = state.borrow_mut().browser_manager.as_mut() {
-                browser.start_stream(&runtime, picture, Some(activity.id));
-            }
+        } else {
+            activity.finish("missing_surface");
+            let _ = resp_tx.send(err(req_id, "not_found", "Could not create browser surface"));
+            return;
         }
+        state.borrow().trigger_session_save();
         activity.finish("success");
         let _ = resp_tx.send(ok(req_id, result));
     });
@@ -1298,11 +1439,6 @@ fn spawn_browser_exchange(
             }),
         );
     });
-}
-
-/// Walk the split tree to find the first Preview node's Picture widget.
-fn find_preview_picture(node: &crate::split_engine::SplitNode) -> Option<gtk4::Picture> {
-    crate::split_engine::first_browser_picture(node)
 }
 
 #[cfg(test)]

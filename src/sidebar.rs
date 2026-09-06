@@ -476,8 +476,8 @@ mod lifecycle_tests {
                 "closed workspace retained by a signal callback"
             );
         }
-        state.borrow_mut().browser_manager = Some(crate::browser::BrowserManager::new());
         for id in 1..=20 {
+            state.borrow_mut().browser_manager = Some(crate::browser::BrowserManager::new());
             let widgets = crate::browser::create_preview_pane(id);
             let weak = widgets.container.downgrade();
             crate::browser::ui::wire_browser_tab(&state, widgets, uuid::Uuid::new_v4());

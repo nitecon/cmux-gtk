@@ -246,3 +246,9 @@ The optimized real-browser Actions benchmark now opens a local HTML document thr
 ## Independent browser ownership audit
 
 The source audit confirms that browser panes still share one manager/page and that mapped-tab selection reopens URLs. Backend IDs in the browser reference map are not reliable GTK surface identities. [Independent browser surface ownership](BrowserSurfaceOwnership.md) records the concrete replacement and its multi-surface DOM/history/preview, cancellation and total-resource verification gates. This is an implementation plan; it does not mark browser parity complete.
+
+### Independent browser surfaces — implementation awaiting Actions
+
+Browser panes now own private daemon sessions keyed by their real GTK surface UUID. Creating another page preserves existing DOM and history; callbacks, agent commands, frame streams and shutdown route to that owner. Stale references fail instead of falling through to another page. Saved browser panes initialize lazily when mapped through serialized restore admission; close includes suspended panes. RPC URL metadata updates the owning saved address. Retired mapped-tab URL reopening has been removed.
+
+The real Chromium Actions benchmark now opens two pages, independently mutates their DOM, navigates one through local documents and history, closes the other, and checks that stale commands fail while the survivor remains usable. Runtime verification is pending. Remaining browser gaps include agent-triggered background initialization of suspended surfaces, complete page-driven URL reconciliation, total browser-process memory accounting and resident-page bounds. This checkpoint does not complete browser or overall upstream parity.

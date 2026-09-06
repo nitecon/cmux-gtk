@@ -25,7 +25,7 @@ def run_daemon(session):
     server.bind(str(socket_path))
     server.listen()
     (root / f"{session}.stream").write_text("9\n", encoding="utf-8")
-    (root / "mock.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
+    (root / f"{session}.pid").write_text(f"{os.getpid()}\n", encoding="utf-8")
     while True:
         connection, _ = server.accept()
         with connection:
@@ -48,7 +48,7 @@ def run_daemon(session):
                     server.close()
                     socket_path.unlink(missing_ok=True)
                     (root / f"{session}.stream").unlink(missing_ok=True)
-                    (root / "mock.pid").unlink(missing_ok=True)
+                    (root / f"{session}.pid").unlink(missing_ok=True)
                     return
 
 
