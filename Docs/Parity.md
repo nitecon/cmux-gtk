@@ -322,3 +322,7 @@ Inspected the shared browser launch path, agent-browser public proxy flags and C
 ### Remote browser transport foundation
 
 Added a workspace-retained SOCKS5 endpoint, bounded generation-qualified admission and shared remote TCP transfer ownership. Protocol coverage preserves bytes following CONNECT and rejects unsupported authentication. Strict Clippy passes; Actions runtime verification is pending. Browser startup configuration and end-to-end remote origin verification remain unimplemented.
+
+### Remote browser launch integration
+
+UI, RPC and restored browser managers now capture their owning workspace proxy, retain its bridge through shutdown and pass explicit SOCKS/loopback settings after bounded readiness. Added child-process argument coverage; strict Clippy passes, runtime verification pending. Actions 34057511902 passed at 77ab1590 for the earlier half-close implementation. This does not verify the later SOCKS transport or browser wiring. Full remote web-origin and reconnect evidence remain open.

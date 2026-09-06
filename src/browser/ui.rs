@@ -66,9 +66,15 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
             activity.finish("overlap_rejected");
             return;
         }
-        let browser = s
-            .browser_manager
-            .get_or_insert_with(super::BrowserManager::new);
+        let manager = match super::BrowserManager::for_workspace(&s, workspace) {
+            Ok(manager) => manager,
+            Err(error) => {
+                activity.finish("unavailable");
+                eprintln!("cmux: browser startup failed: {error}");
+                return;
+            }
+        };
+        let browser = s.browser_manager.insert(manager);
         (
             browser.session_name.clone(),
             workspace,
@@ -238,10 +244,18 @@ pub(crate) async fn initialize_browser_surface(
             .runtime_handle
             .clone()
             .ok_or("async runtime unavailable")?;
-        let browser = s
-            .browser_sessions
-            .entry(uuid)
-            .or_insert_with(super::BrowserManager::new);
+        let index = s
+            .split_engines
+            .iter()
+            .position(|engine| engine.browser_tabs().iter().any(|tab| tab.uuid == uuid))
+            .ok_or("browser workspace missing")?;
+        let workspace = s
+            .workspaces
+            .get(index)
+            .ok_or("browser workspace missing")?
+            .uuid;
+        let manager = super::BrowserManager::for_workspace(&s, workspace)?;
+        let browser = s.browser_sessions.entry(uuid).or_insert(manager);
         let session = browser.session_identity();
         let url = widgets.url_entry.text().to_string();
         let prepare = browser.prepare_preview_async(

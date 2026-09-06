@@ -77,3 +77,8 @@ content:
     - Workspace bridge retains a loopback SOCKS listener across SSH reconnects. Lifecycle-owned accept work caps negotiation at sixteen tasks with a five-second deadline and captures current generation admission at accept.
     - Validated no-auth CONNECT requests enter a sixteen-slot channel and share sixteen transfer permits with discovered port clients. Hostname resolution occurs remotely; success follows subscription, and all transfers share half-close and acknowledged cleanup.
     - Browser startup is not wired yet. Protocol tests cover hostname payload preservation and unsupported authentication; runtime and full browser origin verification remain pending Actions.
+
+  browser_proxy_startup:
+    - BrowserManager.for_workspace captures a remote bridge for UI, background RPC and suspended page initialization, retaining its bound endpoint through bounded daemon shutdown.
+    - Startup waits at most five seconds for current proxy admission inside the fifteen-second transaction, then passes explicit SOCKS proxy and <-loopback> bypass arguments. Missing or unavailable remote transport fails without launching with local defaults.
+    - Actual child argument coverage is added; namespace-isolated remote web, WebSocket and reconnect verification remain pending Actions.

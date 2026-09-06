@@ -85,6 +85,7 @@ pub enum PreviewState {
 /// Own daemon discovery and the preview stream task for this application session.
 pub struct BrowserManager {
     session_name: String,
+    remote_bridge: Option<std::sync::Arc<crate::ssh::bridge::SshBridge>>,
     navigation_gate: std::sync::Arc<tokio::sync::Semaphore>,
     navigation_shutdown: tokio::sync::watch::Sender<bool>,
     binary_path: Option<PathBuf>,
@@ -100,6 +101,7 @@ impl BrowserManager {
     /// cannot navigate or shut down each other through a shared session name.
     pub fn new() -> Self {
         BrowserManager {
+            remote_bridge: None,
             session_name: format!("cmux-{}", Uuid::new_v4().simple()),
             navigation_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
             navigation_shutdown: tokio::sync::watch::channel(false).0,
@@ -108,6 +110,29 @@ impl BrowserManager {
             input_queue: None,
             preview_state: PreviewState::Empty,
         }
+    }
+
+    /// Capture the owning workspace network context on GTK; remote pages never inherit local routing.
+    pub(crate) fn for_workspace(
+        state: &crate::app_state::AppState,
+        id: Uuid,
+    ) -> Result<Self, String> {
+        let workspace = state
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.uuid == id)
+            .ok_or("browser workspace missing")?;
+        let mut manager = Self::new();
+        if workspace.remote_target.is_some() {
+            manager.remote_bridge = Some(
+                state
+                    .workspace_bridges
+                    .get(&workspace.id)
+                    .ok_or("remote browser transport unavailable")?
+                    .clone(),
+            );
+        }
+        Ok(manager)
     }
 
     /// Mirrors agent-browser/cli/src/connection.rs socket dir discovery.
@@ -147,6 +172,7 @@ impl BrowserManager {
     ) -> impl std::future::Future<Output = Result<(PathBuf, Value), StartupError>> + Send + 'static
     {
         let session = self.session_name.clone();
+        let remote_bridge = self.remote_bridge.clone();
         let binary = self.binary_path.clone();
         let socket_dir = Self::agent_browser_socket_dir();
         let socket_path = self.daemon_socket_path();
@@ -160,6 +186,24 @@ impl BrowserManager {
                 return Err("Browser manager stopped".to_string().into());
             }
             let prepare = async move {
+                let proxy_port = if let Some(bridge) = &remote_bridge {
+                    Some(
+                        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                            loop {
+                                if let Some(port) = bridge.browser_proxy_ready() {
+                                    break port;
+                                }
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            }
+                        })
+                        .await
+                        .map_err(|_| {
+                            "Remote browser proxy is not connected or supported".to_string()
+                        })?,
+                    )
+                } else {
+                    None
+                };
                 let discovery_permit = permit.clone();
                 let (binary, chrome) = tokio::task::spawn_blocking(move || {
                     // A cancelled waiter cannot release admission while discovery still runs.
@@ -184,13 +228,22 @@ impl BrowserManager {
                     .await
                     .is_ok();
                 if let StartupRequest::Preview(url) = &request {
-                    cli::start(&binary, &session, chrome.as_deref(), url, trace_id).await?;
+                    cli::start(
+                        &binary,
+                        &session,
+                        chrome.as_deref(),
+                        url,
+                        proxy_port,
+                        trace_id,
+                    )
+                    .await?;
                 } else if !ready {
                     cli::start(
                         &binary,
                         &session,
                         chrome.as_deref(),
                         "about:blank",
+                        proxy_port,
                         trace_id,
                     )
                     .await?;
@@ -538,9 +591,11 @@ impl BrowserManager {
         self.input_queue.take();
         self.stop_stream();
         let gate = self.navigation_gate.clone();
+        let remote_bridge = self.remote_bridge.take();
         let mut activity = metrics::Activity::begin("shutdown", None);
         let close = self.send_command_async("close", serde_json::json!({}), Some(activity.id));
         async move {
+            let _remote_bridge = remote_bridge;
             let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
                 while gate.available_permits() == 0 {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;

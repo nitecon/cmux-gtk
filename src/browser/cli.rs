@@ -42,6 +42,7 @@ pub(super) async fn start(
     session: &str,
     browser: Option<&Path>,
     url: &str,
+    proxy_port: Option<u16>,
     trace_id: uuid::Uuid,
 ) -> Result<Value, String> {
     let mut command = tokio::process::Command::new(binary);
@@ -53,6 +54,13 @@ pub(super) async fn start(
         .env("AGENT_BROWSER_STREAM_PORT", "0");
     if let Some(browser) = browser {
         command.arg("--executable-path").arg(browser);
+    }
+    if let Some(port) = proxy_port {
+        command
+            .arg("--proxy")
+            .arg(format!("socks5://127.0.0.1:{port}"))
+            .arg("--proxy-bypass")
+            .arg("<-loopback>");
     }
     command.args(["open", url]);
     run_command(command, "cli_startup", trace_id).await
@@ -143,6 +151,43 @@ async fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The public launch child receives explicit proxy and loopback routing without shell parsing.
+    #[tokio::test]
+    async fn startup_passes_remote_proxy_arguments() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory =
+            std::env::temp_dir().join(format!("cmux-proxy-start-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&directory).unwrap();
+        let binary = directory.join("browser-fixture");
+        std::fs::write(&binary, "#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps({'success':True,'data':sys.argv[1:]}))\n").unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let args = start(
+            &binary,
+            "private-session",
+            None,
+            "http://localhost:3000/path",
+            Some(23456),
+            uuid::Uuid::new_v4(),
+        )
+        .await
+        .unwrap();
+        std::fs::remove_dir_all(directory).unwrap();
+        assert_eq!(
+            args,
+            serde_json::json!([
+                "--session",
+                "private-session",
+                "--json",
+                "--proxy",
+                "socks5://127.0.0.1:23456",
+                "--proxy-bypass",
+                "<-loopback>",
+                "open",
+                "http://localhost:3000/path"
+            ])
+        );
+    }
 
     /// Decode actual child output without treating malformed envelopes or failures as success.
     #[tokio::test]

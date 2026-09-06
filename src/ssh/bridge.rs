@@ -56,6 +56,17 @@ impl Default for SshBridge {
 }
 
 impl SshBridge {
+    /// Return the retained proxy port only while the current generation accepts requests.
+    pub(crate) fn browser_proxy_ready(&self) -> Option<u16> {
+        let current = self.browser_proxy_requests.lock().unwrap();
+        let sender = current.as_ref()?;
+        if sender.is_closed() {
+            return None;
+        }
+        let port = self.browser_proxy_port.load(Ordering::Acquire);
+        (port != 0).then_some(port)
+    }
+
     /// Create a workspace-owned bridge and its initial outbound request channel.
     pub fn new() -> Self {
         let (write_tx, write_rx) = Outbound::new();

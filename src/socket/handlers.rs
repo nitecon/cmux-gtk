@@ -1399,9 +1399,17 @@ fn start_browser_lifecycle(
             let _ = resp_tx.send(err(req_id, "busy", "another browser is starting"));
             return;
         }
-        let browser = s
-            .browser_manager
-            .get_or_insert_with(crate::browser::BrowserManager::new);
+        let manager = match workspace
+            .ok_or_else(|| "browser workspace missing".to_string())
+            .and_then(|id| crate::browser::BrowserManager::for_workspace(&s, id))
+        {
+            Ok(manager) => manager,
+            Err(message) => {
+                let _ = resp_tx.send(err(req_id, "browser_error", &message));
+                return;
+            }
+        };
+        let browser = s.browser_manager.insert(manager);
         (
             browser.session_identity(),
             workspace,
