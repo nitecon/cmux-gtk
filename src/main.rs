@@ -16,6 +16,7 @@ mod inbox_view;
 mod line_reader;
 mod menus;
 mod notification;
+mod notification_caller;
 mod preferences;
 mod resume;
 mod resume_command;

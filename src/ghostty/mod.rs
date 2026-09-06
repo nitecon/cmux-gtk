@@ -8,3 +8,4 @@ pub(crate) mod notifications;
 pub(crate) mod registry;
 pub mod surface;
 pub(crate) mod text;
+pub(crate) mod tty;

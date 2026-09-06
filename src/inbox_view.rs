@@ -182,7 +182,15 @@ fn render(list: &gtk4::ListBox, status: &gtk4::Label, state: &crate::app_state::
             }
         }
         let actions = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
-        actions.append(&button("Open terminal", "open", Some(record.id)));
+        actions.append(&button(
+            if record.surface_id.is_some() {
+                "Open terminal"
+            } else {
+                "Open workspace"
+            },
+            "open",
+            Some(record.id),
+        ));
         actions.append(&button("Dismiss", "dismiss", Some(record.id)));
         row.append(&actions);
         list.append(&row);

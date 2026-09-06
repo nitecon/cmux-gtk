@@ -172,6 +172,7 @@ fn handle_socket_command_traced(
                 "notification.clear",
                 "notification.create",
                 "notification.create_for_surface",
+                "notification.create_for_caller",
                 "notification.create_for_target",
                 "notification.mark_read",
                 "notification.dismiss",

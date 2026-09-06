@@ -43,12 +43,12 @@ impl Content {
     }
 }
 
-/// A stable message identity retains its original exact target even after that terminal closes.
+/// Stable message identity retains its proven target after closure; None is workspace-only attribution.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Record {
     pub id: Uuid,
     pub workspace_id: Uuid,
-    pub surface_id: Uuid,
+    pub surface_id: Option<Uuid>,
     #[serde(flatten)]
     pub content: Content,
     pub created_at: String,
@@ -107,12 +107,44 @@ pub struct Scope {
     pub surface_id: Option<Uuid>,
 }
 
+/// Caller evidence is distinct from focus: an ambient workspace may become stale after a pane move.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct Caller {
+    pub preferred_workspace_id: Option<Uuid>,
+    pub preferred_surface_id: Option<Uuid>,
+    #[serde(default)]
+    pub preferred_workspace_is_explicit: bool,
+    pub caller_tty: Option<String>,
+    #[serde(default)]
+    pub prefer_tty: bool,
+}
+
+impl Caller {
+    /// Validate bounded caller evidence before crossing to GTK; never interpret a TTY as a file path to open.
+    fn parse(params: &Value) -> Result<Self, &'static str> {
+        let caller: Self = Self::deserialize(params).map_err(|_| "invalid caller selector")?;
+        if caller
+            .caller_tty
+            .as_ref()
+            .is_some_and(|tty| tty.len() > 256 || tty.contains('\0'))
+        {
+            return Err("invalid caller TTY");
+        }
+        Ok(caller)
+    }
+}
+
 /// Fully validated worker-side intent, independent of widgets and transport buffers.
 pub enum Action {
     Create {
         scope: Scope,
         content: Content,
     },
+    CreateForCaller {
+        caller: Caller,
+        content: Content,
+    },
+    ClearForCaller(Caller),
     Clear(Scope),
     MarkRead {
         id: Option<Uuid>,
@@ -145,8 +177,13 @@ pub fn parse(method: &str, params: &Value) -> Result<Action, &'static str> {
     match method {
         "notification.create"
         | "notification.create_for_surface"
-        | "notification.create_for_target" => {
-            if method != "notification.create" && scope.surface_id.is_none() {
+        | "notification.create_for_target"
+        | "notification.create_for_caller" => {
+            if matches!(
+                method,
+                "notification.create_for_surface" | "notification.create_for_target"
+            ) && scope.surface_id.is_none()
+            {
                 return Err("surface_id is required");
             }
             if method == "notification.create_for_target" && scope.workspace_id.is_none() {
@@ -165,16 +202,44 @@ pub fn parse(method: &str, params: &Value) -> Result<Action, &'static str> {
             let content =
                 Content::deserialize(params).map_err(|_| "notification content must be strings")?;
             content.validate()?;
-            Ok(Action::Create { scope, content })
+            if method == "notification.create_for_caller" {
+                if scope.workspace_id.is_some() || scope.surface_id.is_some() {
+                    return Err("caller targeting requires preferred selectors");
+                }
+                Ok(Action::CreateForCaller {
+                    caller: Caller::parse(params)?,
+                    content,
+                })
+            } else {
+                Ok(Action::Create { scope, content })
+            }
         }
         "notification.clear" => {
-            if params
-                .get("caller")
-                .is_some_and(|value| !value.is_null() && value != &Value::Bool(false))
+            let caller = match params.get("caller") {
+                None | Some(Value::Null) => false,
+                Some(Value::Bool(value)) => *value,
+                _ => return Err("caller must be a boolean"),
+            };
+            if caller {
+                if scope.workspace_id.is_some()
+                    || scope.surface_id.is_some()
+                    || selectors.id.is_some()
+                {
+                    return Err("caller clear cannot include explicit scope selectors");
+                }
+                return Ok(Action::ClearForCaller(Caller::parse(params)?));
+            }
+            if [
+                "preferred_workspace_id",
+                "preferred_surface_id",
+                "caller_tty",
+                "prefer_tty",
+                "preferred_workspace_is_explicit",
+            ]
+            .iter()
+            .any(|key| params.get(key).is_some_and(|value| !value.is_null()))
             {
-                return Err(
-                    "caller resolution is not supported; pass explicit workspace_id/surface_id",
-                );
+                return Err("caller selectors require caller=true");
             }
             // Retain the original GTK workspace-id alias while supporting upstream scoped/global clear.
             if selectors.id.is_some() && scope.workspace_id.is_some() {
@@ -225,7 +290,7 @@ mod tests {
             inbox.push(Record {
                 id: Uuid::new_v4(),
                 workspace_id: Uuid::nil(),
-                surface_id: Uuid::nil(),
+                surface_id: Some(Uuid::nil()),
                 content: Content {
                     body: "x".repeat(8192),
                     ..Default::default()

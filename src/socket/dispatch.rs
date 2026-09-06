@@ -439,6 +439,7 @@ async fn dispatch_request(
         },
         "notification.create"
         | "notification.create_for_surface"
+        | "notification.create_for_caller"
         | "notification.create_for_target"
         | "notification.clear"
         | "notification.mark_read"

@@ -52,7 +52,9 @@ fn matches(record: &Record, scope: &Scope) -> bool {
     scope
         .workspace_id
         .is_none_or(|id| id == record.workspace_id)
-        && scope.surface_id.is_none_or(|id| id == record.surface_id)
+        && scope
+            .surface_id
+            .is_none_or(|id| Some(id) == record.surface_id)
 }
 
 /// Apply one admitted operation; only Open and JumpToUnread are allowed to focus the target.
@@ -60,42 +62,20 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
     let result = match action {
         Action::Create { scope, content } => {
             let (index, surface) = target(state, &scope)?;
-            let focused = state.active_index == index
-                && state.split_engines[index].active_pane_uuid().as_deref()
-                    == Some(&surface.to_string())
-                && state
-                    .gtk_app
-                    .active_window()
-                    .is_some_and(|window| window.is_active());
-            let id = Uuid::new_v4();
-            let workspace = state.workspaces[index].uuid;
-            let desktop = (!focused).then(|| {
-                cmux_platform::notification::message(
-                    &content.title,
-                    &content.subtitle,
-                    &content.body,
-                )
-            });
-            let created_at = glib::DateTime::now_utc()
-                .and_then(|date| date.format_iso8601())
-                .map(|value| value.to_string())
-                .unwrap_or_default();
-            let evicted = state.inbox.push(Record {
-                id,
-                workspace_id: workspace,
-                surface_id: surface,
-                content,
-                created_at,
-                is_read: focused,
-            });
-            if let (Some(runtime), Some(command)) = (&state.runtime_handle, desktop) {
-                crate::notification::send_message(runtime, command, workspace, id);
-            }
-            crate::diagnostics::record(
-                "notification.inbox.create",
-                json!({"id":id,"workspace":workspace,"surface":surface,"focused":focused,"evicted":evicted}),
-            );
-            json!({"id": id, "workspace_id": workspace, "surface_id": surface})
+            create(state, index, Some(surface), content)
+        }
+        Action::CreateForCaller { caller, content } => {
+            let scope = crate::notification_caller::resolve(state, &caller)?;
+            let index = state
+                .workspaces
+                .iter()
+                .position(|workspace| Some(workspace.uuid) == scope.workspace_id)
+                .ok_or(("not_found", "notification workspace not found"))?;
+            create(state, index, scope.surface_id, content)
+        }
+        Action::ClearForCaller(caller) => {
+            let scope = crate::notification_caller::resolve(state, &caller)?;
+            return handle(state, Action::Clear(scope));
         }
         Action::Clear(scope) => {
             if scope.workspace_id.is_some() || scope.surface_id.is_some() {
@@ -179,11 +159,13 @@ fn open(state: &mut AppState, id: Uuid) -> Result<Value, Error> {
         state,
         &Scope {
             workspace_id: Some(record.workspace_id),
-            surface_id: Some(record.surface_id),
+            surface_id: record.surface_id,
         },
     )?;
     state.switch_to_index(index);
-    if !state.split_engines[index].focus_surface(&surface.to_string()) {
+    if record.surface_id.is_some()
+        && !state.split_engines[index].focus_surface(&surface.to_string())
+    {
         return Err(("not_found", "notification surface not found"));
     }
     let record = state
@@ -206,7 +188,11 @@ pub fn refresh(state: &AppState) {
             .records
             .iter()
             .filter(|record| !record.is_read && record.workspace_id == state.workspaces[index].uuid)
-            .filter_map(|record| engine.find_pane_id_by_uuid(&record.surface_id.to_string()))
+            .filter_map(|record| {
+                record
+                    .surface_id
+                    .and_then(|surface| engine.find_pane_id_by_uuid(&surface.to_string()))
+            })
             .collect();
         for (_, pane, _) in engine.all_panes() {
             if let Some(node) = engine.root.find_node(pane) {
@@ -221,4 +207,46 @@ pub fn refresh(state: &AppState) {
         }
         state.update_sidebar_attention(index);
     }
+}
+
+/// Retain a message with proven terminal identity, or workspace-only attribution, without focus changes.
+fn create(
+    state: &mut AppState,
+    index: usize,
+    surface: Option<Uuid>,
+    content: crate::inbox::Content,
+) -> Value {
+    let focused = state.active_index == index
+        && surface.is_none_or(|surface| {
+            state.split_engines[index].active_pane_uuid().as_deref() == Some(&surface.to_string())
+        })
+        && state
+            .gtk_app
+            .active_window()
+            .is_some_and(|window| window.is_active());
+    let id = Uuid::new_v4();
+    let workspace = state.workspaces[index].uuid;
+    let desktop = (!focused).then(|| {
+        cmux_platform::notification::message(&content.title, &content.subtitle, &content.body)
+    });
+    let created_at = glib::DateTime::now_utc()
+        .and_then(|date| date.format_iso8601())
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let evicted = state.inbox.push(Record {
+        id,
+        workspace_id: workspace,
+        surface_id: surface,
+        content,
+        created_at,
+        is_read: focused,
+    });
+    if let (Some(runtime), Some(command)) = (&state.runtime_handle, desktop) {
+        crate::notification::send_message(runtime, command, workspace, id);
+    }
+    crate::diagnostics::record(
+        "notification.inbox.create",
+        json!({"id":id,"workspace":workspace,"surface":surface,"focused":focused,"evicted":evicted}),
+    );
+    json!({"id": id, "workspace_id": workspace, "surface_id": surface})
 }

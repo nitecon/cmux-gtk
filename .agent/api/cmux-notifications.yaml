@@ -19,7 +19,7 @@ content:
     - name: Mutate history without focus
       steps:
         - notification.mark_read selects exactly one of id, workspace_id (optionally surface_id), or all=true. tab_id aliases workspace_id. It retains records and marks only matching unread records read.
-        - notification.dismiss selects id or all_read=true and removes those records. notification.clear removes all history or an explicit workspace/surface scope. Its legacy id field aliases workspace_id; caller-based resolution is explicitly unsupported.
+        - notification.dismiss selects id or all_read=true and removes those records. notification.clear removes all history or an explicit workspace/surface scope. Its legacy id field aliases workspace_id. caller=true uses preferred selectors and live local TTY attribution; caller and explicit scope selectors cannot be combined.
         - CLI notifications mark-read, dismiss and clear expose these operations. Legacy clear-notification takes a workspace UUID. No history mutation selects another workspace or terminal.
     - name: Navigate and restore
       steps:
@@ -29,7 +29,7 @@ content:
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
     verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
-    outstanding: Advanced OSC99 query/replacement/activation reports, other provider hook delivery, caller resolution remain part of the active parity goal.
+    outstanding: Advanced OSC99 query/replacement/activation reports, other provider hook delivery, CLI caller provenance and nested/remote caller resolution remain part of the active parity goal.
 
     panel: View > Notifications or Ctrl+Shift+I opens one nonmodal live panel. Ctrl+Shift+U jumps to unread. A watch signal coalesces mutations; the GTK listener and action handlers hold weak references and closing aborts the listener. Rows render plain text, open exact targets or dismiss messages; bulk controls mark read or clear. Native CI checks live unread-title updates and navigation.
 
@@ -39,3 +39,5 @@ content:
     claude_hooks: cmux hooks setup claude installs Stop and Notification handlers alongside native session lifecycle handlers. Stop sends last_assistant_message; Notification sends title/message/notification_type to the originating CMUX_SURFACE_ID. Long text is visibly truncated at UTF-8 boundaries. Neither event clears resume metadata or moves focus.
 
     desktop: Background inbox creation invokes notify-send with escaped plain body/subtitle and an explicit default action. Four active helpers share BEL admission without queueing; message execution is capped at 15 seconds, stdout 256 bytes and stderr 4096 bytes. Successful default action queues the stable notification UUID for GTK routing; stale targets do not redirect. Failure/overload retains inbox attention. Diagnostics include notification identity without content. Actions tests/test_linux_desktop_notifications.py uses a controlled helper and real GTK to verify payload and click routing; external daemon presentation is not covered.
+
+    caller: notification.create_for_caller accepts preferred_workspace_id, preferred_surface_id, preferred_workspace_is_explicit, caller_tty and prefer_tty. Stable surfaces outrank TTY evidence; an explicit workspace is a hard scope, while ambient workspace hints permit rehomed surfaces. Unique live local Ghostty TTYs resolve without saved or remote PTY guesses. Failed claims return not_found. A known workspace without terminal evidence and selector-free callers create workspace-only records with surface_id null. Open preserves that workspace's selected terminal; surface clear does not remove workspace-only messages. No shell-reported nested TTY fallback or CLI automatic provenance yet. Actions tests/test_linux_notification_caller.py verifies real native attribution and persisted nullable identity.
