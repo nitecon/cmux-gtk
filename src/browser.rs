@@ -5,6 +5,7 @@ mod discovery;
 mod frames;
 mod input;
 mod input_queue;
+mod mapped;
 pub(crate) mod metrics;
 mod motion;
 mod pixels;
@@ -67,6 +68,7 @@ pub struct BrowserManager {
     binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
     input_queue: Option<input_queue::InputQueue>,
+    mapped_navigation: Option<mapped::MappedNavigation>,
 
     pub preview_state: PreviewState,
 }
@@ -83,6 +85,7 @@ impl BrowserManager {
             binary_path: None,
             stream_task: None,
             input_queue: None,
+            mapped_navigation: None,
             preview_state: PreviewState::Empty,
         }
     }
@@ -253,23 +256,21 @@ impl BrowserManager {
         }
     }
 
-    /// Run a supported public agent-browser CLI command for this cmux session.
-    /// Lifecycle and navigation use the public CLI because private daemon
-    /// action semantics can change between independently installed releases.
-    pub fn run_cli(&mut self, args: &[&str]) -> Result<Value, String> {
-        self.ensure_daemon()?;
-        let binary = self
-            .binary_path
-            .as_ref()
-            .ok_or_else(|| "agent-browser executable could not be resolved".to_string())?;
-        let output = Command::new(binary)
-            .arg("--session")
-            .arg(&self.session_name)
-            .arg("--json")
-            .args(args)
-            .output()
-            .map_err(|e| format!("Failed to run agent-browser: {e}"))?;
-        cli::decode_output(output)
+    /// Coalesce mapped-tab destinations on an owned worker after browser initialization.
+    fn queue_mapped_url(
+        &mut self,
+        runtime: &tokio::runtime::Handle,
+        url: String,
+        visible: &std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) {
+        let Some(binary) = self.binary_path.clone() else {
+            return;
+        };
+        let session = self.session_name.clone();
+        let gate = self.navigation_gate.clone();
+        self.mapped_navigation
+            .get_or_insert_with(|| mapped::MappedNavigation::new(runtime, binary, session, gate))
+            .navigate(url, visible);
     }
 
     /// Prepare history navigation and URL refresh for worker execution after daemon startup.
@@ -503,6 +504,7 @@ impl BrowserManager {
     pub fn shutdown(mut self) -> impl std::future::Future<Output = ()> + Send + 'static {
         self.stop_navigation();
         self.input_queue.take();
+        self.mapped_navigation.take();
         self.stop_stream();
         let gate = self.navigation_gate.clone();
         let close = self.send_command_async("close", serde_json::json!({}));
@@ -544,6 +546,7 @@ impl Drop for BrowserManager {
     fn drop(&mut self) {
         self.stop_navigation();
         self.input_queue.take();
+        self.mapped_navigation.take();
         self.stop_stream();
     }
 }

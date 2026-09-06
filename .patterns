@@ -21,3 +21,4 @@
   - src/browser/ui.rs
   - src/browser.rs
   - src/browser/input_queue.rs
+  - src/browser/mapped.rs

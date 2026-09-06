@@ -212,19 +212,20 @@ pub(crate) fn wire_browser_tab(
 
     // agent-browser uses one independently managed browser session. When a
     // saved browser surface becomes visible again, restore that surface's URL.
+    let mapped_visibility = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+        widgets.container.is_mapped(),
+    ));
     widgets.container.connect_map({
         let state = Rc::downgrade(state);
-        let entry = url_entry.clone();
+        let entry = url_entry.downgrade();
+        let visible = mapped_visibility.clone();
         move |_| {
-            let Some(state) = state.upgrade() else {
-                return;
-            };
-            let url = entry.text().to_string();
-            if url.is_empty() {
-                return;
-            }
-            restore_mapped_browser_url(state.clone(), url);
+            visible.store(true, std::sync::atomic::Ordering::Release);
+            restore_mapped_browser_url(state.clone(), entry.clone(), visible.clone());
         }
+    });
+    widgets.container.connect_unmap(move |_| {
+        mapped_visibility.store(false, std::sync::atomic::Ordering::Release);
     });
 
     // Step 3b: Wire nav button signals (D-06, D-07)
@@ -598,21 +599,31 @@ fn finish_devtools_snapshot(
     });
 }
 
-/// A notebook page can be mapped synchronously while another GTK callback is
-/// mutating AppState (notably when the tab above it is removed). Defer the
-/// navigation until that callback unwinds instead of panicking on RefCell.
-fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
-    let Ok(mut app_state) = state.try_borrow_mut() else {
-        crate::diagnostics::event(format_args!(
-            "browser map deferred while application state is busy"
-        ));
-        glib::idle_add_local_once(move || restore_mapped_browser_url(state, url));
+/// Submit the current visible address without GTK I/O; defer reentrant model borrows using weak owners.
+fn restore_mapped_browser_url(
+    state: std::rc::Weak<RefCell<AppState>>,
+    entry: glib::WeakRef<gtk4::Entry>,
+    visible: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
+    let Some(widget) = entry.upgrade().filter(|widget| widget.is_mapped()) else {
         return;
     };
-    if let Some(browser) = app_state.browser_manager.as_mut() {
-        if let Err(error) = browser.run_cli(&["open", &url]) {
-            crate::diagnostics::event(format_args!("browser map navigation failed error={error}"));
-        }
+    let Some(owner) = state.upgrade() else {
+        return;
+    };
+    let Ok(mut s) = owner.try_borrow_mut() else {
+        glib::idle_add_local_once(move || restore_mapped_browser_url(state, entry, visible));
+        return;
+    };
+    let url = widget.text().to_string();
+    if url.is_empty() {
+        return;
+    }
+    let Some(runtime) = s.runtime_handle.clone() else {
+        return;
+    };
+    if let Some(browser) = s.browser_manager.as_mut() {
+        browser.queue_mapped_url(&runtime, url, &visible);
     }
 }
 
