@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// A listener attributed to an existing local terminal surface.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Port {
-    surface_uuid: Uuid,
+    pub(crate) surface_uuid: Uuid,
     address: std::net::IpAddr,
     port: u16,
     pid: u32,

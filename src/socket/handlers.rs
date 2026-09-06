@@ -230,11 +230,62 @@ fn handle_socket_command_traced(
             }
         }
 
+        SocketCommand::PortsList {
+            req_id,
+            workspace,
+            surface,
+            resp_tx,
+        } => {
+            let s = state.borrow();
+            let index = if let Some(id) = workspace {
+                s.workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == id)
+            } else if let Some(id) = surface {
+                s.split_engines.iter().position(|engine| {
+                    engine
+                        .all_panes()
+                        .iter()
+                        .any(|(candidate, _, _)| *candidate == id)
+                })
+            } else {
+                (s.active_index < s.workspaces.len()).then_some(s.active_index)
+            };
+            let Some(index) = index else {
+                let _ = resp_tx.send(err(req_id, "not_found", "workspace or surface not found"));
+                return;
+            };
+            if surface.is_some_and(|id| {
+                !s.split_engines[index]
+                    .all_panes()
+                    .iter()
+                    .any(|(candidate, _, _)| *candidate == id)
+            }) {
+                let _ = resp_tx.send(err(
+                    req_id,
+                    "invalid_params",
+                    "surface does not belong to workspace",
+                ));
+                return;
+            }
+            let ports = s.workspaces[index].ports.as_ref().map(|ports| {
+                ports
+                    .iter()
+                    .filter(|port| surface.is_none_or(|id| port.surface_uuid == id))
+                    .collect::<Vec<_>>()
+            });
+            let _ = resp_tx.send(ok(
+                req_id,
+                json!({"workspace_id":s.workspaces[index].uuid,"surface_id":surface,"ports":ports}),
+            ));
+        }
+
         SocketCommand::Capabilities { req_id, resp_tx } => {
             let methods: Vec<&str> = vec![
                 "system.ping",
                 "system.identify",
                 "system.capabilities",
+                "ports.list",
                 "sidebar.metadata",
                 "sidebar.set_status",
                 "sidebar.report_meta_block",

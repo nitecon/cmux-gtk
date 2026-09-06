@@ -34,6 +34,13 @@ pub enum SocketCommand {
         resp_tx: RespTx,
     },
 
+    /// Read the latest listener snapshot for a validated workspace/surface scope.
+    PortsList {
+        req_id: Value,
+        workspace: Option<uuid::Uuid>,
+        surface: Option<uuid::Uuid>,
+        resp_tx: RespTx,
+    },
     WorkspaceMetadata {
         req_id: Value,
         workspace: Option<uuid::Uuid>,

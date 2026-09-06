@@ -526,6 +526,10 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::ListMetaBlocks { workspace } => {
             ("sidebar.metadata", json!({"workspace_id":workspace}))
         }
+        Commands::Ports { workspace, surface } => (
+            "ports.list",
+            json!({"workspace_id":workspace,"surface_id":surface}),
+        ),
         Commands::ListStatus { workspace } => {
             ("sidebar.metadata", json!({"workspace_id":workspace}))
         }

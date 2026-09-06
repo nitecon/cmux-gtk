@@ -256,6 +256,13 @@ pub enum Commands {
         #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
         workspace: Option<String>,
     },
+    /// List attributed listening ports without changing workspace selection
+    Ports {
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+        #[arg(long)]
+        surface: Option<String>,
+    },
     /// List workspace status entries and progress
     ListStatus {
         #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]

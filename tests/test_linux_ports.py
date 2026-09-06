@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import shlex
 import socket
+import subprocess
 import tempfile
 
 from linux_app import running_app
@@ -42,6 +43,15 @@ def main():
 
             app.wait_for(lambda: ports() and any(row["port"] == port for row in ports()), "attributed listener", timeout=20)
             rows = ports()
+            scoped = json.loads(app.cli("ports", "--workspace", target["workspace_uuid"], "--surface", target["uuid"], "--json"))
+            assert scoped["workspace_id"] == target["workspace_uuid"] and scoped["surface_id"] == target["uuid"]
+            assert scoped["ports"] == rows
+            try:
+                app.cli("ports", "--workspace", target["workspace_uuid"], "--surface", selected)
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise AssertionError("conflicting port scope accepted")
             assert {"surface_uuid": target["uuid"], "address": "127.0.0.1", "port": port,
                     "pid": pid, "provenance": "local"} in rows, rows
             assert not any(row["port"] == foreign_port for row in rows)

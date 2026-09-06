@@ -475,6 +475,34 @@ async fn dispatch_request(
             resp_tx,
         },
 
+        "ports.list" => {
+            let parse = |name: &str| -> Result<Option<uuid::Uuid>, &'static str> {
+                params
+                    .get(name)
+                    .filter(|value| !value.is_null())
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+                            .ok_or("invalid scope UUID")
+                    })
+                    .transpose()
+            };
+            let workspace = match parse("workspace_id") {
+                Ok(id) => id,
+                Err(message) => return err(req_id, "invalid_params", message),
+            };
+            let surface = match parse("surface_id") {
+                Ok(id) => id,
+                Err(message) => return err(req_id, "invalid_params", message),
+            };
+            commands::SocketCommand::PortsList {
+                req_id: req_id.clone(),
+                workspace,
+                surface,
+                resp_tx,
+            }
+        }
         "sidebar.metadata"
         | "sidebar.set_status"
         | "sidebar.clear_status"

@@ -19,10 +19,16 @@ content:
     - A real platform TCP listener test checks attribution, changed-start-tick rejection and disappearance after socket close. Runtime execution is through Actions only.
   outstanding:
     - Batch network tables and extend attribution to detached descendants with durable validated root ownership.
-    - Add dedicated ports commands, remote daemon collection and automatic forwarding with browser origin routing.
+    - Add remote daemon collection and automatic forwarding with browser origin routing.
 
   application:
     - A window-owned loop visits local workspaces round-robin with one second between scans. GTK copies native terminal UUID and TTY names. One blocking worker matches current application descendants by controlling-terminal device, then collects their owned TCP listeners.
     - Workspace ports are null before observation or on scan failure, and an array after success. Records include surface_uuid, address, port, pid and local provenance. list-workspaces JSON exposes records; a dedicated sidebar label shows up to eight unique ports. Observations are transient and never saved or focused.
     - Results apply only if the workspace and native terminal topology still match. Scans emit workspace.ports.scan duration, outcome and count without paths or addresses. A running blocking filesystem scan cannot be interrupted; no second scan is started while it runs.
     - Actions test_linux_ports.py launches a real listener in a terminal, observes it from another selected workspace, excludes an unrelated listener and verifies disappearance after exit. Runtime evidence pending.
+
+  endpoints:
+    - method: ports.list
+      description: Read the latest observed workspace listeners without initiating a scan or changing selection. Optional workspace_id and surface_id must be UUIDs. A surface alone resolves its owning workspace; a conflicting pair fails. Omitted scope uses the selected workspace. Response includes workspace_id, optional surface_id and ports, where null indicates unavailable and an empty array means no observed listeners.
+  cli:
+    - cmux ports accepts --workspace (alias --tab, default CMUX_WORKSPACE_ID), --surface and --json. It uses ports.list and preserves exact target validation.
