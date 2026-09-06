@@ -29,6 +29,7 @@ SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
 def _wait_for_terminal_focus(c: cmux, panel_id: str, timeout_s: float = 6.0) -> bool:
+    """Best-effort activate and observe legacy focus; warn and return false when the wall-clock budget expires."""
     start = time.time()
     while time.time() - start < timeout_s:
         try:
@@ -56,6 +57,7 @@ def _wait_for_terminal_focus(c: cmux, panel_id: str, timeout_s: float = 6.0) -> 
 
 
 def _panel_snapshot_retry(c: cmux, panel_id: str, label: str, timeout_s: float = 3.0) -> dict:
+    """Retry only transient image-capture failures; propagate all other legacy snapshot errors."""
     start = time.time()
     last_err: Exception | None = None
     while time.time() - start < timeout_s:
@@ -70,11 +72,13 @@ def _panel_snapshot_retry(c: cmux, panel_id: str, label: str, timeout_s: float =
 
 
 def _ratio(changed_pixels: int, width: int, height: int) -> float:
+    """Normalize nonnegative changed pixels by at least one pixel of area; this does not validate dimensions."""
     denom = max(1, int(width) * int(height))
     return float(max(0, int(changed_pixels))) / float(denom)
 
 
 def main() -> int:
+    """Require snapshot activity from a new sibling tab after split churn, allowing targeted input fallback but never accepting no visual change."""
     with cmux(SOCKET_PATH) as c:
         c.activate_app()
         time.sleep(0.2)
@@ -150,25 +154,15 @@ def main() -> int:
             change2_px = int(s3.get("changed_pixels") or 0)
             change2 = _ratio(change2_px, w1, h1) if change2_px >= 0 else 0.0
             if change2 <= threshold:
-                try:
-                    stats = c.render_stats(new_id)
-                    if not bool(stats.get("appIsActive", True)):
-                        print(
-                            "WARN: new tab render delta below threshold with app inactive; "
-                            "continuing in v1 VM mode"
-                        )
-                    else:
-                        raise cmuxError(
-                            "New tab did not render output immediately after typing.\n"
-                            f"  noise_ratio={noise:.5f}\n"
-                            f"  change_ratio={change:.5f} (threshold={threshold:.5f})\n"
-                            f"  fallback_change_ratio={change2:.5f}\n"
-                            f"  snapshots: {s0.get('path')} {s1.get('path')} {s2.get('path')} {s3.get('path')}"
-                        )
-                except Exception:
-                    raise
+                raise cmuxError(
+                    "New tab did not render output after typing or targeted input.\n"
+                    f"  noise_ratio={noise:.5f}\n"
+                    f"  change_ratio={change:.5f} (threshold={threshold:.5f})\n"
+                    f"  fallback_change_ratio={change2:.5f}\n"
+                    f"  snapshots: {s0.get('path')} {s1.get('path')} {s2.get('path')} {s3.get('path')}"
+                )
 
-    print("PASS: new tab renders immediately after many splits")
+    print("PASS: new tab produced visual output after many splits")
     return 0
 
 

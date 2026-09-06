@@ -73,6 +73,7 @@ def test_render_marker(client: cmux) -> TestResult:
 
 
 def run_tests():
+    """Run legacy terminal-text probes and report their outcomes; text reads do not establish pixel rendering."""
     print("=" * 60)
     print("Blank Screen Regression Test")
     print("=" * 60)
