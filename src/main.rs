@@ -20,6 +20,7 @@ mod split_engine;
 mod ssh;
 mod ssh_dialog;
 mod ssh_hosts;
+mod task;
 #[allow(dead_code)]
 mod updater;
 mod window_state;

@@ -1,5 +1,6 @@
 use crate::ssh::bridge::SshBridge;
 use crate::ssh::{SshEvent, SshEventTx};
+use crate::task::AbortOnDrop;
 use crate::workspace::ConnectionState;
 use base64::Engine;
 use std::collections::HashMap;
@@ -565,14 +566,6 @@ async fn start_ssh(target: &str) -> Result<Child, String> {
 fn backoff_duration(attempt: u32) -> Duration {
     let secs = (1u64 << attempt.min(5)).min(MAX_BACKOFF_SECS);
     Duration::from_secs(secs)
-}
-
-struct AbortOnDrop(tokio::task::AbortHandle);
-impl Drop for AbortOnDrop {
-    /// Cancel the companion task when its owning operation leaves scope.
-    fn drop(&mut self) {
-        self.0.abort();
-    }
 }
 
 struct PendingRequest(PendingMap, u64);

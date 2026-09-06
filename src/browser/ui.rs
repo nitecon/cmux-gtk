@@ -430,17 +430,40 @@ pub(crate) fn wire_browser_tab(
     state.borrow().trigger_session_save();
 }
 
+/// Own worker cancellation and its weak GTK notification for every result-future exit path.
+struct WidgetTaskGuard {
+    _task: crate::task::AbortOnDrop,
+    notification: Option<glib::object::WeakRefNotify<glib::Object>>,
+}
+
+impl Drop for WidgetTaskGuard {
+    /// Disconnect even when the result future is abandoned while its widget remains alive.
+    fn drop(&mut self) {
+        if let Some(notification) = self.notification.take() {
+            notification.disconnect();
+        }
+    }
+}
+
 /// Await worker completion without retaining its widget; destruction aborts and reaps the task.
+/// Dropping the returned future also cancels the worker, even if it has never been polled.
 /// All browser result-delivery callbacks share this cancellation boundary on the GTK context.
 fn widget_task_result<T: 'static>(
     widget: &impl IsA<glib::Object>,
     mut task: tokio::task::JoinHandle<T>,
 ) -> impl std::future::Future<Output = Option<Result<T, tokio::task::JoinError>>> + 'static {
     let (destroyed_tx, mut destroyed_rx) = tokio::sync::oneshot::channel();
-    let destruction = widget.add_weak_ref_notify_local(move || {
-        let _ = destroyed_tx.send(());
-    });
+    let destruction = widget
+        .upcast_ref::<glib::Object>()
+        .add_weak_ref_notify_local(move || {
+            let _ = destroyed_tx.send(());
+        });
+    let guard = WidgetTaskGuard {
+        _task: crate::task::AbortOnDrop(task.abort_handle()),
+        notification: Some(destruction),
+    };
     async move {
+        let _guard = guard;
         let result = tokio::select! {
             biased;
             _ = &mut destroyed_rx => {
@@ -450,7 +473,6 @@ fn widget_task_result<T: 'static>(
             }
             result = &mut task => Some(result),
         };
-        destruction.disconnect();
         result
     }
 }
@@ -763,6 +785,24 @@ mod tests {
                 }
             });
         }
+
+        // Abandoning result delivery must cancel the worker even while its widget survives.
+        let retained_label = gtk4::Label::new(None);
+        let (abandoned_reply, receiver) = tokio::sync::oneshot::channel::<()>();
+        let task = runtime.spawn(async move {
+            let _ = receiver.await;
+        });
+        drop(widget_task_result(&retained_label, task));
+        runtime.block_on(async {
+            tokio::time::timeout(std::time::Duration::from_secs(3), async {
+                while !abandoned_reply.is_closed() {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+        });
+        assert!(retained_label.downgrade().upgrade().is_some());
 
         let label = gtk4::Label::new(Some("Loading snapshot…"));
         let weak = label.downgrade();
