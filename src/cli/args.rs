@@ -516,6 +516,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive an Amp plugin lifecycle payload on stdin
+    Amp {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.

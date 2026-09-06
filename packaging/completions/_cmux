@@ -1295,6 +1295,114 @@ esac
     ;;
 esac
 ;;
+(amp)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__amp_commands" \
+"*::: :->amp" \
+&& ret=0
+
+    case $state in
+    (amp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-amp-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__amp__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-amp-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -1638,6 +1746,38 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-pi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(amp)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__amp_commands" \
+"*::: :->amp" \
+&& ret=0
+
+    case $state in
+    (amp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-amp-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -3601,6 +3741,38 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(amp)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__amp_commands" \
+"*::: :->amp" \
+&& ret=0
+
+    case $state in
+    (amp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-amp-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -4821,8 +4993,39 @@ _cmux__help__hooks_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'amp:Receive an Amp plugin lifecycle payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp_commands] )) ||
+_cmux__help__hooks__amp_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks amp commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp__notification_commands] )) ||
+_cmux__help__hooks__amp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks amp notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp__session-end_commands] )) ||
+_cmux__help__hooks__amp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks amp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp__session-start_commands] )) ||
+_cmux__help__hooks__amp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks amp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp__stop_commands] )) ||
+_cmux__help__hooks__amp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks amp stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__claude_commands] )) ||
 _cmux__help__hooks__claude_commands() {
@@ -5451,9 +5654,77 @@ _cmux__hooks_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'amp:Receive an Amp plugin lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp_commands] )) ||
+_cmux__hooks__amp_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks amp commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help_commands] )) ||
+_cmux__hooks__amp__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks amp help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__help_commands] )) ||
+_cmux__hooks__amp__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__notification_commands] )) ||
+_cmux__hooks__amp__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__session-end_commands] )) ||
+_cmux__hooks__amp__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__session-start_commands] )) ||
+_cmux__hooks__amp__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__stop_commands] )) ||
+_cmux__hooks__amp__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__notification_commands] )) ||
+_cmux__hooks__amp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__session-end_commands] )) ||
+_cmux__hooks__amp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__session-start_commands] )) ||
+_cmux__hooks__amp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__stop_commands] )) ||
+_cmux__hooks__amp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__claude_commands] )) ||
 _cmux__hooks__claude_commands() {
@@ -5994,9 +6265,40 @@ _cmux__hooks__help_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'amp:Receive an Amp plugin lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp_commands] )) ||
+_cmux__hooks__help__amp_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help amp commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp__notification_commands] )) ||
+_cmux__hooks__help__amp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help amp notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp__session-end_commands] )) ||
+_cmux__hooks__help__amp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help amp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp__session-start_commands] )) ||
+_cmux__hooks__help__amp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help amp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp__stop_commands] )) ||
+_cmux__hooks__help__amp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help amp stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__claude_commands] )) ||
 _cmux__hooks__help__claude_commands() {

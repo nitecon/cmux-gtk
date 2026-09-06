@@ -63,6 +63,12 @@ content:
         - The generated dependency-free ESM registers session_start, agent_end and session_shutdown with Pi, then dispatches bounded native identity, cwd and completion text through an inherited exact surface with a five-second child deadline.
         - Start stores pi --session SESSION_ID with only PI_CODING_AGENT_DIR retained. Agent completion creates an exact-surface inbox entry, and shutdown clears only the matching checkpoint.
 
+    - name: Amp native lifecycle plugin
+      steps:
+        - cmux hooks setup amp writes an owner-marked cmux-session.ts under HOME/.config/amp/plugins. It refuses an unowned file or symlink and replaces its own plugin atomically and durably.
+        - The generated dependency-free ESM registers session.start and agent.end, prefers the event thread identity over context and root identities, and dispatches through an inherited exact surface with a five-second child deadline.
+        - Start stores amp threads continue SESSION_ID. Completion creates an exact-surface inbox entry and retains the binding because Amp provides no terminal session-end callback.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
