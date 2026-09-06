@@ -116,7 +116,7 @@ pub(super) fn decode_output(output: std::process::Output) -> Result<Value, Strin
 }
 
 /// Drain stdout and stderr concurrently while waiting for the direct child.
-/// Timeout, output overflow and I/O failure kill and reap the child before returning.
+/// Timeout, output overflow and I/O failure request termination with a bounded reap wait.
 async fn execute(
     mut command: tokio::process::Command,
     timeout: Duration,
@@ -149,8 +149,14 @@ async fn execute(
         ))
     });
     if result.is_err() {
-        let _ = child.kill().await;
-        let _ = child.wait().await;
+        if let Err(error) = crate::task::reap_child(child, Duration::ZERO).await {
+            crate::diagnostics::record(
+                "browser.cli.cleanup_failed",
+                serde_json::json!({
+                    "error_kind": format!("{:?}", error.kind()),
+                }),
+            );
+        }
     }
     result
 }

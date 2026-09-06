@@ -37,6 +37,7 @@ content:
     - name: DevTools snapshot
       description: BrowserManager snapshot_async uses the bounded asynchronous socket exchange and a two-operation limit spanning exchange and formatting. A blocking formatter moves textual data or result fields without cloning and uses compact JSON for structured fallback. The permit stays with an already running formatter on cancellation. GTK receives only display text; destroying the overlay label aborts the waiting worker. Activity diagnostics record outcomes but do not yet propagate trace identity through the external daemon.
   safety:
+    - Failed public CLI subprocesses use shared direct-child cleanup with no grace and a five-second reap budget. Preserve the original command error and record browser.cli.cleanup_failed if reaping fails. kill_on_drop remains enabled; OS-stuck children may outlive the userspace wait.
     - Synchronous ensure_daemon, run_cli and send_command paths are removed. Stream metadata now runs off GTK; result application and filesystem cancellation limitations still need lifecycle and responsiveness validation; browser-daemon restart and navigation/input interaction are not fully verified.
     - Do not hold AppState borrows while waiting for worker results or retain closed widgets through callbacks.
     - Transport framing bounds asynchronous socket responses to four MiB with a five-second deadline and sixteen active exchanges.

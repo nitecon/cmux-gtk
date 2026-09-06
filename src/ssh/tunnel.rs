@@ -143,8 +143,19 @@ pub async fn run_ssh_lifecycle(
                 if connected {
                     attempt = 0;
                 }
-                // Wait for SSH process to exit
-                let exit_status = child.wait().await;
+                // Routing has ended; an uncooperative child cannot indefinitely stall reconnect.
+                let exit_started = std::time::Instant::now();
+                let exit_status = crate::task::reap_child(child, Duration::from_secs(2)).await;
+                crate::diagnostics::record(
+                    "ssh.process.exit",
+                    serde_json::json!({
+                        "workspace_id": workspace_id,
+                        "duration_us": exit_started.elapsed().as_micros() as u64,
+                        "forced": exit_status.as_ref().ok().map(|(_, forced)| *forced),
+                        "exit_code": exit_status.as_ref().ok().and_then(|(status, _)| status.code()),
+                        "error_kind": exit_status.as_ref().err().map(|error| format!("{:?}", error.kind())),
+                    }),
+                );
                 eprintln!("cmux: SSH to {target} exited: {exit_status:?}");
 
                 // D-06: inject disconnect message into all active panes
