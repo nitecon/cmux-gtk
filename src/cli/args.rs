@@ -35,8 +35,10 @@ pub struct Cli {
 pub enum Commands {
     /// Inspect resolved project actions and their source files without running them
     ProjectActions {
-        #[arg(long, default_value = ".")]
-        directory: std::path::PathBuf,
+        #[arg(long, conflicts_with = "workspace")]
+        directory: Option<std::path::PathBuf>,
+        #[arg(long)]
+        workspace: Option<String>,
     },
     /// Install and receive native agent session hooks
     Hooks {

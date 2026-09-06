@@ -4410,13 +4410,17 @@ _cmux() {
             return 0
             ;;
         cmux__project__actions)
-            opts="-v -h --directory --socket --json --no-json --verbose --color --help"
+            opts="-v -h --directory --workspace --socket --json --no-json --verbose --color --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --directory)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --workspace)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

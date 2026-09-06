@@ -240,6 +240,13 @@ fn handle_socket_command_traced(
             }
         }
 
+        SocketCommand::ProjectActionsList {
+            req_id,
+            workspace,
+            resp_tx,
+        } => {
+            super::project::list(state, workspace, req_id, resp_tx, trace_id);
+        }
         SocketCommand::PortsList {
             req_id,
             workspace,
@@ -296,6 +303,7 @@ fn handle_socket_command_traced(
                 "system.identify",
                 "system.capabilities",
                 "ports.list",
+                "project.actions.list",
                 "sidebar.metadata",
                 "sidebar.set_status",
                 "sidebar.report_meta_block",

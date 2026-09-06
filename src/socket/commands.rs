@@ -34,6 +34,13 @@ pub enum SocketCommand {
         resp_tx: RespTx,
     },
 
+    /// Resolve project actions from a captured local workspace directory on a bounded worker.
+    ProjectActionsList {
+        req_id: Value,
+        workspace: Option<uuid::Uuid>,
+        resp_tx: RespTx,
+    },
+
     /// Read the latest listener snapshot for a validated workspace/surface scope.
     PortsList {
         req_id: Value,

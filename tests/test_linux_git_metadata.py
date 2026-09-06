@@ -47,15 +47,29 @@ def main():
                                    "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "ahead"])
             app.wait_for(lambda: metadata() and metadata()["ahead"] == 1, "local ahead count")
             assert metadata()["behind"] == 0 and metadata()["upstream"] == "initial"
+            (repo / ".cmux").mkdir()
+            (repo / ".cmux/cmux.json").write_text(json.dumps({"actions": {"fixture.repo": {"command": "touch MUST_NOT_RUN"}}}))
+            (root / "cmux.json").write_text(json.dumps({"actions": {"fixture.parent": {"command": "pwd"}}}))
             app.cli("new-workspace", "--name", "observer")
             active = next(row["uuid"] for row in app.surfaces() if row["active"])
             (repo / "new.txt").write_text("edited\n")
             app.wait_for(lambda: observed() == {"branch": "feature", "dirty": True}, "background workspace change")
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
+            actions = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            assert actions["workspace_id"] == target["workspace_uuid"]
+            assert actions["config"]["directory"] == str(repo)
+            assert actions["config"]["actions"]["fixture.repo"]["intent"]["command"] == "touch MUST_NOT_RUN"
+            assert "fixture.parent" not in actions["config"]["actions"]
+            assert not (repo / "MUST_NOT_RUN").exists()
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))
             app.cli("send-key", "--id", target["uuid"], "\r")
             app.wait_for(lambda: observed() is None, "Git state cleared outside repository")
+            moved = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            assert moved["config"]["directory"] == str(root)
+            assert "fixture.parent" in moved["config"]["actions"]
+            assert "fixture.repo" not in moved["config"]["actions"]
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
     print("automatic Git branch, dirty, background update and directory invalidation passed")
 

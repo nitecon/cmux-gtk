@@ -28,6 +28,15 @@ pub struct Resolved {
     pub actions: BTreeMap<String, Action>,
 }
 
+/// Resolve the shared user configuration path without opening files or expanding project content.
+pub fn global_path() -> Option<PathBuf> {
+    std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
+        .map(|base| base.join("cmux/cmux.json"))
+}
+
 /// Read one regular JSON object with a fixed byte budget; absent files are not errors.
 fn read(path: &Path) -> Result<Option<Value>, String> {
     let file = match cmux_platform::filesystem::open_regular_read(path) {

@@ -21,6 +21,7 @@ mod notification;
 mod notification_caller;
 mod ports;
 mod preferences;
+mod project_config;
 mod resume;
 mod resume_command;
 mod resume_policy;

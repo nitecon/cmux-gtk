@@ -94,14 +94,15 @@ fn restore_terminal(
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
-    if let Commands::ProjectActions { directory } = &cli.command {
-        let global = std::env::var_os("XDG_CONFIG_HOME")
-            .filter(|value| !value.is_empty())
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".config"))
-            })
-            .map(|base| base.join("cmux/cmux.json"));
+    if let Commands::ProjectActions {
+        directory,
+        workspace: None,
+    } = &cli.command
+    {
+        let global = project_config::global_path();
+        let directory = directory
+            .as_deref()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let resolved =
             project_config::resolve(directory, global.as_deref()).map_err(CliError::Command)?;
         let output = serde_json::to_string_pretty(&resolved)
@@ -149,6 +150,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             client
         }
         Commands::Browser(BrowserCommand::Open { .. }) => Duration::from_secs(30),
+        Commands::ProjectActions { .. } => Duration::from_secs(7),
         _ => Duration::from_secs(5),
     };
 
@@ -381,9 +383,10 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
-        Commands::ProjectActions { .. } => {
-            unreachable!("project inspection runs before socket discovery")
-        }
+        Commands::ProjectActions { workspace, .. } => (
+            "project.actions.list",
+            serde_json::json!({"workspace_id":workspace}),
+        ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
         Commands::Ping => ("system.ping", json!({})),
         Commands::Identify => ("system.identify", json!({})),

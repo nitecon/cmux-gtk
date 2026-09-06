@@ -59,6 +59,24 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Read a local workspace's selected terminal CWD on GTK, falling back to its launch directory.
+    pub(crate) fn local_workspace_directory(&self, index: usize) -> Option<std::path::PathBuf> {
+        let workspace = self.workspaces.get(index)?;
+        if workspace.remote_target.is_some() {
+            return None;
+        }
+        let native = self.split_engines.get(index).and_then(|engine| {
+            engine
+                .active_pane_uuid()
+                .and_then(|id| engine.find_surface_by_uuid(&id))
+        });
+        native
+            .map(|pointer| crate::ghostty::registry::working_directory(pointer as usize))
+            .filter(|value| !value.is_empty())
+            .map(std::path::PathBuf::from)
+            .or_else(|| workspace.working_directory.clone())
+    }
+
     /// Create a new AppState. Does NOT create the first workspace — caller must call
     /// create_workspace() after constructing the GTK widget tree (Plan 04 wires this).
     pub fn new(

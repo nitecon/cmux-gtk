@@ -31,3 +31,9 @@ content:
     - Workspace intents contain typed launch strings/environment and recursive pane or split layouts. Panes require surfaces, splits require horizontal/vertical and exactly two children; mixed node types fail.
     - Depth32 and surfaces128 bounds apply per workspace. Ratios default0.5 and clamp0.1to0.9. Environment entries64, identifier keys128bytes and aggregate64KiB are checked; strings are bounded and NUL-free.
     - Terminal/browser/project surface kinds and focus booleans are typed. Project rendering, color resolution, restart semantics, managed environment precedence and actual execution remain outstanding. Tests run in Actions only.
+
+  workspace_discovery:
+    - project.actions.list accepts optional workspace_id UUID, default current. CLI project-actions --workspace uses this RPC; --directory remains offline and mutually exclusive.
+    - GTK captures workspace identity and selected terminal CWD via AppState.local_workspace_directory, shared with Git metadata. Workers have two permits and five-second response deadlines; started filesystem reads retain permits after cancellation/timeouts.
+    - Returns workspace_id and config with captured directory and provenance. No focus or execution side effects; remote config is explicitly unsupported pending transport implementation. Trace event project.actions.resolve contains workspace/duration/outcome.
+    - Actions Git fixture tests background config lookup and switch after terminal cd without running commands or moving focus. Runtime pending.

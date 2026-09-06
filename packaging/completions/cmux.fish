@@ -85,6 +85,7 @@ complete -c cmux -n "__fish_cmux_needs_command" -f -a "clear-notification" -d 'C
 complete -c cmux -n "__fish_cmux_needs_command" -f -a "browser" -d 'Browser automation (agent primary interface)'
 complete -c cmux -n "__fish_cmux_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l directory -r -F
+complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l workspace -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l color -d 'Color mode: always, never, auto' -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l json -d 'Output raw JSON responses'

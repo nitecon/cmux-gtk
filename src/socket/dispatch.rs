@@ -475,6 +475,23 @@ async fn dispatch_request(
             resp_tx,
         },
 
+        "project.actions.list" => {
+            let workspace = match params.get("workspace_id").filter(|value| !value.is_null()) {
+                None => None,
+                Some(value) => match value
+                    .as_str()
+                    .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                {
+                    Some(id) => Some(id),
+                    None => return err(req_id, "invalid_params", "invalid workspace UUID"),
+                },
+            };
+            commands::SocketCommand::ProjectActionsList {
+                req_id: req_id.clone(),
+                workspace,
+                resp_tx,
+            }
+        }
         "ports.list" => {
             let parse = |name: &str| -> Result<Option<uuid::Uuid>, &'static str> {
                 params

@@ -121,21 +121,7 @@ fn cleanup_failed(error: &std::io::Error) {
 
 /// Resolve the selected terminal's reported CWD, falling back to the workspace launch directory.
 fn directory(state: &crate::app_state::AppState, index: usize) -> Option<PathBuf> {
-    let workspace = state.workspaces.get(index)?;
-    if workspace.remote_target.is_some() {
-        return None;
-    }
-    let native = state.split_engines.get(index).and_then(|engine| {
-        engine
-            .active_pane_uuid()
-            .and_then(|id| engine.find_surface_by_uuid(&id))
-    });
-    let current = native
-        .map(|pointer| crate::ghostty::registry::working_directory(pointer as usize))
-        .filter(|value| !value.is_empty());
-    current
-        .map(PathBuf::from)
-        .or_else(|| workspace.working_directory.clone())
+    state.local_workspace_directory(index)
 }
 
 /// Refresh only the dedicated Git label; no terminal focus, row ownership or session-save changes.

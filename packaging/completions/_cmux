@@ -36,7 +36,8 @@ _cmux() {
         case $line[1] in
             (project-actions)
 _arguments "${_arguments_options[@]}" : \
-'--directory=[]:DIRECTORY:_files' \
+'(--workspace)--directory=[]:DIRECTORY:_files' \
+'--workspace=[]:WORKSPACE:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
 '--json[Output raw JSON responses]' \
