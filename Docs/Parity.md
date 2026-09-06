@@ -314,3 +314,7 @@ Hello now negotiates listener discovery and bidirectional half-close support per
 ### Forwarded service retirement coverage
 
 The real SSH fixture now retires a remote listening socket while its accepted client remains open, requiring discovery-driven EOF at both peers, confirmed close, zero owned forwarding tasks and preserved workspace selection. It records retirement latency and checks the fallback port differs from the occupied preferred port. Python syntax validation passes; Actions runtime execution remains pending. This does not establish multi-workspace collision or reconnect coverage.
+
+### Browser remote-origin design evidence
+
+Inspected the shared browser launch path, agent-browser public proxy flags and Chromium proxy semantics. The [remote forwarding plan](RemoteForwarding.md#browser-origin-implementation-plan) now specifies a workspace-owned stable SOCKS endpoint, generation-bound stream admission, explicit loopback proxying, remote DNS and no local fallback. Separate namespace/subresource/WebSocket/reconnect tests are required. This is design progress; remote browser routing is not implemented yet.
