@@ -177,6 +177,9 @@ jobs:
       - name: Test installed OpenCode lifecycle plugin
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_opencode_hooks.py
 
+      - name: Test installed Cursor lifecycle hooks
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_cursor_hooks.py
+
       - name: Test Claude Teams native split translation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_teams.py
 

@@ -133,6 +133,20 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             notification_event: None,
             end_event: Some("SessionEnd"),
         },
+        "cursor" => JsonProvider {
+            name: "cursor",
+            display: "Cursor",
+            binary: "cursor-agent",
+            directory: ".cursor",
+            directory_env: None,
+            environment: &[],
+            file: "hooks.json",
+            resume_prefix: &["--resume"],
+            start_event: "beforeSubmitPrompt",
+            stop_event: "stop",
+            notification_event: None,
+            end_event: None,
+        },
         _ => return None,
     })
 }
@@ -187,6 +201,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
         Some("claude") => setup_claude(true),
         Some("codex") => setup_codex(true),
         Some("opencode") => setup_opencode(true),
+        Some("cursor") => setup_cursor(true),
         Some(name) if json_provider(name).is_some() => setup_json_provider(name, true),
         Some(other) => Err(CliError::Command(format!(
             "unsupported hook provider: {other}"
@@ -198,6 +213,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
                 setup_json_provider(provider, false)?;
             }
             setup_opencode(false)?;
+            setup_cursor(false)?;
             Ok(())
         }
     }
@@ -573,6 +589,75 @@ fn setup_opencode(explicit: bool) -> Result<(), CliError> {
         .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&config_path))
         .map_err(|error| CliError::Command(format!("save OpenCode config: {error}")))?;
     println!("Installed OpenCode hooks in {}", plugin_path.display());
+    Ok(())
+}
+
+fn setup_cursor(explicit: bool) -> Result<(), CliError> {
+    let provider = json_provider("cursor").expect("static provider");
+    if cmux_platform::paths::find_command_on_path(provider.binary).is_none() {
+        if explicit {
+            return Err(CliError::Command(
+                "install Cursor Agent before installing its hooks".into(),
+            ));
+        }
+        println!("Skipped Cursor: executable not found on PATH");
+        return Ok(());
+    }
+    let directory = std::env::var_os("HOME")
+        .map(|home| PathBuf::from(home).join(provider.directory))
+        .ok_or_else(|| CliError::Command("cannot resolve Cursor config directory".into()))?;
+    cmux_platform::filesystem::create_private_directory(&directory)
+        .map_err(|error| CliError::Command(format!("create Cursor config directory: {error}")))?;
+    let path = directory.join(provider.file);
+    if path.is_symlink() {
+        return Err(CliError::Command(
+            "Cursor hooks is a symlink; configure its target explicitly".into(),
+        ));
+    }
+    let mut settings = match cmux_platform::filesystem::read_text_bounded(&path, 1024 * 1024) {
+        Ok(text) => serde_json::from_str(&text)
+            .map_err(|_| CliError::Command("Cursor hooks contains invalid JSON".into()))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(error) => return Err(CliError::Command(format!("read Cursor hooks: {error}"))),
+    };
+    let binary = std::env::current_exe().map_err(|error| CliError::Command(error.to_string()))?;
+    let object = settings
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("Cursor hooks must be an object".into()))?;
+    let hooks = object
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("Cursor hooks.hooks must be an object".into()))?;
+    for (event, command) in [
+        (provider.start_event, "session-start"),
+        (provider.stop_event, "stop"),
+    ] {
+        let entries = hooks
+            .entry(event)
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .ok_or_else(|| CliError::Command(format!("Cursor {event} hooks must be an array")))?;
+        entries.retain(|entry| {
+            !entry
+                .get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|text| text.contains(" hooks cursor "))
+        });
+        entries.push(json!({"command": format!("{} hooks cursor {command}", shell_argument(&binary.to_string_lossy()))}));
+    }
+    object.insert("version".into(), json!(1));
+    let encoded = serde_json::to_vec_pretty(&settings)
+        .map_err(|error| CliError::Command(error.to_string()))?;
+    if encoded.len() > 1024 * 1024 {
+        return Err(CliError::Command(
+            "merged Cursor hooks exceeds one MiB".into(),
+        ));
+    }
+    cmux_platform::filesystem::atomic_write(&path, &encoded)
+        .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&path))
+        .map_err(|error| CliError::Command(format!("save Cursor hooks: {error}")))?;
+    println!("Installed Cursor hooks in {}", path.display());
     Ok(())
 }
 

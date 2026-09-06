@@ -1079,6 +1079,114 @@ esac
     ;;
 esac
 ;;
+(cursor)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__cursor_commands" \
+"*::: :->cursor" \
+&& ret=0
+
+    case $state in
+    (cursor)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-cursor-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__cursor__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-cursor-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -1358,6 +1466,38 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-opencode-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(cursor)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__cursor_commands" \
+"*::: :->cursor" \
+&& ret=0
+
+    case $state in
+    (cursor)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-cursor-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -3257,6 +3397,38 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(cursor)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__cursor_commands" \
+"*::: :->cursor" \
+&& ret=0
+
+    case $state in
+    (cursor)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-cursor-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -4475,6 +4647,7 @@ _cmux__help__hooks_commands() {
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
+'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -4591,6 +4764,36 @@ _cmux__help__hooks__copilot__session-start_commands() {
 _cmux__help__hooks__copilot__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks copilot stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor_commands] )) ||
+_cmux__help__hooks__cursor_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks cursor commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor__notification_commands] )) ||
+_cmux__help__hooks__cursor__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks cursor notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor__session-end_commands] )) ||
+_cmux__help__hooks__cursor__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks cursor session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor__session-start_commands] )) ||
+_cmux__help__hooks__cursor__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks cursor session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor__stop_commands] )) ||
+_cmux__help__hooks__cursor__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks cursor stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__factory_commands] )) ||
 _cmux__help__hooks__factory_commands() {
@@ -5043,6 +5246,7 @@ _cmux__hooks_commands() {
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
+'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -5303,6 +5507,73 @@ _cmux__hooks__copilot__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks copilot stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__cursor_commands] )) ||
+_cmux__hooks__cursor_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks cursor commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help_commands] )) ||
+_cmux__hooks__cursor__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks cursor help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__help_commands] )) ||
+_cmux__hooks__cursor__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__notification_commands] )) ||
+_cmux__hooks__cursor__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__session-end_commands] )) ||
+_cmux__hooks__cursor__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__session-start_commands] )) ||
+_cmux__hooks__cursor__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__stop_commands] )) ||
+_cmux__hooks__cursor__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__notification_commands] )) ||
+_cmux__hooks__cursor__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__session-end_commands] )) ||
+_cmux__hooks__cursor__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__session-start_commands] )) ||
+_cmux__hooks__cursor__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__stop_commands] )) ||
+_cmux__hooks__cursor__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__factory_commands] )) ||
 _cmux__hooks__factory_commands() {
     local commands; commands=(
@@ -5517,6 +5788,7 @@ _cmux__hooks__help_commands() {
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
+'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -5634,6 +5906,36 @@ _cmux__hooks__help__copilot__session-start_commands() {
 _cmux__hooks__help__copilot__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help copilot stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor_commands] )) ||
+_cmux__hooks__help__cursor_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help cursor commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor__notification_commands] )) ||
+_cmux__hooks__help__cursor__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help cursor notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor__session-end_commands] )) ||
+_cmux__hooks__help__cursor__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help cursor session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor__session-start_commands] )) ||
+_cmux__hooks__help__cursor__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help cursor session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor__stop_commands] )) ||
+_cmux__hooks__help__cursor__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help cursor stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__factory_commands] )) ||
 _cmux__hooks__help__factory_commands() {

@@ -506,6 +506,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive a Cursor Agent lifecycle hook payload on stdin
+    Cursor {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.

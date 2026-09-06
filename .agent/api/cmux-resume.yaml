@@ -51,6 +51,12 @@ content:
         - The ESM plugin observes session.created, non-archived session.updated, idle status, archived updates and deletion. It forwards only native session identity and cwd through an inherited exact CMUX_SURFACE_ID using the installing absolute cmux binary and a five-second child timeout.
         - Start binds the absolute OpenCode executable as opencode --session SESSION_ID and retains only OPENCODE_CONFIG_DIR. Idle creates an exact-surface inbox entry; archive or deletion clears only the matching checkpoint.
 
+    - name: Cursor Agent flat lifecycle hooks
+      steps:
+        - cmux hooks setup cursor merges cmux-owned beforeSubmitPrompt and stop commands into HOME/.cursor/hooks.json, preserves unrelated fields and handlers, and records Cursor schema version 1. Repetition is byte-stable; malformed, oversized and symlink files fail before replacement.
+        - Callbacks accept bounded Cursor conversation_id and working_directory aliases through the shared lifecycle parser and require the exact inherited CMUX_SURFACE_ID.
+        - beforeSubmitPrompt binds the absolute cursor-agent executable as cursor-agent --resume SESSION_ID. Stop creates an exact-surface inbox entry and retains the binding because Cursor provides no durable session-end event.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
