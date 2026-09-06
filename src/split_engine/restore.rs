@@ -12,6 +12,19 @@ use gtk4::prelude::*;
 use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
+/// Reject an over-deep tree before constructing any GTK objects or scheduling layout callbacks.
+fn valid_depth(data: &SplitNodeData, depth: usize) -> bool {
+    if depth > crate::project_config::project_action::MAX_LAYOUT_DEPTH {
+        return false;
+    }
+    match data {
+        SplitNodeData::Split { start, end, .. } => {
+            valid_depth(start, depth + 1) && valid_depth(end, depth + 1)
+        }
+        _ => true,
+    }
+}
+
 /// Borrow immutable launch dependencies while rebuilding one saved pane tree on GTK.
 struct RestoreContext<'a> {
     ghostty_app: ffi::ghostty_app_t,
@@ -85,6 +98,12 @@ impl SplitEngine {
         resume_policy: &crate::resume_policy::ResumePolicy,
         launch_environment: std::collections::BTreeMap<String, String>,
     ) -> Option<Self> {
+        if !valid_depth(data, 0) {
+            eprintln!(
+                "cmux: session restore tree exceeds project layout depth limit, falling back"
+            );
+            return None;
+        }
         static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 =
             std::sync::atomic::AtomicU64::new(1 << 24);
         let mut next_pane_id = NEXT_RESTORE_BASE.fetch_add(1 << 18, Ordering::Relaxed);
@@ -240,5 +259,41 @@ impl SplitEngine {
                 })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn leaf() -> SplitNodeData {
+        SplitNodeData::Leaf {
+            pane_id: 1,
+            surface_uuid: Uuid::new_v4(),
+            shell: String::new(),
+            cwd: String::new(),
+        }
+    }
+
+    /// Validate both branches before GTK construction, accepting exactly the shared depth bound.
+    #[test]
+    fn depth_preflight_checks_late_branches() {
+        let mut tree = leaf();
+        for _ in 0..crate::project_config::project_action::MAX_LAYOUT_DEPTH {
+            tree = SplitNodeData::Split {
+                orientation: "horizontal".into(),
+                ratio: 0.5,
+                start: Box::new(leaf()),
+                end: Box::new(tree),
+            };
+        }
+        assert!(valid_depth(&tree, 0));
+        let too_deep = SplitNodeData::Split {
+            orientation: "vertical".into(),
+            ratio: 0.5,
+            start: Box::new(leaf()),
+            end: Box::new(tree),
+        };
+        assert!(!valid_depth(&too_deep, 0));
     }
 }
