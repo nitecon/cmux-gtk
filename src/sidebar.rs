@@ -2,6 +2,54 @@ use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+const WORKSPACE_ID_KEY: &str = "workspace-id";
+
+/// Bind a sidebar row to stable model identity; visual row positions may include group headers.
+pub fn bind_workspace_row(row: &gtk4::ListBoxRow, workspace_id: u64) {
+    // SAFETY: the row owns this copied scalar for its full GTK lifetime.
+    unsafe { row.set_data(WORKSPACE_ID_KEY, workspace_id) };
+}
+
+/// Read stable workspace identity; group/header rows deliberately return None.
+pub fn workspace_row_id(row: &gtk4::ListBoxRow) -> Option<u64> {
+    // SAFETY: bind_workspace_row stores a u64 under this private key.
+    unsafe { row.data::<u64>(WORKSPACE_ID_KEY).map(|id| *id.as_ref()) }
+}
+
+/// Resolve a visual row against the current model without trusting its GTK index.
+pub fn workspace_index_for_row(
+    state: &crate::app_state::AppState,
+    row: &gtk4::ListBoxRow,
+) -> Option<usize> {
+    let id = workspace_row_id(row)?;
+    state
+        .workspaces
+        .iter()
+        .position(|workspace| workspace.id == id)
+}
+
+/// Locate one workspace row while ignoring future group/header rows.
+pub fn row_for_workspace(list: &gtk4::ListBox, workspace_id: u64) -> Option<gtk4::ListBoxRow> {
+    workspace_rows(list)
+        .into_iter()
+        .find(|row| workspace_row_id(row) == Some(workspace_id))
+}
+
+/// Snapshot workspace rows in visual order without retaining the list or model.
+pub fn workspace_rows(list: &gtk4::ListBox) -> Vec<gtk4::ListBoxRow> {
+    let mut rows = Vec::new();
+    let mut child = list.first_child();
+    while let Some(widget) = child {
+        child = widget.next_sibling();
+        if let Ok(row) = widget.downcast::<gtk4::ListBoxRow>() {
+            if workspace_row_id(&row).is_some() {
+                rows.push(row);
+            }
+        }
+    }
+    rows
+}
+
 /// Build the sidebar widget: outer Box(V) > [ScrolledWindow(ListBox), Button(+)].
 /// Returns (sidebar_box, scrolled_window, list_box).
 ///
@@ -55,8 +103,10 @@ pub fn wire_sidebar_clicks(
             let Some(state) = state.upgrade() else {
                 return;
             };
-            let index = row.index() as usize;
-            state.borrow_mut().switch_to_index(index);
+            let index = workspace_index_for_row(&state.borrow(), row);
+            if let Some(index) = index {
+                state.borrow_mut().switch_to_index(index);
+            }
         }
     });
 }
@@ -69,17 +119,21 @@ pub fn start_inline_rename(
     active_index: usize,
     state: Rc<RefCell<crate::app_state::AppState>>,
 ) {
-    let row = match list_box.row_at_index(active_index as i32) {
+    let workspace_id = match state.borrow().workspaces.get(active_index) {
+        Some(workspace) => workspace.id,
+        None => return,
+    };
+    let row = match row_for_workspace(list_box, workspace_id) {
         Some(r) => r,
         None => return,
     };
 
-    let (workspace_id, current_name) = {
+    let current_name = {
         let s = state.borrow();
         let Some(workspace) = s.workspaces.get(active_index) else {
             return;
         };
-        (workspace.id, workspace.name.clone())
+        workspace.name.clone()
     };
     let entry = gtk4::Entry::new();
     entry.set_text(&current_name);
@@ -191,7 +245,9 @@ pub fn wire_row_close_button(
                 let Some(row) = row.upgrade() else {
                     return;
                 };
-                let index = row.index() as usize;
+                let Some(index) = workspace_index_for_row(&state.borrow(), &row) else {
+                    return;
+                };
                 let ws_count = state.borrow().workspaces.len();
                 if ws_count <= 1 {
                     return; // Cannot close last workspace
@@ -227,7 +283,9 @@ pub fn attach_sidebar_context_menu(
                 let Some(row) = row.upgrade() else {
                     return;
                 };
-                let index = row.index() as usize;
+                let Some(index) = workspace_index_for_row(&state.borrow(), &row) else {
+                    return;
+                };
                 if let Some(to) = index.checked_add_signed(offset) {
                     state.borrow_mut().reorder_workspace(index, to);
                 }
@@ -258,7 +316,10 @@ pub fn attach_sidebar_context_menu(
                     return;
                 };
                 let mut s = state.borrow_mut();
-                if let Some(id) = s.workspaces.get(row.index() as usize).map(|w| w.id) {
+                if let Some(id) = workspace_index_for_row(&s, &row)
+                    .and_then(|index| s.workspaces.get(index))
+                    .map(|workspace| workspace.id)
+                {
                     s.set_workspace_color(id, color.map(str::to_string));
                 }
             }
@@ -285,7 +346,9 @@ pub fn attach_sidebar_context_menu(
                 return;
             };
             // Switch to this workspace first so context menu actions apply to it
-            let index = row.index() as usize;
+            let Some(index) = workspace_index_for_row(&state.borrow(), &row) else {
+                return;
+            };
             state.borrow_mut().switch_to_index(index);
             popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(x as i32, y as i32, 1, 1)));
             popover.popup();
@@ -300,13 +363,9 @@ pub fn wire_latest_row(
     state: Rc<RefCell<crate::app_state::AppState>>,
     app: &gtk4::Application,
 ) {
-    let n = sidebar_list.observe_children().n_items();
-    if n == 0 {
-        return;
-    }
-    if let Some(row) = sidebar_list.row_at_index((n - 1) as i32) {
-        wire_row_close_button(&row, state.clone(), app);
-        attach_sidebar_context_menu(&row, state);
+    if let Some(row) = workspace_rows(sidebar_list).last() {
+        wire_row_close_button(row, state.clone(), app);
+        attach_sidebar_context_menu(row, state);
     }
 }
 
@@ -395,7 +454,7 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
             let state = state.upgrade()?;
             let row = row.upgrade()?;
             let s = state.borrow();
-            let workspace = s.workspaces.get(row.index() as usize)?;
+            let workspace = s.workspaces.get(workspace_index_for_row(&s, &row)?)?;
             Some(gtk4::gdk::ContentProvider::for_value(
                 &format!("cmux-workspace:{}", workspace.id).to_value(),
             ))
@@ -423,7 +482,10 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
             let Some(from) = s.workspaces.iter().position(|w| w.id == id) else {
                 return false;
             };
-            s.reorder_workspace(from, row.index() as usize)
+            let Some(to) = workspace_index_for_row(&s, &row) else {
+                return false;
+            };
+            s.reorder_workspace(from, to)
         }
     });
     row.add_controller(target);
@@ -456,6 +518,7 @@ mod lifecycle_tests {
                 "/opt/team/repo".into(),
             );
             let row = gtk4::ListBoxRow::new();
+            bind_workspace_row(&row, workspace.id);
             row.set_child(Some(&workspace_row_content(&workspace)));
             list.append(&row);
             state.borrow_mut().workspaces.push(workspace);

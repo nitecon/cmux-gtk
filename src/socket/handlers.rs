@@ -204,7 +204,10 @@ fn handle_socket_command_traced(
             match crate::workspace_metadata::apply(&mut state.workspaces[index].metadata, action) {
                 Ok(changed) => {
                     if changed {
-                        if let Some(row) = state.sidebar_list.row_at_index(index as i32) {
+                        if let Some(row) = crate::sidebar::row_for_workspace(
+                            &state.sidebar_list,
+                            state.workspaces[index].id,
+                        ) {
                             if let Some(vbox) = row
                                 .child()
                                 .and_then(|child| child.first_child())

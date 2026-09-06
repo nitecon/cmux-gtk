@@ -392,9 +392,7 @@ impl AppState {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&crate::sidebar::workspace_row_content(workspace)));
         crate::sidebar::style_workspace_row(&row, workspace);
-        unsafe {
-            row.set_data("workspace-id", workspace.id);
-        }
+        crate::sidebar::bind_workspace_row(&row, workspace.id);
         row
     }
 
@@ -454,7 +452,7 @@ impl AppState {
                 crate::ports::publish(self, idx, None);
             }
             // Update sidebar subtitle
-            if let Some(row) = self.sidebar_list.row_at_index(idx as i32) {
+            if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, workspace_id) {
                 if let Some(hbox) = row.child().and_downcast::<gtk4::Box>() {
                     if let Some(vbox) = hbox.first_child().and_downcast::<gtk4::Box>() {
                         // Last child in vbox is the status label (if it has connection-state class)
@@ -511,7 +509,7 @@ impl AppState {
         self.workspace_bridges.remove(&workspace.id);
 
         // Remove sidebar row.
-        if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
+        if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, workspace.id) {
             self.sidebar_list.remove(&row);
         }
 
@@ -541,20 +539,19 @@ impl AppState {
         self.active_index = index;
         let page_name = self.workspaces[index].stack_page_name.clone();
         self.stack.set_visible_child_name(&page_name);
-        if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
+        if let Some(row) =
+            crate::sidebar::row_for_workspace(&self.sidebar_list, self.workspaces[index].id)
+        {
             self.sidebar_list.select_row(Some(&row));
             // Update CSS classes: active row gets "active-workspace" for styling.
             // All rows: remove first, then add to active.
-            let count = self.workspaces.len() as i32;
-            for i in 0..count {
-                if let Some(r) = self.sidebar_list.row_at_index(i) {
-                    r.remove_css_class("active-workspace");
-                    // Phase 4: navigate nested layout: row > hbox > vbox > label
-                    if let Some(hbox) = r.child().and_downcast::<gtk4::Box>() {
-                        if let Some(vbox) = hbox.first_child().and_downcast::<gtk4::Box>() {
-                            if let Some(label) = vbox.first_child().and_downcast::<gtk4::Label>() {
-                                label.set_css_classes(&[]);
-                            }
+            for r in crate::sidebar::workspace_rows(&self.sidebar_list) {
+                r.remove_css_class("active-workspace");
+                // Phase 4: navigate nested layout: row > hbox > vbox > label
+                if let Some(hbox) = r.child().and_downcast::<gtk4::Box>() {
+                    if let Some(vbox) = hbox.first_child().and_downcast::<gtk4::Box>() {
+                        if let Some(label) = vbox.first_child().and_downcast::<gtk4::Label>() {
+                            label.set_css_classes(&[]);
                         }
                     }
                 }
@@ -590,11 +587,12 @@ impl AppState {
             return false;
         }
         let active_id = self.workspaces[self.active_index].id;
+        let moved_id = self.workspaces[from].id;
         let workspace = self.workspaces.remove(from);
         self.workspaces.insert(to, workspace);
         let engine = self.split_engines.remove(from);
         self.split_engines.insert(to, engine);
-        if let Some(row) = self.sidebar_list.row_at_index(from as i32) {
+        if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, moved_id) {
             self.sidebar_list.remove(&row);
             self.sidebar_list.insert(&row, to as i32);
         }
@@ -603,11 +601,8 @@ impl AppState {
             .iter()
             .position(|w| w.id == active_id)
             .unwrap();
-        self.sidebar_list.select_row(
-            self.sidebar_list
-                .row_at_index(self.active_index as i32)
-                .as_ref(),
-        );
+        let active_row = crate::sidebar::row_for_workspace(&self.sidebar_list, active_id);
+        self.sidebar_list.select_row(active_row.as_ref());
         true
     }
 
@@ -685,7 +680,7 @@ impl AppState {
         }
         if let Some(index) = self.workspaces.iter().position(|w| w.id == id) {
             self.workspaces[index].color = color;
-            if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
+            if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, id) {
                 crate::sidebar::style_workspace_row(&row, &self.workspaces[index]);
             }
             self.trigger_session_save();
@@ -731,10 +726,13 @@ impl AppState {
 
     /// Update the workspace name and sidebar label, then schedule persistence; ignore invalid indices.
     pub fn rename_workspace_at(&mut self, index: usize, new_name: String) {
+        let Some(workspace_id) = self.workspaces.get(index).map(|workspace| workspace.id) else {
+            return;
+        };
         if let Some(ws) = self.workspaces.get_mut(index) {
             ws.rename(new_name.clone());
             // Update the sidebar label (Phase 4 nested layout: row > hbox > vbox > label).
-            if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
+            if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, workspace_id) {
                 if let Some(hbox) = row.child().and_downcast::<gtk4::Box>() {
                     if let Some(vbox) = hbox.first_child().and_downcast::<gtk4::Box>() {
                         if let Some(label) = vbox.first_child().and_downcast::<gtk4::Label>() {
@@ -802,7 +800,9 @@ impl AppState {
 
     /// Update the sidebar dot visibility for workspace at `index`.
     pub(crate) fn update_sidebar_attention(&self, index: usize) {
-        if let Some(row) = self.sidebar_list.row_at_index(index as i32) {
+        if let Some(row) =
+            crate::sidebar::row_for_workspace(&self.sidebar_list, self.workspaces[index].id)
+        {
             let has_attention = self
                 .workspaces
                 .get(index)

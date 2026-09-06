@@ -438,12 +438,9 @@ fn build_ui(
 
     // Phase 9: Wire close buttons + context menus on all sidebar rows created above.
     {
-        let n = sidebar_list.observe_children().n_items();
-        for i in 0..n {
-            if let Some(row) = sidebar_list.row_at_index(i as i32) {
-                crate::sidebar::wire_row_close_button(&row, state.clone(), app);
-                crate::sidebar::attach_sidebar_context_menu(&row, state.clone());
-            }
+        for row in crate::sidebar::workspace_rows(&sidebar_list) {
+            crate::sidebar::wire_row_close_button(&row, state.clone(), app);
+            crate::sidebar::attach_sidebar_context_menu(&row, state.clone());
         }
     }
 

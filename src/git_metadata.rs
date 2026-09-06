@@ -203,11 +203,10 @@ pub fn start(state: &crate::app_state::AppStateRef, window: &gtk4::ApplicationWi
                 continue;
             }
             state.workspaces[index].git = value;
-            if let Some(container) = state
-                .sidebar_list
-                .row_at_index(index as i32)
-                .and_then(|row| row.child())
-                .and_then(|row| row.first_child())
+            if let Some(container) =
+                crate::sidebar::row_for_workspace(&state.sidebar_list, state.workspaces[index].id)
+                    .and_then(|row| row.child())
+                    .and_then(|row| row.first_child())
             {
                 let mut child = container.first_child();
                 while let Some(widget) = child {

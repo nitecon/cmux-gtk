@@ -134,7 +134,9 @@ fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory:
         let mut s = state.borrow_mut();
         let index = s.workspaces.iter().position(|w| w.id == id).unwrap();
         s.workspaces[index].remote_directory = directory;
-        if let Some(row) = s.sidebar_list.row_at_index(index as i32) {
+        if let Some(row) =
+            crate::sidebar::row_for_workspace(&s.sidebar_list, s.workspaces[index].id)
+        {
             row.set_child(Some(&crate::sidebar::workspace_row_content(
                 &s.workspaces[index],
             )));
