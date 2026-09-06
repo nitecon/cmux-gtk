@@ -99,6 +99,10 @@ struct Parser {
 impl Parser {
     /// Consume arbitrary read boundaries, ignoring unrelated control strings and oversize frames.
     fn feed(&mut self, bytes: &[u8], mut emit: impl FnMut(Content)) {
+        // Ordinary bulk terminal output needs only the optimized byte search, not a bytewise parser.
+        if matches!(self.state, State::Ground) && !bytes.contains(&0x1b) {
+            return;
+        }
         for &byte in bytes {
             if matches!(byte, 0x18 | 0x1a) {
                 self.state = State::Ground;
