@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closing a terminal above a browser tab must defer reentrant mapping and preserve the browser."""
+"""Closing a terminal above a browser tab must preserve the browser and keep GTK responsive."""
 import json
 import os
 from pathlib import Path
@@ -75,7 +75,6 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             assert app.surfaces() == before_invalid, "failed focus changed selection"
             app.cli("close-surface", terminal_id)
             app.cli("ping")
-            app.wait_for(lambda: recorded("browser map deferred while application state is busy"), "deferred browser mapping")
             app.wait_for(lambda: recorded(f"surface-tab closed uuid={terminal_id}"), "terminal closure record")
             assert {surface["uuid"] for surface in app.surfaces()} == {browser_id}
             app.wait_for(lambda: not app.children(), "original terminal process exit")
@@ -104,4 +103,4 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
                 os.kill(int(pid_file.read_text().strip()), signal.SIGTERM)
             except (ProcessLookupError, FileNotFoundError):
                 pass
-    print("terminal tab close deferred browser mapping and preserved the browser surface")
+    print("terminal tab close preserved browser selection and kept the application responsive")

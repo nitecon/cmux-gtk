@@ -32,8 +32,16 @@ def run_daemon(session):
             with connection.makefile("rb") as reader:
                 request = reader.readline(4 * 1024 * 1024 + 1)
             if request:
+                action = json.loads(request).get("action")
+                if action == "navigate" and (root / "pause-navigate").exists():
+                    (root / "navigate-waiting").write_text("ready", encoding="utf-8")
+                    deadline = time.monotonic() + 10
+                    while (root / "pause-navigate").exists():
+                        if time.monotonic() >= deadline:
+                            raise TimeoutError("fixture navigation was never released")
+                        time.sleep(0.01)
                 connection.sendall(b'{"success":true,"data":{}}\n')
-                if json.loads(request).get("action") == "close":
+                if action == "close":
                     server.close()
                     socket_path.unlink(missing_ok=True)
                     (root / f"{session}.stream").unlink(missing_ok=True)
