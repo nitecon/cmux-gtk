@@ -8,10 +8,12 @@ use std::sync::OnceLock;
 static SIGNING_KEY: OnceLock<Option<[u8; 32]>> = OnceLock::new();
 const MAX_APPROVALS: usize = 128;
 
-/// An exact launch reviewed in the UI. Presentation metadata is deliberately not authority.
+/// A launch reviewed in the UI, optionally scoped to initial literal arguments.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct Approval {
     command: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    command_prefix: Option<Vec<String>>,
     cwd: String,
     environment: BTreeMap<String, String>,
     signature: Vec<u8>,
@@ -35,11 +37,23 @@ impl Approval {
         {
             return false;
         }
+        if self.command_prefix.as_ref().is_some_and(|prefix| {
+            prefix.is_empty()
+                || prefix.iter().map(String::len).sum::<usize>() > 16384
+                || prefix.len() > 8192
+        }) {
+            return false;
+        }
         let Some(key) = SIGNING_KEY.get().and_then(Option::as_ref) else {
             return false;
         };
         let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC accepts this key size");
-        mac.update(&payload(&self.command, &self.cwd, &self.environment));
+        mac.update(&payload(
+            &self.command,
+            &self.cwd,
+            &self.environment,
+            self.command_prefix.as_deref(),
+        ));
         mac.verify_slice(&self.signature).is_ok()
     }
 }
@@ -64,10 +78,20 @@ pub fn initialize() {
     let _ = SIGNING_KEY.set(key.ok());
 }
 
-/// Canonical signing input includes a format/domain marker and exact command, directory and env.
-fn payload(command: &str, cwd: &str, environment: &BTreeMap<String, String>) -> Vec<u8> {
-    serde_json::to_vec(&("cmux-exact-resume-v1", command, cwd, environment))
-        .expect("strings and string maps serialize")
+/// Canonical signing input binds the policy mode, reviewed command/prefix, directory and environment.
+fn payload(
+    command: &str,
+    cwd: &str,
+    environment: &BTreeMap<String, String>,
+    prefix: Option<&[String]>,
+) -> Vec<u8> {
+    match prefix {
+        Some(prefix) => {
+            serde_json::to_vec(&("cmux-prefix-resume-v1", command, prefix, cwd, environment))
+        }
+        None => serde_json::to_vec(&("cmux-exact-resume-v1", command, cwd, environment)),
+    }
+    .expect("strings and string maps serialize")
 }
 
 impl ResumePolicy {
@@ -80,7 +104,7 @@ impl ResumePolicy {
         let cli = std::env::current_exe().ok()?.with_file_name("cmux");
         let cli = cli.to_str()?.replace('\'', "'\\''");
         crate::diagnostics::event(format_args!(
-            "resume.launch stage=schedule location=local approval=exact"
+            "resume.launch stage=schedule location=local approval=signed"
         ));
         Some(format!(
             "'{cli}' restore --automatic; exec \"${{SHELL:-/bin/sh}}\" -i"
@@ -94,13 +118,18 @@ impl ResumePolicy {
         self
     }
 
-    /// Return whether a valid binding exactly matches a signed, explicitly reviewed launch.
+    /// Match a signed exact command or literal argument prefix, with exact directory and environment.
     pub fn allows(&self, binding: &ResumeBinding) -> bool {
         if binding.validate().is_err() {
             return false;
         }
         self.approvals.iter().any(|approval| {
-            approval.command == binding.command
+            let matches_command = match &approval.command_prefix {
+                Some(prefix) => crate::resume_command::literal_arguments(&binding.command)
+                    .is_some_and(|arguments| arguments.starts_with(prefix)),
+                None => approval.command == binding.command,
+            };
+            matches_command
                 && Some(approval.cwd.as_str()) == binding.cwd.as_deref()
                 && approval.environment == binding.environment
                 && approval.valid_signature()
@@ -109,6 +138,30 @@ impl ResumePolicy {
 
     /// Approve the current sanitized binding after UI review; requires an explicit absolute directory.
     pub fn approve(&mut self, binding: &ResumeBinding) -> Result<(), &'static str> {
+        self.approve_launch(binding, None)
+    }
+
+    /// Review a literal argument prefix, retaining exact directory and environment scope.
+    pub fn approve_prefix(
+        &mut self,
+        binding: &ResumeBinding,
+        prefix: &str,
+    ) -> Result<(), &'static str> {
+        let arguments = crate::resume_command::literal_arguments(&binding.command).ok_or(
+            "Prefix approval requires a literal command without shell expansion or control syntax.",
+        )?;
+        let prefix = crate::resume_command::literal_arguments(prefix)
+            .filter(|prefix| arguments.starts_with(prefix))
+            .ok_or("Enter complete initial command arguments as the prefix.")?;
+        self.approve_launch(binding, Some(prefix))
+    }
+
+    /// Sign a reviewed exact or prefix launch after validating its complete execution context.
+    fn approve_launch(
+        &mut self,
+        binding: &ResumeBinding,
+        prefix: Option<Vec<String>>,
+    ) -> Result<(), &'static str> {
         binding.validate()?;
         let cwd = binding
             .cwd
@@ -124,16 +177,28 @@ impl ResumePolicy {
             .get()
             .and_then(Option::as_ref)
             .ok_or("The resume signing key is unavailable.")?;
-        if self.allows(binding) {
+        if self.approvals.iter().any(|approval| {
+            approval.command == binding.command
+                && approval.command_prefix == prefix
+                && Some(approval.cwd.as_str()) == binding.cwd.as_deref()
+                && approval.environment == binding.environment
+                && approval.valid_signature()
+        }) {
             return Ok(());
         }
         if self.approvals.len() >= MAX_APPROVALS {
             return Err("Revoke an existing approval before adding another (limit 128).");
         }
         let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC accepts this key size");
-        mac.update(&payload(&binding.command, cwd, &binding.environment));
+        mac.update(&payload(
+            &binding.command,
+            cwd,
+            &binding.environment,
+            prefix.as_deref(),
+        ));
         self.approvals.push(Approval {
             command: binding.command.clone(),
+            command_prefix: prefix,
             cwd: cwd.into(),
             environment: binding.environment.clone(),
             signature: mac.finalize().into_bytes().to_vec(),
@@ -155,6 +220,47 @@ impl ResumePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Prefix authority permits a new checkpoint but not changed executables, context or shell control.
+    #[test]
+    fn signed_prefix_scope_and_integrity() {
+        SIGNING_KEY.get_or_init(|| Some([73; 32]));
+        let mut binding: ResumeBinding = serde_json::from_value(serde_json::json!({
+            "command": "'/opt/agent cli' --resume 'session one'", "cwd": "/tmp/project",
+            "environment": {"PROJECT": "literal $HOME"}
+        }))
+        .unwrap();
+        let mut policy = ResumePolicy::default();
+        policy
+            .approve_prefix(&binding, "'/opt/agent cli' --resume")
+            .unwrap();
+        binding.command = "'/opt/agent cli' --resume 'session two'".into();
+        assert!(policy.allows(&binding));
+        let restored: ResumePolicy =
+            serde_json::from_slice(&serde_json::to_vec(&policy).unwrap()).unwrap();
+        assert!(restored.validated().allows(&binding));
+        for command in [
+            "'/opt/agent cli-other' --resume id",
+            "'/opt/agent cli' --resume id; true",
+            "'/opt/agent cli' --resume $(true)",
+            "'/opt/agent cli' --resume id | true",
+        ] {
+            let mut changed = binding.clone();
+            changed.command = command.into();
+            assert!(!policy.allows(&changed));
+        }
+        let mut changed = binding.clone();
+        changed.cwd = Some("/other".into());
+        assert!(!policy.allows(&changed));
+        changed = binding.clone();
+        changed.environment.clear();
+        assert!(!policy.allows(&changed));
+        policy.approvals[0].command_prefix = Some(vec!["/opt/agent cli".into()]);
+        assert!(
+            !policy.allows(&binding),
+            "changing a persisted prefix must invalidate its signature"
+        );
+    }
 
     /// Changing any execution input invalidates approval; round trips retain valid authority only.
     #[test]

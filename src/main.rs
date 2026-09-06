@@ -15,6 +15,7 @@ mod menus;
 mod notification;
 mod preferences;
 mod resume;
+mod resume_command;
 mod resume_policy;
 mod resume_review;
 mod selection;

@@ -22,7 +22,7 @@ fn selected(state: &AppStateRef) -> Option<(String, ResumeBinding)> {
     ))
 }
 
-/// Append exact-command review and revocation controls to Preferences on the GTK thread.
+/// Append exact/prefix command review and revocation controls to Preferences on the GTK thread.
 /// Approval compares against the current binding again so a stale dialog cannot approve an update.
 pub fn append(content: &gtk4::Box, state: &AppStateRef) {
     let selection = selected(state);
@@ -57,18 +57,41 @@ pub fn append(content: &gtk4::Box, state: &AppStateRef) {
         .child(&review)
         .build();
     content.append(&scroll);
+    let prefix = gtk4::Entry::builder()
+        .placeholder_text("Initial command arguments, for example: agent --resume")
+        .build();
+    if let Some((_, binding)) = &selection {
+        prefix.set_text(&binding.command);
+    }
+    let prefix_label = gtk4::Label::with_mnemonic("_Command prefix");
+    prefix_label.set_mnemonic_widget(Some(&prefix));
+    prefix_label.set_xalign(0.0);
+    content.append(&prefix_label);
+    content.append(&prefix);
+    let prefix_help = gtk4::Label::new(Some("A prefix allows later arguments to change. The directory and environment must still match exactly; shell expansion and control syntax are rejected."));
+    prefix_help.set_wrap(true);
+    prefix_help.set_xalign(0.0);
+    content.append(&prefix_help);
     let buttons = gtk4::Box::new(gtk4::Orientation::Horizontal, 8);
     let approve = gtk4::Button::with_mnemonic("_Approve exact command");
     approve.set_sensitive(selection.is_some());
     let revoke = gtk4::Button::with_mnemonic("_Revoke all approvals");
+    let approve_prefix = gtk4::Button::with_mnemonic("Approve _prefix");
+    approve_prefix.set_sensitive(selection.as_ref().is_some_and(|(_, binding)| {
+        crate::resume_command::literal_arguments(&binding.command).is_some()
+    }));
     buttons.append(&approve);
+    buttons.append(&approve_prefix);
     buttons.append(&revoke);
     content.append(&buttons);
     let result = gtk4::Label::new(Some("Approval allows this exact command, directory and environment to restart in future sessions."));
     result.set_wrap(true);
     result.set_xalign(0.0);
     content.append(&result);
-    approve.connect_clicked({
+    for (button, use_prefix) in [(approve, false), (approve_prefix, true)] {
+        button.connect_clicked({
+        let selection = selection.clone();
+        let prefix = prefix.clone();
         let state = state.clone();
         let result = result.clone();
         let title = title.clone();
@@ -79,17 +102,20 @@ pub fn append(content: &gtk4::Box, state: &AppStateRef) {
             }
             let Some((_, binding)) = &selection else { return; };
             let mut state = state.borrow_mut();
-            match state.resume_policy.approve(binding) {
+            let approval = if use_prefix { state.resume_policy.approve_prefix(binding, prefix.text().as_str()) }
+                else { state.resume_policy.approve(binding) };
+            match approval {
                 Ok(()) => {
                     state.trigger_session_save();
                     title.set_text(&format!("Automatic resume approvals: {}", state.resume_policy.len()));
-                    result.set_text("Approved. Changes to the command, directory or environment require fresh approval.");
+                    result.set_text(if use_prefix { "Prefix approved with this exact directory and environment." } else { "Exact command approved with this directory and environment." });
                     crate::diagnostics::event(format_args!("resume.approval action=approve outcome=success"));
                 }
                 Err(error) => result.set_text(error),
             }
         }
     });
+    }
     revoke.connect_clicked({
         let state = state.clone();
         move |_| {

@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Terminal resume binding metadata
 space: cmux-gtk
 slug: terminal-resume
-summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual and exact-approved local execution supported; prefix and provider policy remain in progress.
+summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual and signed exact/prefix local execution supported; provider trust and controls remain in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/resume.rs
@@ -24,7 +24,7 @@ content:
       steps:
         - Bindings live in their terminal entry in the pane layout; normal snapshot/save and final quit drain persist them. New sibling/split terminals start without a binding.
         - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Binding writes cannot grant automatic approval; explicit auto_resume=true requests remain not_supported. Untrusted source strings do not confer automatic launch authority.
-        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Broader provider hooks, prefix approval, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
+        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Broader provider hooks, automatic agent controls, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
 
     - name: Claude native session hooks
       steps:
@@ -37,4 +37,4 @@ content:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
         - HMAC-SHA256 approval records are persisted by the session writer, separate from the owner-only configuration resume-approval.key. Unavailable, malformed or unsafe key files disable approvals. Persisted records are validated before startup decisions.
         - Approved local bindings override the workspace startup command during restoration. cmux restore --automatic requires the current backend approval as well as matching terminal identity and TTY; it executes the returned binding through the manual execution path. The wrapper returns to an interactive shell after completion or failure. Remote bindings cannot use this path.
-        - This checkpoint supports exact launches only. Upstream command-prefix policy, trusted provider automatic approvals, agent toggles and expanded lifecycle metrics remain open. CI tests UI approval and revocation through real GTK keyboard input rather than a test-only socket bypass.
+        - The editable prefix field can authorize complete initial literal command arguments with exact cwd/environment. Prefix matching rejects shell expansion and control syntax, and signatures cover the prefix and mode. Existing exact signatures remain valid. Trusted provider automatic approvals, a full saved-approval editor, agent toggles and expanded lifecycle metrics remain open. CI tests UI approval and revocation through real GTK keyboard input rather than a test-only socket bypass.

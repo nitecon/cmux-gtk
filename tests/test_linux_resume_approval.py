@@ -24,11 +24,15 @@ def key(target, chord):
     subprocess.check_call(["xdotool", "windowfocus", "--sync", target, "key", "--clearmodifiers", chord], timeout=10)
 
 
-def review(app, chord):
+def review(app, chord, prefix=None):
     """Open the production preferences panel and activate its approval or revocation mnemonic."""
     key(window(app), "ctrl+comma")
     app.wait_for(lambda: window(app, "Preferences"), "resume review panel")
     dialog = window(app, "Preferences")
+    if prefix is not None:
+        key(dialog, "alt+c")
+        key(dialog, "ctrl+a")
+        subprocess.check_call(["xdotool", "type", "--clearmodifiers", "--delay", "1", "--", prefix], timeout=10)
     key(dialog, chord)
     return dialog
 
@@ -84,6 +88,28 @@ def main():
                 app.wait_for(lambda: bool(json.loads(app.cli("read-text", "--id", surface, "--json"))["text"].strip()),
                              "unapproved terminal shell")
                 assert not approved() and not output.exists()
+                provider = root / "agent with spaces"
+                provider.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > " + shlex.quote(str(output)) + "\n")
+                provider.chmod(0o700)
+                prefix = shlex.quote(str(provider)) + " --resume"
+                params["command"] = prefix + " 'first checkpoint'"
+                app.cli("raw", "surface.resume.set", "--params", json.dumps(params))
+                dialog = review(app, "alt+p", prefix)
+                app.wait_for(approved, "literal prefix approval")
+                key(dialog, "Escape")
+                app.wait_for(lambda: window(app, "Preferences") is None, "review close")
+                for command in [prefix + " id; true", prefix + " $(true)", prefix + " id | true"]:
+                    app.cli("raw", "surface.resume.set", "--params", json.dumps(dict(params, command=command)))
+                    assert not approved(), "shell control inherited prefix authority"
+                params["command"] = prefix + " 'second checkpoint'"
+                app.cli("raw", "surface.resume.set", "--params", json.dumps(params))
+                assert approved(), "new native ID did not match the reviewed argument prefix"
+                quit_app(app)
+            with running_app(root) as app:
+                app.wait_for(output.exists, "prefix-approved new checkpoint launch")
+                app.wait_for(lambda: output.read_text().splitlines() == ["--resume", "second checkpoint"],
+                             "new native checkpoint arguments")
+                assert approved()
         finally:
             stop_process(wm)
     print("GTK approvals survived restart, matched exact launch inputs, and revoked durably")
