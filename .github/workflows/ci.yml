@@ -217,6 +217,10 @@ jobs:
           CMUX_CHURN_REPORT: target/benchmarks/memory-churn-release.json
         run: dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1200x24' python3 tests/test_linux_memory_churn.py
 
+      - name: Benchmark optimized background input and bell attention
+        timeout-minutes: 5
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_attention_benchmark.py
+
       - name: Preserve benchmark results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
