@@ -1,1 +1,0 @@
-../tests/test_browser_goto_split.py
