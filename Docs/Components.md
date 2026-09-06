@@ -1,6 +1,6 @@
 # Components
 
-These boundaries guide the ongoing refactor. Locations describe the current implementation; outstanding moves are recorded in [RefactorAudit](RefactorAudit.md).
+These boundaries describe the current implementation. Requirement and verification evidence is tracked in [RefactorAudit](RefactorAudit.md).
 
 | Component | Responsibility | Current source |
 | --- | --- | --- |
@@ -14,10 +14,10 @@ These boundaries guide the ongoing refactor. Locations describe the current impl
 | Diagnostics | Bounded structured logs, request correlation, resource snapshots, collection and optimized benchmarks | `src/diagnostics`, `src/diagnostics.rs`, `scripts/collect-cmux-diagnostics.py`, `scripts/benchmark-cmux.py`, `scripts/compare-cmux-benchmarks.py` |
 | Session/configuration | Serializable state, compatibility, shared immutable snapshots, coalesced serialized writer, buffered session serialization/loading with strict UTF-8 validation and atomic writes | `src/session.rs`, `src/config.rs`, `src/ssh_hosts.rs` |
 | Remote transport | SSH deployment, reconnect and stream ownership; Go PTY adapter owns native child launch, I/O, resize and teardown; session module manages attachment-size metadata; relay transport owns authentication, bounded response framing and socket deadlines | `src/ssh`, `daemon/remote/cmd/cmuxd-remote/{main,params,pty,sessions,streams,relay_transport}.go` |
-| Linux services | XDG locations, control-socket discovery with bounded markers and one-candidate debug scanning, OS-native PATH candidate discovery, bounded UTF-8 metadata reads, atomic file replacement, private directory/file and release-executable permissions, peer credentials, bounded synchronous local connection retries and I/O setup, process resources, installation ownership, desktop notifications and optional GTK/X11 placement and OpenGL callbacks; remaining native services are pending extraction | `crates/cmux-platform` |
+| Linux services | XDG locations, control-socket discovery with bounded markers and one-candidate debug scanning, OS-native PATH candidate discovery, bounded UTF-8 metadata reads, atomic file replacement, private directory/file and release-executable permissions, peer credentials, bounded synchronous local connection retries and I/O setup, process resources, installation ownership, desktop notifications and optional GTK/X11 placement and OpenGL callbacks | `crates/cmux-platform` |
 | Distribution | Dependency setup, linking, packages and release publishing; scripts/release-version.sh owns literal root-package version lookup | `build.rs`, `scripts`, `packaging`, `.github/workflows` |
 
-The Linux library exposes small typed functions, with no dependency on workspace state. CLI use must not require GTK initialization. GTK-specific services can be an optional feature. Keep Unix transport and Linux kernel details at this boundary as extraction progresses. A future platform provides equivalent services; the current refactor does not implement unsupported platforms.
+The Linux library exposes small typed functions, with no dependency on workspace state. CLI use must not require GTK initialization. GTK-specific services can be an optional feature. Keep Unix transport and Linux kernel details at this boundary. A future platform provides equivalent services; the current refactor does not implement unsupported platforms.
 
 Share repeated behavior at its owning component. UI and socket callers should invoke the same workspace operations; configuration files should use the same path and atomic-write helpers; credential tests must call the production authentication function. Do not duplicate those rules in adapters or tests.
 

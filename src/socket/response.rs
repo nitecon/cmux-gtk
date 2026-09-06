@@ -92,7 +92,7 @@ mod tests {
         let decoded: Value = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded["id"], 42);
         assert_eq!(decoded["error"]["code"], "response_too_large");
-        assert!(encoded.len() + 1 <= MAX_RESPONSE_BYTES);
+        assert!(encoded.len() < MAX_RESPONSE_BYTES);
     }
 
     /// Ordinary Unicode responses round-trip and oversized identities use the bounded null-id fallback.

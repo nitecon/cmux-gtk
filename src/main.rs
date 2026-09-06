@@ -217,6 +217,10 @@ fn main() {
 }
 
 /// Assemble the window, restore its model and connect GTK-side command/lifecycle handlers.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The composition root explicitly transfers runtime, channel and restored-state ownership"
+)]
 fn build_ui(
     app: &Application,
     runtime_handle: tokio::runtime::Handle,
