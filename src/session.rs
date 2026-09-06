@@ -1,5 +1,5 @@
 use crate::split_engine::SplitNodeData;
-use std::io::{BufWriter, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// Serializable snapshot of a single workspace for session persistence.
@@ -83,10 +83,43 @@ pub fn load_session() -> Option<SessionData> {
     load_session_from(&session_path())
 }
 
-/// Internal: load from a specific path (used in tests with temp paths).
+/// Validate UTF-8 across input chunks, including strings the JSON parser ignores.
+/// At most three unfinished character bytes survive between reads; EOF validates their completion.
+struct Utf8Reader<R> {
+    source: R,
+    tail: Vec<u8>,
+}
+
+impl<R: Read> Read for Utf8Reader<R> {
+    /// Forward a chunk only after rejecting invalid sequences; incomplete characters await the next read.
+    fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+        if output.is_empty() {
+            return Ok(0);
+        }
+        let count = self.source.read(output)?;
+        let mut chunk = std::mem::take(&mut self.tail);
+        chunk.extend_from_slice(&output[..count]);
+        match std::str::from_utf8(&chunk) {
+            Ok(_) => {}
+            Err(error) if error.error_len().is_none() && count != 0 => {
+                self.tail.extend_from_slice(&chunk[error.valid_up_to()..]);
+            }
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "session is not UTF-8",
+                ))
+            }
+        }
+        Ok(count)
+    }
+}
+
+/// Stream a session from a path with strict UTF-8 and a 64-KiB input buffer.
+/// The deserialized model still scales with session size; no new file-size limit is imposed.
 pub fn load_session_from(path: &Path) -> Option<SessionData> {
-    let content = match std::fs::read_to_string(path) {
-        Ok(s) => s,
+    let source = match std::fs::File::open(path) {
+        Ok(file) => file,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             eprintln!("cmux: no session file at {}", path.display());
             return None;
@@ -96,7 +129,14 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
             return None;
         }
     };
-    match serde_json::from_str::<SessionData>(&content) {
+    let reader = BufReader::with_capacity(
+        64 * 1024,
+        Utf8Reader {
+            source,
+            tail: Vec::new(),
+        },
+    );
+    match serde_json::from_reader::<_, SessionData>(reader) {
         Ok(data) => {
             if data.version != 1 && data.version != 2 && data.version != 3 {
                 eprintln!(
@@ -132,6 +172,44 @@ mod tests {
             serde_json::to_vec_pretty(&snapshot).unwrap()
         );
         assert_eq!(load_session_from(&path).unwrap().workspaces[0].name, name);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// Chunk boundaries do not change UTF-8 validity, including incomplete EOF and ignored JSON fields.
+    #[test]
+    fn streamed_session_validates_utf8() {
+        let valid = "aλ🦀z".as_bytes();
+        for chunk_size in 1..=8 {
+            let mut reader = Utf8Reader {
+                source: std::io::Cursor::new(valid),
+                tail: Vec::new(),
+            };
+            let mut result = Vec::new();
+            let mut chunk = vec![0; chunk_size];
+            loop {
+                let count = reader.read(&mut chunk).unwrap();
+                if count == 0 {
+                    break;
+                }
+                result.extend_from_slice(&chunk[..count]);
+            }
+            assert_eq!(result, valid);
+        }
+        for invalid in [&b"\xf0\x9f"[..], &b"\xed\xa0\x80"[..], &b"\xff"[..]] {
+            let mut reader = Utf8Reader {
+                source: std::io::Cursor::new(invalid),
+                tail: Vec::new(),
+            };
+            assert!(reader.read_to_end(&mut Vec::new()).is_err());
+        }
+        let path = std::env::temp_dir().join(format!("cmux-session-utf8-{}", uuid::Uuid::new_v4()));
+        for input in [
+            &b"{\"version\":1,\"active_index\":0,\"workspaces\":[],\"unknown\":\"\xff\"}"[..],
+            &b"{\"version\":1,\"active_index\":0,\"workspaces\":[]} trailing"[..],
+        ] {
+            std::fs::write(&path, input).unwrap();
+            assert!(load_session_from(&path).is_none());
+        }
         std::fs::remove_file(path).unwrap();
     }
 
