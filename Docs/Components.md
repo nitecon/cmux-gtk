@@ -38,3 +38,5 @@ Socket startup receives a runtime handle and command sender, not application sta
 `src/ssh/handshake.rs` validates daemon identity and required capabilities under one hello-exchange deadline before terminal routing starts. The same buffered reader passes into routing so prefetched response/event bytes are not discarded.
 
 SSH session creation and subscription share `request_remote` for response-slot registration before writing, bounded reply waiting, success/identity validation and cancellation cleanup. Known remote stream closure requests share `SshBridge::request_close`, including failed subscription setup.
+
+`src/ssh/outbound.rs` owns bounded GTK-to-SSH admission: a 64-slot FIFO, 16-KiB raw input chunks, whole-callback slot reservation and persistent queue failure. Callback producers never wait for transport. A new sender/receiver generation is published only after old terminal stream targets are cleared.

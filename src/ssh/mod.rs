@@ -1,6 +1,7 @@
 pub mod bridge;
 pub mod deploy;
 mod handshake;
+mod outbound;
 pub mod tunnel;
 mod writer;
 

@@ -93,6 +93,7 @@ pub async fn run_ssh_lifecycle(
             Ok(mut child) => {
                 let was_reconnect = attempt > 0;
                 let mut connected = false;
+                let mut input_rejected = false;
 
                 let stdin = child.stdin.take();
                 let stdout = child.stdout.take();
@@ -147,7 +148,8 @@ pub async fn run_ssh_lifecycle(
                             }
                         }
 
-                        run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
+                        input_rejected =
+                            run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
                     }
                 }
 
@@ -163,6 +165,7 @@ pub async fn run_ssh_lifecycle(
                         "workspace_id": workspace_id,
                         "duration_us": exit_started.elapsed().as_micros() as u64,
                         "forced": exit_status.as_ref().ok().map(|(_, forced)| *forced),
+                        "input_rejected": input_rejected,
                         "exit_code": exit_status.as_ref().ok().and_then(|(status, _)| status.code()),
                         "error_kind": exit_status.as_ref().err().map(|error| format!("{:?}", error.kind())),
                     }),
@@ -173,7 +176,11 @@ pub async fn run_ssh_lifecycle(
                 {
                     let ids: Vec<u64> = bridge.streams.lock().unwrap().keys().copied().collect();
                     for pane_id in ids {
-                        let msg = b"\r\n\x1b[33m[SSH disconnected \xe2\x80\x94 reconnecting...]\x1b[0m\r\n";
+                        let msg: &[u8] = if input_rejected {
+                            b"\r\n[SSH input queue unavailable; some input was not sent. Reconnecting with a new session.]\r\n"
+                        } else {
+                            b"\r\n\x1b[33m[SSH disconnected \xe2\x80\x94 reconnecting...]\x1b[0m\r\n"
+                        };
                         let _ = ssh_tx
                             .send(SshEvent::RemoteOutput {
                                 pane_id,
@@ -231,14 +238,12 @@ async fn run_proxy_routing(
     reader: BufReader<tokio::process::ChildStdout>,
     bridge: &Arc<SshBridge>,
     ssh_tx: &SshEventTx,
-) {
+) -> bool {
     let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
 
-    // Take (or recreate on reconnect) the write channel receiver from bridge
-    let mut local_write_rx = bridge.take_or_recreate_write_rx();
-
-    // Clear stale stream state from any prior connection
+    // Clear old targets before publishing a new sender generation to GTK callbacks.
     bridge.clear_stream_ids();
+    let (mut local_write_rx, mut input_failure) = bridge.take_or_recreate_write_rx();
 
     // Read path: parse JSON lines from SSH stdout.
     // MUST be spawned BEFORE open_remote_stream so RPC responses can be received.
@@ -355,8 +360,11 @@ async fn run_proxy_routing(
         _ = write_handle => {},
         _ = open_handle => {},
         _ = writer.failed() => {},
+        _ = input_failure.wait_for(|failed| *failed) => {},
     }
     // Scope-owned abort guards cancel every remaining companion.
+    let rejected = *input_failure.borrow();
+    rejected
 }
 
 /// Handle an incoming JSON message from cmuxd-remote.
@@ -432,7 +440,7 @@ async fn open_remote_stream(
         .get("result")
         .and_then(|r| r.get("stream_id"))
         .and_then(|v| v.as_str())
-        .filter(|id| !id.is_empty())
+        .filter(|id| !id.is_empty() && id.len() <= super::outbound::MAX_STREAM_ID)
         .ok_or_else(|| {
             let err_msg = resp
                 .get("error")

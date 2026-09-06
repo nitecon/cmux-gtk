@@ -1,7 +1,10 @@
+use super::outbound::{Outbound, Receiver};
+#[cfg(test)]
 use base64::Engine;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+#[cfg(test)]
 use tokio::sync::mpsc;
 
 /// Per-pane stream state tracking.
@@ -28,9 +31,9 @@ pub struct SshBridge {
     /// Maps stream_id -> pane_id (reverse lookup for incoming events)
     pub stream_to_pane: Arc<Mutex<HashMap<String, u64>>>,
     /// Channel to send write requests to the SSH tunnel task (swappable for reconnect)
-    pub write_tx: Arc<Mutex<mpsc::UnboundedSender<WriteRequest>>>,
+    pub(super) write_tx: Arc<Mutex<Outbound>>,
     /// Receiver side of the write channel (taken by run_proxy_routing)
-    write_rx: Mutex<Option<mpsc::UnboundedReceiver<WriteRequest>>>,
+    write_rx: Mutex<Option<Receiver>>,
     /// Atomic counter for JSON-RPC request IDs
     pub next_rpc_id: Arc<AtomicU64>,
 }
@@ -45,7 +48,7 @@ impl Default for SshBridge {
 impl SshBridge {
     /// Create a workspace-owned bridge and its initial outbound request channel.
     pub fn new() -> Self {
-        let (write_tx, write_rx) = mpsc::unbounded_channel();
+        let (write_tx, write_rx) = Outbound::new();
         Self {
             streams: Arc::new(Mutex::new(HashMap::new())),
             contexts: Mutex::new(HashMap::new()),
@@ -91,7 +94,7 @@ impl SshBridge {
 
     /// Queue best-effort closure for a known remote stream; transport teardown owns failed delivery.
     pub(crate) fn request_close(&self, stream_id: String) {
-        let _ = self.write_tx.lock().unwrap().send(WriteRequest {
+        self.write_tx.lock().unwrap().control(WriteRequest {
             stream_id,
             data_base64: String::new(),
             close: true,
@@ -101,13 +104,13 @@ impl SshBridge {
 
     /// Take the write receiver for use in the proxy routing loop.
     /// On reconnect, creates a fresh channel pair and swaps the sender.
-    pub fn take_or_recreate_write_rx(&self) -> mpsc::UnboundedReceiver<WriteRequest> {
+    pub(super) fn take_or_recreate_write_rx(&self) -> Receiver {
         let mut rx_guard = self.write_rx.lock().unwrap();
         if let Some(rx) = rx_guard.take() {
             return rx;
         }
         // Reconnect case: old rx was consumed. Create fresh channel.
-        let (new_tx, new_rx) = mpsc::unbounded_channel();
+        let (new_tx, new_rx) = Outbound::new();
         *self.write_tx.lock().unwrap() = new_tx;
         new_rx
     }
@@ -196,7 +199,7 @@ impl SshBridge {
 /// Must be allocated with Arc and leaked via Arc::into_raw for the C callback.
 pub struct IoWriteContext {
     pub pane_id: u64,
-    pub write_tx: Arc<Mutex<mpsc::UnboundedSender<WriteRequest>>>,
+    pub(super) write_tx: Arc<Mutex<Outbound>>,
     pub surface_ptr: std::sync::atomic::AtomicUsize,
     pub size: Mutex<(u16, u16)>,
     /// Set after proxy.open returns the stream_id.
@@ -232,14 +235,8 @@ pub unsafe extern "C" fn ssh_io_write_cb(
     }
 
     let bytes = std::slice::from_raw_parts(data as *const u8, len);
-    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
     if let Some(ref stream_id) = *ctx.stream_id.lock().unwrap() {
-        let _ = ctx.write_tx.lock().unwrap().send(WriteRequest {
-            stream_id: stream_id.clone(),
-            data_base64: b64,
-            close: false,
-            resize: None,
-        });
+        ctx.write_tx.lock().unwrap().input(stream_id, bytes);
     }
 }
 
@@ -253,7 +250,7 @@ impl IoWriteContext {
         }
         *previous = size;
         if let Some(stream_id) = self.stream_id.lock().unwrap().clone() {
-            let _ = self.write_tx.lock().unwrap().send(WriteRequest {
+            self.write_tx.lock().unwrap().control(WriteRequest {
                 stream_id,
                 data_base64: String::new(),
                 close: false,
@@ -280,7 +277,7 @@ mod lifecycle_tests {
         *first.stream_id.lock().unwrap() = Some("first-stream".into());
         *second.stream_id.lock().unwrap() = Some("second-stream".into());
         drop(bridge.take_or_recreate_write_rx());
-        let mut reconnected = bridge.take_or_recreate_write_rx();
+        let (mut reconnected, _failure) = bridge.take_or_recreate_write_rx();
         let payload = b"typed after reconnect";
         unsafe {
             ssh_io_write_cb(
