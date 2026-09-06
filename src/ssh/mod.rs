@@ -1,6 +1,7 @@
 pub mod bridge;
 pub mod deploy;
 pub mod tunnel;
+mod writer;
 
 use crate::workspace::ConnectionState;
 use tokio::sync::mpsc;

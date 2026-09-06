@@ -8,7 +8,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
-| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 81 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
+| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 82 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
 | Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 367 functions in 62 `tests` files, and 226 among 393 functions in 36 `tests_v2` files. All 23 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
@@ -1381,3 +1381,9 @@ The new `encoded_response_retains_operation_identity` fixture incorrectly assume
 ### Reject unsupported methods before GTK admission
 
 After correcting the fixture independently, removed the production `NotImplemented` command variant and GTK handler. Unknown methods now return the identical not_implemented code/message on the worker, preserving request and trace identities. They no longer consume GTK queue capacity or depend on its receiver. Generic browser action forwarding remains supported and unchanged. A dispatcher test closes the GTK receiver and verifies the exact unknown-method response and trace with a deadline. All-target compilation and whitespace checks pass; CI execution remains pending.
+
+### Shared SSH writer and routing retirement
+
+Replaced four unbounded writer-lock/write/flush sequences with one `RpcWriter`: hello, terminal input/control, session.spawn and proxy.stream.subscribe. Uses bounded JSON serialization and a ten-second total admitted-write budget. An armed scope guard publishes persistent retirement on timeout, I/O error or cancellation; routing observes that state and all companion exits, preventing continued use of a partial frame or waiting forever only on the stdout task. Existing abort guards and bounded child reaping perform teardown. The helper is generic only over AsyncWrite so actual duplex transport behavior can be tested without a live SSH server; no extra actor or work queue was introduced.
+
+Executable cases cover concurrent complete-frame serialization, partial-write timeout, actual delivered-prefix cancellation, late failure observation, lock-wait timeout and local encoding overflow. All-target compilation passes; tests run only in CI. Remote trace propagation, response/handshake timing and GTK event-channel bounds remain unfinished.

@@ -1,3 +1,4 @@
+use super::writer::RpcWriter;
 use crate::ssh::bridge::SshBridge;
 use crate::ssh::{SshEvent, SshEventTx};
 use crate::task::AbortOnDrop;
@@ -6,7 +7,7 @@ use base64::Engine;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader, BufWriter};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot;
 
@@ -122,21 +123,14 @@ pub async fn run_ssh_lifecycle(
                 });
 
                 if let (Some(writer), Some(reader)) = (stdin, stdout) {
-                    let mut buf_writer = BufWriter::new(writer);
-
-                    // Send hello/handshake to verify cmuxd-remote is running
+                    let writer = Arc::new(RpcWriter::new(BufWriter::new(writer), workspace_id));
                     let hello =
                         serde_json::json!({"jsonrpc":"2.0","id":1,"method":"hello","params":{}});
-                    let hello_line = format!("{}\n", hello);
-                    if let Err(e) = buf_writer.write_all(hello_line.as_bytes()).await {
-                        eprintln!("cmux: SSH handshake write failed: {e}");
-                    } else if let Err(e) = buf_writer.flush().await {
-                        eprintln!("cmux: SSH handshake flush failed: {e}");
+                    if let Err(error) = writer.send(&hello).await {
+                        eprintln!("cmux: SSH handshake write failed: {error}");
                     } else {
-                        // Run bidirectional proxy routing
                         connected =
-                            run_proxy_routing(workspace_id, buf_writer, reader, &bridge, &ssh_tx)
-                                .await;
+                            run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
                     }
                 }
 
@@ -216,14 +210,13 @@ pub async fn run_ssh_lifecycle(
 /// Bidirectional proxy routing between bridge channels and SSH stdin/stdout.
 async fn run_proxy_routing(
     workspace_id: u64,
-    buf_writer: BufWriter<tokio::process::ChildStdin>,
+    writer: Arc<RpcWriter<BufWriter<tokio::process::ChildStdin>>>,
     reader: tokio::process::ChildStdout,
     bridge: &Arc<SshBridge>,
     ssh_tx: &SshEventTx,
 ) -> bool {
     let connected = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
-    let writer = Arc::new(tokio::sync::Mutex::new(buf_writer));
 
     // Take (or recreate on reconnect) the write channel receiver from bridge
     let mut local_write_rx = bridge.take_or_recreate_write_rx();
@@ -345,12 +338,7 @@ async fn run_proxy_routing(
                     "rows": req.resize.map(|v| v.1),
                 }
             });
-            let line = format!("{}\n", rpc);
-            let mut w = write_writer.lock().await;
-            if w.write_all(line.as_bytes()).await.is_err() {
-                break;
-            }
-            if w.flush().await.is_err() {
+            if write_writer.send(&rpc).await.is_err() {
                 break;
             }
         }
@@ -358,11 +346,14 @@ async fn run_proxy_routing(
 
     let _write_guard = AbortOnDrop(write_handle.abort_handle());
 
-    // Wait for read path to finish (SSH connection closed)
-    let _ = read_handle.await;
-    // Cancel write path
-    write_handle.abort();
-    open_handle.abort();
+    // Any failed writer or completed companion retires the connection.
+    tokio::select! {
+        _ = read_handle => {},
+        _ = write_handle => {},
+        _ = open_handle => {},
+        _ = writer.failed() => {},
+    }
+    // Scope-owned abort guards cancel every remaining companion.
     connected.load(std::sync::atomic::Ordering::Acquire)
 }
 
@@ -404,8 +395,8 @@ async fn handle_incoming_message(
 }
 
 /// Open a remote PTY stream for a pane via session.spawn + proxy.stream.subscribe.
-pub async fn open_remote_stream(
-    writer: &Arc<tokio::sync::Mutex<BufWriter<tokio::process::ChildStdin>>>,
+async fn open_remote_stream(
+    writer: &Arc<RpcWriter<BufWriter<tokio::process::ChildStdin>>>,
     bridge: &SshBridge,
     pane_id: u64,
     pending: &PendingMap,
@@ -440,17 +431,10 @@ pub async fn open_remote_stream(
     }
 
     let _spawn_request = PendingRequest(pending.clone(), spawn_id);
-    // Write RPC
-    {
-        let line = format!("{}\n", spawn_rpc);
-        let mut w = writer.lock().await;
-        w.write_all(line.as_bytes())
-            .await
-            .map_err(|e| format!("write session.spawn failed: {e}"))?;
-        w.flush()
-            .await
-            .map_err(|e| format!("flush session.spawn failed: {e}"))?;
-    }
+    writer
+        .send(&spawn_rpc)
+        .await
+        .map_err(|error| format!("write session.spawn failed: {error}"))?;
 
     // Await response
     let resp = tokio::time::timeout(std::time::Duration::from_secs(15), resp_rx)
@@ -514,16 +498,10 @@ pub async fn open_remote_stream(
     }
 
     let _subscribe_request = PendingRequest(pending.clone(), sub_id);
-    {
-        let line = format!("{}\n", sub_rpc);
-        let mut w = writer.lock().await;
-        w.write_all(line.as_bytes())
-            .await
-            .map_err(|e| format!("write proxy.stream.subscribe failed: {e}"))?;
-        w.flush()
-            .await
-            .map_err(|e| format!("flush proxy.stream.subscribe failed: {e}"))?;
-    }
+    writer
+        .send(&sub_rpc)
+        .await
+        .map_err(|error| format!("write proxy.stream.subscribe failed: {error}"))?;
 
     // Await subscribe response
     let _sub_resp = tokio::time::timeout(std::time::Duration::from_secs(15), sub_rx)
@@ -649,6 +627,7 @@ async fn drain_stderr<R: AsyncRead + Unpin>(mut reader: R, workspace_id: u64) {
 #[cfg(test)]
 mod stderr_tests {
     use super::*;
+    use tokio::io::AsyncWriteExt;
 
     /// Keep draining beyond the logging cap so a noisy peer cannot block on its stderr pipe.
     #[tokio::test]
