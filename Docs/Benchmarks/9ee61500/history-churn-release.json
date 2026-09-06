@@ -1,0 +1,2152 @@
+{
+  "schema": 1,
+  "workload": "history_navigation_before_after_workspace_churn",
+  "status": "passed",
+  "history_entries": 120,
+  "added_workspaces": 20,
+  "keys_per_phase": 180,
+  "key_sequence": "90 Up then 90 Down",
+  "warmup": 0,
+  "poll_interval_seconds": 0.1,
+  "includes": "X11 key submission, GTK/Ghostty/readline processing and CLI viewport polling; compositor presentation is not measured",
+  "phases": [
+    {
+      "phase": "baseline",
+      "before": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "sampled": false
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 26665,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 131490,
+          "cpu_user_us": 316588,
+          "file_descriptors": 32,
+          "peak_rss_kib": 244888,
+          "rss_kib": 244888,
+          "threads": 31
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 7
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 463,
+        "version": "0.1.8"
+      },
+      "samples": [
+        {
+          "key": "Up",
+          "submission_us": 15589.055,
+          "buffer_observed_us": 17508.791
+        },
+        {
+          "key": "Up",
+          "submission_us": 33942.576,
+          "buffer_observed_us": 36172.783
+        },
+        {
+          "key": "Up",
+          "submission_us": 15633.413,
+          "buffer_observed_us": 17593.909
+        },
+        {
+          "key": "Up",
+          "submission_us": 17322.676,
+          "buffer_observed_us": 28389.783
+        },
+        {
+          "key": "Up",
+          "submission_us": 16303.716,
+          "buffer_observed_us": 18387.338
+        },
+        {
+          "key": "Up",
+          "submission_us": 32373.868,
+          "buffer_observed_us": 34476.218
+        },
+        {
+          "key": "Up",
+          "submission_us": 31704.372,
+          "buffer_observed_us": 33890.838
+        },
+        {
+          "key": "Up",
+          "submission_us": 31727.817,
+          "buffer_observed_us": 34080.694
+        },
+        {
+          "key": "Up",
+          "submission_us": 18544.728,
+          "buffer_observed_us": 27880.266
+        },
+        {
+          "key": "Up",
+          "submission_us": 16540.656,
+          "buffer_observed_us": 18654.584
+        },
+        {
+          "key": "Up",
+          "submission_us": 31724.07,
+          "buffer_observed_us": 33842.485
+        },
+        {
+          "key": "Up",
+          "submission_us": 16343.765,
+          "buffer_observed_us": 18365.484
+        },
+        {
+          "key": "Up",
+          "submission_us": 33122.523,
+          "buffer_observed_us": 35266.266
+        },
+        {
+          "key": "Up",
+          "submission_us": 31884.151,
+          "buffer_observed_us": 34048.154
+        },
+        {
+          "key": "Up",
+          "submission_us": 17721.114,
+          "buffer_observed_us": 27187.615
+        },
+        {
+          "key": "Up",
+          "submission_us": 16440.295,
+          "buffer_observed_us": 18523.827
+        },
+        {
+          "key": "Up",
+          "submission_us": 16020.704,
+          "buffer_observed_us": 18095.032
+        },
+        {
+          "key": "Up",
+          "submission_us": 17891.237,
+          "buffer_observed_us": 29766.408
+        },
+        {
+          "key": "Up",
+          "submission_us": 31736.358,
+          "buffer_observed_us": 33882.976
+        },
+        {
+          "key": "Up",
+          "submission_us": 33306.078,
+          "buffer_observed_us": 35454.798
+        },
+        {
+          "key": "Up",
+          "submission_us": 17760.139,
+          "buffer_observed_us": 19825.199
+        },
+        {
+          "key": "Up",
+          "submission_us": 34120.223,
+          "buffer_observed_us": 36227.831
+        },
+        {
+          "key": "Up",
+          "submission_us": 32647.673,
+          "buffer_observed_us": 34889.88
+        },
+        {
+          "key": "Up",
+          "submission_us": 31728.983,
+          "buffer_observed_us": 33864.643
+        },
+        {
+          "key": "Up",
+          "submission_us": 32040.051,
+          "buffer_observed_us": 34185.236
+        },
+        {
+          "key": "Up",
+          "submission_us": 17750.374,
+          "buffer_observed_us": 19792.94
+        },
+        {
+          "key": "Up",
+          "submission_us": 31707.856,
+          "buffer_observed_us": 33821.644
+        },
+        {
+          "key": "Up",
+          "submission_us": 18047.866,
+          "buffer_observed_us": 20128.374
+        },
+        {
+          "key": "Up",
+          "submission_us": 31710.275,
+          "buffer_observed_us": 33890.538
+        },
+        {
+          "key": "Up",
+          "submission_us": 32135.483,
+          "buffer_observed_us": 34244.394
+        },
+        {
+          "key": "Up",
+          "submission_us": 17835.964,
+          "buffer_observed_us": 29510.584
+        },
+        {
+          "key": "Up",
+          "submission_us": 32329.862,
+          "buffer_observed_us": 34406.263
+        },
+        {
+          "key": "Up",
+          "submission_us": 31970.827,
+          "buffer_observed_us": 34111.364
+        },
+        {
+          "key": "Up",
+          "submission_us": 15981.761,
+          "buffer_observed_us": 17995.388
+        },
+        {
+          "key": "Up",
+          "submission_us": 17788.481,
+          "buffer_observed_us": 19836.194
+        },
+        {
+          "key": "Up",
+          "submission_us": 31812.234,
+          "buffer_observed_us": 33972.201
+        },
+        {
+          "key": "Up",
+          "submission_us": 33982.8,
+          "buffer_observed_us": 36154.064
+        },
+        {
+          "key": "Up",
+          "submission_us": 33893.944,
+          "buffer_observed_us": 36013.49
+        },
+        {
+          "key": "Up",
+          "submission_us": 33654.463,
+          "buffer_observed_us": 37208.446
+        },
+        {
+          "key": "Up",
+          "submission_us": 16509.319,
+          "buffer_observed_us": 18539.801
+        },
+        {
+          "key": "Up",
+          "submission_us": 15606.952,
+          "buffer_observed_us": 17584.595
+        },
+        {
+          "key": "Up",
+          "submission_us": 16275.036,
+          "buffer_observed_us": 18295.608
+        },
+        {
+          "key": "Up",
+          "submission_us": 17134.859,
+          "buffer_observed_us": 29035.93
+        },
+        {
+          "key": "Up",
+          "submission_us": 31729.178,
+          "buffer_observed_us": 33897.077
+        },
+        {
+          "key": "Up",
+          "submission_us": 33284.517,
+          "buffer_observed_us": 35409.506
+        },
+        {
+          "key": "Up",
+          "submission_us": 31984.964,
+          "buffer_observed_us": 34153.304
+        },
+        {
+          "key": "Up",
+          "submission_us": 17625.276,
+          "buffer_observed_us": 19622.668
+        },
+        {
+          "key": "Up",
+          "submission_us": 18073.729,
+          "buffer_observed_us": 27029.532
+        },
+        {
+          "key": "Up",
+          "submission_us": 31799.3,
+          "buffer_observed_us": 33976.323
+        },
+        {
+          "key": "Up",
+          "submission_us": 17969.644,
+          "buffer_observed_us": 20048.308
+        },
+        {
+          "key": "Up",
+          "submission_us": 33013.554,
+          "buffer_observed_us": 35155.314
+        },
+        {
+          "key": "Up",
+          "submission_us": 31696.249,
+          "buffer_observed_us": 33837.168
+        },
+        {
+          "key": "Up",
+          "submission_us": 17844.871,
+          "buffer_observed_us": 27258.082
+        },
+        {
+          "key": "Up",
+          "submission_us": 16505.572,
+          "buffer_observed_us": 18542.134
+        },
+        {
+          "key": "Up",
+          "submission_us": 32035.399,
+          "buffer_observed_us": 34189.797
+        },
+        {
+          "key": "Up",
+          "submission_us": 15627.713,
+          "buffer_observed_us": 17600.198
+        },
+        {
+          "key": "Up",
+          "submission_us": 17231.193,
+          "buffer_observed_us": 28793.91
+        },
+        {
+          "key": "Up",
+          "submission_us": 31770.967,
+          "buffer_observed_us": 34007.584
+        },
+        {
+          "key": "Up",
+          "submission_us": 18259.875,
+          "buffer_observed_us": 20242.82
+        },
+        {
+          "key": "Up",
+          "submission_us": 33321.172,
+          "buffer_observed_us": 35448.41
+        },
+        {
+          "key": "Up",
+          "submission_us": 31724.036,
+          "buffer_observed_us": 33874.469
+        },
+        {
+          "key": "Up",
+          "submission_us": 33986.572,
+          "buffer_observed_us": 36134.401
+        },
+        {
+          "key": "Up",
+          "submission_us": 34622.679,
+          "buffer_observed_us": 36784.338
+        },
+        {
+          "key": "Up",
+          "submission_us": 17974.475,
+          "buffer_observed_us": 20013.36
+        },
+        {
+          "key": "Up",
+          "submission_us": 31982.815,
+          "buffer_observed_us": 34103.699
+        },
+        {
+          "key": "Up",
+          "submission_us": 31730.359,
+          "buffer_observed_us": 34036.466
+        },
+        {
+          "key": "Up",
+          "submission_us": 31721.877,
+          "buffer_observed_us": 33836.276
+        },
+        {
+          "key": "Up",
+          "submission_us": 17886.208,
+          "buffer_observed_us": 20030.382
+        },
+        {
+          "key": "Up",
+          "submission_us": 31716.394,
+          "buffer_observed_us": 33922.916
+        },
+        {
+          "key": "Up",
+          "submission_us": 32012.69,
+          "buffer_observed_us": 34181.374
+        },
+        {
+          "key": "Up",
+          "submission_us": 17818.837,
+          "buffer_observed_us": 27215.999
+        },
+        {
+          "key": "Up",
+          "submission_us": 32599.577,
+          "buffer_observed_us": 34755.768
+        },
+        {
+          "key": "Up",
+          "submission_us": 16764.146,
+          "buffer_observed_us": 18796.411
+        },
+        {
+          "key": "Up",
+          "submission_us": 17021.178,
+          "buffer_observed_us": 28880.976
+        },
+        {
+          "key": "Up",
+          "submission_us": 18065.618,
+          "buffer_observed_us": 20158.444
+        },
+        {
+          "key": "Up",
+          "submission_us": 32140.111,
+          "buffer_observed_us": 34259.106
+        },
+        {
+          "key": "Up",
+          "submission_us": 31744.326,
+          "buffer_observed_us": 34149.532
+        },
+        {
+          "key": "Up",
+          "submission_us": 17570.944,
+          "buffer_observed_us": 29247.758
+        },
+        {
+          "key": "Up",
+          "submission_us": 32964.826,
+          "buffer_observed_us": 35422.22
+        },
+        {
+          "key": "Up",
+          "submission_us": 31917.446,
+          "buffer_observed_us": 34392.697
+        },
+        {
+          "key": "Up",
+          "submission_us": 31831.877,
+          "buffer_observed_us": 34304.334
+        },
+        {
+          "key": "Up",
+          "submission_us": 31840.446,
+          "buffer_observed_us": 34353.489
+        },
+        {
+          "key": "Up",
+          "submission_us": 33899.151,
+          "buffer_observed_us": 36265.138
+        },
+        {
+          "key": "Up",
+          "submission_us": 33625.919,
+          "buffer_observed_us": 36020.84
+        },
+        {
+          "key": "Up",
+          "submission_us": 17502.802,
+          "buffer_observed_us": 24937.823
+        },
+        {
+          "key": "Up",
+          "submission_us": 31893.541,
+          "buffer_observed_us": 34391.827
+        },
+        {
+          "key": "Up",
+          "submission_us": 31840.986,
+          "buffer_observed_us": 34367.264
+        },
+        {
+          "key": "Up",
+          "submission_us": 31846.024,
+          "buffer_observed_us": 34381.175
+        },
+        {
+          "key": "Up",
+          "submission_us": 31876.229,
+          "buffer_observed_us": 34339.662
+        },
+        {
+          "key": "Up",
+          "submission_us": 31826.56,
+          "buffer_observed_us": 34301.23
+        },
+        {
+          "key": "Down",
+          "submission_us": 18566.847,
+          "buffer_observed_us": 26093.582
+        },
+        {
+          "key": "Down",
+          "submission_us": 16558.943,
+          "buffer_observed_us": 18849.506
+        },
+        {
+          "key": "Down",
+          "submission_us": 33876.241,
+          "buffer_observed_us": 36286.314
+        },
+        {
+          "key": "Down",
+          "submission_us": 33575.989,
+          "buffer_observed_us": 35871.56
+        },
+        {
+          "key": "Down",
+          "submission_us": 32892.157,
+          "buffer_observed_us": 35183.071
+        },
+        {
+          "key": "Down",
+          "submission_us": 18355.394,
+          "buffer_observed_us": 24059.9
+        },
+        {
+          "key": "Down",
+          "submission_us": 16204.29,
+          "buffer_observed_us": 18382.544
+        },
+        {
+          "key": "Down",
+          "submission_us": 31731.167,
+          "buffer_observed_us": 33972.125
+        },
+        {
+          "key": "Down",
+          "submission_us": 17976.995,
+          "buffer_observed_us": 29433.357
+        },
+        {
+          "key": "Down",
+          "submission_us": 33543.055,
+          "buffer_observed_us": 35802.947
+        },
+        {
+          "key": "Down",
+          "submission_us": 31747.411,
+          "buffer_observed_us": 34056.938
+        },
+        {
+          "key": "Down",
+          "submission_us": 32306.607,
+          "buffer_observed_us": 34555.808
+        },
+        {
+          "key": "Down",
+          "submission_us": 18028.893,
+          "buffer_observed_us": 29350.602
+        },
+        {
+          "key": "Down",
+          "submission_us": 31768.923,
+          "buffer_observed_us": 34111.069
+        },
+        {
+          "key": "Down",
+          "submission_us": 17623.684,
+          "buffer_observed_us": 19787.667
+        },
+        {
+          "key": "Down",
+          "submission_us": 17847.476,
+          "buffer_observed_us": 29898.717
+        },
+        {
+          "key": "Down",
+          "submission_us": 16864.603,
+          "buffer_observed_us": 19072.732
+        },
+        {
+          "key": "Down",
+          "submission_us": 17857.926,
+          "buffer_observed_us": 20031.123
+        },
+        {
+          "key": "Down",
+          "submission_us": 17902.392,
+          "buffer_observed_us": 28054.724
+        },
+        {
+          "key": "Down",
+          "submission_us": 16299.403,
+          "buffer_observed_us": 18529.055
+        },
+        {
+          "key": "Down",
+          "submission_us": 17215.03,
+          "buffer_observed_us": 19373.034
+        },
+        {
+          "key": "Down",
+          "submission_us": 20392.812,
+          "buffer_observed_us": 28207.299
+        },
+        {
+          "key": "Down",
+          "submission_us": 32627.088,
+          "buffer_observed_us": 34907.781
+        },
+        {
+          "key": "Down",
+          "submission_us": 17635.066,
+          "buffer_observed_us": 19803.246
+        },
+        {
+          "key": "Down",
+          "submission_us": 32989.993,
+          "buffer_observed_us": 35233.155
+        },
+        {
+          "key": "Down",
+          "submission_us": 17674.8,
+          "buffer_observed_us": 27249.944
+        },
+        {
+          "key": "Down",
+          "submission_us": 31780.131,
+          "buffer_observed_us": 34073.543
+        },
+        {
+          "key": "Down",
+          "submission_us": 17347.539,
+          "buffer_observed_us": 19476.219
+        },
+        {
+          "key": "Down",
+          "submission_us": 32938.626,
+          "buffer_observed_us": 35244.773
+        },
+        {
+          "key": "Down",
+          "submission_us": 17591.145,
+          "buffer_observed_us": 26871.406
+        },
+        {
+          "key": "Down",
+          "submission_us": 16630.05,
+          "buffer_observed_us": 18854.028
+        },
+        {
+          "key": "Down",
+          "submission_us": 32295.099,
+          "buffer_observed_us": 34540.745
+        },
+        {
+          "key": "Down",
+          "submission_us": 17310.163,
+          "buffer_observed_us": 29383.768
+        },
+        {
+          "key": "Down",
+          "submission_us": 17839.628,
+          "buffer_observed_us": 20055.755
+        },
+        {
+          "key": "Down",
+          "submission_us": 31749.645,
+          "buffer_observed_us": 34040.193
+        },
+        {
+          "key": "Down",
+          "submission_us": 31826.926,
+          "buffer_observed_us": 34167.154
+        },
+        {
+          "key": "Down",
+          "submission_us": 17637.645,
+          "buffer_observed_us": 28808.799
+        },
+        {
+          "key": "Down",
+          "submission_us": 16656.459,
+          "buffer_observed_us": 18856.777
+        },
+        {
+          "key": "Down",
+          "submission_us": 31743.34,
+          "buffer_observed_us": 34000.563
+        },
+        {
+          "key": "Down",
+          "submission_us": 34024.118,
+          "buffer_observed_us": 36332.232
+        },
+        {
+          "key": "Down",
+          "submission_us": 17607.47,
+          "buffer_observed_us": 27823.568
+        },
+        {
+          "key": "Down",
+          "submission_us": 16696.931,
+          "buffer_observed_us": 18920.799
+        },
+        {
+          "key": "Down",
+          "submission_us": 32301.028,
+          "buffer_observed_us": 34512.132
+        },
+        {
+          "key": "Down",
+          "submission_us": 31739.518,
+          "buffer_observed_us": 34025.55
+        },
+        {
+          "key": "Down",
+          "submission_us": 33401.793,
+          "buffer_observed_us": 35718.846
+        },
+        {
+          "key": "Down",
+          "submission_us": 17569.362,
+          "buffer_observed_us": 26741.275
+        },
+        {
+          "key": "Down",
+          "submission_us": 31786.089,
+          "buffer_observed_us": 34110.364
+        },
+        {
+          "key": "Down",
+          "submission_us": 17696.773,
+          "buffer_observed_us": 19853.656
+        },
+        {
+          "key": "Down",
+          "submission_us": 32986.669,
+          "buffer_observed_us": 35263.747
+        },
+        {
+          "key": "Down",
+          "submission_us": 17573.508,
+          "buffer_observed_us": 28202.927
+        },
+        {
+          "key": "Down",
+          "submission_us": 31799.614,
+          "buffer_observed_us": 34049.567
+        },
+        {
+          "key": "Down",
+          "submission_us": 18228.898,
+          "buffer_observed_us": 20442.521
+        },
+        {
+          "key": "Down",
+          "submission_us": 17968.918,
+          "buffer_observed_us": 28601.302
+        },
+        {
+          "key": "Down",
+          "submission_us": 31811.346,
+          "buffer_observed_us": 34247.879
+        },
+        {
+          "key": "Down",
+          "submission_us": 34004.834,
+          "buffer_observed_us": 36221.592
+        },
+        {
+          "key": "Down",
+          "submission_us": 33780.738,
+          "buffer_observed_us": 35984.375
+        },
+        {
+          "key": "Down",
+          "submission_us": 33844.859,
+          "buffer_observed_us": 36004.536
+        },
+        {
+          "key": "Down",
+          "submission_us": 17770.114,
+          "buffer_observed_us": 23687.364
+        },
+        {
+          "key": "Down",
+          "submission_us": 16632.373,
+          "buffer_observed_us": 18716.716
+        },
+        {
+          "key": "Down",
+          "submission_us": 32023.521,
+          "buffer_observed_us": 34116.798
+        },
+        {
+          "key": "Down",
+          "submission_us": 17216.411,
+          "buffer_observed_us": 19252.987
+        },
+        {
+          "key": "Down",
+          "submission_us": 18302.754,
+          "buffer_observed_us": 27801.769
+        },
+        {
+          "key": "Down",
+          "submission_us": 16494.466,
+          "buffer_observed_us": 18556.165
+        },
+        {
+          "key": "Down",
+          "submission_us": 32272.705,
+          "buffer_observed_us": 34477.594
+        },
+        {
+          "key": "Down",
+          "submission_us": 32169.776,
+          "buffer_observed_us": 34325.116
+        },
+        {
+          "key": "Down",
+          "submission_us": 17775.332,
+          "buffer_observed_us": 29187.679
+        },
+        {
+          "key": "Down",
+          "submission_us": 31697.266,
+          "buffer_observed_us": 33863.081
+        },
+        {
+          "key": "Down",
+          "submission_us": 18414.677,
+          "buffer_observed_us": 20433.968
+        },
+        {
+          "key": "Down",
+          "submission_us": 33517.803,
+          "buffer_observed_us": 35666.223
+        },
+        {
+          "key": "Down",
+          "submission_us": 31707.976,
+          "buffer_observed_us": 33901.183
+        },
+        {
+          "key": "Down",
+          "submission_us": 33714.137,
+          "buffer_observed_us": 35889.306
+        },
+        {
+          "key": "Down",
+          "submission_us": 17807.63,
+          "buffer_observed_us": 23286.396
+        },
+        {
+          "key": "Down",
+          "submission_us": 16431.231,
+          "buffer_observed_us": 18504.678
+        },
+        {
+          "key": "Down",
+          "submission_us": 15616.006,
+          "buffer_observed_us": 17632.192
+        },
+        {
+          "key": "Down",
+          "submission_us": 32092.215,
+          "buffer_observed_us": 34209.097
+        },
+        {
+          "key": "Down",
+          "submission_us": 31697.124,
+          "buffer_observed_us": 33832.755
+        },
+        {
+          "key": "Down",
+          "submission_us": 17309.432,
+          "buffer_observed_us": 28966.536
+        },
+        {
+          "key": "Down",
+          "submission_us": 31770.455,
+          "buffer_observed_us": 33924.479
+        },
+        {
+          "key": "Down",
+          "submission_us": 33505.688,
+          "buffer_observed_us": 35587.958
+        },
+        {
+          "key": "Down",
+          "submission_us": 32129.851,
+          "buffer_observed_us": 34197.338
+        },
+        {
+          "key": "Down",
+          "submission_us": 33696.375,
+          "buffer_observed_us": 35832.902
+        },
+        {
+          "key": "Down",
+          "submission_us": 17704.074,
+          "buffer_observed_us": 27226.309
+        },
+        {
+          "key": "Down",
+          "submission_us": 16480.264,
+          "buffer_observed_us": 18515.524
+        },
+        {
+          "key": "Down",
+          "submission_us": 15600.833,
+          "buffer_observed_us": 17648.13
+        },
+        {
+          "key": "Down",
+          "submission_us": 15624.629,
+          "buffer_observed_us": 17654.705
+        },
+        {
+          "key": "Down",
+          "submission_us": 31728.197,
+          "buffer_observed_us": 33861.264
+        },
+        {
+          "key": "Down",
+          "submission_us": 31722.138,
+          "buffer_observed_us": 33834.534
+        },
+        {
+          "key": "Down",
+          "submission_us": 17931.581,
+          "buffer_observed_us": 28755.052
+        },
+        {
+          "key": "Down",
+          "submission_us": 17527.599,
+          "buffer_observed_us": 19557.932
+        },
+        {
+          "key": "Down",
+          "submission_us": 17607.655,
+          "buffer_observed_us": 19676.4
+        }
+      ],
+      "after": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 9769,
+          "max_delay_us": 9769,
+          "sample_age_ms": 678,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 26665,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 334498,
+          "cpu_user_us": 8621845,
+          "file_descriptors": 32,
+          "peak_rss_kib": 244356,
+          "rss_kib": 243424,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 188
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 5690,
+        "version": "0.1.8"
+      },
+      "elapsed_seconds": 5.227208216000008,
+      "resource_delta": {
+        "cpu_user_us": 8305257,
+        "cpu_system_us": 203008,
+        "rss_kib": -1464,
+        "threads": -6,
+        "file_descriptors": 0,
+        "cpu_percent": 162.76881747233594
+      },
+      "latency_us": {
+        "submission_us": {
+          "median": 31707.915999999997,
+          "p95": 33876.241,
+          "p99": 34120.223
+        },
+        "buffer_observed_us": {
+          "median": 33839.826499999996,
+          "p95": 36134.401,
+          "p99": 36784.338
+        }
+      }
+    },
+    {
+      "phase": "after_workspace_churn",
+      "before": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 55308,
+          "max_delay_us": 55308,
+          "sample_age_ms": 185,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 26665,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 928010,
+          "cpu_user_us": 10926214,
+          "file_descriptors": 312,
+          "peak_rss_kib": 688744,
+          "rss_kib": 688744,
+          "threads": 105
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 213
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 21
+        },
+        "uptime_ms": 8274,
+        "version": "0.1.8"
+      },
+      "samples": [
+        {
+          "key": "Up",
+          "submission_us": 31735.627,
+          "buffer_observed_us": 33960.792
+        },
+        {
+          "key": "Up",
+          "submission_us": 33747.061,
+          "buffer_observed_us": 35949.628
+        },
+        {
+          "key": "Up",
+          "submission_us": 31711.397,
+          "buffer_observed_us": 33820.768
+        },
+        {
+          "key": "Up",
+          "submission_us": 33851.047,
+          "buffer_observed_us": 36051.225
+        },
+        {
+          "key": "Up",
+          "submission_us": 31714.666,
+          "buffer_observed_us": 33827.983
+        },
+        {
+          "key": "Up",
+          "submission_us": 31718.742,
+          "buffer_observed_us": 33836.757
+        },
+        {
+          "key": "Up",
+          "submission_us": 31762.278,
+          "buffer_observed_us": 33879.746
+        },
+        {
+          "key": "Up",
+          "submission_us": 31789.318,
+          "buffer_observed_us": 33920.482
+        },
+        {
+          "key": "Up",
+          "submission_us": 31705.422,
+          "buffer_observed_us": 33857.492
+        },
+        {
+          "key": "Up",
+          "submission_us": 15597.608,
+          "buffer_observed_us": 23033.732
+        },
+        {
+          "key": "Up",
+          "submission_us": 16157.729,
+          "buffer_observed_us": 18214.676
+        },
+        {
+          "key": "Up",
+          "submission_us": 15622.575,
+          "buffer_observed_us": 17638.115
+        },
+        {
+          "key": "Up",
+          "submission_us": 17625.035,
+          "buffer_observed_us": 29835.847
+        },
+        {
+          "key": "Up",
+          "submission_us": 32627.313,
+          "buffer_observed_us": 34696.493
+        },
+        {
+          "key": "Up",
+          "submission_us": 18090.982,
+          "buffer_observed_us": 20123.267
+        },
+        {
+          "key": "Up",
+          "submission_us": 33048.171,
+          "buffer_observed_us": 35171.904
+        },
+        {
+          "key": "Up",
+          "submission_us": 31707.816,
+          "buffer_observed_us": 33871.628
+        },
+        {
+          "key": "Up",
+          "submission_us": 17905.882,
+          "buffer_observed_us": 26594.9
+        },
+        {
+          "key": "Up",
+          "submission_us": 16222.587,
+          "buffer_observed_us": 18278.678
+        },
+        {
+          "key": "Up",
+          "submission_us": 31913.896,
+          "buffer_observed_us": 34207.308
+        },
+        {
+          "key": "Up",
+          "submission_us": 17818.737,
+          "buffer_observed_us": 19971.463
+        },
+        {
+          "key": "Up",
+          "submission_us": 35768.085,
+          "buffer_observed_us": 37957.606
+        },
+        {
+          "key": "Up",
+          "submission_us": 31958.132,
+          "buffer_observed_us": 34119.311
+        },
+        {
+          "key": "Up",
+          "submission_us": 31804.552,
+          "buffer_observed_us": 38705.255
+        },
+        {
+          "key": "Up",
+          "submission_us": 16619.694,
+          "buffer_observed_us": 18640.341
+        },
+        {
+          "key": "Up",
+          "submission_us": 32031.362,
+          "buffer_observed_us": 34218.795
+        },
+        {
+          "key": "Up",
+          "submission_us": 18088.678,
+          "buffer_observed_us": 29419.592
+        },
+        {
+          "key": "Up",
+          "submission_us": 31747.445,
+          "buffer_observed_us": 33915.184
+        },
+        {
+          "key": "Up",
+          "submission_us": 17814.23,
+          "buffer_observed_us": 19832.194
+        },
+        {
+          "key": "Up",
+          "submission_us": 31682.072,
+          "buffer_observed_us": 33848.253
+        },
+        {
+          "key": "Up",
+          "submission_us": 18045.377,
+          "buffer_observed_us": 30018.781
+        },
+        {
+          "key": "Up",
+          "submission_us": 32102.459,
+          "buffer_observed_us": 34268.275
+        },
+        {
+          "key": "Up",
+          "submission_us": 17821.15,
+          "buffer_observed_us": 19836.379
+        },
+        {
+          "key": "Up",
+          "submission_us": 32981.386,
+          "buffer_observed_us": 35125.058
+        },
+        {
+          "key": "Up",
+          "submission_us": 17849.082,
+          "buffer_observed_us": 27102.092
+        },
+        {
+          "key": "Up",
+          "submission_us": 32757.383,
+          "buffer_observed_us": 34932.883
+        },
+        {
+          "key": "Up",
+          "submission_us": 31686.845,
+          "buffer_observed_us": 33827.262
+        },
+        {
+          "key": "Up",
+          "submission_us": 31707.176,
+          "buffer_observed_us": 33852.651
+        },
+        {
+          "key": "Up",
+          "submission_us": 31702.202,
+          "buffer_observed_us": 33818.499
+        },
+        {
+          "key": "Up",
+          "submission_us": 18215.473,
+          "buffer_observed_us": 29347.587
+        },
+        {
+          "key": "Up",
+          "submission_us": 17849.934,
+          "buffer_observed_us": 19894.648
+        },
+        {
+          "key": "Up",
+          "submission_us": 31693.334,
+          "buffer_observed_us": 33814.533
+        },
+        {
+          "key": "Up",
+          "submission_us": 31726.974,
+          "buffer_observed_us": 33919.821
+        },
+        {
+          "key": "Up",
+          "submission_us": 17283.993,
+          "buffer_observed_us": 19328.726
+        },
+        {
+          "key": "Up",
+          "submission_us": 34595.056,
+          "buffer_observed_us": 36766.73
+        },
+        {
+          "key": "Up",
+          "submission_us": 32267.557,
+          "buffer_observed_us": 34488.4
+        },
+        {
+          "key": "Up",
+          "submission_us": 17684.726,
+          "buffer_observed_us": 23282.01
+        },
+        {
+          "key": "Up",
+          "submission_us": 32399.296,
+          "buffer_observed_us": 34539.042
+        },
+        {
+          "key": "Up",
+          "submission_us": 17771.32,
+          "buffer_observed_us": 19779.022
+        },
+        {
+          "key": "Up",
+          "submission_us": 17822.012,
+          "buffer_observed_us": 28542.057
+        },
+        {
+          "key": "Up",
+          "submission_us": 16439.674,
+          "buffer_observed_us": 18481.929
+        },
+        {
+          "key": "Up",
+          "submission_us": 32025.153,
+          "buffer_observed_us": 34174.444
+        },
+        {
+          "key": "Up",
+          "submission_us": 17844.686,
+          "buffer_observed_us": 19940.446
+        },
+        {
+          "key": "Up",
+          "submission_us": 32120.616,
+          "buffer_observed_us": 34210.468
+        },
+        {
+          "key": "Up",
+          "submission_us": 33780.652,
+          "buffer_observed_us": 35930.524
+        },
+        {
+          "key": "Up",
+          "submission_us": 31691.676,
+          "buffer_observed_us": 33793.656
+        },
+        {
+          "key": "Up",
+          "submission_us": 31712.173,
+          "buffer_observed_us": 33843.426
+        },
+        {
+          "key": "Up",
+          "submission_us": 31698.151,
+          "buffer_observed_us": 33802.535
+        },
+        {
+          "key": "Up",
+          "submission_us": 17290.087,
+          "buffer_observed_us": 23330.672
+        },
+        {
+          "key": "Up",
+          "submission_us": 15627.694,
+          "buffer_observed_us": 17652.568
+        },
+        {
+          "key": "Up",
+          "submission_us": 31917.746,
+          "buffer_observed_us": 34072.615
+        },
+        {
+          "key": "Up",
+          "submission_us": 33307.877,
+          "buffer_observed_us": 35418.68
+        },
+        {
+          "key": "Up",
+          "submission_us": 33811.483,
+          "buffer_observed_us": 35972.962
+        },
+        {
+          "key": "Up",
+          "submission_us": 33894.464,
+          "buffer_observed_us": 36045.387
+        },
+        {
+          "key": "Up",
+          "submission_us": 31817.145,
+          "buffer_observed_us": 33958.113
+        },
+        {
+          "key": "Up",
+          "submission_us": 33809.206,
+          "buffer_observed_us": 35959.148
+        },
+        {
+          "key": "Up",
+          "submission_us": 17760.714,
+          "buffer_observed_us": 19794.206
+        },
+        {
+          "key": "Up",
+          "submission_us": 17957.977,
+          "buffer_observed_us": 19982.571
+        },
+        {
+          "key": "Up",
+          "submission_us": 17048.303,
+          "buffer_observed_us": 19070.393
+        },
+        {
+          "key": "Up",
+          "submission_us": 34131.264,
+          "buffer_observed_us": 36337.241
+        },
+        {
+          "key": "Up",
+          "submission_us": 18478.408,
+          "buffer_observed_us": 25451.571
+        },
+        {
+          "key": "Up",
+          "submission_us": 15629.175,
+          "buffer_observed_us": 17720.459
+        },
+        {
+          "key": "Up",
+          "submission_us": 31896.199,
+          "buffer_observed_us": 34047.283
+        },
+        {
+          "key": "Up",
+          "submission_us": 17387.98,
+          "buffer_observed_us": 19453.57
+        },
+        {
+          "key": "Up",
+          "submission_us": 19795.213,
+          "buffer_observed_us": 27264.491
+        },
+        {
+          "key": "Up",
+          "submission_us": 32681.41,
+          "buffer_observed_us": 34820.006
+        },
+        {
+          "key": "Up",
+          "submission_us": 17833.889,
+          "buffer_observed_us": 19894.687
+        },
+        {
+          "key": "Up",
+          "submission_us": 33017.014,
+          "buffer_observed_us": 35137.001
+        },
+        {
+          "key": "Up",
+          "submission_us": 17723.323,
+          "buffer_observed_us": 27613.946
+        },
+        {
+          "key": "Up",
+          "submission_us": 16594.255,
+          "buffer_observed_us": 18623.696
+        },
+        {
+          "key": "Up",
+          "submission_us": 31726.76,
+          "buffer_observed_us": 33859.155
+        },
+        {
+          "key": "Up",
+          "submission_us": 31698.156,
+          "buffer_observed_us": 33841.278
+        },
+        {
+          "key": "Up",
+          "submission_us": 17830.845,
+          "buffer_observed_us": 29485.049
+        },
+        {
+          "key": "Up",
+          "submission_us": 18195.434,
+          "buffer_observed_us": 20269.652
+        },
+        {
+          "key": "Up",
+          "submission_us": 17057.737,
+          "buffer_observed_us": 19071.455
+        },
+        {
+          "key": "Up",
+          "submission_us": 32436.306,
+          "buffer_observed_us": 34548.11
+        },
+        {
+          "key": "Up",
+          "submission_us": 33519.79,
+          "buffer_observed_us": 35697.93
+        },
+        {
+          "key": "Up",
+          "submission_us": 33746.165,
+          "buffer_observed_us": 35881.255
+        },
+        {
+          "key": "Up",
+          "submission_us": 34589.203,
+          "buffer_observed_us": 37876.049
+        },
+        {
+          "key": "Up",
+          "submission_us": 32990.584,
+          "buffer_observed_us": 35146.945
+        },
+        {
+          "key": "Down",
+          "submission_us": 17805.421,
+          "buffer_observed_us": 19814.922
+        },
+        {
+          "key": "Down",
+          "submission_us": 33062.112,
+          "buffer_observed_us": 35177.192
+        },
+        {
+          "key": "Down",
+          "submission_us": 17803.995,
+          "buffer_observed_us": 27384.672
+        },
+        {
+          "key": "Down",
+          "submission_us": 16329.819,
+          "buffer_observed_us": 18334.793
+        },
+        {
+          "key": "Down",
+          "submission_us": 32023.686,
+          "buffer_observed_us": 34185.646
+        },
+        {
+          "key": "Down",
+          "submission_us": 31969.9,
+          "buffer_observed_us": 34104.939
+        },
+        {
+          "key": "Down",
+          "submission_us": 17763.233,
+          "buffer_observed_us": 29371.618
+        },
+        {
+          "key": "Down",
+          "submission_us": 31746.354,
+          "buffer_observed_us": 33861.914
+        },
+        {
+          "key": "Down",
+          "submission_us": 31694.777,
+          "buffer_observed_us": 33886.101
+        },
+        {
+          "key": "Down",
+          "submission_us": 16423.82,
+          "buffer_observed_us": 18494.322
+        },
+        {
+          "key": "Down",
+          "submission_us": 32259.605,
+          "buffer_observed_us": 34387.424
+        },
+        {
+          "key": "Down",
+          "submission_us": 17742.837,
+          "buffer_observed_us": 29115.283
+        },
+        {
+          "key": "Down",
+          "submission_us": 17539.647,
+          "buffer_observed_us": 19566.044
+        },
+        {
+          "key": "Down",
+          "submission_us": 32145.574,
+          "buffer_observed_us": 34273.543
+        },
+        {
+          "key": "Down",
+          "submission_us": 17755.382,
+          "buffer_observed_us": 22653.656
+        },
+        {
+          "key": "Down",
+          "submission_us": 32511.718,
+          "buffer_observed_us": 34642.241
+        },
+        {
+          "key": "Down",
+          "submission_us": 17475.045,
+          "buffer_observed_us": 23095.014
+        },
+        {
+          "key": "Down",
+          "submission_us": 16277.199,
+          "buffer_observed_us": 18297.176
+        },
+        {
+          "key": "Down",
+          "submission_us": 15917.088,
+          "buffer_observed_us": 17933.169
+        },
+        {
+          "key": "Down",
+          "submission_us": 18043.329,
+          "buffer_observed_us": 29867.534
+        },
+        {
+          "key": "Down",
+          "submission_us": 32262.061,
+          "buffer_observed_us": 34465.413
+        },
+        {
+          "key": "Down",
+          "submission_us": 17777.124,
+          "buffer_observed_us": 19780.841
+        },
+        {
+          "key": "Down",
+          "submission_us": 16982.991,
+          "buffer_observed_us": 28980.576
+        },
+        {
+          "key": "Down",
+          "submission_us": 31768.161,
+          "buffer_observed_us": 33977.252
+        },
+        {
+          "key": "Down",
+          "submission_us": 17013.606,
+          "buffer_observed_us": 19004.444
+        },
+        {
+          "key": "Down",
+          "submission_us": 31690.089,
+          "buffer_observed_us": 33836.06
+        },
+        {
+          "key": "Down",
+          "submission_us": 33251.111,
+          "buffer_observed_us": 35388.444
+        },
+        {
+          "key": "Down",
+          "submission_us": 17700.894,
+          "buffer_observed_us": 27777.231
+        },
+        {
+          "key": "Down",
+          "submission_us": 31720.52,
+          "buffer_observed_us": 33875.379
+        },
+        {
+          "key": "Down",
+          "submission_us": 18042.298,
+          "buffer_observed_us": 20059.745
+        },
+        {
+          "key": "Down",
+          "submission_us": 17043.316,
+          "buffer_observed_us": 19123.198
+        },
+        {
+          "key": "Down",
+          "submission_us": 31973.004,
+          "buffer_observed_us": 34092.24
+        },
+        {
+          "key": "Down",
+          "submission_us": 17757.14,
+          "buffer_observed_us": 26754.39
+        },
+        {
+          "key": "Down",
+          "submission_us": 16463.309,
+          "buffer_observed_us": 18485.048
+        },
+        {
+          "key": "Down",
+          "submission_us": 31943.17,
+          "buffer_observed_us": 34084.943
+        },
+        {
+          "key": "Down",
+          "submission_us": 18320.467,
+          "buffer_observed_us": 30090.861
+        },
+        {
+          "key": "Down",
+          "submission_us": 17300.688,
+          "buffer_observed_us": 19347.665
+        },
+        {
+          "key": "Down",
+          "submission_us": 32191.102,
+          "buffer_observed_us": 34272.04
+        },
+        {
+          "key": "Down",
+          "submission_us": 17746.733,
+          "buffer_observed_us": 19794.252
+        },
+        {
+          "key": "Down",
+          "submission_us": 31874.562,
+          "buffer_observed_us": 33926.391
+        },
+        {
+          "key": "Down",
+          "submission_us": 33094.501,
+          "buffer_observed_us": 35209.441
+        },
+        {
+          "key": "Down",
+          "submission_us": 18166.098,
+          "buffer_observed_us": 24564.226
+        },
+        {
+          "key": "Down",
+          "submission_us": 16562.709,
+          "buffer_observed_us": 18587.933
+        },
+        {
+          "key": "Down",
+          "submission_us": 15655.931,
+          "buffer_observed_us": 17666.518
+        },
+        {
+          "key": "Down",
+          "submission_us": 17886.383,
+          "buffer_observed_us": 29802.707
+        },
+        {
+          "key": "Down",
+          "submission_us": 31715.598,
+          "buffer_observed_us": 33850.953
+        },
+        {
+          "key": "Down",
+          "submission_us": 17293.978,
+          "buffer_observed_us": 19362.057
+        },
+        {
+          "key": "Down",
+          "submission_us": 31979.354,
+          "buffer_observed_us": 34102.917
+        },
+        {
+          "key": "Down",
+          "submission_us": 33833.566,
+          "buffer_observed_us": 35948.575
+        },
+        {
+          "key": "Down",
+          "submission_us": 17866.754,
+          "buffer_observed_us": 27812.605
+        },
+        {
+          "key": "Down",
+          "submission_us": 16562.703,
+          "buffer_observed_us": 21705.199
+        },
+        {
+          "key": "Down",
+          "submission_us": 32437.994,
+          "buffer_observed_us": 34524.831
+        },
+        {
+          "key": "Down",
+          "submission_us": 17728.896,
+          "buffer_observed_us": 26660.463
+        },
+        {
+          "key": "Down",
+          "submission_us": 31745.858,
+          "buffer_observed_us": 33874.498
+        },
+        {
+          "key": "Down",
+          "submission_us": 31709.844,
+          "buffer_observed_us": 33829.15
+        },
+        {
+          "key": "Down",
+          "submission_us": 16336.293,
+          "buffer_observed_us": 18345.123
+        },
+        {
+          "key": "Down",
+          "submission_us": 17071.639,
+          "buffer_observed_us": 19098.045
+        },
+        {
+          "key": "Down",
+          "submission_us": 16054.926,
+          "buffer_observed_us": 28214.289
+        },
+        {
+          "key": "Down",
+          "submission_us": 16481.257,
+          "buffer_observed_us": 18505.42
+        },
+        {
+          "key": "Down",
+          "submission_us": 15665.569,
+          "buffer_observed_us": 17640.067
+        },
+        {
+          "key": "Down",
+          "submission_us": 17609.432,
+          "buffer_observed_us": 19630.881
+        },
+        {
+          "key": "Down",
+          "submission_us": 19811.217,
+          "buffer_observed_us": 27561.733
+        },
+        {
+          "key": "Down",
+          "submission_us": 16307.155,
+          "buffer_observed_us": 18327.888
+        },
+        {
+          "key": "Down",
+          "submission_us": 32055.248,
+          "buffer_observed_us": 34177.248
+        },
+        {
+          "key": "Down",
+          "submission_us": 17869.683,
+          "buffer_observed_us": 30478.117
+        },
+        {
+          "key": "Down",
+          "submission_us": 31754.792,
+          "buffer_observed_us": 33913.977
+        },
+        {
+          "key": "Down",
+          "submission_us": 16475.076,
+          "buffer_observed_us": 18496.03
+        },
+        {
+          "key": "Down",
+          "submission_us": 31992.173,
+          "buffer_observed_us": 34108.475
+        },
+        {
+          "key": "Down",
+          "submission_us": 17841.882,
+          "buffer_observed_us": 19868.303
+        },
+        {
+          "key": "Down",
+          "submission_us": 31830.741,
+          "buffer_observed_us": 33917.859
+        },
+        {
+          "key": "Down",
+          "submission_us": 34064.078,
+          "buffer_observed_us": 36186.504
+        },
+        {
+          "key": "Down",
+          "submission_us": 32953.353,
+          "buffer_observed_us": 35109.504
+        },
+        {
+          "key": "Down",
+          "submission_us": 31706.819,
+          "buffer_observed_us": 37947.856
+        },
+        {
+          "key": "Down",
+          "submission_us": 16641.276,
+          "buffer_observed_us": 18666.561
+        },
+        {
+          "key": "Down",
+          "submission_us": 15618.469,
+          "buffer_observed_us": 17634.094
+        },
+        {
+          "key": "Down",
+          "submission_us": 32010.842,
+          "buffer_observed_us": 34079.572
+        },
+        {
+          "key": "Down",
+          "submission_us": 32412.596,
+          "buffer_observed_us": 34454.786
+        },
+        {
+          "key": "Down",
+          "submission_us": 17938.001,
+          "buffer_observed_us": 28495.236
+        },
+        {
+          "key": "Down",
+          "submission_us": 32459.161,
+          "buffer_observed_us": 34662.688
+        },
+        {
+          "key": "Down",
+          "submission_us": 31696.674,
+          "buffer_observed_us": 33824.773
+        },
+        {
+          "key": "Down",
+          "submission_us": 15613.021,
+          "buffer_observed_us": 17615.071
+        },
+        {
+          "key": "Down",
+          "submission_us": 32070.81,
+          "buffer_observed_us": 34264.959
+        },
+        {
+          "key": "Down",
+          "submission_us": 17967.41,
+          "buffer_observed_us": 20027.978
+        },
+        {
+          "key": "Down",
+          "submission_us": 31851.512,
+          "buffer_observed_us": 34008.204
+        },
+        {
+          "key": "Down",
+          "submission_us": 34073.161,
+          "buffer_observed_us": 36240.57
+        },
+        {
+          "key": "Down",
+          "submission_us": 17746.542,
+          "buffer_observed_us": 24098.386
+        },
+        {
+          "key": "Down",
+          "submission_us": 16499.223,
+          "buffer_observed_us": 18539.42
+        },
+        {
+          "key": "Down",
+          "submission_us": 33201.621,
+          "buffer_observed_us": 35360.557
+        },
+        {
+          "key": "Down",
+          "submission_us": 17748.491,
+          "buffer_observed_us": 28753.78
+        },
+        {
+          "key": "Down",
+          "submission_us": 31722.608,
+          "buffer_observed_us": 33886.661
+        }
+      ],
+      "after": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 505,
+          "max_delay_us": 55308,
+          "sample_age_ms": 348,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 26665,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1126034,
+          "cpu_user_us": 18780328,
+          "file_descriptors": 312,
+          "peak_rss_kib": 688304,
+          "rss_kib": 688304,
+          "threads": 105
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 394
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 21
+        },
+        "uptime_ms": 13442,
+        "version": "0.1.8"
+      },
+      "elapsed_seconds": 5.16787143800002,
+      "resource_delta": {
+        "cpu_user_us": 7854114,
+        "cpu_system_us": 198024,
+        "rss_kib": -440,
+        "threads": 0,
+        "file_descriptors": 0,
+        "cpu_percent": 155.81149989126274
+      },
+      "latency_us": {
+        "submission_us": {
+          "median": 31690.8825,
+          "p95": 33811.483,
+          "p99": 34595.056
+        },
+        "buffer_observed_us": {
+          "median": 33816.516,
+          "p95": 36045.387,
+          "p99": 37957.606
+        }
+      }
+    }
+  ],
+  "host": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64"
+  },
+  "revision": "9ee61500bf51c6ea5af24cea6ce729b5c357ec69"
+}

@@ -1,0 +1,265 @@
+{
+  "schema": 1,
+  "workload": "background_terminal_input_and_bell",
+  "status": "passed",
+  "warmup": 5,
+  "iterations": 20,
+  "bells_per_burst": 64,
+  "poll_interval_seconds": 0.1,
+  "minimum_bell_gap_seconds": 0.11,
+  "includes": "CLI startup, socket dispatch, PTY input, child output, viewport readback and attention polling; no presentation latency claim",
+  "samples": [
+    {
+      "input_us": 5474.135,
+      "bell_us": 116130.153
+    },
+    {
+      "input_us": 5438.645,
+      "bell_us": 115892.774
+    },
+    {
+      "input_us": 5492.006,
+      "bell_us": 116113.239
+    },
+    {
+      "input_us": 5531.095,
+      "bell_us": 116022.843
+    },
+    {
+      "input_us": 5531.264,
+      "bell_us": 116031.133
+    },
+    {
+      "input_us": 5643.954,
+      "bell_us": 116034.001
+    },
+    {
+      "input_us": 11454.873,
+      "bell_us": 116356.542
+    },
+    {
+      "input_us": 5628.681,
+      "bell_us": 116150.427
+    },
+    {
+      "input_us": 12169.65,
+      "bell_us": 116371.084
+    },
+    {
+      "input_us": 5511.205,
+      "bell_us": 116357.329
+    },
+    {
+      "input_us": 12233.661,
+      "bell_us": 116210.725
+    },
+    {
+      "input_us": 5537.409,
+      "bell_us": 116402.46
+    },
+    {
+      "input_us": 5565.782,
+      "bell_us": 115951.241
+    },
+    {
+      "input_us": 5624.268,
+      "bell_us": 115854.5
+    },
+    {
+      "input_us": 12749.003,
+      "bell_us": 116067.104
+    },
+    {
+      "input_us": 5495.139,
+      "bell_us": 115857.833
+    },
+    {
+      "input_us": 5727.684,
+      "bell_us": 117152.599
+    },
+    {
+      "input_us": 5525.661,
+      "bell_us": 116055.777
+    },
+    {
+      "input_us": 12491.115,
+      "bell_us": 116280.92
+    },
+    {
+      "input_us": 5658.34,
+      "bell_us": 116061.847
+    }
+  ],
+  "before": {
+    "browser_commands": {
+      "capacity": 16,
+      "in_flight": 0,
+      "rejected": 0
+    },
+    "browser_preview": {
+      "active_stream_tasks": 0,
+      "base64_errors": 0,
+      "decode_attempts": 0,
+      "decode_overload_drops": 0,
+      "decode_total_us": 0,
+      "jpeg_bytes_received": 0,
+      "jpeg_payloads_received": 0,
+      "texture_errors": 0,
+      "textures_assigned": 0
+    },
+    "build_profile": "release",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "first_opengl_context": {
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "vendor": "Mesa",
+      "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+    },
+    "gtk_event_loop": {
+      "interval_ms": 1000,
+      "last_delay_us": 3290,
+      "max_delay_us": 3290,
+      "sample_age_ms": 674,
+      "sampled": true
+    },
+    "gtk_version": "4.14.5",
+    "libgl_software_override": true,
+    "logging": {
+      "active": true,
+      "dropped_records": 0,
+      "max_file_bytes": 8388608,
+      "max_record_bytes": 65536,
+      "queue_capacity": 128,
+      "retained_files": 2,
+      "write_failures": 0
+    },
+    "pid": 24525,
+    "requested_backend": "x11",
+    "resources": {
+      "cpu_system_us": 204555,
+      "cpu_user_us": 762067,
+      "file_descriptors": 46,
+      "peak_rss_kib": 274056,
+      "rss_kib": 272296,
+      "threads": 29
+    },
+    "rpc": {
+      "cancelled": 0,
+      "failed": 0,
+      "in_flight": 1,
+      "succeeded": 63
+    },
+    "schema": 1,
+    "socket_connections": {
+      "active": 1,
+      "capacity": 64,
+      "rejected": 0
+    },
+    "terminals": {
+      "inherited_directories": 1,
+      "registered": 2
+    },
+    "uptime_ms": 1678,
+    "version": "0.1.8"
+  },
+  "after": {
+    "browser_commands": {
+      "capacity": 16,
+      "in_flight": 0,
+      "rejected": 0
+    },
+    "browser_preview": {
+      "active_stream_tasks": 0,
+      "base64_errors": 0,
+      "decode_attempts": 0,
+      "decode_overload_drops": 0,
+      "decode_total_us": 0,
+      "jpeg_bytes_received": 0,
+      "jpeg_payloads_received": 0,
+      "texture_errors": 0,
+      "textures_assigned": 0
+    },
+    "build_profile": "release",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "first_opengl_context": {
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "vendor": "Mesa",
+      "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+    },
+    "gtk_event_loop": {
+      "interval_ms": 1000,
+      "last_delay_us": 892,
+      "max_delay_us": 3290,
+      "sample_age_ms": 196,
+      "sampled": true
+    },
+    "gtk_version": "4.14.5",
+    "libgl_software_override": true,
+    "logging": {
+      "active": true,
+      "dropped_records": 0,
+      "max_file_bytes": 8388608,
+      "max_record_bytes": 65536,
+      "queue_capacity": 128,
+      "retained_files": 2,
+      "write_failures": 0
+    },
+    "pid": 24525,
+    "requested_backend": "x11",
+    "resources": {
+      "cpu_system_us": 310892,
+      "cpu_user_us": 1944357,
+      "file_descriptors": 46,
+      "peak_rss_kib": 274056,
+      "rss_kib": 272372,
+      "threads": 29
+    },
+    "rpc": {
+      "cancelled": 0,
+      "failed": 0,
+      "in_flight": 1,
+      "succeeded": 284
+    },
+    "schema": 1,
+    "socket_connections": {
+      "active": 1,
+      "capacity": 64,
+      "rejected": 0
+    },
+    "terminals": {
+      "inherited_directories": 1,
+      "registered": 2
+    },
+    "uptime_ms": 6203,
+    "version": "0.1.8"
+  },
+  "host": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64"
+  },
+  "revision": "9ee61500bf51c6ea5af24cea6ce729b5c357ec69",
+  "progress": {
+    "iteration": 24,
+    "operation": "bell"
+  },
+  "elapsed_seconds": 4.525530479999816,
+  "resource_delta": {
+    "cpu_user_us": 1182290,
+    "cpu_system_us": 106337,
+    "rss_kib": 76,
+    "threads": 0,
+    "file_descriptors": 0,
+    "cpu_percent": 28.47460658358117
+  },
+  "latency_us": {
+    "input": {
+      "median": 5595.025,
+      "p95": 12491.115,
+      "p99": 12749.003
+    },
+    "bell": {
+      "median": 116090.1715,
+      "p95": 116402.46,
+      "p99": 117152.599
+    }
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "workload": "real_browser_dom_and_preview",
+  "warmup": 5,
+  "iterations": 10,
+  "includes": "CLI startup, cmux dispatch, real agent-browser/Chromium DOM actions and snapshot response; no compositor latency claim",
+  "before": {
+    "browser_commands": {
+      "capacity": 16,
+      "in_flight": 0,
+      "rejected": 0
+    },
+    "browser_preview": {
+      "active_stream_tasks": 1,
+      "base64_errors": 0,
+      "decode_attempts": 15,
+      "decode_overload_drops": 0,
+      "decode_total_us": 42289,
+      "jpeg_bytes_received": 177153,
+      "jpeg_payloads_received": 15,
+      "texture_errors": 0,
+      "textures_assigned": 15
+    },
+    "build_profile": "release",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "first_opengl_context": {
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "vendor": "Mesa",
+      "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+    },
+    "gtk_event_loop": {
+      "interval_ms": 1000,
+      "last_delay_us": 403,
+      "max_delay_us": 1104,
+      "sample_age_ms": 156,
+      "sampled": true
+    },
+    "gtk_version": "4.14.5",
+    "libgl_software_override": true,
+    "logging": {
+      "active": true,
+      "dropped_records": 0,
+      "max_file_bytes": 8388608,
+      "max_record_bytes": 65536,
+      "queue_capacity": 128,
+      "retained_files": 2,
+      "write_failures": 0
+    },
+    "pid": 28356,
+    "requested_backend": "x11",
+    "resources": {
+      "cpu_system_us": 177386,
+      "cpu_user_us": 1216650,
+      "file_descriptors": 33,
+      "peak_rss_kib": 259928,
+      "rss_kib": 259928,
+      "threads": 26
+    },
+    "rpc": {
+      "cancelled": 0,
+      "failed": 0,
+      "in_flight": 1,
+      "succeeded": 35
+    },
+    "schema": 1,
+    "socket_connections": {
+      "active": 1,
+      "capacity": 64,
+      "rejected": 0
+    },
+    "terminals": {
+      "inherited_directories": 0,
+      "registered": 1
+    },
+    "uptime_ms": 16166,
+    "version": "0.1.8"
+  },
+  "after": {
+    "browser_commands": {
+      "capacity": 16,
+      "in_flight": 0,
+      "rejected": 0
+    },
+    "browser_preview": {
+      "active_stream_tasks": 1,
+      "base64_errors": 0,
+      "decode_attempts": 35,
+      "decode_overload_drops": 0,
+      "decode_total_us": 83489,
+      "jpeg_bytes_received": 416534,
+      "jpeg_payloads_received": 35,
+      "texture_errors": 0,
+      "textures_assigned": 35
+    },
+    "build_profile": "release",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "first_opengl_context": {
+      "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+      "vendor": "Mesa",
+      "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+    },
+    "gtk_event_loop": {
+      "interval_ms": 1000,
+      "last_delay_us": 403,
+      "max_delay_us": 1104,
+      "sample_age_ms": 487,
+      "sampled": true
+    },
+    "gtk_version": "4.14.5",
+    "libgl_software_override": true,
+    "logging": {
+      "active": true,
+      "dropped_records": 0,
+      "max_file_bytes": 8388608,
+      "max_record_bytes": 65536,
+      "queue_capacity": 128,
+      "retained_files": 2,
+      "write_failures": 0
+    },
+    "pid": 28356,
+    "requested_backend": "x11",
+    "resources": {
+      "cpu_system_us": 204601,
+      "cpu_user_us": 1269529,
+      "file_descriptors": 33,
+      "peak_rss_kib": 264712,
+      "rss_kib": 260560,
+      "threads": 26
+    },
+    "rpc": {
+      "cancelled": 0,
+      "failed": 0,
+      "in_flight": 1,
+      "succeeded": 86
+    },
+    "schema": 1,
+    "socket_connections": {
+      "active": 1,
+      "capacity": 64,
+      "rejected": 0
+    },
+    "terminals": {
+      "inherited_directories": 0,
+      "registered": 1
+    },
+    "uptime_ms": 16497,
+    "version": "0.1.8"
+  },
+  "samples": [
+    {
+      "fill_us": 6079.981,
+      "click_us": 9491.679,
+      "snapshot_us": 6268.112,
+      "evaluate_us": 3798.866
+    },
+    {
+      "fill_us": 5028.048,
+      "click_us": 16765.839,
+      "snapshot_us": 6500.262,
+      "evaluate_us": 4582.978
+    },
+    {
+      "fill_us": 5994.747,
+      "click_us": 13409.879,
+      "snapshot_us": 6674.954,
+      "evaluate_us": 3813.043
+    },
+    {
+      "fill_us": 5003.267,
+      "click_us": 15844.674,
+      "snapshot_us": 6805.456,
+      "evaluate_us": 3446.652
+    },
+    {
+      "fill_us": 4914.322,
+      "click_us": 15638.569,
+      "snapshot_us": 6295.409,
+      "evaluate_us": 3627.653
+    },
+    {
+      "fill_us": 5312.752,
+      "click_us": 15999.676,
+      "snapshot_us": 6092.23,
+      "evaluate_us": 5262.481
+    },
+    {
+      "fill_us": 6075.132,
+      "click_us": 13732.324,
+      "snapshot_us": 7759.385,
+      "evaluate_us": 3668.11
+    },
+    {
+      "fill_us": 4852.384,
+      "click_us": 15159.124,
+      "snapshot_us": 6168.598,
+      "evaluate_us": 3498.158
+    },
+    {
+      "fill_us": 6473.846,
+      "click_us": 15320.502,
+      "snapshot_us": 6707.353,
+      "evaluate_us": 3541.344
+    },
+    {
+      "fill_us": 4811.183,
+      "click_us": 16034.554,
+      "snapshot_us": 6700.157,
+      "evaluate_us": 3758.65
+    }
+  ],
+  "schema": 1,
+  "status": "passed",
+  "host": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64"
+  },
+  "revision": "9ee61500bf51c6ea5af24cea6ce729b5c357ec69",
+  "agent_browser_version": "agent-browser 0.31.1",
+  "open_us": 9200027.887,
+  "browser_user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+  "elapsed_seconds": 0.3309289699998317,
+  "resource_delta": {
+    "cpu_user_us": 52879,
+    "cpu_system_us": 27215,
+    "rss_kib": 632,
+    "threads": 0,
+    "file_descriptors": 0,
+    "cpu_percent": 24.20277680737372
+  },
+  "latency_us": {
+    "fill_us": {
+      "median": 5170.4,
+      "p95": 6473.846,
+      "p99": 6473.846
+    },
+    "click_us": {
+      "median": 15479.5355,
+      "p95": 16765.839,
+      "p99": 16765.839
+    },
+    "snapshot_us": {
+      "median": 6587.608,
+      "p95": 7759.385,
+      "p99": 7759.385
+    },
+    "evaluate_us": {
+      "median": 3713.38,
+      "p95": 5262.481,
+      "p99": 5262.481
+    }
+  }
+}
