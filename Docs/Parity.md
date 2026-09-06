@@ -358,3 +358,7 @@ Read-only action inspection now reports typed intent/target and rejects malforme
 ### Project builtin identity validation
 
 Builtin actions now resolve upstream aliases into explicit canonical identities and reject unknown names. Recognized but unimplemented platform features remain represented; no execution or parity completion is implied. Strict Clippy passes; runtime tests await Actions.
+
+### Typed project workspace layouts
+
+Added bounded recursive pane/split validation, typed surface kinds, launch fields and environment checks. Upstream split defaults/clamping are preserved; invalid topology is rejected before launch integration. Strict Clippy passes; runtime Actions verification is pending. Workspace execution, project renderer, colors and restart semantics remain outstanding.

@@ -26,3 +26,8 @@ content:
   builtin_identity:
     - Builtin names resolve through a closed enum retaining all inspected upstream canonical IDs and aliases; unknown names fail validation.
     - Canonical identity is distinct from execution availability. Agent-chat/cloud/mobile/simulator adaptation and project action dispatch remain outstanding; aliases are covered by Actions tests.
+
+  workspace_layout:
+    - Workspace intents contain typed launch strings/environment and recursive pane or split layouts. Panes require surfaces, splits require horizontal/vertical and exactly two children; mixed node types fail.
+    - Depth32 and surfaces128 bounds apply per workspace. Ratios default0.5 and clamp0.1to0.9. Environment entries64, identifier keys128bytes and aggregate64KiB are checked; strings are bounded and NUL-free.
+    - Terminal/browser/project surface kinds and focus booleans are typed. Project rendering, color resolution, restart semantics, managed environment precedence and actual execution remain outstanding. Tests run in Actions only.

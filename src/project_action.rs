@@ -1,4 +1,6 @@
 //! Typed action intent; parsing validates data and never launches commands.
+#[path = "project_layout.rs"]
+mod project_layout;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -63,11 +65,22 @@ impl Builtin {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Intent {
     Metadata,
-    Command { command: String },
-    Agent { agent: String, args: Option<String> },
-    Builtin { builtin: Builtin },
-    WorkspaceCommand { name: String },
-    Workspace { workspace: Value },
+    Command {
+        command: String,
+    },
+    Agent {
+        agent: String,
+        args: Option<String>,
+    },
+    Builtin {
+        builtin: Builtin,
+    },
+    WorkspaceCommand {
+        name: String,
+    },
+    Workspace {
+        workspace: Box<project_layout::Workspace>,
+    },
 }
 
 /// Require bounded, NUL-free string values; shell commands retain their literal contents.
@@ -169,7 +182,7 @@ pub fn parse(value: &Value) -> Result<(Intent, Target), String> {
                 .filter(|value| value.is_object())
                 .ok_or("workspace action requires an object")?;
             Intent::Workspace {
-                workspace: workspace.clone(),
+                workspace: Box::new(project_layout::parse(workspace)?),
             }
         }
         _ => return Err("unknown action type".into()),
