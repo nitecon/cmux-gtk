@@ -20,6 +20,27 @@ pub(crate) async fn reap_child(
         .map(|status| (status, true))
 }
 
+/// Run a status-only command with null stdin, a bounded execution wait and shared direct-child cleanup.
+/// Output follows the caller's configuration. Expired commands return TimedOut after a kill/reap attempt.
+pub(crate) async fn run_status(
+    command: &mut tokio::process::Command,
+    budget: std::time::Duration,
+) -> std::io::Result<std::process::ExitStatus> {
+    let child = command
+        .stdin(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .spawn()?;
+    let (status, forced) = reap_child(child, budget).await?;
+    if forced {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "child execution deadline exceeded",
+        ))
+    } else {
+        Ok(status)
+    }
+}
+
 /// Cancel a companion task when its owner leaves scope, including before first polling.
 /// Aborting requests cancellation; callers that require completed cleanup must also await the task.
 pub(crate) struct AbortOnDrop(pub(crate) tokio::task::AbortHandle);
@@ -35,6 +56,32 @@ impl Drop for AbortOnDrop {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    /// Preserve process exit status, supply EOF on stdin and classify execution-budget expiry as timeout.
+    #[tokio::test]
+    async fn bounded_status_command() {
+        let status = run_status(
+            tokio::process::Command::new("sh").args(["-c", "exit 7"]),
+            Duration::from_secs(2),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status.code(), Some(7));
+        let status = run_status(
+            tokio::process::Command::new("sh").args(["-c", "read value; test $? -ne 0"]),
+            Duration::from_secs(2),
+        )
+        .await
+        .unwrap();
+        assert!(status.success());
+        let error = run_status(
+            tokio::process::Command::new("sleep").arg("30"),
+            Duration::from_millis(30),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    }
 
     /// Preserve ordinary exit codes and force/reap a direct child that does not exit during grace.
     #[tokio::test]

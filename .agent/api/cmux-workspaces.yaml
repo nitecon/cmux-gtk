@@ -19,6 +19,7 @@ content:
       steps:
         - Use an SSH config alias or user@host and an optional absolute remote folder. Authentication uses SSH keys/agent with BatchMode enabled.
         - Install the local daemon with scripts/install-cmuxd-remote.sh before first remote launch. Deploy to remote .local/bin/cmuxd-remote.
+        - Deployment control commands use 15-second execution budgets, uploads 60 seconds, and staging cleanup 10 seconds; each expiration allows at most five seconds for direct-child reaping. stdin is null and cancellation uses kill-on-drop. Remote OS effects are not rolled back on uncertain completion.
         - Upload to a unique staging filename, set permissions, and atomically rename it into place so running helpers are not overwritten during reconnect.
         - Each terminal surface owns its own remote context and stream identity. Start stream only after surface initialization; route output by that identity.
         - Persist host, remote folder and layout. Reconnect creates fresh remote shell sessions rather than recovering previous processes.
