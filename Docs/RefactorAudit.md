@@ -1619,3 +1619,8 @@ Replaced one unbounded waiting thread per desktop bell with four globally admitt
 ### Optimized input and native attention workload
 
 Added a real GTK/PTY fixture measuring background-target input acknowledgements and 64-BEL bursts over five warmup and twenty measured cycles. It requires observed native attention, clearing and preserved foreground selection, and writes raw latency plus optimized-process resource metadata through success or failure. Reuses isolated app/CLI/process ownership helpers; no mock notification endpoint, arbitrary CPU gate or desktop presentation claim. Wired into Actions after optimized builds with artifact preservation. Python syntax and diff checks pass; executable evidence remains pending.
+
+
+### Optimized real SSH lifecycle evidence
+
+Reused the existing script/SSH/same-host/restart fixture with selected binary directory and expected profile, adding two socket-startup and six remote marker timings with process/resource metadata. A separate optimized Actions invocation writes a private artifact, preserving ordinary partial measurement/cleanup failure evidence. The configured SCP guard fault and heterogeneous phases are explicit; no misleading aggregate percentile or steady-state throughput is computed. Added a forced-shutdown failure assertion. Syntax/diff checks pass; the new optimized invocation awaits CI.

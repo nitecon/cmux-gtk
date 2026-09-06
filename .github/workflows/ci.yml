@@ -221,6 +221,14 @@ jobs:
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_attention_benchmark.py
 
+      - name: Benchmark optimized SSH workspace lifecycle
+        timeout-minutes: 5
+        env:
+          CMUX_BIN_DIR: target/release
+          CMUX_EXPECT_PROFILE: release
+          CMUX_SSH_REPORT: target/benchmarks/ssh-workspaces-release.json
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_workspace_launch.py
+
       - name: Preserve benchmark results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

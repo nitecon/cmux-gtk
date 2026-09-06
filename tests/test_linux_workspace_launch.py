@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import shlex
+import platform
+import sys
 import shutil
 import socket
 import subprocess
@@ -19,6 +21,18 @@ eventually = partial(wait_until, description="workspace launch state", timeout=1
 
 with tempfile.TemporaryDirectory(prefix="cmux-workflow-") as directory:
     root = Path(directory)
+    binary_dir = Path(os.environ.get("CMUX_BIN_DIR", "target/debug"))
+    expected_profile = os.environ.get("CMUX_EXPECT_PROFILE", "debug")
+    report_output = os.environ.get("CMUX_SSH_REPORT")
+    report = {"schema": 1, "workload": "ssh_workspace_launch_split_restart", "status": "failed",
+              "host": {"platform": platform.platform(), "machine": platform.machine()},
+              "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, timeout=10).strip(),
+              "warmup": 0, "expected_marker_operations": 6, "upload_failure_policy": "fail scp while the shared first-attempt guard is absent",
+              "transport": "loopback OpenSSH with real owned Go daemon",
+              "includes": "Cold startup, deployment retry, readiness polling and remote marker execution; heterogeneous phases are not a steady-state latency distribution",
+              "startups": [], "operations": []}
+    completed = False
+    forced_shutdown = None
     for name in ["runtime", "bin", "local", "remote", "data/cmux/bin"]:
         (root / name).mkdir(parents=True, mode=0o700)
     env = dict(os.environ, XDG_DATA_HOME=str(root / "data"),
@@ -87,16 +101,18 @@ Subsystem sftp internal-sftp
     ])))
 
     def cli(*args):
-        """Run the debug CLI against this isolated application with a fifteen-second process timeout."""
-        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket_path), *args], env=env, text=True, timeout=15)
+        """Run the selected CLI against this isolated application with a fifteen-second process timeout."""
+        return subprocess.check_output([str(binary_dir / "cmux"), "--socket", str(socket_path), *args], env=env, text=True, timeout=15)
 
     def start():
         """Remove a stale fixture socket, launch GTK and wait for its control socket to appear."""
         global app
         if socket_path.exists():
             socket_path.unlink()
-        app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=app_log, stderr=app_log)
+        tick = time.perf_counter_ns()
+        app = subprocess.Popen([str(binary_dir / "cmux-app")], env=env, stdout=app_log, stderr=app_log)
         eventually(socket_path.exists)
+        report["startups"].append({"pid": app.pid, "socket_ready_us": (time.perf_counter_ns() - tick) / 1000})
         time.sleep(0.5)
 
     def stop():
@@ -129,7 +145,13 @@ Subsystem sftp internal-sftp
                 return False
             text = cli("read-text").replace("\n", "").replace("\r", "")
             return str(root / "remote") in text
+        started = time.perf_counter_ns()
         eventually(ready)
+        readiness_us = (time.perf_counter_ns() - started) / 1000
+        before = json.loads(cli("diagnostics", "--json"))
+        assert before["pid"] == app.pid and before["build_profile"] == expected_profile
+        assert before["first_opengl_context"] is not None
+        tick = time.perf_counter_ns()
         cli("send-text", f"printf '%s' \"$PWD\" > {name}")
         windows = subprocess.check_output(
             ["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True, timeout=10,
@@ -145,6 +167,11 @@ Subsystem sftp internal-sftp
                 return False
         eventually(written)
         assert not (root / "local" / name).exists()
+        duration_us = (time.perf_counter_ns() - tick) / 1000
+        after = json.loads(cli("diagnostics", "--json"))
+        assert after["pid"] == app.pid and after["build_profile"] == expected_profile
+        report["operations"].append({"phase": name, "readiness_us": readiness_us,
+                                     "input_to_marker_us": duration_us, "before": before, "after": after})
 
     def remote_setup_traced():
         """Require matching local request lifetimes and remote handler timings for both PTY setups."""
@@ -225,6 +252,7 @@ Subsystem sftp internal-sftp
         remote_write("second-workspace-restored")
         cli("select-workspace", local_id)
         eventually(lambda: len(launches()) >= 4)
+        completed = True
         print("script and SSH launch contexts survive splits, reorder and restart")
     except BaseException:
         for log in [app_log, ssh_log]:
@@ -238,7 +266,8 @@ Subsystem sftp internal-sftp
         raise
     finally:
         try:
-            stop_process(app)
+            forced_shutdown = stop_process(app)
+            assert not forced_shutdown, "workspace fixture required forced shutdown"
         finally:
             try:
                 pidfile = root / "sshd.pid"
@@ -248,3 +277,11 @@ Subsystem sftp internal-sftp
             finally:
                 app_log.close()
                 ssh_log.close()
+                if report_output:
+                    report["status"] = "passed" if completed and not forced_shutdown and sys.exc_info()[0] is None else "failed"
+                    report["shutdown_forced"] = forced_shutdown
+                    output = Path(report_output)
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(descriptor, "w", encoding="utf-8") as artifact:
+                        artifact.write(json.dumps(report, indent=2) + "\n")
