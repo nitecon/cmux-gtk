@@ -388,7 +388,7 @@ Hard invariant:
 3. `tests_v2/test_browser_api_unsupported_matrix.py`
 4. `tests_v2/test_browser_goto_split.py`
 5. Historical WKWebView stability suite removed; Linux pane lifecycle coverage is now in `tests/test_linux_surface_tab_reentrant_close.py` (mock browser, not WebKit first-responder coverage).
-6. `tests_v2/test_browser_custom_keybinds.py`
+6. Historical Cmd/Option WKWebView shortcut harness retired; actual GTK focus and DevTools overlay behavior require Linux checks.
 
 ### Test Design Rules
 
