@@ -100,9 +100,38 @@ impl Transport {
 struct ClientOwner {
     transport: Arc<Transport>,
     stream: String,
+    confirmed_closed: bool,
+}
+impl ClientOwner {
+    /// Await idempotent remote retirement on normal completion; cancellation retains the drop fallback.
+    async fn finish(mut self) -> Result<(), String> {
+        self.transport
+            .bridge
+            .proxy_routes
+            .0
+            .lock()
+            .unwrap()
+            .remove(&self.stream);
+        super::forward_metrics::close_requested();
+        let result = self
+            .transport
+            .call("proxy.close", serde_json::json!({"stream_id":self.stream}))
+            .await
+            .and_then(|result| {
+                (result.get("closed").and_then(|value| value.as_bool()) == Some(true))
+                    .then_some(())
+                    .ok_or_else(|| "remote close was not confirmed".to_owned())
+            });
+        self.confirmed_closed = result.is_ok();
+        super::forward_metrics::close_completed(self.confirmed_closed);
+        result
+    }
 }
 impl Drop for ClientOwner {
     fn drop(&mut self) {
+        if self.confirmed_closed {
+            return;
+        }
         self.transport
             .bridge
             .proxy_routes
@@ -153,16 +182,21 @@ async fn client(
     let owner = ClientOwner {
         transport: transport.clone(),
         stream: stream.clone(),
+        confirmed_closed: false,
     };
     if *stop.borrow() {
-        return Ok(());
+        return owner.finish().await;
     }
-    transport
+    if let Err(error) = transport
         .call(
             "proxy.stream.subscribe",
             serde_json::json!({"stream_id":stream}),
         )
-        .await?;
+        .await
+    {
+        let _ = owner.finish().await;
+        return Err(error);
+    }
     let (mut read, mut write) = socket.into_split();
     let outbound = async {
         let mut bytes = [0u8; 32768];
@@ -207,8 +241,8 @@ async fn client(
         result = outbound => result,
         result = inbound => result,
     };
-    drop(owner);
-    result
+    let closed = owner.finish().await;
+    result.and(closed)
 }
 
 /// Accept clients with a connection-wide cap; stop closes admission and drains bounded in-flight opens.

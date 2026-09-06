@@ -8,6 +8,8 @@ static DELIVERED: AtomicU64 = AtomicU64::new(0);
 static DATA_REJECTED: AtomicU64 = AtomicU64::new(0);
 static CLIENT_REJECTED: AtomicU64 = AtomicU64::new(0);
 static CLOSE_REQUESTS: AtomicU64 = AtomicU64::new(0);
+static CLOSE_CONFIRMED: AtomicU64 = AtomicU64::new(0);
+static CLOSE_FAILED: AtomicU64 = AtomicU64::new(0);
 
 /// Own a task gauge through completion and cancellation, including startup and cleanup work.
 pub(super) struct Active(&'static AtomicU64);
@@ -51,13 +53,23 @@ pub(super) fn close_requested() {
     CLOSE_REQUESTS.fetch_add(1, Relaxed);
 }
 
+/// Count the observed result of an awaited remote close, separately from queued cancellation fallback.
+pub(super) fn close_completed(confirmed: bool) {
+    if confirmed {
+        CLOSE_CONFIRMED.fetch_add(1, Relaxed);
+    } else {
+        CLOSE_FAILED.fetch_add(1, Relaxed);
+    }
+}
+
 /// Snapshot independently sampled aggregate values; per-connection limits are reported separately from gauges.
 pub(crate) fn snapshot() -> serde_json::Value {
     serde_json::json!({
         "active_listener_tasks":LISTENERS.load(Relaxed), "active_client_tasks":CLIENTS.load(Relaxed),
         "remote_write_acknowledged_bytes":SENT.load(Relaxed), "local_write_completed_bytes":DELIVERED.load(Relaxed),
         "rejected_data_chunks":DATA_REJECTED.load(Relaxed), "rejected_clients":CLIENT_REJECTED.load(Relaxed),
-        "close_requests":CLOSE_REQUESTS.load(Relaxed), "listeners_per_connection":16,
+        "close_requests":CLOSE_REQUESTS.load(Relaxed),
+        "confirmed_closes":CLOSE_CONFIRMED.load(Relaxed),"failed_closes":CLOSE_FAILED.load(Relaxed), "listeners_per_connection":16,
         "clients_per_connection":16,"queued_chunks_per_client":16,"chunk_bytes":32768,
     })
 }

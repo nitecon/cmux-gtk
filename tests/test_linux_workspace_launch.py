@@ -272,6 +272,8 @@ Subsystem sftp internal-sftp
         assert forwarding_after["local_write_completed_bytes"] - forwarding_before["local_write_completed_bytes"] == len(payload)
         assert forwarding_after["rejected_data_chunks"] == forwarding_before["rejected_data_chunks"]
         assert forwarding_after["close_requests"] > forwarding_before["close_requests"]
+        assert forwarding_after["confirmed_closes"] > forwarding_before["confirmed_closes"]
+        assert forwarding_after["failed_closes"] == forwarding_before["failed_closes"]
         report["forwarding"] = {"before": forwarding_before, "after": forwarding_after}
         assert json.loads(cli("ping", "--json"))["pong"]
         (root / "remote/listener-stop").touch()

@@ -298,3 +298,5 @@ Forwarding cleanup now preserves existing routes on duplicate stream responses, 
 Forwarded clients can now send request EOF without losing the remote response through `proxy.shutdown_write`. The real SSH fixture sends a request, shuts down its write direction and requires a multi-chunk reply from a server that waits for EOF. Go coverage also rejects non-TCP streams. Runtime verification pending; reverse half-close and remaining forwarding gates stay open.
 
 Forwarding diagnostics now report active listener/client tasks, byte counters with explicit acknowledgement/completion semantics, rejected data/client admission and requested closes. The SSH fixture checks exact transfer deltas and cleanup gauges. Runtime verification pending; counters do not establish remote-close acknowledgement.
+
+Normal forwarding completion now awaits remote `proxy.close` acknowledgement, with cancellation/failure retaining bounded queued cleanup. Diagnostics expose confirmed and failed closes; the SSH fixture checks acknowledgement after transfer. Runtime verification pending.

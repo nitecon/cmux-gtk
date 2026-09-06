@@ -58,3 +58,7 @@ content:
   forwarding_metrics:
     - diagnostics.remote_forwarding exposes active listener/client task gauges, remote-write acknowledged bytes, local-write completed bytes, data/client rejection counters and close requests. Gauges include startup/draining and are balanced on task cancellation.
     - Snapshots use independently sampled atomics and aggregate all connections, while capacity fields describe per-connection limits. Partial failed writes are excluded; requested closes are not acknowledgements. The SSH fixture verifies transfer deltas and client cleanup.
+
+  forwarding_cleanup:
+    - Normal completion and subscription failure await idempotent proxy.close with the existing deadline and require closed true. The owner persists during the await; cancelled or failed waits retain the queued-close fallback.
+    - confirmed_closes and failed_closes distinguish observed outcomes from close_requests, which also includes fallback attempts. The SSH transfer fixture requires a confirmed close without a failed close.
