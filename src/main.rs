@@ -164,7 +164,19 @@ fn main() {
     // Try to restore session from previous run (SESS-02, SESS-04).
     // load_session() returns None if file is missing or invalid -- that's fine.
     crate::resume_policy::initialize();
-    let saved_session = crate::session::load_session();
+    let mut arguments: Vec<String> = std::env::args().collect();
+    let previous = arguments
+        .iter()
+        .skip(1)
+        .any(|argument| argument == "--restore-previous-session");
+    arguments.retain(|argument| argument != "--restore-previous-session");
+    let saved_session = match crate::session::load_startup_session(previous) {
+        Ok(session) => session,
+        Err(message) => {
+            eprintln!("cmux: {message}");
+            std::process::exit(1);
+        }
+    };
     if let Some(ref s) = saved_session {
         eprintln!(
             "cmux: restoring session ({} workspace(s))",
@@ -217,7 +229,7 @@ fn main() {
 
     eprintln!("cmux: calling app.run()");
     let gtk_probe = diagnostics::start_gtk_probe();
-    let _exit_code = app.run();
+    let _exit_code = app.run_with_args(&arguments);
     gtk_probe.remove();
     eprintln!("cmux: app.run() returned");
 

@@ -43,7 +43,7 @@ class Application:
 
 
 @contextmanager
-def running_app(root, extra_environment=None):
+def running_app(root, extra_environment=None, extra_arguments=None):
     """Start cmux in caller-owned temporary storage and always terminate/reap its direct child.
 
     Overrides allow fixtures to install a browser mock or select CMUX_BIN_DIR before startup. Failure output
@@ -57,7 +57,7 @@ def running_app(root, extra_environment=None):
     (root / "runtime").mkdir(mode=0o700, exist_ok=True)
     with (root / "app.log").open("w+b") as log:
         binary_dir = Path(environment.get("CMUX_BIN_DIR", "target/debug"))
-        process = subprocess.Popen([str(binary_dir / "cmux-app")], env=environment, stdout=log, stderr=log)
+        process = subprocess.Popen([str(binary_dir / "cmux-app"), *(extra_arguments or [])], env=environment, stdout=log, stderr=log)
         app = Application(process, environment, root / "runtime/cmux/cmux.sock")
         failed = False
         try:

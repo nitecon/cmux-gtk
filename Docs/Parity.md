@@ -156,3 +156,10 @@ Actions 34049479302 passed desktop click routing but failed caller attribution b
 ## Restored working-directory checkpoint
 
 Plain local terminals now restore their last reported directory ahead of the workspace's original launch directory. Explicit startup-command and remote-workspace restoration retain workspace launch precedence. Each deferred GLArea keeps its launch directory for snapshots taken before native initialization; this prevents an untouched background terminal losing its directory during another quit. The three-launch history fixture now starts a workspace in one directory, changes to a second directory with an OSC7 report, and verifies the actual shell directory after an intermediate unopened quit. Runtime verification is pending.
+
+
+## Previous-session startup recovery checkpoint
+
+Before GTK activation on a normal launch, a valid nonempty current snapshot is archived atomically as `session.previous.json`, then the file and parent directory are synced. Live autosaves only update `session.json`. After quitting cmux, `cmux-app --restore-previous-session` explicitly loads the backup through the same validation/restoration path and leaves that recovery source unchanged. An invalid or missing backup fails without starting a fresh session or replacing current saved state. Backup-write failures are diagnosed and do not prevent ordinary startup.
+
+The Actions recovery fixture creates a workspace, closes it during the next run, restores it with the flag, checks stable identities and backup independence, then checks invalid-backup failure preserves the current snapshot. Local clippy and fixture syntax pass; runtime evidence is pending. Upstream's in-app reopen into additional windows and unclean-launch backup preservation remain dependent on the broader window/session lifecycle work and are not claimed complete here.

@@ -175,6 +175,8 @@ jobs:
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_scrollback.py
       - name: Native session scrollback replay
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_scrollback_restore.py
+      - name: Previous session recovery
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_previous_session.py
 
       - name: Test native OSC notification bursts and chunk assembly
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_osc_notifications.py

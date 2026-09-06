@@ -278,3 +278,5 @@ See `LICENSE` for the full text.
 Linux port of [cmux](https://github.com/manaflow-ai/cmux) by [manaflow-ai](https://github.com/manaflow-ai).
 
 Desktop message delivery uses `notify-send` 0.8 or newer and the notification service in your desktop session. DEB/RPM/Homebrew dependencies and the development setup include the helper. For an archive installation, install `libnotify-bin` on Debian/Ubuntu or `libnotify` on Fedora/Arch; inbox messages remain available if desktop delivery fails.
+
+To recover the snapshot archived at the last normal launch, quit cmux and run `cmux-app --restore-previous-session`. The backup lives beside `session.json` as `session.previous.json`; autosaves do not replace it during that run. Missing or invalid backups fail without replacing your current saved session.

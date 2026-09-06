@@ -133,6 +133,38 @@ pub fn load_session() -> Option<SessionData> {
     load_session_from(&session_path())
 }
 
+/// Select startup state and archive a valid normal-launch snapshot before any live autosaves.
+/// Explicit previous-session recovery leaves its backup untouched; missing/invalid backup fails closed.
+/// Blocking I/O runs before GTK activation, using the same atomic durable writer as live snapshots.
+pub fn load_startup_session(previous: bool) -> Result<Option<SessionData>, &'static str> {
+    let path = session_path();
+    let backup = path.with_file_name("session.previous.json");
+    if previous {
+        return load_session_from(&backup)
+            .map(Some)
+            .ok_or("no valid previous session is available");
+    }
+    let session = load_session();
+    if let Some(data) = session.as_ref().filter(|data| !data.workspaces.is_empty()) {
+        let result = save_session_to(data, &backup)
+            .and_then(|()| cmux_platform::filesystem::sync_file_and_parent(&backup));
+        crate::diagnostics::record(
+            "session.backup",
+            serde_json::json!({
+                "outcome": if result.is_ok() { "success" } else { "error" },
+                "workspaces": data.workspaces.len(),
+                "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
+            }),
+        );
+        if result.is_err() {
+            eprintln!(
+                "cmux: could not archive the previous session; continuing with current state"
+            );
+        }
+    }
+    Ok(session)
+}
+
 /// Validate UTF-8 across input chunks, including strings the JSON parser ignores.
 /// At most three unfinished character bytes survive between reads; EOF validates their completion.
 struct Utf8Reader<R> {
