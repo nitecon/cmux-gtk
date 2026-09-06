@@ -34,7 +34,7 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
         (
             browser.session_name.clone(),
             workspace,
-            runtime.spawn(browser.prepare_preview_async(activity.id)),
+            runtime.spawn(browser.prepare_preview_async("about:blank".into(), activity.id)),
         )
     };
     let state = Rc::downgrade(state);
@@ -87,37 +87,103 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
     });
 }
 
-/// Reconnect browser tabs reconstructed from session.json and navigate to their
-/// stored address. agent-browser owns one live session, so the last restored tab
-/// is the initially visible stream; selecting/navigating any tab takes ownership.
+/// Reconnect the existing saved browser tabs sequentially on Tokio, retaining only surface identities.
+/// Closed tabs and replaced managers are skipped; one live daemon session still serves the last restored tab.
 pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
-    let tabs = state
-        .borrow()
+    let (tabs, session) = {
+        let mut s = state.borrow_mut();
+        let tabs: Vec<_> = s
+            .split_engines
+            .iter()
+            .flat_map(|engine| engine.browser_tabs())
+            .map(|widgets| widgets.uuid)
+            .collect();
+        if tabs.is_empty() {
+            return;
+        }
+        let browser = s
+            .browser_manager
+            .get_or_insert_with(super::BrowserManager::new);
+        (tabs, browser.session_name.clone())
+    };
+    let state = Rc::downgrade(state);
+    glib::MainContext::default().spawn_local(async move {
+        for uuid in tabs {
+            let mut activity = super::metrics::Activity::begin("preview_restore", None);
+            let completion = {
+                let Some(state) = state.upgrade() else {
+                    return;
+                };
+                let s = state.borrow();
+                let Some(widgets) = find_browser_tab(&s, uuid) else {
+                    continue;
+                };
+                let (Some(browser), Some(runtime)) =
+                    (s.browser_manager.as_ref(), s.runtime_handle.as_ref())
+                else {
+                    return;
+                };
+                if browser.session_name != session {
+                    return;
+                }
+                let url = widgets.url_entry.text().to_string();
+                let url = if url.is_empty() {
+                    "about:blank".into()
+                } else {
+                    url
+                };
+                let task = runtime.spawn(browser.prepare_preview_async(url, activity.id));
+                widget_task_result(&widgets.container, task)
+            };
+            let binary = match completion.await {
+                Some(Ok(Ok(binary))) => binary,
+                Some(Ok(Err(error))) => {
+                    activity.finish("error");
+                    eprintln!("cmux: failed to restore browser tab: {error}");
+                    continue;
+                }
+                Some(Err(_)) => {
+                    activity.finish("task_error");
+                    continue;
+                }
+                None => {
+                    activity.finish("cancelled");
+                    continue;
+                }
+            };
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            let widgets = {
+                let mut s = state.borrow_mut();
+                let Some(browser) = s
+                    .browser_manager
+                    .as_mut()
+                    .filter(|browser| browser.session_name == session)
+                else {
+                    return;
+                };
+                browser.binary_path = Some(binary);
+                browser.preview_state = super::PreviewState::Connected;
+                find_browser_tab(&s, uuid)
+            };
+            if let Some(widgets) = widgets {
+                wire_browser_tab(&state, widgets);
+                activity.finish("success");
+            } else {
+                activity.finish("missing_surface");
+            }
+        }
+    });
+}
+
+/// Find a surviving browser surface by its identity without persisting references across worker I/O.
+fn find_browser_tab(state: &AppState, uuid: uuid::Uuid) -> Option<super::PreviewPaneWidgets> {
+    state
         .split_engines
         .iter()
         .flat_map(|engine| engine.browser_tabs())
-        .collect::<Vec<_>>();
-    for widgets in tabs {
-        let url = widgets.url_entry.text().to_string();
-        {
-            let mut s = state.borrow_mut();
-            if s.browser_manager.is_none() {
-                s.browser_manager = Some(crate::browser::BrowserManager::new());
-            }
-            let bm = s
-                .browser_manager
-                .as_mut()
-                .expect("browser manager initialized");
-            if let Err(error) =
-                bm.run_cli(&["open", if url.is_empty() { "about:blank" } else { &url }])
-            {
-                eprintln!("cmux: failed to restore browser tab: {error}");
-                continue;
-            }
-            let _ = bm.run_cli(&["stream", "enable"]);
-        }
-        wire_browser_tab(state, widgets);
-    }
+        .find(|widgets| widgets.uuid == uuid)
 }
 
 /// Attach streaming, navigation and input handlers to a browser tab with an initialized manager.

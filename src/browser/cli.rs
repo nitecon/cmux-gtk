@@ -43,6 +43,7 @@ pub(super) async fn start(
     binary: &Path,
     session: &str,
     browser: Option<&Path>,
+    url: &str,
     trace_id: uuid::Uuid,
 ) -> Result<Value, String> {
     let mut command = tokio::process::Command::new(binary);
@@ -55,7 +56,7 @@ pub(super) async fn start(
     if let Some(browser) = browser {
         command.arg("--executable-path").arg(browser);
     }
-    command.args(["open", "about:blank"]);
+    command.args(["open", url]);
     run_command(command, "cli_startup", trace_id).await
 }
 

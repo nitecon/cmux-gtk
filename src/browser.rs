@@ -188,6 +188,7 @@ impl BrowserManager {
     /// Return the resolved executable for GTK to install only if this manager still owns the result.
     fn prepare_preview_async(
         &self,
+        url: String,
         trace_id: Uuid,
     ) -> impl std::future::Future<Output = Result<PathBuf, String>> + Send + 'static {
         let session = self.session_name.clone();
@@ -223,7 +224,7 @@ impl BrowserManager {
                     .map_err(|error| {
                         format!("Failed to create browser socket directory: {error}")
                     })?;
-                cli::start(&binary, &session, chrome.as_deref(), trace_id).await?;
+                cli::start(&binary, &session, chrome.as_deref(), &url, trace_id).await?;
                 // Preserve the existing best-effort stream-enable behavior.
                 // start_stream validates the separately advertised port.
                 if cli::run(&binary, &session, &["stream", "enable"], trace_id)
@@ -871,7 +872,9 @@ esac
             std::env::temp_dir().join(format!("cmux-preview-startup-{}", Uuid::new_v4()));
         cmux_platform::filesystem::create_private_directory(&directory).unwrap();
         let binary = directory.join("browser fixture");
-        std::fs::write(&binary, br#"#!/bin/sh
+        std::fs::write(
+            &binary,
+            br#"#!/bin/sh
 [ "$1" = '--session' ] && [ "$3" = '--json' ] || exit 2
 session="$2"
 shift 3
@@ -882,19 +885,25 @@ if [ -e "$0.hang" ]; then
     exec sleep 60
 fi
 if [ "$1" = 'open' ]; then
-    [ "$2" = 'about:blank' ] && [ "$AGENT_BROWSER_SESSION" = "$session" ] && [ "$AGENT_BROWSER_STREAM_PORT" = '0' ] || exit 3
+    [ "$AGENT_BROWSER_SESSION" = "$session" ] && [ "$AGENT_BROWSER_STREAM_PORT" = '0' ] || exit 3
+    printf '%s' "$2" > "$0.url"
 elif [ "$1" = 'stream' ]; then
     [ "$2" = 'enable' ] || exit 4
 else
     exit 5
 fi
 printf '%s\n' '{"success":true,"data":{}}'
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
         let mut browser = BrowserManager::new();
         browser.binary_path = Some(binary.clone());
-        let startup = browser.prepare_preview_async(Uuid::new_v4());
-        assert!(browser.prepare_preview_async(Uuid::new_v4()).await.is_err());
+        let startup = browser.prepare_preview_async("about:blank".into(), Uuid::new_v4());
+        assert!(browser
+            .prepare_preview_async("about:blank".into(), Uuid::new_v4())
+            .await
+            .is_err());
         assert_eq!(startup.await.unwrap(), binary);
         let calls = std::fs::read_to_string(directory.join("browser fixture.calls")).unwrap();
         assert_eq!(
@@ -904,8 +913,22 @@ printf '%s\n' '{"success":true,"data":{}}'
                 browser.session_name, browser.session_name
             )
         );
+        assert_eq!(
+            std::fs::read_to_string(directory.join("browser fixture.url")).unwrap(),
+            "about:blank"
+        );
+        let saved_url = "https://example.test/a b?x=$(false)&y=日本語";
+        browser
+            .prepare_preview_async(saved_url.into(), Uuid::new_v4())
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(directory.join("browser fixture.url")).unwrap(),
+            saved_url
+        );
         std::fs::write(directory.join("browser fixture.hang"), b"").unwrap();
-        let task = tokio::spawn(browser.prepare_preview_async(Uuid::new_v4()));
+        let task =
+            tokio::spawn(browser.prepare_preview_async("about:blank".into(), Uuid::new_v4()));
         let pid_path = directory.join("browser fixture.pid");
         let pid = tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
