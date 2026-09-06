@@ -1,0 +1,4661 @@
+{
+  "schema": 1,
+  "revision": "a897afa9694076363989dfbee5261b200f0b4ffe",
+  "build_profile": "release",
+  "backend": "x11",
+  "software_rendering": true,
+  "host": {
+    "system": "Linux",
+    "release": "6.17.0-1022-azure",
+    "machine": "x86_64"
+  },
+  "workload": {
+    "interactive_sibling_tabs": 3,
+    "split_close_cycles": 45,
+    "child_eof_cycles": 9,
+    "split_right_shortcut": "<Ctrl><Alt>d",
+    "redraw_iterations": 1800,
+    "redraw_target_hz": 30,
+    "window_pixels": [
+      1800,
+      1000
+    ]
+  },
+  "status": "passed",
+  "samples": [
+    {
+      "phase": "baseline",
+      "iteration": 0,
+      "elapsed_seconds": 0.3225256629999649,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "sampled": false
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 110807,
+          "cpu_user_us": 238896,
+          "file_descriptors": 32,
+          "peak_rss_kib": 236520,
+          "rss_kib": 236520,
+          "threads": 34
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 1
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 310,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "interactive_tabs",
+      "iteration": 3,
+      "elapsed_seconds": 1.6771212349999587,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38187,
+          "max_delay_us": 38187,
+          "sample_age_ms": 626,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 357183,
+          "cpu_user_us": 1159820,
+          "file_descriptors": 32,
+          "peak_rss_kib": 338416,
+          "rss_kib": 338416,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 17
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 1665,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_live",
+      "iteration": 1,
+      "elapsed_seconds": 1.844462222000061,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38187,
+          "max_delay_us": 38187,
+          "sample_age_ms": 793,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 383516,
+          "cpu_user_us": 1330484,
+          "file_descriptors": 46,
+          "peak_rss_kib": 344200,
+          "rss_kib": 344200,
+          "threads": 29
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 19
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 1832,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 1,
+      "elapsed_seconds": 2.0428337010000632,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38187,
+          "max_delay_us": 38187,
+          "sample_age_ms": 991,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 386676,
+          "cpu_user_us": 1465679,
+          "file_descriptors": 43,
+          "peak_rss_kib": 344080,
+          "rss_kib": 344080,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 22
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 2030,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 6,
+      "elapsed_seconds": 3.3620302870000387,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 81164,
+          "max_delay_us": 81164,
+          "sample_age_ms": 208,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 569329,
+          "cpu_user_us": 2803870,
+          "file_descriptors": 43,
+          "peak_rss_kib": 351604,
+          "rss_kib": 351604,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 39
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 3348,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 10,
+      "elapsed_seconds": 4.816350066000041,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 13115,
+          "max_delay_us": 81164,
+          "sample_age_ms": 651,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 705081,
+          "cpu_user_us": 3884043,
+          "file_descriptors": 32,
+          "peak_rss_kib": 353764,
+          "rss_kib": 353368,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 53
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 4804,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 11,
+      "elapsed_seconds": 5.106940913000017,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 13115,
+          "max_delay_us": 81164,
+          "sample_age_ms": 942,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 743330,
+          "cpu_user_us": 4115971,
+          "file_descriptors": 43,
+          "peak_rss_kib": 354536,
+          "rss_kib": 354536,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 57
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 5095,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 16,
+      "elapsed_seconds": 6.438386148000063,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 43871,
+          "max_delay_us": 81164,
+          "sample_age_ms": 219,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 916558,
+          "cpu_user_us": 5477043,
+          "file_descriptors": 43,
+          "peak_rss_kib": 355156,
+          "rss_kib": 355156,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 74
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 6424,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 21,
+      "elapsed_seconds": 7.774817807999966,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 17872,
+          "max_delay_us": 81164,
+          "sample_age_ms": 539,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1107317,
+          "cpu_user_us": 6830655,
+          "file_descriptors": 43,
+          "peak_rss_kib": 356524,
+          "rss_kib": 356524,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 91
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 7762,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 25,
+      "elapsed_seconds": 9.245483304000004,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 316,
+          "max_delay_us": 81164,
+          "sample_age_ms": 8,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1289873,
+          "cpu_user_us": 7935105,
+          "file_descriptors": 32,
+          "peak_rss_kib": 356820,
+          "rss_kib": 356092,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 105
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 9233,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 26,
+      "elapsed_seconds": 9.573834600000055,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 316,
+          "max_delay_us": 81164,
+          "sample_age_ms": 336,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1322625,
+          "cpu_user_us": 8194592,
+          "file_descriptors": 43,
+          "peak_rss_kib": 356996,
+          "rss_kib": 356996,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 109
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 9561,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 31,
+      "elapsed_seconds": 10.915948627000034,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 81,
+          "max_delay_us": 81164,
+          "sample_age_ms": 676,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1523959,
+          "cpu_user_us": 9539457,
+          "file_descriptors": 43,
+          "peak_rss_kib": 357160,
+          "rss_kib": 357160,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 126
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 10901,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 36,
+      "elapsed_seconds": 12.250287543000013,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 1987,
+          "max_delay_us": 81164,
+          "sample_age_ms": 6,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1708545,
+          "cpu_user_us": 10903647,
+          "file_descriptors": 43,
+          "peak_rss_kib": 362016,
+          "rss_kib": 362016,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 143
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 12238,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "child_eof",
+      "iteration": 41,
+      "elapsed_seconds": 13.58689313800005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 14371,
+          "max_delay_us": 81164,
+          "sample_age_ms": 328,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 1882790,
+          "cpu_user_us": 12254349,
+          "file_descriptors": 43,
+          "peak_rss_kib": 362280,
+          "rss_kib": 362164,
+          "threads": 27
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 160
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 1,
+          "registered": 2
+        },
+        "uptime_ms": 13574,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "split_close",
+      "iteration": 45,
+      "elapsed_seconds": 15.068167705000064,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 19340,
+          "max_delay_us": 81164,
+          "sample_age_ms": 791,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2037235,
+          "cpu_user_us": 13396671,
+          "file_descriptors": 32,
+          "peak_rss_kib": 362280,
+          "rss_kib": 361408,
+          "threads": 25
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 174
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 15056,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 1,
+      "elapsed_seconds": 30.163827537999964,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 35029,
+          "max_delay_us": 81164,
+          "sample_age_ms": 466,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2292697,
+          "cpu_user_us": 63829019,
+          "file_descriptors": 32,
+          "peak_rss_kib": 381132,
+          "rss_kib": 381132,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 177
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 30150,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 2,
+      "elapsed_seconds": 31.169662045999985,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 29841,
+          "max_delay_us": 81164,
+          "sample_age_ms": 443,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2308218,
+          "cpu_user_us": 67230271,
+          "file_descriptors": 32,
+          "peak_rss_kib": 381132,
+          "rss_kib": 381132,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 178
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 31156,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 3,
+      "elapsed_seconds": 32.178761146000056,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 36783,
+          "max_delay_us": 81164,
+          "sample_age_ms": 411,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2329059,
+          "cpu_user_us": 70581366,
+          "file_descriptors": 32,
+          "peak_rss_kib": 381132,
+          "rss_kib": 381132,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 179
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 32161,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 4,
+      "elapsed_seconds": 33.18271427499997,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 26138,
+          "max_delay_us": 81164,
+          "sample_age_ms": 394,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2344342,
+          "cpu_user_us": 74014397,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382492,
+          "rss_kib": 382492,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 180
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 33170,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 5,
+      "elapsed_seconds": 34.18815474799999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 24134,
+          "max_delay_us": 81164,
+          "sample_age_ms": 374,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2357906,
+          "cpu_user_us": 77396291,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382492,
+          "rss_kib": 382492,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 181
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 34174,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 6,
+      "elapsed_seconds": 35.19432892400005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 25527,
+          "max_delay_us": 81164,
+          "sample_age_ms": 355,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2369022,
+          "cpu_user_us": 80770177,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382492,
+          "rss_kib": 382492,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 182
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 35181,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 7,
+      "elapsed_seconds": 36.19977845699998,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 33369,
+          "max_delay_us": 81164,
+          "sample_age_ms": 327,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2379098,
+          "cpu_user_us": 84132940,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 183
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 36186,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 8,
+      "elapsed_seconds": 37.20665059700002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 30205,
+          "max_delay_us": 81164,
+          "sample_age_ms": 303,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2399948,
+          "cpu_user_us": 87469815,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 184
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 37193,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 9,
+      "elapsed_seconds": 38.21500180600003,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 25783,
+          "max_delay_us": 81164,
+          "sample_age_ms": 287,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2418113,
+          "cpu_user_us": 90851836,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 185
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 38202,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 10,
+      "elapsed_seconds": 39.22404334800001,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 35951,
+          "max_delay_us": 81164,
+          "sample_age_ms": 261,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2435186,
+          "cpu_user_us": 94256817,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 186
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 39211,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 11,
+      "elapsed_seconds": 40.22848667100004,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 41902,
+          "max_delay_us": 81164,
+          "sample_age_ms": 223,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2456795,
+          "cpu_user_us": 97608811,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 187
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 40216,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 12,
+      "elapsed_seconds": 41.233832741000015,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 8393,
+          "max_delay_us": 81164,
+          "sample_age_ms": 218,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2466753,
+          "cpu_user_us": 100917571,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 188
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 41220,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 13,
+      "elapsed_seconds": 42.237793153999974,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 42643,
+          "max_delay_us": 81164,
+          "sample_age_ms": 181,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2476623,
+          "cpu_user_us": 104268661,
+          "file_descriptors": 32,
+          "peak_rss_kib": 382496,
+          "rss_kib": 382496,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 189
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 42225,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 14,
+      "elapsed_seconds": 43.24245923500007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 31721,
+          "max_delay_us": 81164,
+          "sample_age_ms": 154,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2496696,
+          "cpu_user_us": 107674810,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384220,
+          "rss_kib": 384220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 190
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 43230,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 15,
+      "elapsed_seconds": 44.247118365999995,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 31362,
+          "max_delay_us": 81164,
+          "sample_age_ms": 126,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2508850,
+          "cpu_user_us": 111056381,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384220,
+          "rss_kib": 384220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 191
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 44233,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 16,
+      "elapsed_seconds": 45.25512960900005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 32312,
+          "max_delay_us": 81164,
+          "sample_age_ms": 103,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2519565,
+          "cpu_user_us": 114414417,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384220,
+          "rss_kib": 384220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 192
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 45243,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 17,
+      "elapsed_seconds": 46.26306709300002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 29174,
+          "max_delay_us": 81164,
+          "sample_age_ms": 80,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2541343,
+          "cpu_user_us": 117837094,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384220,
+          "rss_kib": 384220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 193
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 46249,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 18,
+      "elapsed_seconds": 47.269589010999994,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 33041,
+          "max_delay_us": 81164,
+          "sample_age_ms": 55,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2557448,
+          "cpu_user_us": 121190696,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384220,
+          "rss_kib": 384220,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 194
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 47257,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 19,
+      "elapsed_seconds": 48.27837485099997,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 25055,
+          "max_delay_us": 81164,
+          "sample_age_ms": 36,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2573257,
+          "cpu_user_us": 124618467,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384224,
+          "rss_kib": 384224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 195
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 48263,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 20,
+      "elapsed_seconds": 49.287244834000035,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 35844,
+          "max_delay_us": 81164,
+          "sample_age_ms": 8,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2587139,
+          "cpu_user_us": 127976448,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384224,
+          "rss_kib": 384224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 196
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 49271,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 21,
+      "elapsed_seconds": 50.294528689,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 35844,
+          "max_delay_us": 81164,
+          "sample_age_ms": 1017,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2610013,
+          "cpu_user_us": 131398470,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384224,
+          "rss_kib": 384224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 197
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 50280,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 22,
+      "elapsed_seconds": 51.30000553900004,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 28551,
+          "max_delay_us": 81164,
+          "sample_age_ms": 996,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2638008,
+          "cpu_user_us": 134766626,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384224,
+          "rss_kib": 384224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 198
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 51287,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 23,
+      "elapsed_seconds": 52.30720404800002,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 33015,
+          "max_delay_us": 81164,
+          "sample_age_ms": 971,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2664103,
+          "cpu_user_us": 138182546,
+          "file_descriptors": 32,
+          "peak_rss_kib": 384224,
+          "rss_kib": 384224,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 199
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 52295,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 24,
+      "elapsed_seconds": 53.31372998100005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 25428,
+          "max_delay_us": 81164,
+          "sample_age_ms": 951,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2682711,
+          "cpu_user_us": 141545438,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 200
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 53301,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 25,
+      "elapsed_seconds": 54.31730674900007,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 29372,
+          "max_delay_us": 81164,
+          "sample_age_ms": 926,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2698740,
+          "cpu_user_us": 144939929,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 201
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 54305,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 26,
+      "elapsed_seconds": 55.325052884,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 23917,
+          "max_delay_us": 81164,
+          "sample_age_ms": 909,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2715907,
+          "cpu_user_us": 148338593,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 202
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 55312,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 27,
+      "elapsed_seconds": 56.32980423499998,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 29803,
+          "max_delay_us": 81164,
+          "sample_age_ms": 883,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2736937,
+          "cpu_user_us": 151694483,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 203
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 56316,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 28,
+      "elapsed_seconds": 57.33680967300006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 30044,
+          "max_delay_us": 81164,
+          "sample_age_ms": 861,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2755334,
+          "cpu_user_us": 155063720,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 204
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 57324,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 29,
+      "elapsed_seconds": 58.34461077599997,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 30763,
+          "max_delay_us": 81164,
+          "sample_age_ms": 836,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2769394,
+          "cpu_user_us": 158455601,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 205
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 58330,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 30,
+      "elapsed_seconds": 59.34795076800003,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 27840,
+          "max_delay_us": 81164,
+          "sample_age_ms": 813,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2786418,
+          "cpu_user_us": 161784160,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 206
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 59335,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 31,
+      "elapsed_seconds": 60.355437048,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38187,
+          "max_delay_us": 81164,
+          "sample_age_ms": 781,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2806782,
+          "cpu_user_us": 165158831,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 207
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 60341,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 32,
+      "elapsed_seconds": 61.363589613000045,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 40327,
+          "max_delay_us": 81164,
+          "sample_age_ms": 751,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2824920,
+          "cpu_user_us": 168555260,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 208
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 61351,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 33,
+      "elapsed_seconds": 62.36928313400006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 24640,
+          "max_delay_us": 81164,
+          "sample_age_ms": 732,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2852074,
+          "cpu_user_us": 171867382,
+          "file_descriptors": 32,
+          "peak_rss_kib": 391160,
+          "rss_kib": 391160,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 209
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 62357,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 34,
+      "elapsed_seconds": 63.37704026899996,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 43187,
+          "max_delay_us": 81164,
+          "sample_age_ms": 695,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2866087,
+          "cpu_user_us": 175240483,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 210
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 63363,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 35,
+      "elapsed_seconds": 64.38418914400006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 42494,
+          "max_delay_us": 81164,
+          "sample_age_ms": 662,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2889149,
+          "cpu_user_us": 178638695,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 211
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 64372,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 36,
+      "elapsed_seconds": 65.39121262399999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 39465,
+          "max_delay_us": 81164,
+          "sample_age_ms": 627,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2908225,
+          "cpu_user_us": 181983726,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 212
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 65377,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 37,
+      "elapsed_seconds": 66.394705606,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 2581,
+          "max_delay_us": 81164,
+          "sample_age_ms": 630,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2921366,
+          "cpu_user_us": 185340887,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 213
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 66382,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 38,
+      "elapsed_seconds": 67.40589031700006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 40423,
+          "max_delay_us": 81164,
+          "sample_age_ms": 597,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2938398,
+          "cpu_user_us": 188682807,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 214
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 67390,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 39,
+      "elapsed_seconds": 68.41106717299999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 41911,
+          "max_delay_us": 81164,
+          "sample_age_ms": 562,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2949048,
+          "cpu_user_us": 192046967,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 215
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 68397,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 40,
+      "elapsed_seconds": 69.41570819599997,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 42265,
+          "max_delay_us": 81164,
+          "sample_age_ms": 525,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2962818,
+          "cpu_user_us": 195380170,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 216
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 69402,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 41,
+      "elapsed_seconds": 70.423619573,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 45527,
+          "max_delay_us": 81164,
+          "sample_age_ms": 486,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2975674,
+          "cpu_user_us": 198733069,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 217
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 70409,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 42,
+      "elapsed_seconds": 71.42690194500005,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 38754,
+          "max_delay_us": 81164,
+          "sample_age_ms": 453,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 2996851,
+          "cpu_user_us": 202083495,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 218
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 71414,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 43,
+      "elapsed_seconds": 72.43174771200006,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 42724,
+          "max_delay_us": 81164,
+          "sample_age_ms": 414,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 3008742,
+          "cpu_user_us": 205408451,
+          "file_descriptors": 32,
+          "peak_rss_kib": 398184,
+          "rss_kib": 398184,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 219
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 72418,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 44,
+      "elapsed_seconds": 73.43552597799999,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 44765,
+          "max_delay_us": 81164,
+          "sample_age_ms": 374,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 3027730,
+          "cpu_user_us": 208729536,
+          "file_descriptors": 32,
+          "peak_rss_kib": 404200,
+          "rss_kib": 404200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 220
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 73423,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 45,
+      "elapsed_seconds": 74.44432603999996,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 44241,
+          "max_delay_us": 81164,
+          "sample_age_ms": 336,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 3046680,
+          "cpu_user_us": 212064844,
+          "file_descriptors": 32,
+          "peak_rss_kib": 404200,
+          "rss_kib": 404200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 221
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 74429,
+        "version": "0.1.8"
+      }
+    },
+    {
+      "phase": "redraw",
+      "iteration": 46,
+      "elapsed_seconds": 75.45286501099997,
+      "snapshot": {
+        "browser_commands": {
+          "capacity": 16,
+          "in_flight": 0,
+          "rejected": 0
+        },
+        "browser_preview": {
+          "active_stream_tasks": 0,
+          "base64_errors": 0,
+          "decode_attempts": 0,
+          "decode_overload_drops": 0,
+          "decode_total_us": 0,
+          "jpeg_bytes_received": 0,
+          "jpeg_payloads_received": 0,
+          "texture_errors": 0,
+          "textures_assigned": 0
+        },
+        "build_profile": "release",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "first_opengl_context": {
+          "renderer": "llvmpipe (LLVM 20.1.2, 256 bits)",
+          "vendor": "Mesa",
+          "version": "4.5 (Core Profile) Mesa 25.2.8-0ubuntu0.24.04.2"
+        },
+        "gtk_event_loop": {
+          "interval_ms": 1000,
+          "last_delay_us": 44088,
+          "max_delay_us": 81164,
+          "sample_age_ms": 301,
+          "sampled": true
+        },
+        "gtk_version": "4.14.5",
+        "libgl_software_override": true,
+        "logging": {
+          "active": true,
+          "dropped_records": 0,
+          "max_file_bytes": 8388608,
+          "max_record_bytes": 65536,
+          "queue_capacity": 128,
+          "retained_files": 2,
+          "write_failures": 0
+        },
+        "pid": 22760,
+        "requested_backend": "x11",
+        "resources": {
+          "cpu_system_us": 3055051,
+          "cpu_user_us": 215458963,
+          "file_descriptors": 32,
+          "peak_rss_kib": 404200,
+          "rss_kib": 404200,
+          "threads": 24
+        },
+        "rpc": {
+          "cancelled": 0,
+          "failed": 0,
+          "in_flight": 1,
+          "succeeded": 222
+        },
+        "schema": 1,
+        "socket_connections": {
+          "active": 1,
+          "capacity": 64,
+          "rejected": 0
+        },
+        "terminals": {
+          "inherited_directories": 0,
+          "registered": 1
+        },
+        "uptime_ms": 75438,
+        "version": "0.1.8"
+      }
+    }
+  ],
+  "shutdown_forced": false
+}
