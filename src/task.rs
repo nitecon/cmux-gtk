@@ -1,5 +1,73 @@
 //! Shared ownership and bounded cleanup for asynchronous companion tasks and child processes.
 
+use std::io;
+use std::process::Stdio;
+use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncReadExt};
+
+/// Drain stdout and stderr concurrently while waiting for the direct child.
+/// Timeout, output overflow and I/O failure request termination with a bounded reap wait.
+pub(crate) async fn run_output(
+    mut command: tokio::process::Command,
+    timeout: Duration,
+    stdout_limit: u64,
+    stderr_limit: u64,
+    cleanup_failed: fn(&io::Error),
+) -> io::Result<std::process::Output> {
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()?;
+    let stdout = child.stdout.take().expect("configured stdout pipe");
+    let stderr = child.stderr.take().expect("configured stderr pipe");
+    let result = tokio::time::timeout(timeout, async {
+        let (stdout, stderr, status) = tokio::try_join!(
+            read_bounded(stdout, stdout_limit),
+            read_bounded(stderr, stderr_limit),
+            child.wait(),
+        )?;
+        Ok(std::process::Output {
+            status,
+            stdout,
+            stderr,
+        })
+    })
+    .await
+    .unwrap_or_else(|_| {
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "child execution deadline exceeded",
+        ))
+    });
+    if result.is_err() {
+        if let Err(error) = reap_child(child, Duration::ZERO).await {
+            cleanup_failed(&error);
+        }
+    }
+    result
+}
+
+/// Read one child pipe up to its byte budget; detect overflow with one extra byte.
+pub(crate) async fn read_bounded(
+    reader: impl AsyncRead + Unpin,
+    limit: u64,
+) -> io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let capacity = limit
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid child output limit"))?;
+    reader.take(capacity).read_to_end(&mut bytes).await?;
+    if bytes.len() as u64 > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "child output limit exceeded",
+        ));
+    }
+    Ok(bytes)
+}
+
 /// Allow normal exit for `grace`, then request a kill and wait at most five more seconds.
 /// Return the exit status and whether forced termination was requested. The owned
 /// child must have kill_on_drop enabled by its launcher for cancellation/error fallback.

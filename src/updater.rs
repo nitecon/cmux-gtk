@@ -4,6 +4,7 @@ use anyhow::{bail, Context, Result};
 use semver::Version;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -78,16 +79,17 @@ fn update_if_available(verbose: bool) -> Result<()> {
     }
 
     let client = http_client()?;
-    let release = client
+    let release_response = client
         .get(format!(
             "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         ))
         .send()
         .context("GitHub release request failed")?
         .error_for_status()
-        .context("GitHub release request returned an error")?
-        .json::<GitHubRelease>()
-        .context("invalid GitHub release response")?;
+        .context("GitHub release request returned an error")?;
+    let release: GitHubRelease =
+        serde_json::from_slice(&read_metadata(release_response, 1024 * 1024)?)
+            .context("invalid GitHub release response")?;
     let latest = Version::parse(release.tag_name.trim_start_matches('v'))
         .context("invalid latest release version")?;
 
@@ -117,26 +119,44 @@ fn update_if_available(verbose: bool) -> Result<()> {
         .send()
         .context("release download failed")?
         .error_for_status()
-        .context("release download returned an error")?
-        .bytes()
-        .context("failed to read release archive")?;
+        .context("release download returned an error")?;
     let checksum = client
         .get(&checksum_asset.browser_download_url)
         .send()
         .context("release checksum download failed")?
         .error_for_status()
-        .context("release checksum download returned an error")?
-        .text()
-        .context("failed to read release checksum")?;
-    verify_checksum(&archive, &checksum)?;
-    install_archive(&archive)?;
+        .context("release checksum download returned an error")?;
+    let checksum = String::from_utf8(read_metadata(checksum, 4096)?)
+        .context("release checksum is not UTF-8")?;
+    install_archive(archive, &checksum)?;
     touch_marker(&marker_path()?);
     eprintln!("cmux: updated to v{latest}; restart cmux to use it");
     Ok(())
 }
 
-/// Validate release bytes against the SHA-256 checksum before extracting them.
-fn verify_checksum(archive: &[u8], checksum_file: &str) -> Result<()> {
+/// Read small release metadata with a caller-specified cap, rejecting overflow before parsing.
+fn read_metadata(source: impl Read, limit: u64) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let capacity = limit
+        .checked_add(1)
+        .context("invalid metadata byte limit")?;
+    source
+        .take(capacity)
+        .read_to_end(&mut bytes)
+        .context("failed to read release metadata")?;
+    if bytes.len() as u64 > limit {
+        bail!("release metadata exceeds byte limit");
+    }
+    Ok(bytes)
+}
+
+/// Stream the archive through a 64-KiB buffer to staging while computing its SHA-256.
+/// Invalid checksums or read/write failures prevent extraction; the caller owns staging cleanup.
+fn download_verified(
+    mut source: impl Read,
+    mut destination: impl Write,
+    checksum_file: &str,
+) -> Result<()> {
     let expected = checksum_file
         .split_whitespace()
         .next()
@@ -144,8 +164,24 @@ fn verify_checksum(archive: &[u8], checksum_file: &str) -> Result<()> {
     if expected.len() != 64 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         bail!("release checksum is invalid");
     }
-    let actual = format!("{:x}", Sha256::digest(archive));
-    if !actual.eq_ignore_ascii_case(expected) {
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = source
+            .read(&mut buffer)
+            .context("failed to read release archive")?;
+        if count == 0 {
+            break;
+        }
+        destination
+            .write_all(&buffer[..count])
+            .context("failed to stage release archive")?;
+        hash.update(&buffer[..count]);
+    }
+    destination
+        .flush()
+        .context("failed to flush release archive")?;
+    if !format!("{:x}", hash.finalize()).eq_ignore_ascii_case(expected) {
         bail!("release archive checksum mismatch; the installed binaries were not changed");
     }
     Ok(())
@@ -172,7 +208,7 @@ fn release_arch() -> Result<&'static str> {
 
 /// Stage both executables, validate them, then replace companions before the CLI.
 /// Cleans staging after success or failure; individual renames are atomic, the pair is not.
-fn install_archive(bytes: &[u8]) -> Result<()> {
+fn install_archive(source: impl Read, checksum: &str) -> Result<()> {
     let current_exe = std::env::current_exe()
         .context("cannot locate the running cmux executable")?
         .canonicalize()
@@ -193,7 +229,16 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
     })?;
 
     let result = (|| -> Result<()> {
-        let decoder = flate2::read::GzDecoder::new(bytes);
+        cmux_platform::filesystem::create_private_directory(&staging_dir)?;
+        let mut download = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(staging_dir.join("archive.tar.gz"))
+            .context("cannot create staged archive")?;
+        download_verified(source, &mut download, checksum)?;
+        download.rewind().context("cannot rewind staged archive")?;
+        let decoder = flate2::read::GzDecoder::new(download);
         let mut archive = tar::Archive::new(decoder);
         let mut staged = Vec::new();
         for entry in archive.entries().context("invalid release archive")? {
@@ -241,9 +286,20 @@ fn install_archive(bytes: &[u8]) -> Result<()> {
 
 /// Run the staged executable version preflight and reject incompatible binaries.
 fn validate_staged_binary(name: &str, path: &Path) -> Result<()> {
-    let output = std::process::Command::new(path)
-        .arg("--version")
-        .output()
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("cannot initialize update preflight runtime")?;
+    let mut command = tokio::process::Command::new(path);
+    command.arg("--version");
+    let output = runtime
+        .block_on(crate::task::run_output(
+            command,
+            std::time::Duration::from_secs(5),
+            4096,
+            4096,
+            |error| eprintln!("cmux: preflight cleanup failed: {:?}", error.kind()),
+        ))
         .with_context(|| {
             format!(
                 "downloaded {name} cannot run on this host; the installed binaries were not changed"
@@ -283,4 +339,54 @@ fn should_check(marker: &Path) -> bool {
 /// Record a completed update check by replacing its timestamp marker.
 fn touch_marker(marker: &Path) {
     let _ = std::fs::write(marker, "");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Preserve all streamed bytes and reject checksum mismatches and metadata overflow.
+    #[test]
+    fn streamed_archive_and_metadata_bounds() {
+        let payload = vec![0x5a; 256 * 1024 + 17];
+        let checksum = format!("{:x}  archive.tar.gz", Sha256::digest(&payload));
+        let mut staged = Vec::new();
+        download_verified(payload.as_slice(), &mut staged, &checksum).unwrap();
+        assert_eq!(staged, payload);
+        assert!(download_verified(b"corrupted".as_slice(), std::io::sink(), &checksum).is_err());
+        assert!(download_verified(payload.as_slice(), std::io::sink(), "invalid").is_err());
+        assert_eq!(read_metadata(b"1234".as_slice(), 4).unwrap(), b"1234");
+        assert!(read_metadata(b"12345".as_slice(), 4).is_err());
+        assert!(read_metadata(b"".as_slice(), u64::MAX).is_err());
+        assert!(download_verified(
+            payload.as_slice(),
+            std::io::Cursor::new(&mut [0u8; 3][..]),
+            &checksum
+        )
+        .is_err());
+    }
+
+    /// Real staged executables must pass version validation within bounded pipes and time.
+    #[test]
+    fn staged_preflight_rejects_overflow_and_hang() {
+        let root = std::env::temp_dir().join(format!("cmux-preflight-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let binary = root.join("cmux");
+        for (script, succeeds) in [
+            ("#!/bin/sh\nprintf 'cmux 1.0.0\\n'\n", true),
+            ("#!/bin/sh\nprintf 'other 1.0.0\\n'\n", false),
+            ("#!/bin/sh\nhead -c 4097 /dev/zero\n", false),
+            ("#!/bin/sh\nexit 7\n", false),
+        ] {
+            std::fs::write(&binary, script).unwrap();
+            cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+            assert_eq!(validate_staged_binary("cmux", &binary).is_ok(), succeeds);
+        }
+        std::fs::write(&binary, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        let error = validate_staged_binary("cmux", &binary).unwrap_err();
+        assert!(error.chain().any(|source| source
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|error| error.kind() == std::io::ErrorKind::TimedOut)));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

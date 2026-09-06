@@ -1,0 +1,24 @@
+app: cmux-gtk
+title: Direct binary update staging and preflight
+space: cmux-gtk
+slug: direct-binary-update
+summary: Streamed checksum-verified staging, bounded executable preflight, and installation ownership policy.
+kind: agent_context
+source_format: agent_context
+source_ref: src/updater.rs
+labels: [linux, distribution, lifecycle]
+content:
+  purpose: Update self-managed Linux executables without retaining the compressed release archive in memory.
+  workflows:
+    - name: Release check and staging
+      steps:
+        - Package-manager-owned and AppImage installations do not use direct binary replacement. Automatic checks require a release build and honor CMUX_NO_UPDATE plus the existing marker interval.
+        - Read GitHub release metadata with a one-MiB cap and checksum metadata with a four-KiB cap. HTTP connection and overall request deadlines remain five and 120 seconds.
+        - Stream the archive through a 64-KiB buffer into a private staging directory while hashing SHA-256. Verify before extraction; ordinary failures remove staging.
+        - Preflight both staged executables with --version using shared task.run_output. Each command has four-KiB stdout/stderr caps and a five-second execution budget plus up to five seconds for kill/reap cleanup.
+        - Preserve ordered replacement of companion then CLI. Each rename is atomic; the pair is not transactional. Restart is required to use the updated application.
+  safety:
+    - Blocking HTTP/filesystem work runs on the automatic-update worker or the manual CLI caller, never the GTK event loop.
+    - The shared child helper drains both pipes concurrently, uses null stdin and kill-on-drop, and preserves caller-specific cleanup diagnostics.
+    - Streaming caps archive buffering, not disk usage or decompression time. Kernel-stuck children can outlive userspace cleanup budgets.
+    - Tests run only in GitHub Actions; stream integrity, metadata bounds and real executable preflight failures have behavior cases.

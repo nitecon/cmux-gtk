@@ -45,3 +45,8 @@ SSH session creation and subscription share `request_remote` for response-slot r
 
 
 `src/notification.rs` owns desktop-delivery admission and diagnostics: at most four active tasks, no waiting queue, five-second execution and shared five-second kill/reap cleanup. The platform library only constructs the `notify-send` command. GTK owns attention and the existing per-workspace five-second rate limit; overload skips desktop delivery without clearing attention. Runtime shutdown cancels remaining commands through kill-on-drop. Process success does not prove desktop presentation.
+
+
+`src/task.rs::run_output` centralizes concurrent stdout/stderr draining, byte budgets, execution deadlines and kill/reap cleanup for browser CLI commands and updater version preflight. Callers retain their own protocol decoding and cleanup diagnostics. The CLI binary compiles this GTK-independent helper directly; the completion generator still compiles only the argument schema.
+
+Direct-binary updates stream downloads to the private staging directory while hashing a 64-KiB buffer, verify SHA-256 before extraction, and then reuse existing staged executable checks and ordered replacement. Release JSON is capped at one MiB and checksum metadata at four KiB. Version preflight has four-KiB stdout/stderr caps and five-second execution plus existing five-second cleanup. Archive disk usage still scales with the release; this is bounded-memory streaming, not an archive-size or decompression-time quota. Package-owned installation policy is unchanged.

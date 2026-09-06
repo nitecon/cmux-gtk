@@ -3,9 +3,7 @@
 use serde_json::Value;
 use std::io;
 use std::path::Path;
-use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncRead, AsyncReadExt};
 
 const MAX_STDOUT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_STDERR_BYTES: u64 = 64 * 1024;
@@ -122,63 +120,24 @@ pub(super) fn decode_output(output: std::process::Output) -> Result<Value, Strin
     })
 }
 
-/// Drain stdout and stderr concurrently while waiting for the direct child.
-/// Timeout, output overflow and I/O failure request termination with a bounded reap wait.
+/// Apply browser pipe budgets while preserving structured cleanup-failure diagnostics.
 async fn execute(
-    mut command: tokio::process::Command,
+    command: tokio::process::Command,
     timeout: Duration,
 ) -> io::Result<std::process::Output> {
-    let mut child = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()?;
-    let stdout = child.stdout.take().expect("configured stdout pipe");
-    let stderr = child.stderr.take().expect("configured stderr pipe");
-    let result = tokio::time::timeout(timeout, async {
-        let (stdout, stderr, status) = tokio::try_join!(
-            read_bounded(stdout, MAX_STDOUT_BYTES),
-            read_bounded(stderr, MAX_STDERR_BYTES),
-            child.wait(),
-        )?;
-        Ok(std::process::Output {
-            status,
-            stdout,
-            stderr,
-        })
-    })
-    .await
-    .unwrap_or_else(|_| {
-        Err(io::Error::new(
-            io::ErrorKind::TimedOut,
-            "browser CLI deadline exceeded",
-        ))
-    });
-    if result.is_err() {
-        if let Err(error) = crate::task::reap_child(child, Duration::ZERO).await {
+    crate::task::run_output(
+        command,
+        timeout,
+        MAX_STDOUT_BYTES,
+        MAX_STDERR_BYTES,
+        |error| {
             crate::diagnostics::record(
                 "browser.cli.cleanup_failed",
-                serde_json::json!({
-                    "error_kind": format!("{:?}", error.kind()),
-                }),
+                serde_json::json!({"error_kind": format!("{:?}", error.kind())}),
             );
-        }
-    }
-    result
-}
-
-/// Read one child pipe up to its byte budget; detect overflow with one extra byte.
-async fn read_bounded(reader: impl AsyncRead + Unpin, limit: u64) -> io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    reader.take(limit + 1).read_to_end(&mut bytes).await?;
-    if bytes.len() as u64 > limit {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "browser CLI output limit exceeded",
-        ));
-    }
-    Ok(bytes)
+        },
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -294,7 +253,14 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
-        assert_eq!(read_bounded(b"1234".as_slice(), 4).await.unwrap(), b"1234");
-        assert!(read_bounded(b"12345".as_slice(), 4).await.is_err());
+        assert_eq!(
+            crate::task::read_bounded(b"1234".as_slice(), 4)
+                .await
+                .unwrap(),
+            b"1234"
+        );
+        assert!(crate::task::read_bounded(b"12345".as_slice(), 4)
+            .await
+            .is_err());
     }
 }

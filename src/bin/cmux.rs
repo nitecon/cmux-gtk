@@ -5,6 +5,9 @@
 
 #[path = "../cli/mod.rs"]
 mod cli;
+#[path = "../task.rs"]
+#[allow(dead_code)]
+mod task;
 
 use clap::Parser;
 

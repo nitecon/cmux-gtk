@@ -30,6 +30,7 @@
 019df63f-c5cd-7b93-bde1-507cb33d958c:
   - src/session.rs
   - crates/cmux-platform/src/filesystem.rs
+  - src/updater.rs
 019df63f-96c8-7410-b63d-ecbaec31c5d4:
   - crates/cmux-platform/src/local_socket.rs
   - src/line_reader.rs
