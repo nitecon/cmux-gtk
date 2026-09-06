@@ -42,7 +42,7 @@ if [ "$(zig version)" != "$ZIG_VERSION" ]; then
 fi
 
 echo "==> Resolving agent-browser..."
-if AGENT_BROWSER_PATH="$($REPO_ROOT/scripts/resolve-agent-browser.sh)"; then
+if AGENT_BROWSER_PATH="$("$REPO_ROOT/scripts/resolve-agent-browser.sh")"; then
     echo "==> Using agent-browser at: $AGENT_BROWSER_PATH"
 else
     echo "==> agent-browser not found; browser panes will be unavailable."
