@@ -496,10 +496,12 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             icon,
             color,
             priority,
+            format,
+            url,
             workspace,
         } => (
             "sidebar.set_status",
-            json!({"key":key,"value":value,"icon":icon,"color":color,"priority":priority,"workspace_id":workspace}),
+            json!({"key":key,"value":value,"icon":icon,"color":color,"priority":priority,"format":format,"url":url,"workspace_id":workspace}),
         ),
         Commands::ClearStatus { key, workspace } => (
             "sidebar.clear_status",

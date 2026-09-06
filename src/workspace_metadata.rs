@@ -12,6 +12,27 @@ pub struct Status {
     pub color: Option<String>,
     #[serde(default)]
     pub priority: i32,
+    #[serde(default)]
+    pub format: Format,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+/// Sidebar presentation format; absent fields preserve older plain-text snapshots.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Format {
+    #[default]
+    Plain,
+    Markdown,
+}
+
+/// Only bounded HTTP(S) destinations may become actionable links, matching upstream status URLs.
+fn valid_url(value: &str) -> bool {
+    value.len() <= 2048
+        && !value.chars().any(char::is_control)
+        && reqwest::Url::parse(value)
+            .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
 }
 
 /// Determinate progress; finite values are clamped to the visible zero-to-one range.
@@ -40,6 +61,7 @@ impl Status {
     /// Validate all styling fields without parsing user-provided markup or paths.
     fn valid(&self) -> bool {
         valid_text(&self.value, 1024)
+            && self.url.as_ref().is_none_or(|url| valid_url(url))
             && self.icon.as_ref().is_none_or(|icon| valid_text(icon, 128))
             && self
                 .color
@@ -88,11 +110,8 @@ pub fn parse(method: &str, params: &serde_json::Value) -> Result<Action, &'stati
     match method {
         "sidebar.metadata" => Ok(Action::Get),
         "sidebar.set_status" => {
-            if params.get("format").is_some_and(|value| value != "plain")
-                || params.get("url").is_some()
-                || params.get("panel").is_some()
-            {
-                return Err("only plain workspace status is currently supported");
+            if params.get("panel").is_some() {
+                return Err("panel-owned status is not yet supported");
             }
             let status: Status =
                 Status::deserialize(params).map_err(|_| "invalid status fields")?;
@@ -114,6 +133,71 @@ pub fn parse(method: &str, params: &serde_json::Value) -> Result<Action, &'stati
         "sidebar.clear_progress" => Ok(Action::ClearProgress),
         _ => Err("unknown metadata operation"),
     }
+}
+
+/// Convert bounded CommonMark to GTK label markup without accepting HTML or fetching resources.
+/// Block boundaries collapse to spaces for inline sidebar layout; image alt text remains visible.
+fn inline_markdown(value: &str, links: bool) -> String {
+    use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+    let mut output = String::new();
+    let mut closing = Vec::new();
+    for event in Parser::new_ext(value, Options::ENABLE_STRIKETHROUGH) {
+        match event {
+            Event::Start(tag) => {
+                let (open, close) = match tag {
+                    Tag::Strong => ("<b>".to_owned(), "</b>"),
+                    Tag::Emphasis => ("<i>".to_owned(), "</i>"),
+                    Tag::Strikethrough => ("<s>".to_owned(), "</s>"),
+                    Tag::CodeBlock(_) => ("<tt>".to_owned(), "</tt>"),
+                    Tag::Link { dest_url, .. } if links && valid_url(&dest_url) => (
+                        format!("<a href=\"{}\">", glib::markup_escape_text(&dest_url)),
+                        "</a>",
+                    ),
+                    _ => (String::new(), ""),
+                };
+                output.push_str(&open);
+                closing.push(close);
+            }
+            Event::End(tag) => {
+                output.push_str(closing.pop().unwrap_or_default());
+                if matches!(
+                    tag,
+                    TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item | TagEnd::CodeBlock
+                ) {
+                    output.push(' ');
+                }
+            }
+            Event::Text(text)
+            | Event::Html(text)
+            | Event::InlineHtml(text)
+            | Event::FootnoteReference(text)
+            | Event::InlineMath(text)
+            | Event::DisplayMath(text) => {
+                output.push_str(&glib::markup_escape_text(&text));
+            }
+            Event::Code(text) => {
+                output.push_str(&format!("<tt>{}</tt>", glib::markup_escape_text(&text)))
+            }
+            Event::SoftBreak | Event::HardBreak | Event::Rule => output.push(' '),
+            Event::TaskListMarker(done) => output.push_str(if done { "☑ " } else { "☐ " }),
+        }
+    }
+    output.trim_end().to_owned()
+}
+
+/// Produce escaped label markup; an explicit row URL takes precedence over embedded links.
+fn status_markup(status: &Status) -> String {
+    let mut markup = match status.format {
+        Format::Plain => glib::markup_escape_text(&status.value).to_string(),
+        Format::Markdown => inline_markdown(&status.value, status.url.is_none()),
+    };
+    if let Some(color) = &status.color {
+        markup = format!("<span foreground='{color}'>{markup}</span>");
+    }
+    if let Some(url) = &status.url {
+        markup = format!("<a href=\"{}\">{markup}</a>", glib::markup_escape_text(url));
+    }
+    markup
 }
 
 /// Mutate a resolved workspace without changing selection; reject new keys at capacity without eviction.
@@ -154,12 +238,7 @@ pub fn render(container: &gtk4::Box, metadata: &Metadata) {
         label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
         label.set_max_width_chars(28);
         label.set_tooltip_text(Some(&format!("{key}: {}", status.value)));
-        if let Some(color) = &status.color {
-            label.set_markup(&format!(
-                "<span foreground='{color}'>{}</span>",
-                gtk4::glib::markup_escape_text(&status.value)
-            ));
-        }
+        label.set_markup(&status_markup(status));
         row.append(&label);
         container.append(&row);
     }
@@ -171,4 +250,61 @@ pub fn render(container: &gtk4::Box, metadata: &Metadata) {
         container.append(&bar);
     }
     container.set_visible(!metadata.statuses.is_empty() || metadata.progress.is_some());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Preserve inline formatting while preventing raw HTML and non-web links becoming active.
+    #[test]
+    fn markdown_escapes_untrusted_content() {
+        let markup = inline_markdown("**bold _italic_** `a<b` <span>text</span> [bad](file:///tmp/x) [web](https://example.com/?x=1&y=2)", true);
+        assert!(markup.contains("<b>bold <i>italic</i></b>"));
+        assert!(markup.contains("<tt>a&lt;b</tt>"));
+        assert!(markup.contains("&lt;span&gt;text&lt;/span&gt;"));
+        assert!(!markup.contains("href=\"file:"));
+        assert!(markup.contains("<a href=\"https://example.com/?x=1&amp;y=2\">web</a>"));
+    }
+
+    /// A whole-row destination must not create nested anchors; old records default to plain text.
+    #[test]
+    fn row_link_precedes_markdown_links_and_old_state_loads() {
+        let old: Status =
+            serde_json::from_value(serde_json::json!({"value":"<b>literal</b>"})).unwrap();
+        assert_eq!(status_markup(&old), "&lt;b&gt;literal&lt;/b&gt;");
+        let linked: Status = serde_json::from_value(serde_json::json!({
+            "value":"[inside](https://inside.example)", "format":"markdown", "url":"https://outside.example/?a=1&b=2"
+        })).unwrap();
+        let markup = status_markup(&linked);
+        assert_eq!(markup.matches("<a ").count(), 1);
+        assert!(markup.contains("outside.example/?a=1&amp;b=2"));
+        assert!(!markup.contains("inside.example"));
+    }
+
+    /// Reject active non-web schemes, invalid formats and oversized destinations at the worker boundary.
+    #[test]
+    fn rejects_invalid_destinations_and_formats() {
+        for url in [
+            "file:///tmp/a",
+            "javascript:alert(1)",
+            "https://",
+            "https://example.com/\npath",
+        ] {
+            assert!(parse(
+                "sidebar.set_status",
+                &serde_json::json!({"key":"x","value":"x","url":url})
+            )
+            .is_err());
+        }
+        assert!(!valid_url(&format!(
+            "https://example.com/{}",
+            "x".repeat(2048)
+        )));
+        assert!(parse(
+            "sidebar.set_status",
+            &serde_json::json!({"key":"x","value":"x","format":"html"})
+        )
+        .is_err());
+    }
 }

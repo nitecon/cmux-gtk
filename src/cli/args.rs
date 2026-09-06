@@ -206,7 +206,7 @@ pub enum Commands {
         text: String,
     },
 
-    /// Set a keyed plain-text status in a workspace sidebar
+    /// Set a keyed status in a workspace sidebar
     SetStatus {
         key: String,
         value: String,
@@ -216,6 +216,10 @@ pub enum Commands {
         color: Option<String>,
         #[arg(long, default_value_t = 0)]
         priority: i32,
+        #[arg(long, default_value = "plain", value_parser = ["plain", "markdown"])]
+        format: String,
+        #[arg(long, alias = "link")]
+        url: Option<String>,
         #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
         workspace: Option<String>,
     },

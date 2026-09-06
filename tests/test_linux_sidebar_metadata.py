@@ -33,17 +33,21 @@ def main():
                 app.cli("set-progress", "0.4", "--label", "Compiling", "--workspace", target)
                 state = metadata()
                 assert state["statuses"]["agent"] == {"value": "literal <b>text</b> $HOME",
-                                                       "icon": "dialog-information-symbolic", "color": "#123456", "priority": 9}
+                                                       "icon": "dialog-information-symbolic", "color": "#123456", "priority": 9, "format": "plain", "url": None}
                 assert state["progress"] == {"value": 0.4, "label": "Compiling"}
                 for index in range(31):
                     app.cli("set-status", f"key{index}", str(index), "--workspace", target)
-                app.cli("set-status", "agent", "updated", "--workspace", target)
+                app.cli("set-status", "agent", "**updated** [details](https://example.com)",
+                        "--format", "markdown", "--url", "https://example.com/status", "--workspace", target)
                 saved = metadata()
+                assert saved["statuses"]["agent"]["format"] == "markdown"
+                assert saved["statuses"]["agent"]["url"] == "https://example.com/status"
                 for method, fields in (
                     ("sidebar.set_status", {"key": "overflow", "value": "rejected"}),
                     ("sidebar.set_status", {"key": "agent", "value": "x" * 1025}),
                     ("sidebar.set_status", {"key": "agent", "value": "x", "color": "red'/>"}),
-                    ("sidebar.set_status", {"key": "agent", "value": "x", "format": "markdown"}),
+                    ("sidebar.set_status", {"key": "agent", "value": "x", "format": "html"}),
+                    ("sidebar.set_status", {"key": "agent", "value": "x", "url": "file:///tmp/status"}),
                     ("sidebar.set_progress", {"value": 0.5, "label": "x" * 513}),
                     ("sidebar.metadata", {"workspace_id": str(uuid.uuid4())}),
                     ("sidebar.metadata", {"workspace_id": 42}),
