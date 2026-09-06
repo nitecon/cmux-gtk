@@ -12,13 +12,21 @@ for binary in "$@"; do
         exit 1
     fi
 
-    if readelf --dynamic "$binary" | grep -Eq '\(NEEDED\).*lib(xml2|icu[[:alnum:]_-]*|lzma)\.so'; then
+    if ! dynamic="$(readelf --dynamic "$binary")"; then
+        echo "RUNTIME-LIB-CHECK-FAIL: cannot inspect dynamic section: $binary" >&2
+        exit 1
+    fi
+    if ! symbols="$(readelf --dyn-syms --wide "$binary")"; then
+        echo "RUNTIME-LIB-CHECK-FAIL: cannot inspect dynamic symbols: $binary" >&2
+        exit 1
+    fi
+
+    if grep -E '\(NEEDED\).*lib(xml2|icu[[:alnum:]_-]*|lzma)\.so' <<<"$dynamic" >/dev/null; then
         echo "RUNTIME-LIB-CHECK-FAIL: $binary dynamically links a bundled XML dependency" >&2
         exit 1
     fi
 
-    if readelf --dyn-syms --wide "$binary" | \
-        awk '$5 != "LOCAL" && $8 ~ /^(hb_|FT_)/ { found=1 } END { exit !found }'; then
+    if awk '$5 != "LOCAL" && $8 ~ /^(hb_|FT_)/ { found=1 } END { exit !found }' <<<"$symbols"; then
         echo "RUNTIME-LIB-CHECK-FAIL: $binary exports bundled HarfBuzz/FreeType symbols" >&2
         exit 1
     fi

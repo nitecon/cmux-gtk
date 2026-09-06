@@ -45,6 +45,7 @@ jobs:
         run: |
           bash tests/test_package_validation.sh
           bash tests/test_release_version.sh
+          bash tests/test_release_libraries.sh
 
       - name: Identify Ghostty build cache
         id: ghostty_revision
