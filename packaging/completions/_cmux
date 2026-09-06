@@ -1187,6 +1187,114 @@ esac
     ;;
 esac
 ;;
+(pi)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__pi_commands" \
+"*::: :->pi" \
+&& ret=0
+
+    case $state in
+    (pi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-pi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__pi__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-pi-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -1498,6 +1606,38 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-cursor-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(pi)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__pi_commands" \
+"*::: :->pi" \
+&& ret=0
+
+    case $state in
+    (pi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-pi-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -3429,6 +3569,38 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(pi)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__pi_commands" \
+"*::: :->pi" \
+&& ret=0
+
+    case $state in
+    (pi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-pi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -4648,6 +4820,7 @@ _cmux__help__hooks_commands() {
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
+'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -4914,6 +5087,36 @@ _cmux__help__hooks__opencode__session-start_commands() {
 _cmux__help__hooks__opencode__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks opencode stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi_commands] )) ||
+_cmux__help__hooks__pi_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks pi commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi__notification_commands] )) ||
+_cmux__help__hooks__pi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks pi notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi__session-end_commands] )) ||
+_cmux__help__hooks__pi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks pi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi__session-start_commands] )) ||
+_cmux__help__hooks__pi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks pi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi__stop_commands] )) ||
+_cmux__help__hooks__pi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks pi stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__qoder_commands] )) ||
 _cmux__help__hooks__qoder_commands() {
@@ -5247,6 +5450,7 @@ _cmux__hooks_commands() {
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
+'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -5789,6 +5993,7 @@ _cmux__hooks__help_commands() {
 'qoder:Receive a Qoder lifecycle hook payload on stdin' \
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
+'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -6062,6 +6267,36 @@ _cmux__hooks__help__opencode__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help opencode stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__pi_commands] )) ||
+_cmux__hooks__help__pi_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help pi commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__pi__notification_commands] )) ||
+_cmux__hooks__help__pi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help pi notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__pi__session-end_commands] )) ||
+_cmux__hooks__help__pi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help pi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__pi__session-start_commands] )) ||
+_cmux__hooks__help__pi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help pi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__pi__stop_commands] )) ||
+_cmux__hooks__help__pi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help pi stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__qoder_commands] )) ||
 _cmux__hooks__help__qoder_commands() {
     local commands; commands=(
@@ -6163,6 +6398,73 @@ _cmux__hooks__opencode__session-start_commands() {
 _cmux__hooks__opencode__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks opencode stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi_commands] )) ||
+_cmux__hooks__pi_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks pi commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help_commands] )) ||
+_cmux__hooks__pi__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks pi help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__help_commands] )) ||
+_cmux__hooks__pi__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__notification_commands] )) ||
+_cmux__hooks__pi__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__session-end_commands] )) ||
+_cmux__hooks__pi__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__session-start_commands] )) ||
+_cmux__hooks__pi__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__stop_commands] )) ||
+_cmux__hooks__pi__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__notification_commands] )) ||
+_cmux__hooks__pi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__session-end_commands] )) ||
+_cmux__hooks__pi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__session-start_commands] )) ||
+_cmux__hooks__pi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__stop_commands] )) ||
+_cmux__hooks__pi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__qoder_commands] )) ||
 _cmux__hooks__qoder_commands() {

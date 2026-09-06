@@ -180,6 +180,9 @@ jobs:
       - name: Test installed Cursor lifecycle hooks
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_cursor_hooks.py
 
+      - name: Test installed Pi lifecycle extension
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_pi_hooks.py
+
       - name: Test Claude Teams native split translation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_teams.py
 

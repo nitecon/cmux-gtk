@@ -57,6 +57,12 @@ content:
         - Callbacks accept bounded Cursor conversation_id and working_directory aliases through the shared lifecycle parser and require the exact inherited CMUX_SURFACE_ID.
         - beforeSubmitPrompt binds the absolute cursor-agent executable as cursor-agent --resume SESSION_ID. Stop creates an exact-surface inbox entry and retains the binding because Cursor provides no durable session-end event.
 
+    - name: Pi native lifecycle extension
+      steps:
+        - cmux hooks setup pi writes an owner-marked cmux-session.ts under the native PI_CODING_AGENT_DIR extensions directory or HOME/.pi/agent/extensions. It refuses an unowned file or symlink and replaces its own module atomically and durably.
+        - The generated dependency-free ESM registers session_start, agent_end and session_shutdown with Pi, then dispatches bounded native identity, cwd and completion text through an inherited exact surface with a five-second child deadline.
+        - Start stores pi --session SESSION_ID with only PI_CODING_AGENT_DIR retained. Agent completion creates an exact-surface inbox entry, and shutdown clears only the matching checkpoint.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.

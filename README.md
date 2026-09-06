@@ -27,7 +27,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **SSH remote workspaces** — cmuxd-remote deployment with bidirectional PTY proxy and reconnect
 - **Ghostty compatible** — Reads your existing `~/.config/ghostty/config` for themes, fonts, and colors
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
-- **Agent lifecycle integration** — Native resume and notification hooks for Claude, Codex, Grok, Gemini, Copilot, CodeBuddy, Factory, Qoder, OpenCode, and Cursor
+- **Agent lifecycle integration** — Native resume and notification hooks for Claude, Codex, Grok, Gemini, Copilot, CodeBuddy, Factory, Qoder, OpenCode, Cursor, and Pi
 - **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
 
 ## Workspace workflows

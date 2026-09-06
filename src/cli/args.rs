@@ -511,6 +511,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive a Pi coding agent extension lifecycle payload on stdin
+    Pi {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.
