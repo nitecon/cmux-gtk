@@ -201,6 +201,7 @@ impl BrowserManager {
 
     /// Execute ordered public CLI commands and refresh the URL while owning one admission permit.
     /// Reject overlap before spawning children; dropping the future releases its slot.
+    /// The entire sequence shares a fifteen-second deadline, including URL refresh.
     fn navigation_commands(
         &self,
         commands: Vec<Vec<String>>,
@@ -237,7 +238,15 @@ impl BrowserManager {
             tokio::select! {
                 biased;
                 _ = shutdown.changed() => Err(cancelled()),
-                result = operation => result,
+                result = tokio::time::timeout(std::time::Duration::from_secs(15), operation) => {
+                    result.unwrap_or_else(|_| {
+                        crate::diagnostics::record("browser.navigation.timeout", serde_json::json!({
+                            "trace_id": trace_id,
+                            "budget_ms": 15_000,
+                        }));
+                        Err("Browser navigation deadline exceeded".to_string())
+                    })
+                },
             }
         }
     }
@@ -617,6 +626,55 @@ esac
         .map(|command| format!("{session_name} {command}\n"))
         .concat();
         assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// URL refresh receives only the budget left after the history command and is cancelled on expiry.
+    #[tokio::test]
+    async fn navigation_sequence_has_one_deadline() {
+        let directory =
+            std::env::temp_dir().join(format!("cmux-navigation-budget-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let binary = directory.join("browser");
+        std::fs::write(
+            &binary,
+            br#"#!/bin/sh
+printf '%s\n' "$4" >> "$0.calls"
+if [ "$4" = 'back' ]; then
+    sleep 8
+    printf '%s\n' '{"success":true,"data":{}}'
+else
+    printf '%s' $$ > "$0.pid"
+    exec sleep 60
+fi
+"#,
+        )
+        .unwrap();
+        cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        let mut browser = BrowserManager::new();
+        browser.binary_path = Some(binary.clone());
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            browser.navigate_async("back".into(), Uuid::new_v4()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.unwrap_err(), "Browser navigation deadline exceeded");
+        assert_eq!(
+            std::fs::read_to_string(binary.with_extension("calls")).unwrap(),
+            "back\nget\n"
+        );
+        let pid = std::fs::read_to_string(binary.with_extension("pid")).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while std::path::Path::new(&format!("/proc/{pid}")).exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        // Expiration must release admission before a subsequent operation.
+        let next = browser.navigation_gate.clone().try_acquire_owned().unwrap();
+        drop(next);
         std::fs::remove_dir_all(directory).unwrap();
     }
 
