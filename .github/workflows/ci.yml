@@ -171,6 +171,8 @@ jobs:
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_desktop_notifications.py
       - name: Caller notification attribution
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_notification_caller.py
+      - name: Native scrollback capture
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_scrollback.py
 
       - name: Test native OSC notification bursts and chunk assembly
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_osc_notifications.py

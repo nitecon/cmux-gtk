@@ -161,6 +161,12 @@ pub enum Commands {
         #[arg(long)]
         id: Option<String>,
     },
+    /// Capture recent terminal history as bounded VT text (up to 2,000 rows and 256 KiB)
+    ReadScrollback {
+        /// Target surface ID (default: focused)
+        #[arg(long)]
+        id: Option<String>,
+    },
     /// Check native terminal availability and pane attention
     Health {
         /// Target surface ID (default: focused)

@@ -14,7 +14,7 @@ struct NativeText {
 impl Drop for NativeText {
     /// Return the native allocation even when UTF-8 validation or copying fails.
     fn drop(&mut self) {
-        // SAFETY: read_visible owns this successful native result and keeps the
+        // SAFETY: the capture function owns this native result and keeps the
         // surface alive on GTK until this guard is dropped.
         unsafe { ffi::ghostty_surface_free_text(self.surface, &mut self.text) };
     }
@@ -100,4 +100,32 @@ pub(crate) unsafe fn read_visible(surface: ffi::ghostty_surface_t) -> Result<Str
     std::str::from_utf8(bytes)
         .map(str::to_owned)
         .map_err(|_| "invalid terminal UTF-8")
+}
+
+/// Capture up to 2,000 recent rows as replayable VT within 256 KiB, without selection or viewport changes.
+/// Native formatting shrinks the suffix when necessary, preserving complete styles and graphemes.
+///
+/// # Safety
+/// The caller must keep the native surface alive on GTK without event-loop iteration until return.
+pub(crate) unsafe fn read_scrollback(
+    surface: ffi::ghostty_surface_t,
+) -> Result<String, &'static str> {
+    let mut text: ffi::ghostty_text_s = unsafe { std::mem::zeroed() };
+    // SAFETY: caller owns the surface; native output is bounded and returned as an owned allocation.
+    if !unsafe { ffi::ghostty_surface_read_screen_tail_vt(surface, 2000, MAX_BYTES, &mut text) } {
+        return Err("terminal scrollback capture failed");
+    }
+    let native = NativeText { surface, text };
+    if native.text.text_len == 0 {
+        return Ok(String::new());
+    }
+    if native.text.text.is_null() || native.text.text_len > MAX_BYTES {
+        return Err("invalid native scrollback result");
+    }
+    // SAFETY: native capture owns text_len readable bytes until the guard releases them.
+    let bytes =
+        unsafe { std::slice::from_raw_parts(native.text.text.cast::<u8>(), native.text.text_len) };
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .map_err(|_| "invalid scrollback UTF-8")
 }

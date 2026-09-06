@@ -158,6 +158,7 @@ fn handle_socket_command_traced(
                 "surface.send_text",
                 "surface.send_key",
                 "surface.read_text",
+                "surface.read_scrollback",
                 "surface.resume.set",
                 "surface.resume.show",
                 "surface.resume.clear",
@@ -721,14 +722,21 @@ fn handle_socket_command_traced(
 
         SocketCommand::SurfaceReadText {
             req_id,
+            scrollback,
             id,
             resp_tx,
         } => {
             let result = terminal_target(state, id.as_deref()).and_then(|surface| {
                 // SAFETY: resolution found a live GTK-owned terminal. No model
                 // borrow or event-loop iteration spans this bounded native read.
-                unsafe { crate::ghostty::text::read_visible(surface) }
-                    .map_err(|message| ("read_failed", message))
+                unsafe {
+                    if scrollback {
+                        crate::ghostty::text::read_scrollback(surface)
+                    } else {
+                        crate::ghostty::text::read_visible(surface)
+                    }
+                }
+                .map_err(|message| ("read_failed", message))
             });
             let response = match result {
                 Ok(text) => ok(req_id, json!({"text": text})),

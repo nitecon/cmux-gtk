@@ -1,0 +1,20 @@
+app: cmux-gtk
+title: Bounded terminal scrollback capture
+space: cmux-gtk
+slug: terminal-scrollback
+summary: Non-selecting native VT history capture for agents and session replay groundwork; persistence and replay are still pending.
+kind: agent_context
+source_format: agent_context
+source_ref: src/ghostty/text.rs
+labels: [terminal, session, scrollback, cli, observability]
+content:
+  purpose: Capture recent rendered history without changing terminal selection, viewport or active workspace.
+  workflows:
+    - name: Inspect history
+      steps:
+        - cmux read-scrollback --id UUID --json calls surface.read_scrollback with id. Omitted id resolves the active terminal; explicit unknown targets fail.
+        - The response text is VT output, capped at 256 KiB and 2000 rows. It preserves native rendered cell styles and Unicode, not raw PTY control sequences. The native formatter shrinks the history suffix to fit its fixed scratch allocation.
+        - Native allocations are released synchronously on GTK. There is no local process launch, viewport mutation or clipboard change. Existing common RPC tracing covers routing and timing without recording text.
+  operations:
+    verification: Actions tests/test_linux_scrollback.py captures offscreen styled output from an inactive native terminal and checks focus, viewport and byte bounds. Strict workspace clippy and fixture syntax passed locally; runtime verification is pending.
+    outstanding: Session capture scheduling, total retained history budget, untouched background caches, replay-before-shell lifecycle and completion tracking remain part of the active goal. This API does not restore a session or arbitrary running processes.

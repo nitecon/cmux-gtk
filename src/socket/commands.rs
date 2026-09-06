@@ -127,6 +127,7 @@ pub enum SocketCommand {
     },
     SurfaceReadText {
         req_id: Value,
+        scrollback: bool,
         id: Option<String>,
         resp_tx: RespTx,
     },

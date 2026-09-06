@@ -126,3 +126,10 @@ Jump-to-unread now skips records whose saved workspace or terminal is closed, ma
 ## Cumulative verification at 61266ee5
 
 [Actions 34048253282](https://github.com/nitecon/cmux-gtk/actions/runs/34048253282) passed every job for native OSC intake and Claude Stop/Notification hooks, including the installed-handler/native-PTY integration scenarios and optimized memory/redraw benchmarks. This verifies the earlier source checkpoints at cb29ae1b/92534b35 plus the ordinary-output fast path. Desktop message delivery, caller identity, nullable workspace-only messages and stale-target navigation were added after this revision; their runtime evidence remains pending.
+
+
+## Bounded scrollback capture checkpoint
+
+`cmux read-scrollback --id UUID --json` / `surface.read_scrollback` now captures up to 2,000 recent rows as VT within 256 KiB through the existing vendored native screen-tail API. Native formatting reduces the suffix to fit its fixed scratch bound and preserves rendered styles, wide characters and compressed history. The allocation is released before returning; capture neither changes selection/viewport nor selects a background workspace. The new native CI fixture checks offscreen styled history, bounds and inactive-workspace focus/viewport preservation. Runtime evidence is pending.
+
+Session replay is not yet implemented by this checkpoint. The native capture API is suitable for it, but capture must be combined with total retained-session limits, a preserved cache for never-initialized background terminals, a pre-shell replay path and replay-completion tracking. Ghostty initial_input writes to the child and must not be used to replay output. Upstream's replay-file/start/end boundary lifecycle provides the relevant pattern; its raw control sequences must not be blindly trusted from edited session files.

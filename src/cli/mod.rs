@@ -458,6 +458,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             }
             ("surface.read_text", Value::Object(p))
         }
+        Commands::ReadScrollback { id } => ("surface.read_scrollback", json!({"id": id})),
         Commands::Health { id } => {
             let mut p = serde_json::Map::new();
             if let Some(ref id) = id {

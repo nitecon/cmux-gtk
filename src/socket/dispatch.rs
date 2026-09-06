@@ -106,6 +106,7 @@ async fn dispatch_request(
             | "surface.send_text"
             | "surface.send_key"
             | "surface.read_text"
+            | "surface.read_scrollback"
             | "surface.health"
             | "surface.refresh"
             | "pane.focus"
@@ -389,11 +390,14 @@ async fn dispatch_request(
                 },
             }
         }
-        "surface.read_text" => commands::SocketCommand::SurfaceReadText {
-            req_id: req_id.clone(),
-            id: target,
-            resp_tx,
-        },
+        "surface.read_text" | "surface.read_scrollback" => {
+            commands::SocketCommand::SurfaceReadText {
+                scrollback: method == "surface.read_scrollback",
+                req_id: req_id.clone(),
+                id: target,
+                resp_tx,
+            }
+        }
         "surface.health" => commands::SocketCommand::SurfaceHealth {
             req_id: req_id.clone(),
             id: target,
