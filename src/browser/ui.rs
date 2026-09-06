@@ -635,11 +635,7 @@ fn finish_browser_navigation(
 
 /// Close the browser preview and shut down the daemon (Ctrl+Shift+Q).
 pub fn handle_browser_close(state: &Rc<RefCell<AppState>>) {
-    let mut s = state.borrow_mut();
-    if let Some(ref mut bm) = s.browser_manager {
-        bm.shutdown();
-        s.browser_manager = None;
-    }
+    state.borrow_mut().shutdown_browser();
 }
 
 #[cfg(test)]

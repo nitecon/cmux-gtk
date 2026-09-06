@@ -41,6 +41,8 @@ pub struct AppState {
         std::collections::HashMap<u64, std::sync::Arc<crate::ssh::bridge::SshBridge>>,
     /// Browser preview daemon manager (Phase 8).
     pub browser_manager: Option<crate::browser::BrowserManager>,
+    /// Retain asynchronous daemon-close tasks for the post-GTK shutdown drain.
+    pub browser_shutdown_tasks: crate::browser::ShutdownTasks,
     /// Next browser surface short-ref counter (monotonically increasing, per D-06).
     pub browser_surface_counter: u32,
     /// Maps short-ref ID -> surface UUID (lost on restart, per D-06).
@@ -73,6 +75,7 @@ impl AppState {
             ssh_task_handles: std::collections::HashMap::new(),
             workspace_bridges: std::collections::HashMap::new(),
             browser_manager: None,
+            browser_shutdown_tasks: Default::default(),
             browser_surface_counter: 0,
             browser_surface_refs: std::collections::HashMap::new(),
         };
@@ -596,12 +599,22 @@ impl AppState {
         }
     }
 
-    /// Shut down the agent-browser daemon if running (called on app exit).
+    /// Remove the manager and cancel its local work now; close its daemon on Tokio without GTK I/O.
     pub fn shutdown_browser(&mut self) {
-        if let Some(ref mut bm) = self.browser_manager {
-            eprintln!("cmux: shutting down browser daemon");
-            bm.shutdown();
-            self.browser_manager = None;
+        let Some(browser) = self.browser_manager.take() else {
+            return;
+        };
+        let close = browser.shutdown();
+        if let Some(runtime) = self.runtime_handle.as_ref() {
+            let mut tasks = self.browser_shutdown_tasks.borrow_mut();
+            // Reap completed closes during normal use so retained handles do not accumulate.
+            while tasks.try_join_next().is_some() {}
+            tasks.spawn_on(close, runtime);
+        } else {
+            crate::diagnostics::record(
+                "browser.shutdown.runtime_unavailable",
+                serde_json::json!({}),
+            );
         }
     }
 

@@ -128,6 +128,7 @@ fn main() {
     // Tokio runtime for socket I/O (kept alive for app lifetime).
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     let runtime_handle = runtime.handle().clone();
+    let browser_shutdown_tasks: browser::ShutdownTasks = Default::default();
     diagnostics::start_sampler(&runtime_handle);
 
     // glib::MainContext::channel pattern: event-driven bridge from tokio to GTK main thread.
@@ -189,6 +190,7 @@ fn main() {
     let cmd_rx = std::sync::Mutex::new(Some(cmd_rx));
     let saved_session = std::sync::Mutex::new(Some(saved_session));
     app.connect_activate({
+        let browser_shutdown_tasks = browser_shutdown_tasks.clone();
         let runtime_handle = runtime_handle.clone();
         let save_notify = save_notify.clone();
         let session_tx = session_tx.clone();
@@ -203,6 +205,7 @@ fn main() {
             build_ui(
                 app,
                 runtime_handle.clone(),
+                browser_shutdown_tasks.clone(),
                 cmd_tx.clone(),
                 rx,
                 save_notify.clone(),
@@ -220,7 +223,11 @@ fn main() {
     gtk_probe.remove();
     eprintln!("cmux: app.run() returned");
 
-    // Runtime drops here — tokio tasks are cancelled.
+    // GTK has stopped; finish owned browser cleanup before cancelling the runtime.
+    let closing = std::mem::take(&mut *browser_shutdown_tasks.borrow_mut());
+    runtime.block_on(browser::drain_shutdown(closing));
+
+    // Runtime drops here — remaining tokio tasks are cancelled.
     drop(runtime);
 }
 
@@ -228,6 +235,7 @@ fn main() {
 fn build_ui(
     app: &Application,
     runtime_handle: tokio::runtime::Handle,
+    browser_shutdown_tasks: browser::ShutdownTasks,
     cmd_tx: tokio::sync::mpsc::Sender<crate::socket::commands::SocketCommand>,
     mut cmd_rx: tokio::sync::mpsc::Receiver<crate::socket::commands::SocketCommand>,
     save_notify: std::sync::Arc<tokio::sync::Notify>,
@@ -327,6 +335,7 @@ fn build_ui(
         s.session_tx = Some(session_tx);
         s.ssh_event_tx = Some(ssh_event_tx);
         s.runtime_handle = Some(runtime_handle.clone());
+        s.browser_shutdown_tasks = browser_shutdown_tasks;
     }
 
     // Restore session if available (SESS-02), otherwise create default workspace.
@@ -564,8 +573,8 @@ fn build_ui(
     }
 
     // Phase 8: Clean up browser daemon on app shutdown.
-    // connect_shutdown fires while GTK is still alive and runtime handle is valid,
-    // ensuring the daemon gets a clean shutdown command before tokio tasks are cancelled.
+    // Cancel local browser work while GTK is alive; main drains daemon-close tasks
+    // after app.run returns and before the runtime stops.
     {
         let state_for_shutdown = state.clone();
         app.connect_shutdown(move |_| {

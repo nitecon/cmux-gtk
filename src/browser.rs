@@ -17,6 +17,29 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
 
+/// GTK-owned close tasks retained until application exit drains them before stopping Tokio.
+pub type ShutdownTasks = std::rc::Rc<std::cell::RefCell<tokio::task::JoinSet<()>>>;
+
+/// Finish browser close exchanges after GTK exits, allowing at most seven seconds for all tasks.
+/// Deadline expiry aborts and reaps remaining tasks; it does not prove daemon termination.
+pub async fn drain_shutdown(mut tasks: tokio::task::JoinSet<()>) {
+    let result = tokio::time::timeout(std::time::Duration::from_secs(7), async {
+        while let Some(result) = tasks.join_next().await {
+            if result.is_err() {
+                crate::diagnostics::record("browser.shutdown.task_failed", serde_json::json!({}));
+            }
+        }
+    })
+    .await;
+    if result.is_err() {
+        crate::diagnostics::record(
+            "browser.shutdown.drain_timeout",
+            serde_json::json!({"budget_ms": 7000}),
+        );
+        tasks.shutdown().await;
+    }
+}
+
 /// Preview pane state tracked by BrowserManager.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PreviewState {
@@ -400,13 +423,27 @@ impl BrowserManager {
         self.navigation_shutdown.send_replace(true);
     }
 
-    /// Shut down the daemon and clean up.
-    pub fn shutdown(&mut self) {
+    /// Cancel local work immediately and return an owned, bounded daemon-close operation.
+    /// Allow up to one second for admitted navigation to release before the five-second exchange.
+    pub fn shutdown(mut self) -> impl std::future::Future<Output = ()> + Send + 'static {
         self.stop_navigation();
-        // Try to send close command (best-effort).
-        let _ = self.send_command("close", serde_json::json!({"id": "cmux-shutdown"}));
-
         self.stop_stream();
+        let gate = self.navigation_gate.clone();
+        let close = self.send_command_async("close", serde_json::json!({}));
+        async move {
+            let mut activity = metrics::Activity::begin("shutdown", None);
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+                while gate.available_permits() == 0 {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await;
+            activity.finish(if close.await.is_ok() {
+                "response_received"
+            } else {
+                "transport_error"
+            });
+        }
     }
 
     /// Connect to the agent-browser stream WebSocket and start forwarding
@@ -694,6 +731,53 @@ esac
         .map(|command| format!("{session_name} {command}\n"))
         .concat();
         assert_eq!(calls, expected);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// Shutdown cancels admitted navigation synchronously and the exit drain awaits a real close reply.
+    #[tokio::test]
+    async fn shutdown_drains_close_after_navigation_cancellation() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+        let directory = std::env::temp_dir().join(format!("cmux-shutdown-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let mut browser = BrowserManager::new();
+        // An absolute fixture identity keeps the fake daemon outside user runtime directories.
+        browser.session_name = directory.join("browser").to_string_lossy().into_owned();
+        let path = browser.daemon_socket_path();
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let navigation = browser.navigate_async("back".into(), Uuid::new_v4());
+        let gate = browser.navigation_gate.clone();
+        let close = browser.shutdown();
+        assert!(gate.is_closed());
+        assert_eq!(navigation.await.unwrap_err(), "Browser manager stopped");
+        let (finished_tx, mut finished_rx) = tokio::sync::oneshot::channel();
+        let mut tasks = tokio::task::JoinSet::new();
+        tasks.spawn(async move {
+            close.await;
+            let _ = finished_tx.send(());
+        });
+        let server = async {
+            let (peer, _) = listener.accept().await.unwrap();
+            let mut peer = tokio::io::BufReader::new(peer);
+            let mut line = String::new();
+            peer.read_line(&mut line).await.unwrap();
+            let request: Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(request["action"], "close");
+            assert!(matches!(
+                finished_rx.try_recv(),
+                Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+            ));
+            peer.get_mut()
+                .write_all(b"{\"success\":true}\n")
+                .await
+                .unwrap();
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            tokio::join!(drain_shutdown(tasks), server);
+        })
+        .await
+        .unwrap();
+        finished_rx.await.unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
 
