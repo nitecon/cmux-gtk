@@ -669,6 +669,75 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(list-workspace-groups)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(create-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+'--color=[]:COLOR:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':name:_default' \
+&& ret=0
+;;
+(update-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+'--name=[]:NAME:_default' \
+'(--clear-color)--color=[]:COLOR:_default' \
+'--collapsed=[]:COLLAPSED:(true false)' \
+'--position=[]:POSITION:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--clear-color[]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(assign-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+'--group=[]:GROUP:_default' \
+'*--workspaces=[]:WORKSPACES:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(delete-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
 (list-surfaces)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -1874,6 +1943,26 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(list-workspace-groups)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(create-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(update-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(assign-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete-workspace-group)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (list-surfaces)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2180,6 +2269,11 @@ _cmux_commands() {
 'last-workspace:Switch to last active workspace' \
 'reorder-workspace:Reorder a workspace' \
 'reorder-workspaces:Reorder listed workspaces first, retaining the relative order of all others' \
+'list-workspace-groups:List persistent workspace groups and their members' \
+'create-workspace-group:Create an empty persistent workspace group' \
+'update-workspace-group:Update a workspace group'\''s presentation or collapse state' \
+'assign-workspace-group:Assign workspaces to a group; omit --group to make them ungrouped' \
+'delete-workspace-group:Delete a group while retaining its workspaces' \
 'list-surfaces:List all surfaces' \
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
@@ -2214,6 +2308,11 @@ _cmux_commands() {
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux commands' commands "$@"
+}
+(( $+functions[_cmux__assign-workspace-group_commands] )) ||
+_cmux__assign-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux assign-workspace-group commands' commands "$@"
 }
 (( $+functions[_cmux__browser_commands] )) ||
 _cmux__browser_commands() {
@@ -2557,6 +2656,11 @@ _cmux__close-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux close-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__create-workspace-group_commands] )) ||
+_cmux__create-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux create-workspace-group commands' commands "$@"
+}
 (( $+functions[_cmux__current-window_commands] )) ||
 _cmux__current-window_commands() {
     local commands; commands=()
@@ -2566,6 +2670,11 @@ _cmux__current-window_commands() {
 _cmux__current-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux current-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__delete-workspace-group_commands] )) ||
+_cmux__delete-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux delete-workspace-group commands' commands "$@"
 }
 (( $+functions[_cmux__diagnostics_commands] )) ||
 _cmux__diagnostics_commands() {
@@ -2612,6 +2721,11 @@ _cmux__help_commands() {
 'last-workspace:Switch to last active workspace' \
 'reorder-workspace:Reorder a workspace' \
 'reorder-workspaces:Reorder listed workspaces first, retaining the relative order of all others' \
+'list-workspace-groups:List persistent workspace groups and their members' \
+'create-workspace-group:Create an empty persistent workspace group' \
+'update-workspace-group:Update a workspace group'\''s presentation or collapse state' \
+'assign-workspace-group:Assign workspaces to a group; omit --group to make them ungrouped' \
+'delete-workspace-group:Delete a group while retaining its workspaces' \
 'list-surfaces:List all surfaces' \
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
@@ -2646,6 +2760,11 @@ _cmux__help_commands() {
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux help commands' commands "$@"
+}
+(( $+functions[_cmux__help__assign-workspace-group_commands] )) ||
+_cmux__help__assign-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help assign-workspace-group commands' commands "$@"
 }
 (( $+functions[_cmux__help__browser_commands] )) ||
 _cmux__help__browser_commands() {
@@ -2832,6 +2951,11 @@ _cmux__help__close-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help close-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__help__create-workspace-group_commands] )) ||
+_cmux__help__create-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help create-workspace-group commands' commands "$@"
+}
 (( $+functions[_cmux__help__current-window_commands] )) ||
 _cmux__help__current-window_commands() {
     local commands; commands=()
@@ -2841,6 +2965,11 @@ _cmux__help__current-window_commands() {
 _cmux__help__current-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help current-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__help__delete-workspace-group_commands] )) ||
+_cmux__help__delete-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help delete-workspace-group commands' commands "$@"
 }
 (( $+functions[_cmux__help__diagnostics_commands] )) ||
 _cmux__help__diagnostics_commands() {
@@ -2959,6 +3088,11 @@ _cmux__help__list-surfaces_commands() {
 _cmux__help__list-windows_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help list-windows commands' commands "$@"
+}
+(( $+functions[_cmux__help__list-workspace-groups_commands] )) ||
+_cmux__help__list-workspace-groups_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help list-workspace-groups commands' commands "$@"
 }
 (( $+functions[_cmux__help__list-workspaces_commands] )) ||
 _cmux__help__list-workspaces_commands() {
@@ -3163,6 +3297,11 @@ _cmux__help__update_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help update commands' commands "$@"
 }
+(( $+functions[_cmux__help__update-workspace-group_commands] )) ||
+_cmux__help__update-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help update-workspace-group commands' commands "$@"
+}
 (( $+functions[_cmux__hooks_commands] )) ||
 _cmux__hooks_commands() {
     local commands; commands=(
@@ -3342,6 +3481,11 @@ _cmux__list-surfaces_commands() {
 _cmux__list-windows_commands() {
     local commands; commands=()
     _describe -t commands 'cmux list-windows commands' commands "$@"
+}
+(( $+functions[_cmux__list-workspace-groups_commands] )) ||
+_cmux__list-workspace-groups_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux list-workspace-groups commands' commands "$@"
 }
 (( $+functions[_cmux__list-workspaces_commands] )) ||
 _cmux__list-workspaces_commands() {
@@ -3663,6 +3807,11 @@ _cmux__type_commands() {
 _cmux__update_commands() {
     local commands; commands=()
     _describe -t commands 'cmux update commands' commands "$@"
+}
+(( $+functions[_cmux__update-workspace-group_commands] )) ||
+_cmux__update-workspace-group_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux update-workspace-group commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_cmux" ]; then

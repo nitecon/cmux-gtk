@@ -43,6 +43,7 @@ mod updater;
 mod window_state;
 mod workspace;
 mod workspace_dialog;
+mod workspace_group;
 mod workspace_metadata;
 
 const APP_ID: &str = "io.cmux.App";
@@ -57,6 +58,9 @@ window { background-color: #1a1a1a; }
 .workspace-list row:hover:not(.active-workspace) { background-color: #2e2e2e; }
 .workspace-list row.active-workspace { background-color: #5b8dd9; }
 .workspace-list row.active-workspace label { color: #ffffff; font-weight: 600; }
+.workspace-list row.workspace-group { min-height: 28px; padding: 2px 6px; background: #202020; }
+.workspace-list row.workspace-group button { padding: 3px 6px; }
+.workspace-list .group-unread { background: #5b8dd9; color: #ffffff; border-radius: 8px; padding: 0 5px; }
 .notification-unread { box-shadow: inset 0 0 0 2px #5b8dd9; }
 .active-pane { border: 1px solid #5b8dd9; }
 .rename-entry { font-size: 14px; padding: 2px 4px; }
@@ -399,6 +403,15 @@ fn build_ui(
             .unwrap_or(false);
         if has_session {
             let session = saved_session.unwrap();
+            let mut restored_group_ids = std::collections::HashSet::new();
+            state.borrow_mut().workspace_groups = session
+                .workspace_groups
+                .iter()
+                .cloned()
+                .filter_map(crate::workspace_group::WorkspaceGroup::validated)
+                .filter(|group| restored_group_ids.insert(group.id))
+                .take(crate::workspace_group::MAX_GROUPS)
+                .collect();
             if session.version >= 2 {
                 // Version 2: full tree restore (D-05)
                 let mut restored_count = 0;
@@ -436,13 +449,8 @@ fn build_ui(
         }
     }
 
-    // Phase 9: Wire close buttons + context menus on all sidebar rows created above.
-    {
-        for row in crate::sidebar::workspace_rows(&sidebar_list) {
-            crate::sidebar::wire_row_close_button(&row, state.clone(), app);
-            crate::sidebar::attach_sidebar_context_menu(&row, state.clone());
-        }
-    }
+    // Render persistent group headers and wire every recreated workspace row.
+    crate::sidebar::rebuild_grouped_sidebar(&state);
 
     crate::git_metadata::start(&state, &window);
     crate::ports::start(&state, &window);

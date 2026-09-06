@@ -432,6 +432,40 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             "workspace.reorder_many",
             json!({"workspace_ids":order,"dry_run":dry_run}),
         ),
+        Commands::ListWorkspaceGroups => ("workspace.group.list", json!({})),
+        Commands::CreateWorkspaceGroup { name, color } => {
+            ("workspace.group.create", json!({"name":name,"color":color}))
+        }
+        Commands::UpdateWorkspaceGroup {
+            id,
+            name,
+            color,
+            clear_color,
+            collapsed,
+            position,
+        } => {
+            let mut params = json!({"id":id});
+            if let Some(name) = name {
+                params["name"] = json!(name);
+            }
+            if let Some(collapsed) = collapsed {
+                params["collapsed"] = json!(collapsed);
+            }
+            if let Some(position) = position {
+                params["position"] = json!(position);
+            }
+            if *clear_color {
+                params["color"] = serde_json::Value::Null;
+            } else if let Some(color) = color {
+                params["color"] = json!(color);
+            }
+            ("workspace.group.update", params)
+        }
+        Commands::AssignWorkspaceGroup { group, workspaces } => (
+            "workspace.group.assign",
+            json!({"id":group,"workspace_ids":workspaces}),
+        ),
+        Commands::DeleteWorkspaceGroup { id } => ("workspace.group.delete", json!({"id":id})),
 
         Commands::Surface {
             command: SurfaceCommands::Resume { command },

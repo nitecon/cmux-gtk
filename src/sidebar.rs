@@ -50,6 +50,210 @@ pub fn workspace_rows(list: &gtk4::ListBox) -> Vec<gtk4::ListBoxRow> {
     rows
 }
 
+fn group_header_row(
+    group: &crate::workspace_group::WorkspaceGroup,
+    member_count: usize,
+    unread_count: usize,
+    state: &crate::app_state::AppStateRef,
+) -> gtk4::ListBoxRow {
+    let row = gtk4::ListBoxRow::new();
+    row.set_selectable(false);
+    row.set_activatable(false);
+    row.set_widget_name(&format!("workspace-group-{}", group.id));
+    row.add_css_class("workspace-group");
+    let button = gtk4::Button::new();
+    button.add_css_class("flat");
+    button.set_hexpand(true);
+    let content = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+    let arrow = gtk4::Label::new(Some(if group.collapsed { "▸" } else { "▾" }));
+    let title = gtk4::Label::new(Some(&group.name));
+    title.set_xalign(0.0);
+    title.set_hexpand(true);
+    title.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    let count = gtk4::Label::new(Some(&member_count.to_string()));
+    count.add_css_class("dim-label");
+    content.append(&arrow);
+    if let Some(color) = &group.color {
+        let swatch = gtk4::DrawingArea::new();
+        swatch.set_size_request(8, 8);
+        swatch.add_css_class("group-color-swatch");
+        let provider = gtk4::CssProvider::new();
+        provider.load_from_data(&format!(
+            ".group-color-swatch {{ background-color: {color}; border-radius: 50%; }}"
+        ));
+        swatch
+            .style_context()
+            .add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        content.append(&swatch);
+    }
+    content.append(&title);
+    let unread = gtk4::Label::new(Some(&unread_count.to_string()));
+    unread.add_css_class("group-unread");
+    unread.set_visible(unread_count > 0);
+    content.append(&unread);
+    content.append(&count);
+    button.set_child(Some(&content));
+    row.set_child(Some(&button));
+    let group_id = group.id;
+    button.connect_clicked({
+        let state = Rc::downgrade(state);
+        move |_| {
+            let Some(state) = state.upgrade() else {
+                return;
+            };
+            let collapsed = {
+                let state = state.borrow();
+                state
+                    .workspace_groups
+                    .iter()
+                    .find(|group| group.id == group_id)
+                    .map(|group| !group.collapsed)
+            };
+            if let Some(collapsed) = collapsed {
+                let _ = state.borrow_mut().update_workspace_group(
+                    group_id,
+                    None,
+                    None,
+                    Some(collapsed),
+                    None,
+                );
+                rebuild_grouped_sidebar(&state);
+            }
+        }
+    });
+    row
+}
+
+/// Refresh group unread badges after pane attention changes without rebuilding workspace rows.
+pub fn update_group_attention(state: &crate::app_state::AppState) {
+    let mut child = state.sidebar_list.first_child();
+    while let Some(widget) = child {
+        child = widget.next_sibling();
+        let Ok(row) = widget.downcast::<gtk4::ListBoxRow>() else {
+            continue;
+        };
+        let Some(id) = row
+            .widget_name()
+            .strip_prefix("workspace-group-")
+            .and_then(|value| uuid::Uuid::parse_str(value).ok())
+        else {
+            continue;
+        };
+        let unread_count = state
+            .workspaces
+            .iter()
+            .filter(|workspace| workspace.group_id == Some(id) && workspace.has_attention)
+            .count();
+        let content = row
+            .child()
+            .and_downcast::<gtk4::Button>()
+            .and_then(|button| button.child())
+            .and_downcast::<gtk4::Box>();
+        let Some(content) = content else {
+            continue;
+        };
+        let mut item = content.first_child();
+        while let Some(widget) = item {
+            item = widget.next_sibling();
+            if widget.has_css_class("group-unread") {
+                if let Ok(label) = widget.downcast::<gtk4::Label>() {
+                    label.set_text(&unread_count.to_string());
+                    label.set_visible(unread_count > 0);
+                }
+                break;
+            }
+        }
+    }
+}
+
+/// Rebuild sidebar presentation from stable model identity, including persistent group headers.
+pub fn rebuild_grouped_sidebar(state: &crate::app_state::AppStateRef) {
+    let (list, app, groups, active_id) = {
+        let state = state.borrow();
+        (
+            state.sidebar_list.clone(),
+            state.gtk_app.clone(),
+            state.workspace_groups.clone(),
+            state.active_workspace().map(|workspace| workspace.id),
+        )
+    };
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+
+    for group in &groups {
+        let (member_ids, unread) = {
+            let state = state.borrow();
+            let members: Vec<_> = state
+                .workspaces
+                .iter()
+                .filter(|workspace| workspace.group_id == Some(group.id))
+                .map(|workspace| workspace.id)
+                .collect();
+            let unread = state
+                .workspaces
+                .iter()
+                .filter(|workspace| workspace.group_id == Some(group.id) && workspace.has_attention)
+                .count();
+            (members, unread)
+        };
+        list.append(&group_header_row(group, member_ids.len(), unread, state));
+        for id in member_ids {
+            let row = {
+                let state = state.borrow();
+                state
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == id)
+                    .map(|workspace| state.build_sidebar_row(workspace))
+            };
+            if let Some(row) = row {
+                row.set_visible(!group.collapsed);
+                list.append(&row);
+                wire_row_close_button(&row, state.clone(), &app);
+                attach_sidebar_context_menu(&row, state.clone());
+            }
+        }
+    }
+    let ungrouped: Vec<_> = state
+        .borrow()
+        .workspaces
+        .iter()
+        .filter(|workspace| workspace.group_id.is_none())
+        .map(|workspace| workspace.id)
+        .collect();
+    for id in ungrouped {
+        let row = {
+            let state = state.borrow();
+            state
+                .workspaces
+                .iter()
+                .find(|workspace| workspace.id == id)
+                .map(|workspace| state.build_sidebar_row(workspace))
+        };
+        if let Some(row) = row {
+            list.append(&row);
+            wire_row_close_button(&row, state.clone(), &app);
+            attach_sidebar_context_menu(&row, state.clone());
+        }
+    }
+    if let Some(active_id) = active_id {
+        let row = row_for_workspace(&list, active_id);
+        if let Some(row) = &row {
+            row.add_css_class("active-workspace");
+            if let Some(label) = row
+                .child()
+                .and_then(|child| child.first_child())
+                .and_then(|child| child.first_child())
+                .and_downcast::<gtk4::Label>()
+            {
+                label.add_css_class("active-workspace-label");
+            }
+        }
+        list.select_row(row.as_ref());
+    }
+}
+
 /// Build the sidebar widget: outer Box(V) > [ScrolledWindow(ListBox), Button(+)].
 /// Returns (sidebar_box, scrolled_window, list_box).
 ///
@@ -286,8 +490,12 @@ pub fn attach_sidebar_context_menu(
                 let Some(index) = workspace_index_for_row(&state.borrow(), &row) else {
                     return;
                 };
-                if let Some(to) = index.checked_add_signed(offset) {
-                    state.borrow_mut().reorder_workspace(index, to);
+                let to = state.borrow().adjacent_workspace_in_group(index, offset);
+                if let Some(to) = to {
+                    let changed = { state.borrow_mut().reorder_workspace(index, to) };
+                    if changed {
+                        rebuild_grouped_sidebar(&state);
+                    }
                 }
             }
         });
@@ -327,6 +535,95 @@ pub fn attach_sidebar_context_menu(
         group.add_action(&action);
     }
     menu_model.append_submenu(Some("Background Color"), &colors);
+    let groups_menu = gtk4::gio::Menu::new();
+    groups_menu.append(
+        Some("New Group from Workspace"),
+        Some("workspace.group-new"),
+    );
+    groups_menu.append(Some("Ungrouped"), Some("workspace.group-none"));
+    let available_groups: Vec<_> = state
+        .borrow()
+        .workspace_groups
+        .iter()
+        .map(|group| (group.id, group.name.clone()))
+        .collect();
+    for (position, (group_id, name)) in available_groups.into_iter().enumerate() {
+        let action_name = format!("group-{position}");
+        groups_menu.append(Some(&name), Some(&format!("workspace.{action_name}")));
+        let action = gtk4::gio::SimpleAction::new(&action_name, None);
+        action.connect_activate({
+            let state = Rc::downgrade(&state);
+            let row = row.downgrade();
+            move |_, _| {
+                let (Some(state), Some(row)) = (state.upgrade(), row.upgrade()) else {
+                    return;
+                };
+                let workspace_id = {
+                    let state = state.borrow();
+                    workspace_index_for_row(&state, &row)
+                        .and_then(|index| state.workspaces.get(index))
+                        .map(|workspace| workspace.uuid)
+                };
+                if let Some(workspace_id) = workspace_id {
+                    let _ = state
+                        .borrow_mut()
+                        .assign_workspace_group(Some(group_id), &[workspace_id]);
+                    rebuild_grouped_sidebar(&state);
+                }
+            }
+        });
+        group.add_action(&action);
+    }
+    let ungroup = gtk4::gio::SimpleAction::new("group-none", None);
+    ungroup.connect_activate({
+        let state = Rc::downgrade(&state);
+        let row = row.downgrade();
+        move |_, _| {
+            let (Some(state), Some(row)) = (state.upgrade(), row.upgrade()) else {
+                return;
+            };
+            let workspace_id = {
+                let state = state.borrow();
+                workspace_index_for_row(&state, &row)
+                    .and_then(|index| state.workspaces.get(index))
+                    .map(|workspace| workspace.uuid)
+            };
+            if let Some(workspace_id) = workspace_id {
+                let _ = state
+                    .borrow_mut()
+                    .assign_workspace_group(None, &[workspace_id]);
+                rebuild_grouped_sidebar(&state);
+            }
+        }
+    });
+    group.add_action(&ungroup);
+    let create_group = gtk4::gio::SimpleAction::new("group-new", None);
+    create_group.connect_activate({
+        let state = Rc::downgrade(&state);
+        let row = row.downgrade();
+        move |_, _| {
+            let (Some(state), Some(row)) = (state.upgrade(), row.upgrade()) else {
+                return;
+            };
+            let workspace = {
+                let state = state.borrow();
+                workspace_index_for_row(&state, &row)
+                    .and_then(|index| state.workspaces.get(index))
+                    .map(|workspace| (workspace.uuid, workspace.name.clone()))
+            };
+            if let Some((workspace_id, name)) = workspace {
+                let group_id = { state.borrow_mut().create_workspace_group(name, None) };
+                if let Ok(group_id) = group_id {
+                    let _ = state
+                        .borrow_mut()
+                        .assign_workspace_group(Some(group_id), &[workspace_id]);
+                    rebuild_grouped_sidebar(&state);
+                }
+            }
+        }
+    });
+    group.add_action(&create_group);
+    menu_model.append_submenu(Some("Workspace Group"), &groups_menu);
     row.insert_action_group("workspace", Some(&group));
     let popover = gtk4::PopoverMenu::from_model(Some(&menu_model));
     popover.set_parent(row);
@@ -485,7 +782,14 @@ fn wire_workspace_drag(row: &gtk4::ListBoxRow, state: Rc<RefCell<crate::app_stat
             let Some(to) = workspace_index_for_row(&s, &row) else {
                 return false;
             };
-            s.reorder_workspace(from, to)
+            let target_group = s.workspaces[to].group_id;
+            s.workspaces[from].group_id = target_group;
+            let changed = s.reorder_workspace(from, to);
+            drop(s);
+            if changed {
+                rebuild_grouped_sidebar(&state);
+            }
+            changed
         }
     });
     row.add_controller(target);

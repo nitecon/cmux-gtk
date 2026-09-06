@@ -16,6 +16,9 @@ _cmux() {
             ",$1")
                 cmd="cmux"
                 ;;
+            cmux,assign-workspace-group)
+                cmd="cmux__assign__workspace__group"
+                ;;
             cmux,browser)
                 cmd="cmux__browser"
                 ;;
@@ -40,11 +43,17 @@ _cmux() {
             cmux,close-workspace)
                 cmd="cmux__close__workspace"
                 ;;
+            cmux,create-workspace-group)
+                cmd="cmux__create__workspace__group"
+                ;;
             cmux,current-window)
                 cmd="cmux__current__window"
                 ;;
             cmux,current-workspace)
                 cmd="cmux__current__workspace"
+                ;;
+            cmux,delete-workspace-group)
+                cmd="cmux__delete__workspace__group"
                 ;;
             cmux,diagnostics)
                 cmd="cmux__diagnostics"
@@ -93,6 +102,9 @@ _cmux() {
                 ;;
             cmux,list-windows)
                 cmd="cmux__list__windows"
+                ;;
+            cmux,list-workspace-groups)
+                cmd="cmux__list__workspace__groups"
                 ;;
             cmux,list-workspaces)
                 cmd="cmux__list__workspaces"
@@ -177,6 +189,9 @@ _cmux() {
                 ;;
             cmux,update)
                 cmd="cmux__update"
+                ;;
+            cmux,update-workspace-group)
+                cmd="cmux__update__workspace__group"
                 ;;
             cmux__browser,back)
                 cmd="cmux__browser__back"
@@ -328,6 +343,9 @@ _cmux() {
             cmux__browser__help,wait)
                 cmd="cmux__browser__help__wait"
                 ;;
+            cmux__help,assign-workspace-group)
+                cmd="cmux__help__assign__workspace__group"
+                ;;
             cmux__help,browser)
                 cmd="cmux__help__browser"
                 ;;
@@ -352,11 +370,17 @@ _cmux() {
             cmux__help,close-workspace)
                 cmd="cmux__help__close__workspace"
                 ;;
+            cmux__help,create-workspace-group)
+                cmd="cmux__help__create__workspace__group"
+                ;;
             cmux__help,current-window)
                 cmd="cmux__help__current__window"
                 ;;
             cmux__help,current-workspace)
                 cmd="cmux__help__current__workspace"
+                ;;
+            cmux__help,delete-workspace-group)
+                cmd="cmux__help__delete__workspace__group"
                 ;;
             cmux__help,diagnostics)
                 cmd="cmux__help__diagnostics"
@@ -405,6 +429,9 @@ _cmux() {
                 ;;
             cmux__help,list-windows)
                 cmd="cmux__help__list__windows"
+                ;;
+            cmux__help,list-workspace-groups)
+                cmd="cmux__help__list__workspace__groups"
                 ;;
             cmux__help,list-workspaces)
                 cmd="cmux__help__list__workspaces"
@@ -489,6 +516,9 @@ _cmux() {
                 ;;
             cmux__help,update)
                 cmd="cmux__help__update"
+                ;;
+            cmux__help,update-workspace-group)
+                cmd="cmux__help__update__workspace__group"
                 ;;
             cmux__help__browser,back)
                 cmd="cmux__help__browser__back"
@@ -764,12 +794,42 @@ _cmux() {
 
     case "${cmd}" in
         cmux)
-            opts="-v -h -V --socket --json --no-json --verbose --color --help --version project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-surfaces split focus-surface close-surface send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="-v -h -V --socket --json --no-json --verbose --color --help --version project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__assign__workspace__group)
+            opts="-v -h --group --workspaces --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --group)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --workspaces)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --socket)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -1905,6 +1965,28 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__create__workspace__group)
+            opts="-v -h --color --socket --json --no-json --verbose --help <NAME>"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__current__window)
             opts="-v -h --socket --json --no-json --verbose --color --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -1929,6 +2011,28 @@ _cmux() {
             ;;
         cmux__current__workspace)
             opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__delete__workspace__group)
+            opts="-v -h --socket --json --no-json --verbose --color --help <ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2042,8 +2146,22 @@ _cmux() {
             return 0
             ;;
         cmux__help)
-            opts="project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-surfaces split focus-surface close-surface send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__assign__workspace__group)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -2503,6 +2621,20 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__help__create__workspace__group)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__help__current__window)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
@@ -2518,6 +2650,20 @@ _cmux() {
             return 0
             ;;
         cmux__help__current__workspace)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__delete__workspace__group)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -2826,6 +2972,20 @@ _cmux() {
             return 0
             ;;
         cmux__help__list__windows)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__list__workspace__groups)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -3358,6 +3518,20 @@ _cmux() {
             return 0
             ;;
         cmux__help__update)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__update__workspace__group)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -3928,6 +4102,28 @@ _cmux() {
             return 0
             ;;
         cmux__list__windows)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__list__workspace__groups)
             opts="-v -h --socket --json --no-json --verbose --color --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -5233,6 +5429,40 @@ _cmux() {
                     return 0
                     ;;
                 --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__update__workspace__group)
+            opts="-v -h --name --color --clear-color --collapsed --position --socket --json --no-json --verbose --help <ID>"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --name)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --collapsed)
+                    COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --position)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

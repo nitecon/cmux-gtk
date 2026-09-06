@@ -419,7 +419,7 @@ The multi-restart fixture now checks explicit environment retention through an u
 
 ### Shared project and session layout depth
 
-Project validation and session restoration share a bounded 16-level Linux cap. The inspected upstream source has no explicit layout-depth limit. Actions runs34062084578 and34063064981 showed that trees configured with non-shrinking nested GtkPaned children could open the socket while leaving the GTK main thread unable to answer readiness within ten seconds at17 and16 nested splits. The working diagnosis is recursive minimum-width negotiation, so live and restored dividers now permit constrained descendants below their natural size. Startup coverage exercises the accepted boundary with16 nested splits and17 retained panes/surfaces; runtime proof for the divider correction is pending. Full project layout application is covered below.
+Project validation and session restoration share a bounded eight-level Linux cap. The inspected upstream source has no explicit layout-depth limit. Actions runs34062084578,34063064981 and34063972634 proved that16 nested GtkPaned splits and17 live terminal surfaces can open the socket yet leave the GTK main thread unable to answer readiness within ten seconds; allowing constrained descendants below natural size did not resolve it. Linux therefore rejects deeper trees before constructing GTK widgets and falls back to a single terminal during session restore. Startup coverage exercises the accepted boundary with eight nested splits and nine retained panes/surfaces; runtime proof is pending. Full project layout application is covered below.
 
 ### Custom project workspace layouts
 
@@ -446,3 +446,7 @@ Inline and named workspace actions now create configured workspaces with reviewe
 Default-layout setup now delivers once as first-terminal input after native initialization, consumes pending text and excludes it from future tabs/session restore. Inline/named fixtures require setup output using configured env. Runtime pending for setup.
 
 Actions run34061210213 succeeded at11ed9692, verifying project command/terminal/workspace/browser builtin paths at that revision and isolated remote-browser routing/reconnect/overload. Downloaded benchmark artifact reports passed remote-browser workload and zero local-decoy requests. Later changes are not covered by this green result.
+
+### Persistent workspace groups
+
+Workspace groups now have stable UUIDs, bounded names, optional validated colors, collapse state and ordered session persistence. Workspace membership is stored by group UUID and is independent of GTK row position. Group headers display member and aggregate unread counts; collapse hides member rows while keeping their terminal trees live. Header clicks toggle collapse, and each workspace context menu can create a group from that workspace, assign it to an existing group or make it ungrouped. CLI/socket operations list, create, update, assign and delete groups without focus changes; assignment validates every UUID before mutation and deletion retains members as ungrouped workspaces. Group mutation diagnostics contain only operation, IDs and counts. Native Actions coverage exercises atomic validation and graceful restart persistence; runtime verification is pending.

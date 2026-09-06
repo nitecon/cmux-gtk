@@ -53,6 +53,12 @@ content:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.
         - workspace.reorder RPC uses the same operation and snapshots the new ordering. Ctrl+Shift+Page Up/Down move the selected workspace without wrapping; configurable shortcuts move_workspace_up and move_workspace_down use the same operation. Actions batch-order coverage sends actual keyboard events and checks boundary, focus and restart behavior.
         - Background colors are validated RGB hex values. Default removes the override. Serialize color with the workspace.
+    - name: Persistent workspace groups
+      steps:
+        - Group records have stable UUIDs, bounded names, optional validated RGB colors, ordered session persistence and a saved collapse state. Workspaces retain optional group UUID membership independently of visual row position.
+        - The sidebar rebuilds group headers from model identity, shows member and unread counts, hides collapsed members and keeps workspace callbacks keyed by stable IDs. Clicking a header toggles collapse; a workspace context submenu creates, assigns or removes membership.
+        - CLI and RPC expose list, create, update, assign and delete. Assignment validates the complete 1..4096 UUID input before mutation. Deleting a group retains its workspaces as ungrouped. workspace.group.change records operation, stable IDs and counts without names or user content.
+        - tests/test_workspace_groups.py checks membership, atomic rejection, collapse and graceful-restart persistence in GitHub Actions. Runtime evidence is pending.
   endpoints:
     - method: session.spawn
       transport: SSH stdio daemon RPC
@@ -65,8 +71,11 @@ content:
       description: Close and reap the PTY or proxy connection belonging to stream_id.
   schemas:
     workspace_session:
-      fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, color, active_pane_uuid, layout]
+      fields: [uuid, name, working_directory, startup_script, remote_target, remote_directory, color, group_id, active_pane_uuid, layout]
       compatibility: New optional fields default to null when reading older session files. Session ordering is array ordering.
+    workspace_group:
+      fields: [id, name, color, collapsed]
+      compatibility: SessionData.workspace_groups defaults to an empty array for older sessions; invalid restored names are dropped and invalid colors are cleared.
   safety:
     - Unsettled remote setup requests retire the connection on timeout, cancellation, dropped replies or malformed identity/status, preventing continued use with unknown remote side effects. Missing usable spawn stream IDs also retire it. Correlated ok=false replies remain ordinary failures; cleanup is initiated rather than a guarantee of remote rollback.
     - GTK-to-SSH admission uses 64 slots of at most 16 KiB raw input each, reserving all callback chunks before encoding. Stream IDs are capped at 256 bytes. Queue overflow, oversize or closure retires that connection and reports possible unsent input; no input is replayed after reconnect. Close/resize commands share the FIFO. Clear old stream targets before publishing the replacement sender.

@@ -15,6 +15,8 @@ pub struct WorkspaceSession {
     #[serde(default)]
     pub color: Option<String>,
     #[serde(default)]
+    pub group_id: Option<uuid::Uuid>,
+    #[serde(default)]
     pub startup_script: Option<PathBuf>,
     #[serde(default)]
     pub remote_target: Option<String>,
@@ -47,6 +49,8 @@ pub struct SessionData {
     /// Index of the active workspace in the workspaces array.
     pub active_index: usize,
     pub workspaces: Vec<WorkspaceSession>,
+    #[serde(default)]
+    pub workspace_groups: Vec<crate::workspace_group::WorkspaceGroup>,
     #[serde(default)]
     pub resume_policy: crate::resume_policy::ResumePolicy,
     #[serde(default)]
@@ -495,6 +499,7 @@ mod tests {
             version: 1,
             resume_policy: Default::default(),
             inbox: Default::default(),
+            workspace_groups: Vec::new(),
             active_index: 0,
             workspaces: vec![WorkspaceSession {
                 launch_environment: std::collections::BTreeMap::new(),
@@ -502,6 +507,7 @@ mod tests {
                 uuid: "test-uuid-1".to_string(),
                 name: name.to_string(),
                 color: None,
+                group_id: None,
                 startup_script: None,
                 remote_target: None,
                 remote_directory: None,

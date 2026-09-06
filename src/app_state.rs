@@ -13,6 +13,8 @@ pub struct AppState {
     pub gtk_app: gtk4::Application,
     /// All open workspaces. Never empty after initialization — create_workspace is called in new().
     pub workspaces: Vec<Workspace>,
+    /// Ordered persistent workspace groups rendered independently of model indices.
+    pub workspace_groups: Vec<crate::workspace_group::WorkspaceGroup>,
     /// Index into workspaces of the currently visible workspace.
     pub active_index: usize,
     /// GtkStack holding one page per workspace (the workspace's root GTK widget).
@@ -87,6 +89,7 @@ impl AppState {
     ) -> AppStateRef {
         let state = AppState {
             workspaces: Vec::new(),
+            workspace_groups: Vec::new(),
             split_engines: Vec::new(),
             active_index: 0,
             stack,
@@ -307,6 +310,11 @@ impl AppState {
             .color
             .clone()
             .filter(|c| crate::workspace::valid_workspace_color(c));
+        workspace.group_id = ws.group_id.filter(|group_id| {
+            self.workspace_groups
+                .iter()
+                .any(|group| group.id == *group_id)
+        });
         workspace.startup_script = ws.startup_script.clone();
         workspace.remote_directory = ws.remote_directory.clone();
         workspace.working_directory = ws.working_directory.clone();
@@ -388,7 +396,7 @@ impl AppState {
 
     /// Build an unattached GTK sidebar row with workspace identity, styling and controls.
     /// Local, remote and restored workspaces share this construction path.
-    fn build_sidebar_row(&self, workspace: &Workspace) -> gtk4::ListBoxRow {
+    pub(crate) fn build_sidebar_row(&self, workspace: &Workspace) -> gtk4::ListBoxRow {
         let row = gtk4::ListBoxRow::new();
         row.set_child(Some(&crate::sidebar::workspace_row_content(workspace)));
         crate::sidebar::style_workspace_row(&row, workspace);
@@ -581,6 +589,21 @@ impl AppState {
         changed
     }
 
+    /// Find the previous or next model index within the workspace's visible group scope.
+    pub fn adjacent_workspace_in_group(&self, index: usize, offset: isize) -> Option<usize> {
+        let group_id = self.workspaces.get(index)?.group_id;
+        let peers: Vec<_> = self
+            .workspaces
+            .iter()
+            .enumerate()
+            .filter(|(_, workspace)| workspace.group_id == group_id)
+            .map(|(index, _)| index)
+            .collect();
+        let peer = peers.iter().position(|candidate| *candidate == index)?;
+        peer.checked_add_signed(offset)
+            .and_then(|destination| peers.get(destination).copied())
+    }
+
     /// Move the workspace, engine and existing GTK row together without publishing an intermediate snapshot.
     fn move_workspace_row(&mut self, from: usize, to: usize) -> bool {
         if from >= self.workspaces.len() || to >= self.workspaces.len() || from == to {
@@ -592,17 +615,21 @@ impl AppState {
         self.workspaces.insert(to, workspace);
         let engine = self.split_engines.remove(from);
         self.split_engines.insert(to, engine);
-        if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, moved_id) {
-            self.sidebar_list.remove(&row);
-            self.sidebar_list.insert(&row, to as i32);
+        if self.workspace_groups.is_empty() {
+            if let Some(row) = crate::sidebar::row_for_workspace(&self.sidebar_list, moved_id) {
+                self.sidebar_list.remove(&row);
+                self.sidebar_list.insert(&row, to as i32);
+            }
         }
         self.active_index = self
             .workspaces
             .iter()
             .position(|w| w.id == active_id)
             .unwrap();
-        let active_row = crate::sidebar::row_for_workspace(&self.sidebar_list, active_id);
-        self.sidebar_list.select_row(active_row.as_ref());
+        if self.workspace_groups.is_empty() {
+            let active_row = crate::sidebar::row_for_workspace(&self.sidebar_list, active_id);
+            self.sidebar_list.select_row(active_row.as_ref());
+        }
         true
     }
 
@@ -685,6 +712,140 @@ impl AppState {
             }
             self.trigger_session_save();
         }
+    }
+
+    /// Create an ordered workspace group with bounded, CSS-safe presentation data.
+    pub fn create_workspace_group(
+        &mut self,
+        name: String,
+        color: Option<String>,
+    ) -> Result<uuid::Uuid, &'static str> {
+        if self.workspace_groups.len() >= crate::workspace_group::MAX_GROUPS {
+            return Err("workspace group capacity reached");
+        }
+        let group = crate::workspace_group::WorkspaceGroup::new(name, color)?;
+        let id = group.id;
+        self.workspace_groups.push(group);
+        self.trigger_session_save();
+        crate::diagnostics::record(
+            "workspace.group.change",
+            serde_json::json!({"operation":"create","group_id":id,"outcome":"success"}),
+        );
+        Ok(id)
+    }
+
+    /// Update supplied group fields; omitted values retain their current state.
+    pub fn update_workspace_group(
+        &mut self,
+        id: uuid::Uuid,
+        name: Option<String>,
+        color: Option<Option<String>>,
+        collapsed: Option<bool>,
+        position: Option<usize>,
+    ) -> Result<(), &'static str> {
+        if let Some(name) = name.as_deref() {
+            crate::workspace_group::validate_name(name)?;
+        }
+        if let Some(color) = color.as_ref() {
+            crate::workspace_group::validate_color(color.as_deref())?;
+        }
+        let Some(index) = self
+            .workspace_groups
+            .iter()
+            .position(|group| group.id == id)
+        else {
+            return Err("workspace group not found");
+        };
+        {
+            let group = &mut self.workspace_groups[index];
+            if let Some(name) = name {
+                group.name = name;
+            }
+            if let Some(color) = color {
+                group.color = color;
+            }
+            if let Some(collapsed) = collapsed {
+                group.collapsed = collapsed;
+            }
+        }
+        if let Some(position) = position {
+            let destination = position.min(self.workspace_groups.len().saturating_sub(1));
+            if destination != index {
+                let group = self.workspace_groups.remove(index);
+                self.workspace_groups.insert(destination, group);
+            }
+        }
+        self.trigger_session_save();
+        crate::diagnostics::record(
+            "workspace.group.change",
+            serde_json::json!({"operation":"update","group_id":id,"outcome":"success"}),
+        );
+        Ok(())
+    }
+
+    /// Assign an explicit bounded set of workspaces atomically, or remove their membership.
+    pub fn assign_workspace_group(
+        &mut self,
+        group_id: Option<uuid::Uuid>,
+        workspace_ids: &[uuid::Uuid],
+    ) -> Result<usize, &'static str> {
+        if workspace_ids.is_empty() || workspace_ids.len() > 4096 {
+            return Err("workspace_ids must contain 1..4096 UUIDs");
+        }
+        if group_id.is_some_and(|id| !self.workspace_groups.iter().any(|group| group.id == id)) {
+            return Err("workspace group not found");
+        }
+        if workspace_ids.iter().any(|id| {
+            !self
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.uuid == *id)
+        }) {
+            return Err("workspace not found");
+        }
+        let requested: std::collections::HashSet<_> = workspace_ids.iter().copied().collect();
+        let mut changed = 0;
+        for workspace in &mut self.workspaces {
+            if requested.contains(&workspace.uuid) && workspace.group_id != group_id {
+                workspace.group_id = group_id;
+                changed += 1;
+            }
+        }
+        if changed > 0 {
+            self.trigger_session_save();
+        }
+        crate::diagnostics::record(
+            "workspace.group.change",
+            serde_json::json!({"operation":"assign","group_id":group_id,
+                "workspace_count":workspace_ids.len(),"changed":changed,"outcome":"success"}),
+        );
+        Ok(changed)
+    }
+
+    /// Delete a group while retaining its workspaces and their stable identities.
+    pub fn delete_workspace_group(&mut self, id: uuid::Uuid) -> Result<usize, &'static str> {
+        let Some(index) = self
+            .workspace_groups
+            .iter()
+            .position(|group| group.id == id)
+        else {
+            return Err("workspace group not found");
+        };
+        self.workspace_groups.remove(index);
+        let mut changed = 0;
+        for workspace in &mut self.workspaces {
+            if workspace.group_id == Some(id) {
+                workspace.group_id = None;
+                changed += 1;
+            }
+        }
+        self.trigger_session_save();
+        crate::diagnostics::record(
+            "workspace.group.change",
+            serde_json::json!({"operation":"delete","group_id":id,"workspace_count":changed,
+                "outcome":"success"}),
+        );
+        Ok(changed)
     }
 
     /// Switch to next workspace (wrap-around). Per D-10: Ctrl+].
@@ -822,6 +983,7 @@ impl AppState {
                 }
             }
         }
+        crate::sidebar::update_group_attention(self);
     }
 
     /// Remove the manager and cancel its local work now; close its daemon on Tokio without GTK I/O.
@@ -935,6 +1097,7 @@ impl AppState {
                 active_index: self.active_index,
                 resume_policy: self.resume_policy.clone(),
                 inbox: self.inbox.clone(),
+                workspace_groups: self.workspace_groups.clone(),
                 workspaces: self
                     .workspaces
                     .iter()
@@ -970,6 +1133,7 @@ impl AppState {
                             uuid: ws.uuid.to_string(),
                             name: ws.name.clone(),
                             color: ws.color.clone(),
+                            group_id: ws.group_id,
                             startup_script: ws.startup_script.clone(),
                             remote_target: ws.remote_target.clone(),
                             remote_directory: ws.remote_directory.clone(),
@@ -987,6 +1151,7 @@ impl AppState {
                 serde_json::json!({
                     "outcome": if published { "published" } else { "worker_closed" },
                     "workspaces": self.workspaces.len(),
+                    "workspace_groups": self.workspace_groups.len(),
                     "construction_us": construction_us,
                     "duration_us": started.elapsed().as_micros() as u64,
                 }),

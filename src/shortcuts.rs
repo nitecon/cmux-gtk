@@ -55,14 +55,47 @@ pub fn install_shortcuts(
                 Some(
                     action @ (ShortcutAction::MoveWorkspaceUp | ShortcutAction::MoveWorkspaceDown),
                 ) => {
-                    let mut state = state.borrow_mut();
-                    let from = state.active_index;
-                    let to = if action == ShortcutAction::MoveWorkspaceUp {
-                        from.saturating_sub(1)
-                    } else {
-                        from.saturating_add(1)
+                    let (from, to) = {
+                        let state = state.borrow();
+                        let from = state.active_index;
+                        let offset = if action == ShortcutAction::MoveWorkspaceUp {
+                            -1
+                        } else {
+                            1
+                        };
+                        (from, state.adjacent_workspace_in_group(from, offset))
                     };
-                    state.reorder_workspace(from, to);
+                    let changed =
+                        to.is_some_and(|to| state.borrow_mut().reorder_workspace(from, to));
+                    if changed {
+                        crate::sidebar::rebuild_grouped_sidebar(&state);
+                    }
+                    gtk4::glib::Propagation::Stop
+                }
+                Some(ShortcutAction::ToggleWorkspaceGroup) => {
+                    let group = {
+                        let state = state.borrow();
+                        state
+                            .active_workspace()
+                            .and_then(|workspace| workspace.group_id)
+                            .and_then(|id| {
+                                state
+                                    .workspace_groups
+                                    .iter()
+                                    .find(|group| group.id == id)
+                                    .map(|group| (id, !group.collapsed))
+                            })
+                    };
+                    if let Some((id, collapsed)) = group {
+                        let _ = state.borrow_mut().update_workspace_group(
+                            id,
+                            None,
+                            None,
+                            Some(collapsed),
+                            None,
+                        );
+                        crate::sidebar::rebuild_grouped_sidebar(&state);
+                    }
                     gtk4::glib::Propagation::Stop
                 }
                 Some(ShortcutAction::RenameWorkspace) => {

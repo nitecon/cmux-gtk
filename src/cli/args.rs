@@ -143,6 +143,37 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// List persistent workspace groups and their members
+    ListWorkspaceGroups,
+    /// Create an empty persistent workspace group
+    CreateWorkspaceGroup {
+        name: String,
+        #[arg(long)]
+        color: Option<String>,
+    },
+    /// Update a workspace group's presentation or collapse state
+    UpdateWorkspaceGroup {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long, conflicts_with = "clear_color")]
+        color: Option<String>,
+        #[arg(long)]
+        clear_color: bool,
+        #[arg(long)]
+        collapsed: Option<bool>,
+        #[arg(long)]
+        position: Option<usize>,
+    },
+    /// Assign workspaces to a group; omit --group to make them ungrouped
+    AssignWorkspaceGroup {
+        #[arg(long)]
+        group: Option<String>,
+        #[arg(long, value_delimiter = ',', required = true)]
+        workspaces: Vec<String>,
+    },
+    /// Delete a group while retaining its workspaces
+    DeleteWorkspaceGroup { id: String },
     /// List all surfaces
     ListSurfaces,
     /// Split a surface

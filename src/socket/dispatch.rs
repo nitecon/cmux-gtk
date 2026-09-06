@@ -347,6 +347,127 @@ async fn dispatch_request(
                 resp_tx,
             }
         }
+        "workspace.group.list" => commands::SocketCommand::WorkspaceGroupList {
+            req_id: req_id.clone(),
+            resp_tx,
+        },
+        "workspace.group.create" => commands::SocketCommand::WorkspaceGroupCreate {
+            req_id: req_id.clone(),
+            name: params
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or("")
+                .to_string(),
+            color: match params.get("color") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(serde_json::Value::String(value)) => Some(value.clone()),
+                _ => return err(req_id, "invalid_params", "color must be a string or null"),
+            },
+            resp_tx,
+        },
+        "workspace.group.update" => {
+            let Some(id) = params
+                .get("id")
+                .and_then(|value| value.as_str())
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            else {
+                return err(req_id, "invalid_params", "invalid group UUID");
+            };
+            let name = match params.get("name") {
+                None => None,
+                Some(serde_json::Value::String(value)) => Some(value.clone()),
+                _ => return err(req_id, "invalid_params", "name must be a string"),
+            };
+            let color = match params.get("color") {
+                None => None,
+                Some(serde_json::Value::Null) => Some(None),
+                Some(serde_json::Value::String(value)) => Some(Some(value.clone())),
+                _ => return err(req_id, "invalid_params", "color must be a string or null"),
+            };
+            let collapsed = match params.get("collapsed") {
+                None => None,
+                Some(value) => match value.as_bool() {
+                    Some(value) => Some(value),
+                    None => return err(req_id, "invalid_params", "collapsed must be boolean"),
+                },
+            };
+            let position = match params.get("position") {
+                None => None,
+                Some(value) => match value.as_u64().and_then(|value| usize::try_from(value).ok()) {
+                    Some(value) => Some(value),
+                    None => {
+                        return err(
+                            req_id,
+                            "invalid_params",
+                            "position must be a nonnegative integer",
+                        )
+                    }
+                },
+            };
+            commands::SocketCommand::WorkspaceGroupUpdate {
+                req_id: req_id.clone(),
+                id,
+                name,
+                color,
+                collapsed,
+                position,
+                resp_tx,
+            }
+        }
+        "workspace.group.assign" => {
+            let id = match params.get("id") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(value) => match value
+                    .as_str()
+                    .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                {
+                    Some(id) => Some(id),
+                    None => return err(req_id, "invalid_params", "invalid group UUID"),
+                },
+            };
+            let Some(values) = params
+                .get("workspace_ids")
+                .and_then(|value| value.as_array())
+                .filter(|values| !values.is_empty() && values.len() <= 4096)
+            else {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "workspace_ids must contain 1..4096 UUIDs",
+                );
+            };
+            let Some(workspaces) = values
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return err(req_id, "invalid_params", "invalid workspace UUID");
+            };
+            commands::SocketCommand::WorkspaceGroupAssign {
+                req_id: req_id.clone(),
+                id,
+                workspaces,
+                resp_tx,
+            }
+        }
+        "workspace.group.delete" => {
+            let Some(id) = params
+                .get("id")
+                .and_then(|value| value.as_str())
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+            else {
+                return err(req_id, "invalid_params", "invalid group UUID");
+            };
+            commands::SocketCommand::WorkspaceGroupDelete {
+                req_id: req_id.clone(),
+                id,
+                resp_tx,
+            }
+        }
 
         "surface.list" => commands::SocketCommand::SurfaceList {
             req_id: req_id.clone(),

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Shared Linux project/restore nesting limit; deeper nested GtkPaned trees block responsiveness.
-pub const MAX_LAYOUT_DEPTH: usize = 16;
+pub const MAX_LAYOUT_DEPTH: usize = 8;
 
 /// Terminal command targets use upstream names and default to a fresh sibling tab.
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]

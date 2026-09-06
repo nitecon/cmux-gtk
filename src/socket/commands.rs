@@ -120,6 +120,36 @@ pub enum SocketCommand {
         dry_run: bool,
         resp_tx: RespTx,
     },
+    WorkspaceGroupList {
+        req_id: Value,
+        resp_tx: RespTx,
+    },
+    WorkspaceGroupCreate {
+        req_id: Value,
+        name: String,
+        color: Option<String>,
+        resp_tx: RespTx,
+    },
+    WorkspaceGroupUpdate {
+        req_id: Value,
+        id: uuid::Uuid,
+        name: Option<String>,
+        color: Option<Option<String>>,
+        collapsed: Option<bool>,
+        position: Option<usize>,
+        resp_tx: RespTx,
+    },
+    WorkspaceGroupAssign {
+        req_id: Value,
+        id: Option<uuid::Uuid>,
+        workspaces: Vec<uuid::Uuid>,
+        resp_tx: RespTx,
+    },
+    WorkspaceGroupDelete {
+        req_id: Value,
+        id: uuid::Uuid,
+        resp_tx: RespTx,
+    },
 
     // -- surface.* (implemented in Plan 04) --
     SurfaceList {

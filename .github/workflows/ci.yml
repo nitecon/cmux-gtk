@@ -204,6 +204,9 @@ jobs:
       - name: Test workspace close selection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_close_workspace_selection.py
 
+      - name: Test persistent workspace groups
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_workspace_groups.py
+
       - name: Test nested terminal routing and cleanup
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_nested_split_routing.py
 

@@ -33,6 +33,7 @@ fn workspace_record(state: &crate::app_state::AppState, index: usize) -> Option<
         }),
         "title": workspace.name,
         "name": workspace.name,
+        "group_id": workspace.group_id,
         "working_directory": workspace.working_directory.as_ref().map(|path| path.to_string_lossy()),
         "selected": index == state.active_index,
         "pane_count": counts.map(|(panes, _)| panes),
@@ -348,6 +349,11 @@ fn handle_socket_command_traced(
                 "workspace.last",
                 "workspace.reorder",
                 "workspace.reorder_many",
+                "workspace.group.list",
+                "workspace.group.create",
+                "workspace.group.update",
+                "workspace.group.assign",
+                "workspace.group.delete",
                 "surface.list",
                 "surface.split",
                 "surface.focus",
@@ -640,6 +646,9 @@ fn handle_socket_command_traced(
             resp_tx,
         } => {
             let result = state.borrow_mut().reorder_workspaces(&order, dry_run);
+            if result.is_ok() && !dry_run {
+                crate::sidebar::rebuild_grouped_sidebar(state);
+            }
             let response = match result {
                 Ok(result) => ok(req_id, result),
                 Err(message) => err(
@@ -668,6 +677,7 @@ fn handle_socket_command_traced(
                     let to = position.min(s.workspaces.len().saturating_sub(1));
                     s.reorder_workspace(from, to);
                     drop(s);
+                    crate::sidebar::rebuild_grouped_sidebar(state);
                     let _ = resp_tx.send(ok(req_id, json!({})));
                 }
                 None => {
@@ -675,6 +685,104 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(err(req_id, "not_found", "workspace not found"));
                 }
             }
+        }
+        SocketCommand::WorkspaceGroupList { req_id, resp_tx } => {
+            let state = state.borrow();
+            let groups: Vec<_> = state
+                .workspace_groups
+                .iter()
+                .map(|group| {
+                    let members: Vec<_> = state
+                        .workspaces
+                        .iter()
+                        .filter(|workspace| workspace.group_id == Some(group.id))
+                        .map(|workspace| workspace.uuid)
+                        .collect();
+                    let unread = state
+                        .workspaces
+                        .iter()
+                        .filter(|workspace| {
+                            workspace.group_id == Some(group.id) && workspace.has_attention
+                        })
+                        .count();
+                    json!({"id":group.id,"name":group.name,"color":group.color,
+                    "collapsed":group.collapsed,"workspace_ids":members,"unread":unread})
+                })
+                .collect();
+            let _ = resp_tx.send(ok(req_id, json!({"groups":groups})));
+        }
+        SocketCommand::WorkspaceGroupCreate {
+            req_id,
+            name,
+            color,
+            resp_tx,
+        } => {
+            let response = match state.borrow_mut().create_workspace_group(name, color) {
+                Ok(id) => ok(req_id, json!({"id":id})),
+                Err(message) => err(req_id, "invalid_params", message),
+            };
+            crate::sidebar::rebuild_grouped_sidebar(state);
+            let _ = resp_tx.send(response);
+        }
+        SocketCommand::WorkspaceGroupUpdate {
+            req_id,
+            id,
+            name,
+            color,
+            collapsed,
+            position,
+            resp_tx,
+        } => {
+            let response = match state
+                .borrow_mut()
+                .update_workspace_group(id, name, color, collapsed, position)
+            {
+                Ok(()) => ok(req_id, json!({"id":id})),
+                Err(message) => err(
+                    req_id,
+                    if message.contains("not found") {
+                        "not_found"
+                    } else {
+                        "invalid_params"
+                    },
+                    message,
+                ),
+            };
+            crate::sidebar::rebuild_grouped_sidebar(state);
+            let _ = resp_tx.send(response);
+        }
+        SocketCommand::WorkspaceGroupAssign {
+            req_id,
+            id,
+            workspaces,
+            resp_tx,
+        } => {
+            let response = match state.borrow_mut().assign_workspace_group(id, &workspaces) {
+                Ok(changed) => ok(req_id, json!({"group_id":id,"changed":changed})),
+                Err(message) => err(
+                    req_id,
+                    if message.contains("not found") {
+                        "not_found"
+                    } else {
+                        "invalid_params"
+                    },
+                    message,
+                ),
+            };
+            crate::sidebar::rebuild_grouped_sidebar(state);
+            let _ = resp_tx.send(response);
+        }
+        SocketCommand::WorkspaceGroupDelete {
+            req_id,
+            id,
+            resp_tx,
+        } => {
+            let response = match state.borrow_mut().delete_workspace_group(id) {
+                Ok(changed) => ok(req_id, json!({"id":id,"ungrouped":changed})),
+                Err(message) => err(req_id, "not_found", message),
+            };
+            crate::sidebar::rebuild_grouped_sidebar(state);
+            let _ = resp_tx.send(response);
         }
 
         // -- window.* --

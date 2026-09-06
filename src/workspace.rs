@@ -95,6 +95,8 @@ pub struct Workspace {
     /// Latest attributed local listeners; None means not yet available or scan failure.
     pub ports: Option<Vec<crate::ports::Port>>,
     pub color: Option<String>,
+    /// Stable optional group membership, independent of sidebar row position.
+    pub group_id: Option<Uuid>,
     pub startup_script: Option<PathBuf>,
     pub remote_directory: Option<String>,
 }
@@ -115,6 +117,7 @@ impl Workspace {
             git: None,
             ports: None,
             color: None,
+            group_id: None,
             startup_script: None,
             remote_directory: None,
             remote_target: None,
