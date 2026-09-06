@@ -242,3 +242,7 @@ The optimized real-browser Actions benchmark now opens a local HTML document thr
 ## Explicit browser workspace routing correction
 
 `browser open --workspace UUID` previously forwarded the local workspace selector to the external service while attaching the GTK pane to the active workspace. The target is now validated and resolved locally before daemon startup, removed from external service parameters, and retained across asynchronous completion. Malformed/nonexistent targets fail without creating a pane; closing a target during startup retains the existing stale-result rejection. Native lifecycle coverage opens into a third background workspace and checks unchanged active terminal identity, plus invalid-target nonmutation. Strict clippy and Python syntax pass locally; runtime pending. This corrects pane placement, not the remaining shared-browser page-state limitation.
+
+## Independent browser ownership audit
+
+The source audit confirms that browser panes still share one manager/page and that mapped-tab selection reopens URLs. Backend IDs in the browser reference map are not reliable GTK surface identities. [Independent browser surface ownership](BrowserSurfaceOwnership.md) records the concrete replacement and its multi-surface DOM/history/preview, cancellation and total-resource verification gates. This is an implementation plan; it does not mark browser parity complete.
