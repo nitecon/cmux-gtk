@@ -23,6 +23,11 @@ pub struct WriteRequest {
 
 /// Manages the mapping between local panes and remote proxy streams.
 pub struct SshBridge {
+    /// Stable workspace proxy endpoint and generation-qualified bounded request admission.
+    pub(super) browser_proxy_listener: Mutex<Option<Arc<tokio::net::TcpListener>>>,
+    pub browser_proxy_port: std::sync::atomic::AtomicU16,
+    pub(super) browser_proxy_requests:
+        Mutex<Option<tokio::sync::mpsc::Sender<super::socks::Request>>>,
     /// Connection-owned data routes and published loopback port mappings for forwarded services.
     pub proxy_routes: super::forward::Routes,
     pub forwarded: Mutex<HashMap<std::net::SocketAddr, u16>>,
@@ -55,6 +60,9 @@ impl SshBridge {
     pub fn new() -> Self {
         let (write_tx, write_rx) = Outbound::new();
         Self {
+            browser_proxy_listener: Default::default(),
+            browser_proxy_port: Default::default(),
+            browser_proxy_requests: Default::default(),
             proxy_routes: Default::default(),
             forwarded: Mutex::new(HashMap::new()),
             listeners: Mutex::new(HashMap::new()),

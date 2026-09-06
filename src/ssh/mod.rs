@@ -5,6 +5,7 @@ pub(crate) mod forward_metrics;
 mod handshake;
 mod metrics;
 mod outbound;
+mod socks;
 pub mod tunnel;
 mod writer;
 

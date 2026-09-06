@@ -72,3 +72,8 @@ content:
     - Each hello retains optional capabilities for that connection generation. ports.list is polled only when advertised; forwarding additionally requires proxy.shutdown_write and proxy.stream.half_close. Terminal-capable older daemons remain usable without publishing unsafe forwarding endpoints.
     - ssh.handshake.complete records ports_supported and forwarding_supported. A missing optional feature remains unavailable until the remote daemon is upgraded and a new connection negotiates it; no feature state is inherited across reconnects.
     - Duplex handshake tests cover full, partial and absent optional capability sets. Runtime execution is through Actions only.
+
+  browser_proxy_transport:
+    - Workspace bridge retains a loopback SOCKS listener across SSH reconnects. Lifecycle-owned accept work caps negotiation at sixteen tasks with a five-second deadline and captures current generation admission at accept.
+    - Validated no-auth CONNECT requests enter a sixteen-slot channel and share sixteen transfer permits with discovered port clients. Hostname resolution occurs remotely; success follows subscription, and all transfers share half-close and acknowledged cleanup.
+    - Browser startup is not wired yet. Protocol tests cover hostname payload preservation and unsupported authentication; runtime and full browser origin verification remain pending Actions.

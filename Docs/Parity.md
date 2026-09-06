@@ -318,3 +318,7 @@ The real SSH fixture now retires a remote listening socket while its accepted cl
 ### Browser remote-origin design evidence
 
 Inspected the shared browser launch path, agent-browser public proxy flags and Chromium proxy semantics. The [remote forwarding plan](RemoteForwarding.md#browser-origin-implementation-plan) now specifies a workspace-owned stable SOCKS endpoint, generation-bound stream admission, explicit loopback proxying, remote DNS and no local fallback. Separate namespace/subresource/WebSocket/reconnect tests are required. This is design progress; remote browser routing is not implemented yet.
+
+### Remote browser transport foundation
+
+Added a workspace-retained SOCKS5 endpoint, bounded generation-qualified admission and shared remote TCP transfer ownership. Protocol coverage preserves bytes following CONNECT and rejects unsupported authentication. Strict Clippy passes; Actions runtime verification is pending. Browser startup configuration and end-to-end remote origin verification remain unimplemented.

@@ -175,22 +175,27 @@ impl Drop for ClientOwner {
 /// A service-stop waits for an in-flight open to settle so its returned stream can be retired.
 async fn client(
     transport: Arc<Transport>,
-    socket: tokio::net::TcpStream,
-    remote: SocketAddr,
+    mut socket: tokio::net::TcpStream,
+    destination: (String, u16),
+    socks: bool,
     mut stop: watch::Receiver<bool>,
 ) -> Result<(), String> {
     let _active = super::forward_metrics::Active::client();
-    let destination = match remote.ip() {
-        IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
-        IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
-        ip => ip,
-    };
     let opened = transport
         .call(
             "proxy.open",
-            serde_json::json!({"host":destination.to_string(),"port":remote.port()}),
+            serde_json::json!({"host":destination.0,"port":destination.1}),
         )
-        .await?;
+        .await;
+    let opened = match opened {
+        Ok(opened) => opened,
+        Err(error) => {
+            if socks {
+                let _ = super::socks::reply(&mut socket, 5).await;
+            }
+            return Err(error);
+        }
+    };
     let stream = opened
         .get("stream_id")
         .and_then(|value| value.as_str())
@@ -222,7 +227,13 @@ async fn client(
         .await
     {
         let _ = owner.finish().await;
+        if socks {
+            let _ = super::socks::reply(&mut socket, 1).await;
+        }
         return Err(error);
+    }
+    if socks && super::socks::reply(&mut socket, 0).await.is_err() {
+        return owner.finish().await;
     }
     let (mut read, mut write) = socket.into_split();
     let outbound = async {
@@ -306,7 +317,12 @@ async fn listener(
                 let transport = transport.clone(); let stop = client_receiver.clone();
                 clients.spawn(async move {
                     let _permit = permit;
-                    let result = client(transport, socket, remote, stop).await;
+                    let destination = match remote.ip() {
+                        IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
+                        IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
+                        ip => ip,
+                    };
+                    let result = client(transport, socket, (destination.to_string(), remote.port()), false, stop).await;
                     crate::diagnostics::record("ssh.forward.client_complete", serde_json::json!({"outcome":if result.is_ok(){"success"}else{"error"}}));
                 });
             }
@@ -336,10 +352,34 @@ pub(super) async fn run(
         bridge: bridge.clone(),
     });
     let permits = Arc::new(Semaphore::new(16));
+    let (sender, mut requests) = mpsc::channel::<super::socks::Request>(16);
+    *bridge.browser_proxy_requests.lock().unwrap() = Some(sender.clone());
+    let _admission = super::socks::Admission(bridge.clone(), sender);
+    let (_browser_stop, browser_receiver) = watch::channel(false);
+    let mut browser_clients = JoinSet::new();
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
     let mut active: HashMap<SocketAddr, watch::Sender<bool>> = HashMap::new();
     let mut tasks = JoinSet::new();
     loop {
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        while browser_clients.try_join_next().is_some() {}
+        tokio::select! {
+            Some(_) = browser_clients.join_next(), if !browser_clients.is_empty() => continue,
+            Some(request) = requests.recv() => {
+                let Ok(permit) = permits.clone().try_acquire_owned() else {
+                    super::forward_metrics::client_rejected();
+                    continue;
+                };
+                let transport = transport.clone();
+                let stop = browser_receiver.clone();
+                browser_clients.spawn(async move {
+                    let _permit = permit;
+                    let result = client(transport, request.socket, (request.host, request.port), true, stop).await;
+                    crate::diagnostics::record("ssh.browser_proxy.client_complete", serde_json::json!({"outcome":if result.is_ok(){"success"}else{"error"}}));
+                });
+                continue;
+            },
+            _ = interval.tick() => {},
+        }
         while tasks.try_join_next().is_some() {}
         let desired: BTreeSet<_> = bridge
             .listeners
