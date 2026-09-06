@@ -5,6 +5,8 @@
 
 #[path = "../bounded_json.rs"]
 mod bounded_json;
+#[path = "../browser_address.rs"]
+mod browser_address;
 use cmux_platform::discovery;
 pub mod format;
 mod hooks;
@@ -215,11 +217,7 @@ fn browser_command_to_rpc(cmd: &BrowserCommand) -> (&'static str, serde_json::Va
     use serde_json::json;
     match cmd {
         BrowserCommand::Open { url, workspace } => {
-            let url = if !url.contains("://") {
-                format!("https://{}", url)
-            } else {
-                url.clone()
-            };
+            let url = browser_address::normalize(url);
             ("browser.open", json!({"url": url, "workspace": workspace}))
         }
         BrowserCommand::List => ("browser.list", json!({})),
@@ -334,9 +332,10 @@ fn browser_command_to_rpc(cmd: &BrowserCommand) -> (&'static str, serde_json::Va
                 "timeout_ms": timeout_ms
             }),
         ),
-        BrowserCommand::Goto { surface, url } => {
-            ("browser.goto", json!({"surface_ref": surface, "url": url}))
-        }
+        BrowserCommand::Goto { surface, url } => (
+            "browser.goto",
+            json!({"surface_ref": surface, "url": browser_address::normalize(url)}),
+        ),
         BrowserCommand::Back { surface } => ("browser.back", json!({"surface_ref": surface})),
         BrowserCommand::Forward { surface } => ("browser.forward", json!({"surface_ref": surface})),
         BrowserCommand::Reload { surface } => ("browser.reload", json!({"surface_ref": surface})),

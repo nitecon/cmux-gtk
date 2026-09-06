@@ -225,3 +225,10 @@ The parser uses Git's documented [porcelain-v2 status format](https://git-scm.co
 ## Git tracking and provenance checkpoint
 
 Local Git observations now include optional upstream, ahead/behind counts, HEAD object ID and the observed directory. The same bounded porcelain-v2 probe provides these fields; it performs no fetch. Missing tracking information remains null. Sidebar rows show positive ahead/behind counts and a short commit ID for detached checkouts, with the directory in a tooltip. Actions coverage adds a real local upstream and ahead commit; parser coverage checks tracking headers and malformed counters. Strict clippy and Python syntax pass locally, runtime pending. Remote discovery and PR/MR/project views remain outstanding.
+
+
+## Browser address normalization checkpoint
+
+CLI open/goto, RPC open and the GTK address entry now share normalization. `about:blank`, `data:` and `blob:` addresses remain intact; absolute Unix paths become correctly escaped `file://` URLs. This fixes the previous HTTPS prefix applied to hostless browser schemes and local paths. The native lifecycle fixture checks delivered navigation addresses and focus using its owned browser service fixture. Strict clippy and Python syntax pass locally; runtime verification is pending.
+
+This does not complete local-document parity. Real local rendering, file subresource behavior and per-surface browser state remain open. The external service documents a separate [local-file access option](https://agent-browser.dev/commands); address normalization does not alter its JavaScript file-access policy.

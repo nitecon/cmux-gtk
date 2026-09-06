@@ -116,6 +116,12 @@ def main():
                 app.wait_for(lambda: marker.exists() and linux_process_belongs_to(marker.read_text(), terminal_children),
                              "keyboard input in original terminal")
 
+                for address, expected in (("about:blank", "about:blank"),
+                                          (str(root / "page #?.html"), (root / "page #?.html").as_uri())):
+                    app.cli("browser", "open", address)
+                    assert json.loads((browser_dir / "last-navigation.json").read_text())["url"] == expected
+                    assert {item["uuid"] for item in app.surfaces() if item["active"]} == {terminal}
+
                 with pending_open(app, browser_dir) as pending:
                     subprocess.run(command(app, "ping"), env=app.environment, check=True, capture_output=True, timeout=2)
                     target = json.loads(app.cli("new-workspace", "--json"))["uuid"]

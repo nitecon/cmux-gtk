@@ -997,7 +997,7 @@ fn handle_socket_command_traced(
             workspace,
             resp_tx,
         } => {
-            let mut params = json!({"url": url});
+            let mut params = json!({"url": crate::browser_address::normalize(&url)});
             if let Some(workspace) = workspace {
                 params["workspace"] = json!(workspace);
             }

@@ -731,11 +731,7 @@ fn navigate_browser_entry(
     if raw_url.is_empty() {
         return;
     }
-    let url = if raw_url.contains("://") {
-        raw_url
-    } else {
-        format!("https://{raw_url}")
-    };
+    let url = crate::browser_address::normalize(&raw_url);
     entry.set_text(&url);
     let mut activity = crate::browser::metrics::Activity::begin("url_navigation", None);
     let task = {

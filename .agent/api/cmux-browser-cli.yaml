@@ -10,6 +10,8 @@ labels: [linux, gtk, browser, lifecycle, observability]
 content:
   purpose: BrowserManager owns a unique external daemon session. Worker CLI execution, response decoding and snapshot formatting release GTK model borrows before I/O. This documents existing implementation, not deferred agent feature parity.
   workflows:
+    - name: Browser address normalization
+      description: Shared browser_address.normalize preserves explicit URI schemes including about/data/blob and converts absolute Unix paths into percent-encoded file URLs without filesystem access. Bare hosts retain HTTPS default. Used by CLI open/goto, RPC open and the GTK address entry. Actions lifecycle fixture asserts actual navigate payloads for about:blank and a filename with spaces/hash/question mark while preserving focus. This establishes transport behavior; real local document rendering and file JavaScript access remain unverified. The external browser configuration controls allow-file-access; normalization does not change that policy.
     - name: Public CLI execution
       description: src/browser/cli.rs run uses session and JSON arguments, null stdin, four-MiB stdout, 64-KiB stderr and a fifteen-second overall deadline. shared task.run_output drains both pipes and waits concurrently; failure kills and reaps the direct child. Cancellation uses Tokio kill-on-drop. Descendant browser daemon ownership remains with BrowserManager.
     - name: Response decoding

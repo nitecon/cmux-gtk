@@ -32,7 +32,10 @@ def run_daemon(session):
             with connection.makefile("rb") as reader:
                 request = reader.readline(4 * 1024 * 1024 + 1)
             if request:
-                action = json.loads(request).get("action")
+                payload = json.loads(request)
+                action = payload.get("action")
+                if action == "navigate":
+                    (root / "last-navigation.json").write_text(json.dumps(payload), encoding="utf-8")
                 if action == "navigate" and (root / "pause-navigate").exists():
                     (root / "navigate-waiting").write_text("ready", encoding="utf-8")
                     deadline = time.monotonic() + 10
