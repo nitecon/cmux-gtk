@@ -106,6 +106,19 @@ def main():
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == created["surface_id"]
                 app.cli("close-surface", created["surface_id"])
                 app.cli("focus-surface", target["uuid"])
+            config_file.write_text(json.dumps({"actions": {"fixture.workspace": {"builtin": "cmux.newWorkspace"}}}))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            workspaces_before = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
+            created = json.loads(app.cli("project-run", "fixture.workspace", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.workspace"]["fingerprint"], "--json"))
+            assert created["workspace_id"] not in {row["uuid"] for row in workspaces_before}
+            assert created["source_workspace_id"] == target["workspace_uuid"]
+            current_workspace = json.loads(app.cli("current-workspace", "--json"))
+            assert current_workspace["uuid"] == created["workspace_id"]
+            assert current_workspace["working_directory"] == str(repo)
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == created["surface_id"]
+            assert len(json.loads(app.cli("list-workspaces", "--json"))["workspaces"]) == len(workspaces_before) + 1
+            app.cli("close-workspace", created["workspace_id"])
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))

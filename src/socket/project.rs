@@ -152,7 +152,16 @@ pub fn run(
             let _=response.send(err(req_id,"changed","workspace execution context changed"));return;
         }
         if response.is_closed(){return;}
+        let mut result_workspace_id = workspace_id;
+        let mut wire_row = false;
         let surface=match action.intent {
+            Intent::Builtin { builtin: Builtin::NewWorkspace } => {
+                state.create_workspace_bound(String::new(), resolved.directory.clone());
+                let created = state.active_index;
+                result_workspace_id = state.workspaces[created].uuid;
+                wire_row = true;
+                state.split_engines[created].active_pane_uuid().and_then(|id| uuid::Uuid::parse_str(&id).ok())
+            }
             Intent::Builtin { builtin: Builtin::NewTerminal } => {
                 state.switch_to_index(index);
                 state.split_engines[index].new_terminal_tab()
@@ -186,7 +195,13 @@ pub fn run(
         };
         let Some(surface)=surface else {let _=response.send(err(req_id,"launch_failed","project terminal could not be created"));return;};
         state.trigger_session_save();
-        crate::diagnostics::record("project.actions.run",json!({"trace_id":trace_id,"workspace_id":workspace_id,"surface_id":surface,"duration_us":started.elapsed().as_micros() as u64,"outcome":"submitted"}));
-        let _=response.send(ok(req_id,json!({"workspace_id":workspace_id,"surface_id":surface,"status":"submitted"})));
+        if wire_row {
+            let list = state.sidebar_list.clone();
+            let app = state.gtk_app.clone();
+            drop(state);
+            crate::sidebar::wire_latest_row(&list, owner.clone(), &app);
+        }
+        crate::diagnostics::record("project.actions.run",json!({"trace_id":trace_id,"workspace_id":result_workspace_id,"source_workspace_id":workspace_id,"surface_id":surface,"duration_us":started.elapsed().as_micros() as u64,"outcome":"submitted"}));
+        let _=response.send(ok(req_id,json!({"workspace_id":result_workspace_id,"source_workspace_id":workspace_id,"surface_id":surface,"status":"submitted"})));
     });
 }

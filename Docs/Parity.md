@@ -380,3 +380,7 @@ Actions run 34059233345 failed in remote-browser fixture cleanup because browser
 ### Project terminal builtin execution
 
 Project actions can now invoke newTerminal, splitRight and splitDown using existing tab/pane ownership. Fingerprint/context checks precede mutation, and the selected new surface is returned and saved. Actions fixture covers creation, identity, focus and cleanup for all three; strict Clippy and syntax pass, runtime pending. Other builtin families and full action/palette integration remain open.
+
+### Project workspace builtin execution
+
+cmux.newWorkspace now applies the reviewed project directory through existing local-workspace creation, sidebar handlers and session persistence. Run results and traces distinguish source from destination workspace IDs. Actions coverage checks identity, directory and selected surface; strict Clippy and syntax pass, runtime pending. Full workspace layout intents and other builtin families remain open.

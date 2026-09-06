@@ -53,3 +53,8 @@ content:
     - Local project.actions.run also executes canonical cmux.newTerminal, cmux.splitRight and cmux.splitDown through existing SplitEngine operations. Named operation determines layout; command target does not override builtin behavior.
     - Shared fingerprint/context checks precede mutation, success selects and returns new surface, triggers session save and records submission trace. Other builtin integrations remain outstanding.
     - Actions fixture verifies each builtin adds exactly one selected surface and supports normal close/focus cleanup. Strict Clippy and Python AST pass; runtime pending.
+
+  workspace_builtin:
+    - cmux.newWorkspace creates and selects a local workspace bound to the reviewed canonical directory, using existing workspace construction/sidebar wiring/session persistence.
+    - All run responses and submission traces include source_workspace_id and destination workspace_id plus surface_id. For commands and terminal builtins both workspace IDs are equal.
+    - Actions coverage checks distinct workspace identity, captured directory, selected surface and normal close. Strict Clippy and syntax pass; runtime pending. Workspace layout intents remain outstanding.
