@@ -375,9 +375,14 @@ async fn encoded_response_retains_operation_identity() {
     let trace = uuid::Uuid::new_v4();
     for supplied in [trace.to_string(), "invalid-trace".to_owned()] {
         let request = serde_json::json!({
-            "id": 41, "method": "unknown.method", "trace_id": supplied
+            "id": 41, "method": "surface.send_text", "params": {"text": false}, "trace_id": supplied
         });
-        let response = dispatch_line(request.to_string(), &tx).await;
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            dispatch_line(request.to_string(), &tx),
+        )
+        .await
+        .expect("invalid input must finish without GTK");
         let retained = response
             .trace_id
             .expect("validated method creates an operation");
@@ -389,6 +394,7 @@ async fn encoded_response_retains_operation_identity() {
         let body: serde_json::Value = serde_json::from_str(&response.body).unwrap();
         assert_eq!(body["id"], 41);
         assert_eq!(body["ok"], false);
+        assert_eq!(body["error"]["code"], "invalid_params");
         assert!(rx.try_recv().is_err());
     }
     let malformed = dispatch_line("{broken".to_owned(), &tx).await;
