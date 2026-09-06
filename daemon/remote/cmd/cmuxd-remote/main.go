@@ -326,6 +326,7 @@ func (s *rpcServer) handleRequest(req rpcRequest) rpcResponse {
 					"proxy.stream",
 					"proxy.stream.push",
 					"proxy.shutdown_write",
+					"proxy.stream.half_close",
 				},
 			},
 		}

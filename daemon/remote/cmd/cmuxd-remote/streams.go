@@ -224,6 +224,15 @@ func (s *rpcServer) handleProxyStreamSubscribe(req rpcRequest) rpcResponse {
 		}
 	}
 
+	halfClose := false
+	if value, exists := req.Params["half_close"]; exists {
+		var valid bool
+		halfClose, valid = value.(bool)
+		if !valid {
+			return rpcResponse{ID: req.ID, OK: false, Error: &rpcError{Code: "invalid_params", Message: "half_close must be boolean"}}
+		}
+	}
+
 	s.mu.Lock()
 	state, found := s.streams[streamID]
 	if !found {
@@ -245,7 +254,7 @@ func (s *rpcServer) handleProxyStreamSubscribe(req rpcRequest) rpcResponse {
 	s.mu.Unlock()
 
 	if !alreadySubscribed {
-		go s.streamPump(streamID, conn)
+		go s.streamPumpMode(streamID, conn, halfClose)
 	}
 
 	return rpcResponse{
@@ -386,7 +395,17 @@ func (s *rpcServer) closeAll() {
 
 // streamPump forwards encoded output until EOF, read failure or failed delivery, then retires its stream.
 func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
-	defer s.dropStream(streamID)
+	s.streamPumpMode(streamID, conn, false)
+}
+
+// streamPumpMode optionally preserves a TCP stream's writable direction after clean read EOF.
+func (s *rpcServer) streamPumpMode(streamID string, conn net.Conn, halfClose bool) {
+	keepWritable := false
+	defer func() {
+		if !keepWritable {
+			s.dropStream(streamID)
+		}
+	}()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			_ = s.frameWriter.writeEvent(rpcEvent{
@@ -423,6 +442,14 @@ func (s *rpcServer) streamPump(streamID string, conn net.Conn) {
 			continue
 		}
 
+		if readErr == io.EOF && halfClose {
+			if _, tcp := conn.(*net.TCPConn); tcp {
+				if s.frameWriter.writeEvent(rpcEvent{Event: "proxy.stream.read_eof", StreamID: streamID}) == nil {
+					keepWritable = true
+				}
+				return
+			}
+		}
 		if readErr == io.EOF {
 			_ = s.frameWriter.writeEvent(rpcEvent{
 				Event:      "proxy.stream.eof",

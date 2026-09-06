@@ -300,3 +300,5 @@ Forwarded clients can now send request EOF without losing the remote response th
 Forwarding diagnostics now report active listener/client tasks, byte counters with explicit acknowledgement/completion semantics, rejected data/client admission and requested closes. The SSH fixture checks exact transfer deltas and cleanup gauges. Runtime verification pending; counters do not establish remote-close acknowledgement.
 
 Normal forwarding completion now awaits remote `proxy.close` acknowledgement, with cancellation/failure retaining bounded queued cleanup. Diagnostics expose confirmed and failed closes; the SSH fixture checks acknowledgement after transfer. Runtime verification pending.
+
+Opt-in proxy subscriptions now support remote-to-local half-close without retiring the remaining write direction. Reserved termination capacity preserves EOF ordering under a full data queue; forwarding waits for both clean transfer directions. Real-TCP Go and bounded-route Rust tests are added for Actions. Runtime and full SSH reverse-half-close evidence remain pending.

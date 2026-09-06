@@ -17,12 +17,26 @@ use tokio::{
     task::JoinSet,
 };
 
+/// Ordered data and termination frames; reserved capacity ensures EOF/error cannot overtake queued bytes.
+#[derive(Debug, PartialEq)]
+enum Frame {
+    Data(Vec<u8>),
+    Eof,
+    Abort,
+}
+
+/// Reserve one terminal marker per route in addition to sixteen queued payload chunks.
+struct Route {
+    sender: mpsc::Sender<Frame>,
+    end: mpsc::OwnedPermit<Frame>,
+}
+
 /// Bounded incoming proxy routes, separate from terminal routing so slow clients cannot stall RPC replies.
 #[derive(Default)]
-pub struct Routes(Mutex<HashMap<String, mpsc::Sender<Vec<u8>>>>);
+pub struct Routes(Mutex<HashMap<String, Route>>);
 impl Routes {
     /// Install a fresh stream route atomically; a duplicate never replaces or retires its existing owner.
-    fn register(&self, stream: &str) -> Result<mpsc::Receiver<Vec<u8>>, String> {
+    fn register(&self, stream: &str) -> Result<mpsc::Receiver<Frame>, String> {
         let mut routes = self.0.lock().unwrap();
         if routes.contains_key(stream) {
             return Err("duplicate proxy stream".into());
@@ -30,8 +44,12 @@ impl Routes {
         if routes.len() >= 16 {
             return Err("proxy route capacity exceeded".into());
         }
-        let (sender, receiver) = mpsc::channel(16);
-        routes.insert(stream.to_owned(), sender);
+        let (sender, receiver) = mpsc::channel(17);
+        let end = sender
+            .clone()
+            .try_reserve_owned()
+            .map_err(|_| "proxy termination slot unavailable")?;
+        routes.insert(stream.to_owned(), Route { sender, end });
         Ok(receiver)
     }
 
@@ -49,8 +67,10 @@ impl Routes {
                     .filter(|text| text.len() <= 43692)
                     .and_then(|text| base64::engine::general_purpose::STANDARD.decode(text).ok())
                     .filter(|bytes| bytes.len() <= 32768);
-                if data.is_none_or(|data| sender.try_send(data).is_err()) {
-                    routes.remove(stream);
+                if data.is_none_or(|data| sender.sender.try_send(Frame::Data(data)).is_err()) {
+                    if let Some(route) = routes.remove(stream) {
+                        route.end.send(Frame::Abort);
+                    }
                     super::forward_metrics::data_rejected();
                     crate::diagnostics::record(
                         "ssh.forward.client_rejected",
@@ -58,8 +78,15 @@ impl Routes {
                     );
                 }
             }
+            "proxy.stream.read_eof" => {
+                if let Some(route) = routes.remove(stream) {
+                    route.end.send(Frame::Eof);
+                }
+            }
             "proxy.stream.eof" | "proxy.stream.error" => {
-                routes.remove(stream);
+                if let Some(route) = routes.remove(stream) {
+                    route.end.send(Frame::Abort);
+                }
             }
             _ => {}
         }
@@ -190,7 +217,7 @@ async fn client(
     if let Err(error) = transport
         .call(
             "proxy.stream.subscribe",
-            serde_json::json!({"stream_id":stream}),
+            serde_json::json!({"stream_id":stream,"half_close":true}),
         )
         .await
     {
@@ -212,8 +239,7 @@ async fn client(
                         serde_json::json!({"stream_id":stream}),
                     )
                     .await?;
-                // Keep the response direction alive until its EOF or service cancellation.
-                return std::future::pending::<Result<(), String>>().await;
+                return Ok::<(), String>(());
             }
             let data = base64::engine::general_purpose::STANDARD.encode(&bytes[..count]);
             transport
@@ -226,20 +252,32 @@ async fn client(
         }
     };
     let inbound = async {
-        while let Some(data) = incoming.recv().await {
-            write
-                .write_all(&data)
-                .await
-                .map_err(|_| "local proxy write failed")?;
-            super::forward_metrics::delivered(data.len());
+        while let Some(frame) = incoming.recv().await {
+            match frame {
+                Frame::Data(data) => {
+                    write
+                        .write_all(&data)
+                        .await
+                        .map_err(|_| "local proxy write failed")?;
+                    super::forward_metrics::delivered(data.len());
+                }
+                Frame::Eof => {
+                    write
+                        .shutdown()
+                        .await
+                        .map_err(|_| "local proxy shutdown failed")?;
+                    return Ok::<(), String>(());
+                }
+                Frame::Abort => return Err("remote proxy stream aborted".into()),
+            }
         }
-        Ok::<(), String>(())
+        Err("remote proxy route closed without EOF".into())
     };
+    let transfer = async { tokio::try_join!(outbound, inbound).map(|_| ()) };
     let result = tokio::select! {
         biased;
         _ = stop.changed() => Ok(()),
-        result = outbound => result,
-        result = inbound => result,
+        result = transfer => result,
     };
     let closed = owner.finish().await;
     result.and(closed)
@@ -362,6 +400,22 @@ pub(super) async fn run(
 mod tests {
     use super::*;
 
+    /// The reserved terminal slot preserves every accepted chunk ahead of a clean read EOF.
+    #[test]
+    fn proxy_read_eof_follows_full_data_queue() {
+        let routes = Routes::default();
+        let mut receiver = routes.register("half").unwrap();
+        let message = serde_json::json!({"data_base64":"eA=="});
+        for _ in 0..16 {
+            assert!(routes.event("half", "proxy.stream.data", &message));
+        }
+        assert!(routes.event("half", "proxy.stream.read_eof", &serde_json::json!({})));
+        for _ in 0..16 {
+            assert_eq!(receiver.try_recv().unwrap(), Frame::Data(b"x".to_vec()));
+        }
+        assert_eq!(receiver.try_recv().unwrap(), Frame::Eof);
+    }
+
     /// Duplicate registration preserves the first receiver; overload closes its route rather than dropping bytes silently.
     #[test]
     fn proxy_routes_preserve_ownership_and_retire_overload() {
@@ -370,15 +424,16 @@ mod tests {
         assert!(routes.register("one").is_err());
         let message = serde_json::json!({"data_base64":"eA=="});
         assert!(routes.event("one", "proxy.stream.data", &message));
-        assert_eq!(receiver.try_recv().unwrap(), b"x");
+        assert_eq!(receiver.try_recv().unwrap(), Frame::Data(b"x".to_vec()));
         for _ in 0..16 {
             assert!(routes.event("one", "proxy.stream.data", &message));
         }
         assert!(routes.event("one", "proxy.stream.data", &message));
         assert!(!routes.event("one", "proxy.stream.data", &message));
         for _ in 0..16 {
-            assert_eq!(receiver.try_recv().unwrap(), b"x");
+            assert_eq!(receiver.try_recv().unwrap(), Frame::Data(b"x".to_vec()));
         }
+        assert_eq!(receiver.try_recv().unwrap(), Frame::Abort);
         assert!(matches!(
             receiver.try_recv(),
             Err(mpsc::error::TryRecvError::Disconnected)

@@ -62,3 +62,8 @@ content:
   forwarding_cleanup:
     - Normal completion and subscription failure await idempotent proxy.close with the existing deadline and require closed true. The owner persists during the await; cancelled or failed waits retain the queued-close fallback.
     - confirmed_closes and failed_closes distinguish observed outcomes from close_requests, which also includes fallback attempts. The SSH transfer fixture requires a confirmed close without a failed close.
+
+  proxy_read_eof:
+    - proxy.stream.subscribe accepts optional boolean half_close. With true, clean TCP read EOF emits proxy.stream.read_eof and retains the writable registered stream; default subscriptions keep full-retirement behavior. The daemon advertises proxy.stream.half_close.
+    - Forwarding opts in, shuts down only the local response direction on read EOF, and waits for both directions. Sixteen data slots plus one reserved terminal-marker slot preserve ordering; error/overload markers abort rather than appearing as clean EOF.
+    - Real-TCP Go tests verify late request writes after remote FIN, and Rust route tests verify EOF behind a full data queue. Full SSH reverse-direction verification and older-daemon negotiation remain outstanding.
