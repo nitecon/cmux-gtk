@@ -1588,6 +1588,8 @@ pub enum PaneSurfaceData {
         cwd: String,
         #[serde(default)]
         resume: Option<crate::resume::ResumeBinding>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scrollback: Option<String>,
     },
     Browser {
         surface_uuid: Uuid,
@@ -1611,6 +1613,11 @@ impl SplitNode {
     /// Directories come from each terminal's native reports or explicit launch path.
     /// Unknown directories stay empty; the shell retains the configured environment default.
     pub fn to_data(&self) -> SplitNodeData {
+        self.to_data_with_history(&mut 0)
+    }
+
+    /// Capture a session tree under one shared history byte budget; GTK owns all native handles.
+    pub fn to_data_with_history(&self, budget: &mut usize) -> SplitNodeData {
         match self {
             SplitNode::Leaf {
                 notebook, surfaces, ..
@@ -1626,6 +1633,11 @@ impl SplitNode {
                             resume,
                         } => PaneSurfaceData::Terminal {
                             resume: resume.clone(),
+                            scrollback: crate::scrollback::capture(
+                                gl_area,
+                                surface_for_area(gl_area),
+                                budget,
+                            ),
                             surface_uuid: *uuid,
                             shell: shell.clone(),
                             cwd: surface_for_area(gl_area)
@@ -1672,8 +1684,8 @@ impl SplitNode {
                         _ => "horizontal".to_string(),
                     },
                     ratio,
-                    start: Box::new(start.to_data()),
-                    end: Box::new(end.to_data()),
+                    start: Box::new(start.to_data_with_history(budget)),
+                    end: Box::new(end.to_data_with_history(budget)),
                 }
             }
         }
@@ -1750,6 +1762,7 @@ mod tests {
             surfaces: vec![
                 PaneSurfaceData::Terminal {
                     resume: None,
+                    scrollback: None,
                     surface_uuid: terminal_uuid,
                     shell: "/bin/sh".to_string(),
                     cwd: "/tmp".to_string(),

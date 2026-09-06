@@ -195,7 +195,7 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
             },
         );
         match serde_json::from_reader::<_, SessionData>(reader) {
-            Ok(data) => {
+            Ok(mut data) => {
                 version = Some(data.version);
                 if data.version != 1 && data.version != 2 && data.version != 3 {
                     outcome = "unsupported_version";
@@ -205,6 +205,7 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
                     );
                     return None;
                 }
+                crate::scrollback::validate_session(&mut data);
                 Some(data)
             }
             Err(e) => {

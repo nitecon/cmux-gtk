@@ -675,6 +675,7 @@ impl AppState {
         // Snapshot on GTK; the worker shares ownership rather than cloning the tree.
         if let Some(ref tx) = self.session_tx {
             let started = std::time::Instant::now();
+            let mut history_budget = crate::scrollback::SESSION_MAX_BYTES;
             let session = crate::session::SessionData {
                 version: 3, // Per-pane terminal/browser tabs and persisted URLs
                 active_index: self.active_index,
@@ -687,7 +688,9 @@ impl AppState {
                     .map(|(i, ws)| {
                         // D-02: save full split tree for ALL workspaces
                         let layout = if i < self.split_engines.len() {
-                            self.split_engines[i].root.to_data()
+                            self.split_engines[i]
+                                .root
+                                .to_data_with_history(&mut history_budget)
                         } else {
                             // Fallback: shouldn't happen, but be safe
                             crate::split_engine::SplitNodeData::Leaf {

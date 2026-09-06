@@ -30,6 +30,7 @@ impl RestoreContext<'_> {
         uuid: Uuid,
         saved_cwd: &str,
         resume: Option<&crate::resume::ResumeBinding>,
+        scrollback: Option<&str>,
     ) -> PaneSurface {
         let directory = self
             .working_directory
@@ -50,6 +51,7 @@ impl RestoreContext<'_> {
             pane_id,
             launch,
         );
+        crate::scrollback::prepare(&gl_area, scrollback);
         attach_terminal_context_menu(&gl_area);
         PaneSurface::Terminal {
             gl_area,
@@ -128,7 +130,7 @@ impl SplitEngine {
                 *next_pane_id += 1;
                 Some(create_pane(
                     pane_id,
-                    context.terminal(pane_id, *surface_uuid, cwd, None),
+                    context.terminal(pane_id, *surface_uuid, cwd, None, None),
                 ))
             }
             SplitNodeData::Pane {
@@ -142,8 +144,15 @@ impl SplitEngine {
                         surface_uuid,
                         cwd,
                         resume,
+                        scrollback,
                         ..
-                    } => context.terminal(pane_id, *surface_uuid, cwd, resume.as_ref()),
+                    } => context.terminal(
+                        pane_id,
+                        *surface_uuid,
+                        cwd,
+                        resume.as_ref(),
+                        scrollback.as_deref(),
+                    ),
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
                         widgets.uuid = *surface_uuid;
@@ -156,7 +165,7 @@ impl SplitEngine {
                 });
                 let initial = restored
                     .next()
-                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), "", None));
+                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), "", None, None));
                 let node = create_pane(pane_id, initial);
                 if let SplitNode::Leaf {
                     notebook,

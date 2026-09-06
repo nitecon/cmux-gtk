@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Bounded terminal scrollback capture
 space: cmux-gtk
 slug: terminal-scrollback
-summary: Non-selecting native VT history capture for agents and session replay groundwork; persistence and replay are still pending.
+summary: Bounded native VT history capture, session retention and synchronous replay before child output.
 kind: agent_context
 source_format: agent_context
 source_ref: src/ghostty/text.rs
@@ -17,4 +17,6 @@ content:
         - Native allocations are released synchronously on GTK. There is no local process launch, viewport mutation or clipboard change. Existing common RPC tracing covers routing and timing without recording text.
   operations:
     verification: Actions tests/test_linux_scrollback.py captures offscreen styled output from an inactive native terminal and checks focus, viewport and byte bounds. Strict workspace clippy and fixture syntax passed locally; runtime verification is pending.
-    outstanding: Session capture scheduling, total retained history budget, untouched background caches, replay-before-shell lifecycle and completion tracking remain part of the active goal. This API does not restore a session or arbitrary running processes.
+    outstanding: Native runtime verification and wider agent/session parity remain pending. This restores terminal history, not arbitrary running processes.
+
+    session: Session snapshots capture per-terminal styled history with a 256-KiB individual and 16-MiB aggregate cap. Loaded history is normalized before GTK ownership. Uninitialized background surfaces keep widget-owned pending text across further snapshots; successful native initialization consumes that cache after synchronous history application. The new ghostty_surface_new_with_replay ABI preserves options and configured launches, applies normalized output after renderer startup and before IO thread startup, and borrows data only through return. No replay files or stdin injection. Actions tests/test_linux_scrollback_restore.py covers two normal quit/restarts including an unopened background workspace and fresh child output after replay. session.scrollback.replay diagnostics record bytes, elapsed creation/replay time and outcome without content.

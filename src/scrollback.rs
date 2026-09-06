@@ -66,6 +66,80 @@ pub(crate) fn replay_text(source: &str) -> Option<String> {
     Some(output)
 }
 
+/// Aggregate retained replay limit across all workspaces in a snapshot.
+pub(crate) const SESSION_MAX_BYTES: usize = 16 * 1024 * 1024;
+/// Private GLArea cache retains history until native initialization has synchronously replayed it.
+pub(crate) const PENDING_KEY: &str = "cmux-pending-scrollback";
+
+/// Validate loaded replay text and enforce one aggregate budget before GTK owns restored state.
+pub(crate) fn validate_session(session: &mut crate::session::SessionData) {
+    let mut budget = SESSION_MAX_BYTES;
+    for workspace in &mut session.workspaces {
+        validate_tree(&mut workspace.layout, &mut budget, 0);
+    }
+}
+
+/// Visit the bounded restore depth; discard oversized history without rejecting unrelated layout state.
+fn validate_tree(tree: &mut crate::split_engine::SplitNodeData, budget: &mut usize, depth: usize) {
+    use crate::split_engine::{PaneSurfaceData, SplitNodeData};
+    if depth > 16 {
+        return;
+    }
+    match tree {
+        SplitNodeData::Pane { surfaces, .. } => {
+            for surface in surfaces {
+                if let PaneSurfaceData::Terminal { scrollback, .. } = surface {
+                    *scrollback = scrollback
+                        .take()
+                        .and_then(|text| replay_text(&text))
+                        .filter(|text| text.len() <= *budget);
+                    *budget -= scrollback.as_ref().map_or(0, String::len);
+                }
+            }
+        }
+        SplitNodeData::Split { start, end, .. } => {
+            validate_tree(start, budget, depth + 1);
+            validate_tree(end, budget, depth + 1);
+        }
+        _ => {}
+    }
+}
+
+/// Preserve history already normalized by validate_session for uninitialized background surfaces.
+/// GTK owns the cached allocation; native replay borrows it synchronously before removing the cache.
+pub(crate) fn prepare(area: &gtk4::GLArea, text: Option<&str>) {
+    use gtk4::prelude::*;
+    if let Some(text) = text.filter(|text| text.len() <= MAX_BYTES) {
+        // SAFETY: this private key always owns String, read/stolen only on GTK in native initialization.
+        unsafe { area.set_data(PENDING_KEY, text.to_owned()) };
+    }
+}
+
+/// Capture initialized history or retain pending history without realizing a background terminal.
+/// The shared budget bounds all copied history; allocation and native capture stay within per-terminal limits.
+pub(crate) fn capture(
+    area: &gtk4::GLArea,
+    surface: Option<crate::ghostty::ffi::ghostty_surface_t>,
+    budget: &mut usize,
+) -> Option<String> {
+    use gtk4::prelude::*;
+    if *budget < MAX_BYTES {
+        return None;
+    }
+    let text = if let Some(surface) = surface {
+        // SAFETY: the owning GTK snapshot keeps this terminal live without event-loop iteration.
+        unsafe { crate::ghostty::text::read_scrollback(surface) }.ok()?
+    } else {
+        // SAFETY: prepare exclusively stores String under this private key on the same GTK thread.
+        unsafe { area.data::<String>(PENDING_KEY) }.map(|text| unsafe { text.as_ref().clone() })?
+    };
+    if text.len() > *budget {
+        return None;
+    }
+    *budget -= text.len();
+    Some(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,6 +160,32 @@ mod tests {
         ] {
             assert_eq!(replay_text(unfinished).unwrap(), "\x1b[0mvisible\x1b[0m");
         }
+    }
+
+    /// Loaded histories share a budget and edited effectful bytes are removed before widget ownership.
+    #[test]
+    fn loaded_history_is_normalized_and_aggregate_bounded() {
+        use crate::split_engine::{PaneSurfaceData, SplitNodeData};
+        let mut tree: SplitNodeData = serde_json::from_value(serde_json::json!({
+            "type": "Pane", "surfaces": [
+                {"type":"Terminal", "surface_uuid":uuid::Uuid::new_v4(), "shell":"", "cwd":"", "scrollback":"\u{1b}]52;c;secret\u{7}visible"},
+                {"type":"Terminal", "surface_uuid":uuid::Uuid::new_v4(), "shell":"", "cwd":"", "scrollback":"too much remaining history"}
+            ]
+        })).unwrap();
+        let mut budget = 16;
+        validate_tree(&mut tree, &mut budget, 0);
+        let SplitNodeData::Pane { surfaces, .. } = tree else {
+            panic!("pane");
+        };
+        let PaneSurfaceData::Terminal { scrollback, .. } = &surfaces[0] else {
+            panic!("terminal");
+        };
+        assert_eq!(scrollback.as_deref(), Some("\x1b[0mvisible\x1b[0m"));
+        let PaneSurfaceData::Terminal { scrollback, .. } = &surfaces[1] else {
+            panic!("terminal");
+        };
+        assert!(scrollback.is_none());
+        assert_eq!(budget, 1);
     }
 
     /// Output caps include resets and never split multibyte characters or complete styling sequences.

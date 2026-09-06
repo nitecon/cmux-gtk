@@ -159,7 +159,31 @@ fn initialize_surface(
             config.pty_tee_cb = Some(super::notifications::output);
             config.pty_tee_userdata = (&mut **context as *mut super::notifications::Context).cast();
         }
-        let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
+        let replay = area.data::<String>(crate::scrollback::PENDING_KEY);
+        let surface = if let Some(replay) = replay {
+            let replay = replay.as_ref();
+            let replay_started = std::time::Instant::now();
+            let surface = ffi::ghostty_surface_new_with_replay(
+                init.ghostty_app,
+                &config,
+                replay.as_ptr().cast(),
+                replay.len(),
+            );
+            crate::diagnostics::record(
+                "session.scrollback.replay",
+                serde_json::json!({
+                    "bytes": replay.len(), "duration_us": replay_started.elapsed().as_micros(),
+                    "outcome": if surface.is_null() { "error" } else { "success" },
+                }),
+            );
+            surface
+        } else {
+            ffi::ghostty_surface_new(init.ghostty_app, &config)
+        };
+        if !surface.is_null() {
+            // Native initialization has synchronously applied history before starting child IO.
+            area.steal_data::<String>(crate::scrollback::PENDING_KEY);
+        }
         if let Some(context) = notifications {
             area.set_data("cmux-notification-context", context);
         }

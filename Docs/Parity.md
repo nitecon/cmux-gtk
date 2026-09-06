@@ -138,3 +138,14 @@ Session replay is not yet implemented by this checkpoint. The native capture API
 ## Replay text normalization checkpoint
 
 Native scrollback capture now removes theme-setting OSC and other command channels before returning VT. The shared bounded filter retains printable Unicode, CR/LF/tab and complete numeric SGR styling, brackets output with resets, and budgets those resets within the 256-KiB limit. Hyperlink OSC metadata is omitted; visible link text remains. This prevents saved history from changing the current theme, clipboard, window title or notification state when replay is connected. Unit cases cover style/Unicode retention, control-channel suppression, incomplete frames and exact byte boundaries; execution is deferred to Actions. Session persistence and replay lifecycle are still outstanding.
+
+
+## Session scrollback replay checkpoint
+
+Session snapshots now retain per-terminal styled VT history under a 256-KiB per-terminal and 16-MiB aggregate budget. Loading normalizes history before GTK restoration. Background surfaces retain pending history in their widget-owned cache until initialization, so quitting again without opening them preserves it. Layout-only API reads do not capture history.
+
+A small native entry point seeds normalized history after renderer initialization and before the I/O thread begins processing child output. It borrows the bytes only during construction, preserving the existing shell/startup/resume and manual remote launch configuration. No replay file, child-stdin injection or asynchronous completion guess is used. The pending cache is removed after successful synchronous creation. Session replay diagnostics record byte count, duration and outcome without history text.
+
+Local native ReleaseFast build, Rust binaries and strict clippy pass. Actions adds a three-launch GTK scenario: generate styled history, quit with another workspace selected, quit again without opening the source, then open it and verify retained history precedes actual fresh shell output. Runtime verification is pending. This does not restore arbitrary running processes; full agent/provider policy, manual previous-session restore and the rest of the parity matrix remain open.
+
+The replay entry point is pinned to nitecon/ghostty commit `86d20c5d1`, reachable on `cmux-linux-session-scrollback`; the submodule URL now uses that fork so clean CI/developer checkouts can fetch the dependency. Existing upstream-derived native behavior is preserved.
