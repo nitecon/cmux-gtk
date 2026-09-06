@@ -61,6 +61,16 @@ pub fn set_executable_permissions(path: &Path) -> io::Result<()> {
 /// not power-loss durability; it does not fsync the file or parent directory.
 /// Performs blocking I/O and returns filesystem errors to the caller.
 pub fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
+    atomic_write_with(path, |file| file.write_all(contents))
+}
+
+/// Stream a replacement into a private sibling file and rename only after callback success.
+/// The callback owns flushing any added buffers; errors remove the staging file and retain
+/// the destination. Returns the callback result after replacement. Blocking, without fsync.
+pub fn atomic_write_with<T>(
+    path: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> io::Result<T>,
+) -> io::Result<T> {
     let name = path.file_name().ok_or_else(|| {
         io::Error::new(io::ErrorKind::InvalidInput, "destination has no filename")
     })?;
@@ -87,9 +97,9 @@ pub fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
         };
-        let result = file.write_all(contents).and_then(|_| {
+        let result = write(&mut file).and_then(|value| {
             drop(file);
-            std::fs::rename(&temporary, path)
+            std::fs::rename(&temporary, path).map(|_| value)
         });
         if result.is_err() {
             let _ = std::fs::remove_file(&temporary);
@@ -140,6 +150,32 @@ mod tests {
             io::ErrorKind::NotFound
         );
         std::fs::remove_dir(root).unwrap();
+    }
+
+    /// A failed streaming callback preserves the old destination and removes its partial staging file.
+    #[test]
+    fn streamed_replacement_preserves_destination_on_error() {
+        let root = directory();
+        create_private_directory(&root).unwrap();
+        let path = root.join("snapshot");
+        atomic_write(&path, b"original").unwrap();
+        let failed: io::Result<()> = atomic_write_with(&path, |file| {
+            file.write_all(b"partial")?;
+            Err(io::Error::other("fixture serialization failure"))
+        });
+        assert!(failed.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"original");
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 1);
+        assert_eq!(
+            atomic_write_with(&path, |file| {
+                file.write_all(b"complete")?;
+                Ok(42)
+            })
+            .unwrap(),
+            42
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), b"complete");
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     /// Private paths and staged binaries receive exact access modes, including existing paths.

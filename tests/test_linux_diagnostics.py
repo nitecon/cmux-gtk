@@ -105,9 +105,8 @@ def main():
                     latest = saves[-1]
                     assert latest["outcome"] == "success"
                     assert latest["bytes"] > 0
-                    assert latest["serialization_us"] >= 0
-                    assert latest["write_us"] >= 0
-                    assert latest["duration_us"] >= latest["serialization_us"]
+                    assert latest["serialization_write_us"] >= 0
+                    assert latest["duration_us"] >= latest["serialization_write_us"]
                     return True
 
                 wait_until(saved_session, "session persistence diagnostic", timeout=15)

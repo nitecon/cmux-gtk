@@ -23,3 +23,6 @@
   - src/browser/input_queue.rs
   - src/browser/mapped.rs
   - src/browser/stream.rs
+019df63f-c5cd-7b93-bde1-507cb33d958c:
+  - src/session.rs
+  - crates/cmux-platform/src/filesystem.rs

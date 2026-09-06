@@ -1,4 +1,5 @@
 use crate::split_engine::SplitNodeData;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 /// Serializable snapshot of a single workspace for session persistence.
@@ -46,32 +47,34 @@ pub fn save_session_atomic(data: &SessionData) -> std::io::Result<()> {
     save_session_to(data, &session_path())
 }
 
-/// Serialize and atomically replace a snapshot, recording timings and counts without paths or content.
+/// Stream pretty JSON through a 64-KiB buffer into an atomic replacement.
+/// Record combined serialization/write timing and counts without paths or content.
 pub fn save_session_to(data: &SessionData, path: &Path) -> std::io::Result<()> {
     let started = std::time::Instant::now();
-    let encoded = serde_json::to_vec_pretty(data).map_err(std::io::Error::other);
-    let serialization_us = started.elapsed().as_micros() as u64;
-    let write_started = std::time::Instant::now();
-    let (bytes, result) = match encoded {
-        Ok(json) => (
-            Some(json.len()),
-            cmux_platform::filesystem::atomic_write(path, &json),
-        ),
-        Err(error) => (None, Err(error)),
-    };
+    let mut serialization_write_us = None;
+    let result = cmux_platform::filesystem::atomic_write_with(path, |file| {
+        let serialization_started = std::time::Instant::now();
+        let mut writer = BufWriter::with_capacity(64 * 1024, file);
+        let encoded = serde_json::to_writer_pretty(&mut writer, data)
+            .map_err(std::io::Error::other)
+            .and_then(|_| writer.flush());
+        serialization_write_us = Some(serialization_started.elapsed().as_micros() as u64);
+        encoded?;
+        writer.get_ref().metadata().map(|metadata| metadata.len())
+    });
+    let bytes = result.as_ref().ok().copied();
     crate::diagnostics::record(
         "session.save",
         serde_json::json!({
             "outcome": if result.is_ok() { "success" } else { "error" },
             "workspaces": data.workspaces.len(),
             "bytes": bytes,
-            "serialization_us": serialization_us,
-            "write_us": bytes.map(|_| write_started.elapsed().as_micros() as u64),
+            "serialization_write_us": serialization_write_us,
             "duration_us": started.elapsed().as_micros() as u64,
             "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
         }),
     );
-    result
+    result.map(|_| ())
 }
 
 /// Load session from disk. Returns None if the file is missing, empty, or invalid JSON.
@@ -115,6 +118,22 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
 mod tests {
     use super::*;
     use crate::split_engine::SplitNodeData;
+
+    /// Streaming across several buffer flushes preserves escaped UTF-8 and pretty-JSON compatibility.
+    #[test]
+    fn large_snapshot_streaming_roundtrip() {
+        let path =
+            std::env::temp_dir().join(format!("cmux-stream-session-{}", uuid::Uuid::new_v4()));
+        let name = "λ\"\n".repeat(65536);
+        let snapshot = dummy_session(&name);
+        save_session_to(&snapshot, &path).unwrap();
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            serde_json::to_vec_pretty(&snapshot).unwrap()
+        );
+        assert_eq!(load_session_from(&path).unwrap().workspaces[0].name, name);
+        std::fs::remove_file(path).unwrap();
+    }
 
     /// Construct a minimal serializable workspace for persistence scenarios.
     fn dummy_session(name: &str) -> SessionData {
