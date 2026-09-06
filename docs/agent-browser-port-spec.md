@@ -373,7 +373,7 @@ Hard invariant:
 ### Port Targets from `agent-browser`
 
 1. `src/browser.test.ts` -> ported/adapted into:
-   - `tests_v2/test_browser_api_p0.py`
+   - Historical browser P0 harness retired; retained behavior requirements are in `Docs/RefactorAudit.md`.
    - `tests_v2/test_browser_api_comprehensive.py`
    - `tests_v2/test_browser_api_unsupported_matrix.py`
 2. `src/actions.test.ts` -> adapted negative coverage in `tests_v2/test_browser_api_comprehensive.py` (`invalid_params`, `not_found`, `timeout`).
@@ -381,9 +381,9 @@ Hard invariant:
 4. `test/file-access.test.ts` and `test/launch-options.test.ts` -> partially applicable to `WKWebView`; currently tracked as follow-up parity work (not blocking current browser method coverage).
 5. `src/daemon.test.ts`, `src/stream-server.test.ts`, `test/serverless.test.ts`, `src/ios-manager.test.ts` -> out-of-scope for cmux browser parity (different transport/runtime).
 
-### Implemented cmux Browser Suites
+### Historical upstream browser suite inventory
 
-1. `tests_v2/test_browser_api_p0.py`
+1. Retired upstream P0 harness: its `browser.open_split`, WKWebView focus and response-shape assumptions do not establish GTK behavior.
 2. `tests_v2/test_browser_api_comprehensive.py`
 3. `tests_v2/test_browser_api_unsupported_matrix.py`
 4. `tests_v2/test_browser_goto_split.py`
