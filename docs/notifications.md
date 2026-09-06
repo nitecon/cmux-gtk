@@ -1,156 +1,21 @@
-# Notifications
+# Workspace attention and desktop bells
 
-cmux provides a notification panel for AI agents like Claude Code, Codex, and OpenCode. Notifications appear in a dedicated panel and trigger macOS system notifications.
+The GTK port tracks attention per workspace when a background terminal rings its bell. The sidebar marks the workspace; desktop delivery uses the Linux notification service through `notify-send`, subject to focus and rate-limit policy.
 
-## Quick Start
-
-```bash
-# Send a notification (if cmux is available)
-command -v cmux &>/dev/null && cmux notify --title "Done" --body "Task complete"
-
-# With fallback to macOS notifications
-command -v cmux &>/dev/null && cmux notify --title "Done" --body "Task complete" || osascript -e 'display notification "Task complete" with title "Done"'
-```
-
-## Detection
-
-Check if `cmux` CLI is available before using it:
+Read attention without moving focus:
 
 ```bash
-# Shell
-if command -v cmux &>/dev/null; then
-    cmux notify --title "Hello"
-fi
-
-# One-liner with fallback
-command -v cmux &>/dev/null && cmux notify --title "Hello" || osascript -e 'display notification "" with title "Hello"'
+cmux list-notifications --json
 ```
 
-```python
-# Python
-import shutil
-import subprocess
+The response lists workspace UUID, name and `has_attention`. It is a workspace-state snapshot, not a notification inbox with message bodies or read/unread entries.
 
-def notify(title: str, body: str = ""):
-    if shutil.which("cmux"):
-        subprocess.run(["cmux", "notify", "--title", title, "--body", body])
-    else:
-        # Fallback to macOS
-        subprocess.run(["osascript", "-e", f'display notification "{body}" with title "{title}"'])
-```
-
-## CLI Usage
+Clear a workspace's attention without selecting it:
 
 ```bash
-# Simple notification
-cmux notify --title "Build Complete"
-
-# With subtitle and body
-cmux notify --title "Claude Code" --subtitle "Permission" --body "Approval needed"
-
-# Notify specific tab/panel
-cmux notify --title "Done" --tab 0 --panel 1
+cmux clear-notification <workspace-uuid>
 ```
 
-## Integration Examples
+Desktop delivery has bounded concurrency and execution time. A successful helper exit does not establish that the desktop displayed a notification. See [Observability](../Docs/Observability.md) for delivery outcomes, resource bounds and the native bell benchmark.
 
-### Claude Code Hooks
-
-Add to `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v cmux &>/dev/null && cmux notify --title 'Claude Code' --body 'Waiting for input' || osascript -e 'display notification \"Waiting for input\" with title \"Claude Code\"'"
-          }
-        ]
-      },
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v cmux &>/dev/null && cmux notify --title 'Claude Code' --subtitle 'Permission' --body 'Approval needed' || osascript -e 'display notification \"Approval needed\" with title \"Claude Code\"'"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### OpenAI Codex
-
-Add to `~/.codex/config.toml`:
-
-```toml
-notify = ["bash", "-c", "command -v cmux &>/dev/null && cmux notify --title Codex --body \"$(echo $1 | jq -r '.\"last-assistant-message\" // \"Turn complete\"' 2>/dev/null | head -c 100)\" || osascript -e 'display notification \"Turn complete\" with title \"Codex\"'", "--"]
-```
-
-Or create a simple script `~/.local/bin/codex-notify.sh`:
-
-```bash
-#!/bin/bash
-MSG=$(echo "$1" | jq -r '."last-assistant-message" // "Turn complete"' 2>/dev/null | head -c 100)
-command -v cmux &>/dev/null && cmux notify --title "Codex" --body "$MSG" || osascript -e "display notification \"$MSG\" with title \"Codex\""
-```
-
-Then use:
-```toml
-notify = ["bash", "~/.local/bin/codex-notify.sh"]
-```
-
-### OpenCode Plugin
-
-Create `.opencode/plugins/cmux-notify.js`:
-
-```javascript
-export const CmuxNotificationPlugin = async ({ $, }) => {
-  const notify = async (title, body) => {
-    try {
-      await $`command -v cmux && cmux notify --title ${title} --body ${body}`;
-    } catch {
-      await $`osascript -e ${"display notification \"" + body + "\" with title \"" + title + "\""}`;
-    }
-  };
-
-  return {
-    event: async ({ event }) => {
-      if (event.type === "session.idle") {
-        await notify("OpenCode", "Session idle");
-      }
-    },
-  };
-};
-```
-
-## Environment Variables
-
-cmux sets these in child shells:
-
-| Variable | Description |
-|----------|-------------|
-| `CMUX_SOCKET_PATH` | Path to control socket |
-| `CMUX_TAB_ID` | UUID of the current tab |
-| `CMUX_PANEL_ID` | UUID of the current panel |
-
-## CLI Commands
-
-```
-cmux notify --title <text> [--subtitle <text>] [--body <text>] [--tab <id|index>] [--panel <id|index>]
-cmux list-notifications
-cmux clear-notifications
-cmux ping
-```
-
-## Best Practices
-
-1. **Always check availability first** - Use `command -v cmux` before calling
-2. **Provide fallbacks** - Use `|| osascript` for macOS fallback
-3. **Keep notifications concise** - Title should be brief, use body for details
+Agent-authored notifications, an inbox, pane highlighting, notification-click routing and resume hooks remain in the separately deferred agent-capability task. The inherited macOS `cmux notify` and AppleScript examples did not describe commands implemented by this GTK port and have been removed.
