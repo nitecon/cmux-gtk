@@ -26,14 +26,13 @@ pub fn discover_socket() -> Option<String> {
     }
 
     // 2. $XDG_RUNTIME_DIR/cmux/cmux.sock (fallback /run/user/{uid}/cmux/cmux.sock)
-    let runtime_dir = crate::paths::runtime_dir();
     let xdg_socket = crate::paths::socket_path().to_string_lossy().into_owned();
     if Path::new(&xdg_socket).exists() {
         return Some(xdg_socket);
     }
 
     // 3. $XDG_RUNTIME_DIR/cmux/last-socket-path marker file
-    let marker = runtime_dir.join("last-socket-path");
+    let marker = crate::paths::socket_marker_path();
     if let Some(path) = read_marker(&marker) {
         return Some(path.to_string_lossy().into_owned());
     }

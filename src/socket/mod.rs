@@ -8,32 +8,16 @@ mod response;
 use dispatch::dispatch_line;
 pub mod handlers;
 
-use std::path::PathBuf;
+pub use cmux_platform::paths::socket_path;
 
 /// Maximum commands waiting for GTK, independently of connection admission.
 pub(crate) const COMMAND_CAPACITY: usize = 64;
-
-/// Compute the Unix socket path per D-06.
-/// $XDG_RUNTIME_DIR/cmux/cmux.sock, fallback /run/user/{uid}/cmux/cmux.sock.
-pub fn socket_path() -> PathBuf {
-    cmux_platform::paths::socket_path()
-}
-
-/// Returns the directory containing the socket file.
-fn socket_dir() -> PathBuf {
-    socket_path().parent().unwrap().to_path_buf()
-}
-
-/// Returns the last-socket-path marker file path.
-fn last_socket_path_marker() -> PathBuf {
-    socket_dir().join("last-socket-path")
-}
 
 /// Start the socket server:
 /// 1. Creates $XDG_RUNTIME_DIR/cmux/ (mode 0700).
 /// 2. Removes stale socket file from previous crash.
 /// 3. Binds UnixListener, sets socket mode to 0600.
-/// 4. Writes last-socket-path marker for cmux.py discovery.
+/// 4. Atomically replaces the private last-socket-path discovery marker.
 /// 5. Spawns tokio accept loop.
 ///
 /// The cmd_tx sender is used to dispatch SocketCommands to the GTK main thread
@@ -43,7 +27,7 @@ pub fn start_socket_server(
     cmd_tx: tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) {
     let sock_path = socket_path();
-    let dir = socket_dir();
+    let dir = cmux_platform::paths::runtime_dir();
 
     // Create directory with restrictive permissions.
     if let Err(e) = cmux_platform::filesystem::create_private_directory(&dir) {
@@ -73,8 +57,8 @@ pub fn start_socket_server(
     }
 
     // Write last-socket-path marker so cmux.py can discover the socket.
-    if let Err(e) = std::fs::write(
-        last_socket_path_marker(),
+    if let Err(e) = cmux_platform::filesystem::atomic_write(
+        &cmux_platform::paths::socket_marker_path(),
         sock_path.to_string_lossy().as_bytes(),
     ) {
         eprintln!("cmux: last-socket-path write failed: {e}");

@@ -54,6 +54,11 @@ pub fn socket_path() -> PathBuf {
     runtime_dir().join("cmux.sock")
 }
 
+/// Return the runtime discovery marker path shared by the listener and CLI.
+pub fn socket_marker_path() -> PathBuf {
+    runtime_dir().join("last-socket-path")
+}
+
 /// Find the first regular-file candidate on PATH without launching it.
 /// Preserve PATH order and relative/empty entries; return None when PATH is absent.
 /// This is discovery only: actual execution validates permissions and binary format.
