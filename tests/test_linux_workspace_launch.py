@@ -235,12 +235,21 @@ Subsystem sftp internal-sftp
                                    "root=pathlib.Path(__file__).parent\n"
                                    "s=socket.socket();s.bind(('127.0.0.1',0));s.listen()\n"
                                    "(root/'listener-port').write_text(str(s.getsockname()[1]))\n"
-                                   "s.settimeout(0.1)\n"
+                                   "s.settimeout(0.1);connections=0\n"
                                    "while not (root/'listener-stop').exists():\n"
                                    " try:\n"
                                    "  c,_=s.accept();c.settimeout(5)\n"
-                                   "  while c.recv(32768): pass\n"
-                                   "  c.sendall(b'cmux-forwarded-'*8192);c.close()\n"
+                                   "  connections+=1\n"
+                                   "  if connections==1:\n"
+                                   "   while c.recv(32768): pass\n"
+                                   "   c.sendall(b'cmux-forwarded-'*8192)\n"
+                                   "  else:\n"
+                                   "   c.sendall(b'early-response');c.shutdown(socket.SHUT_WR)\n"
+                                   "   request=bytearray()\n"
+                                   "   while chunk:=c.recv(32768):\n"
+                                   "    request.extend(chunk);assert len(request)<=131072\n"
+                                   "   (root/'late-request').write_bytes(request)\n"
+                                   "  c.close()\n"
                                    " except socket.timeout: pass\n"
                                    "s.close()\n")
         cli("send-text", "python3 " + shlex.quote(str(listener_script)) + " &")
@@ -275,6 +284,28 @@ Subsystem sftp internal-sftp
         assert forwarding_after["confirmed_closes"] > forwarding_before["confirmed_closes"]
         assert forwarding_after["failed_closes"] == forwarding_before["failed_closes"]
         report["forwarding"] = {"before": forwarding_before, "after": forwarding_after}
+        # Remote FIN must reach this client without closing its still-writable request direction.
+        late_request = b"request-after-response-fin" * 4096
+        with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
+            forwarded.settimeout(10)
+            early_response = bytearray()
+            while chunk := forwarded.recv(32768):
+                early_response.extend(chunk)
+                assert len(early_response) <= len(b"early-response")
+            assert early_response == b"early-response"
+            forwarded.sendall(late_request)
+            forwarded.shutdown(socket.SHUT_WR)
+        late_request_path = root / "remote/late-request"
+        eventually(lambda: late_request_path.exists() and late_request_path.read_bytes() == late_request)
+        eventually(lambda: json.loads(cli("diagnostics", "--json"))["remote_forwarding"]["active_client_tasks"] == 0)
+        reverse_after = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
+        assert reverse_after["remote_write_acknowledged_bytes"] - forwarding_after["remote_write_acknowledged_bytes"] == len(late_request)
+        assert reverse_after["local_write_completed_bytes"] - forwarding_after["local_write_completed_bytes"] == len(early_response)
+        assert reverse_after["rejected_data_chunks"] == forwarding_after["rejected_data_chunks"]
+        assert reverse_after["confirmed_closes"] > forwarding_after["confirmed_closes"]
+        assert reverse_after["failed_closes"] == forwarding_after["failed_closes"]
+        report["forwarding"]["reverse_half_close_after"] = reverse_after
+        assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
         assert json.loads(cli("ping", "--json"))["pong"]
         (root / "remote/listener-stop").touch()
         eventually(lambda: remote_ports() is not None and not any(row["port"] == listener_port for row in remote_ports()))

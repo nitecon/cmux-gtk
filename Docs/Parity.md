@@ -302,3 +302,7 @@ Forwarding diagnostics now report active listener/client tasks, byte counters wi
 Normal forwarding completion now awaits remote `proxy.close` acknowledgement, with cancellation/failure retaining bounded queued cleanup. Diagnostics expose confirmed and failed closes; the SSH fixture checks acknowledgement after transfer. Runtime verification pending.
 
 Opt-in proxy subscriptions now support remote-to-local half-close without retiring the remaining write direction. Reserved termination capacity preserves EOF ordering under a full data queue; forwarding waits for both clean transfer directions. Real-TCP Go and bounded-route Rust tests are added for Actions. Runtime and full SSH reverse-half-close evidence remain pending.
+
+### Reverse TCP half-close integration coverage
+
+The real SSH workspace fixture now waits for remote response FIN before sending a multi-chunk request. It verifies the remote payload, exact directional byte counters, confirmed stream retirement, zero remaining client tasks and preserved background workspace selection. Python and embedded server syntax validation pass; runtime verification belongs to Actions. Actions run 34056967638 passed for its earlier source revision; it does not verify this new scenario. Full remote forwarding and browser-origin parity remain open.
