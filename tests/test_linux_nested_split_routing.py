@@ -25,7 +25,7 @@ def main():
                     app.wait_for(lambda: len(app.children()) == count + 3, "nested split shell")
                     surfaces.append(selected_surface(app))
                 assert len(set(surfaces)) == 3
-                assert {row["uuid"] for row in app.surfaces()} == set(surfaces)
+                assert {row["uuid"] for row in app.surfaces() if row["workspace_uuid"] == workspace} == set(surfaces)
                 focused = selected_surface(app)
 
                 def lines(surface):
@@ -42,7 +42,7 @@ def main():
                         if other != target:
                             assert marker not in lines(other), "output reached another terminal"
                     assert selected_surface(app) == focused, "targeted input changed focus"
-                assert {row["uuid"] for row in app.surfaces()} == set(surfaces)
+                assert {row["uuid"] for row in app.surfaces() if row["workspace_uuid"] == workspace} == set(surfaces)
                 app.cli("close-workspace", workspace)
                 app.wait_for(lambda: len(app.children()) == 1, "nested workspace PTY cleanup")
     print("nested splits preserve identities, route output exclusively and reap their PTYs")

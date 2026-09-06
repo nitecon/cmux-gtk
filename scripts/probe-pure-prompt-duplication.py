@@ -139,7 +139,8 @@ def main() -> int:
             while True:
                 try:
                     listed = client._call("surface.list", {}) or {}
-                    surfaces = listed.get("surfaces") or []
+                    surfaces = [row for row in listed.get("surfaces", [])
+                                if row.get("workspace_uuid") == workspace_id and row.get("active")]
                     if surfaces:
                         surface_id = str(surfaces[0].get("uuid") or "")
                     if surface_id:
