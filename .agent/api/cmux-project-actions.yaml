@@ -76,3 +76,7 @@ content:
     - Resolved commands map retains source/raw definition/typed intent/fingerprint. Local whole-entry precedence and first duplicate name within each file match upstream loadAll; names128bytes, input/merged registries256.
     - workspaceCommand action fingerprints include referenced command source and full definition or absence, rejecting indirect edits on later execution.
     - Discovery does not execute named definitions. Layout launch, restart semantics and complete command-specific validation remain outstanding. Precedence/duplicate/reference-invalidation tests await Actions.
+
+  named_command_schema:
+    - Dedicated adapter requires exactly one non-null workspace or command and rejects blank commands. Restart accepts new/recreate/ignore/confirm; metadata validation is bounded.
+    - Action-only fields cannot override named intent. All duplicates validate before first-name precedence. Tests cover ambiguity, malformed restart/confirm and inference isolation. Restart launch semantics remain outstanding.

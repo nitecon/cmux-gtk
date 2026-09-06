@@ -123,10 +123,10 @@ fn merge(resolved: &mut Resolved, source: PathBuf, value: Value) -> Result<(), S
                         && !name.chars().any(char::is_control)
                 })
                 .ok_or("command name must be a nonempty bounded string")?;
+            let (intent, target) = project_action::parse_named(definition)?;
             if !seen.insert(name) {
                 continue;
             }
-            let (intent, target) = project_action::parse(definition)?;
             resolved.commands.insert(
                 name.to_string(),
                 Action {

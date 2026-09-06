@@ -120,6 +120,34 @@ fn string(
     }
 }
 
+/// Named commands have their own upstream schema: exactly one workspace or shell command.
+/// Ignore action-only fields rather than letting them change the named command's family.
+pub fn parse_named(value: &Value) -> Result<(Intent, Target), String> {
+    let workspace = value.get("workspace").filter(|value| !value.is_null());
+    let command = value.get("command").filter(|value| !value.is_null());
+    let (kind, payload) = match (workspace, command) {
+        (Some(workspace), None) => ("workspace", workspace),
+        (None, Some(command)) => ("command", command),
+        _ => return Err("named command must define exactly one workspace or command".into()),
+    };
+    if let Some(restart) = value.get("restart").filter(|value| !value.is_null()) {
+        if !matches!(
+            restart.as_str(),
+            Some("new" | "recreate" | "ignore" | "confirm")
+        ) {
+            return Err("invalid named command restart behavior".into());
+        }
+    }
+    let mut selected = serde_json::json!({"type":kind});
+    selected[kind] = payload.clone();
+    for key in ["description", "keywords", "confirm"] {
+        if let Some(value) = value.get(key) {
+            selected[key] = value.clone();
+        }
+    }
+    parse(&selected)
+}
+
 /// Infer upstream action families, reject invalid targets and preserve presentation metadata separately.
 pub fn parse(value: &Value) -> Result<(Intent, Target), String> {
     for key in ["title", "subtitle", "description", "tooltip"] {
@@ -230,6 +258,30 @@ mod tests {
         );
         assert_eq!(target, Target::CurrentTerminal);
     }
+    /// Named schema cannot be redirected by action-only fields or contain ambiguous launch data.
+    #[test]
+    fn named_commands_validate_their_own_schema() {
+        let (intent, _) = parse_named(
+            &serde_json::json!({"command":"pwd","agent":"other","type":"agent","restart":"ignore"}),
+        )
+        .unwrap();
+        assert_eq!(
+            intent,
+            Intent::Command {
+                command: "pwd".into()
+            }
+        );
+        for value in [
+            serde_json::json!({}),
+            serde_json::json!({"command":"pwd","workspace":{}}),
+            serde_json::json!({"command":"  "}),
+            serde_json::json!({"command":"pwd","restart":"unknown"}),
+            serde_json::json!({"command":"pwd","confirm":"yes"}),
+        ] {
+            assert!(parse_named(&value).is_err());
+        }
+    }
+
     /// Provider aliases resolve while quoted arguments and shell expansion remain intact.
     #[test]
     fn agent_launch_matches_upstream_shell_semantics() {

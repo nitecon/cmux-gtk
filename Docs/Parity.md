@@ -400,3 +400,7 @@ Agent intents now share reviewed command execution and target behavior, with ups
 ### Named workspace command discovery
 
 Config resolution now exposes bounded named commands with local precedence, source and typed definition. Workspace-command action review identities bind referenced command content and source to detect indirect edits. Tests cover local/global precedence, first duplicate and reference invalidation; runtime pending Actions. Workspace layout launch and restart behavior remain open.
+
+### Named command schema validation
+
+Named definitions now require exactly one workspace or command and validate restart values independently of action inference. Action-only fields cannot redirect intent; duplicate definitions are validated before precedence. Clippy passes; schema tests await Actions. Layout/restart execution remains open.
