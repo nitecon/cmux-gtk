@@ -247,8 +247,10 @@ impl SplitEngine {
                 let paned = gtk4::Paned::new(gtk_orientation);
                 paned.set_resize_start_child(true);
                 paned.set_resize_end_child(true);
-                paned.set_shrink_start_child(false);
-                paned.set_shrink_end_child(false);
+                // Allow constrained descendants below natural size so a bounded deep
+                // session cannot monopolize GTK size negotiation before socket readiness.
+                paned.set_shrink_start_child(true);
+                paned.set_shrink_end_child(true);
                 paned.set_wide_handle(true);
                 paned.set_start_child(Some(&start_node.widget()));
                 paned.set_end_child(Some(&end_node.widget()));

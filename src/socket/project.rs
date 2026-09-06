@@ -7,6 +7,16 @@ use serde_json::{json, Value};
 static READS: std::sync::LazyLock<std::sync::Arc<tokio::sync::Semaphore>> =
     std::sync::LazyLock::new(|| std::sync::Arc::new(tokio::sync::Semaphore::new(2)));
 
+/// Reviewed action request shared by socket and in-process palette callers.
+pub(crate) struct RunRequest {
+    pub workspace: Option<uuid::Uuid>,
+    pub action_id: String,
+    pub fingerprint: String,
+    pub confirmed: bool,
+    pub req_id: Value,
+    pub trace_id: Option<String>,
+}
+
 /// Worker-validated default-layout workspace inputs, ready for GTK allocation.
 struct WorkspaceLaunch {
     name: String,
@@ -289,15 +299,15 @@ pub fn list(
 
 /// Re-read an explicitly requested action, then apply only if its reviewed identity and GTK context survive.
 /// Successful execution selects the target workspace/tab; listing or possessing a fingerprint never executes.
-pub fn run(
-    state: &crate::app_state::AppStateRef,
-    workspace: Option<uuid::Uuid>,
-    action_id: String,
-    fingerprint: String,
-    req_id: Value,
-    mut response: RespTx,
-    trace_id: Option<String>,
-) {
+pub fn run(state: &crate::app_state::AppStateRef, request: RunRequest, mut response: RespTx) {
+    let RunRequest {
+        workspace,
+        action_id,
+        fingerprint,
+        confirmed,
+        req_id,
+        trace_id,
+    } = request;
     let owner = std::rc::Rc::downgrade(state);
     let (workspace_id, directory, pane, task) = {
         let state = state.borrow();
@@ -357,6 +367,9 @@ pub fn run(
         };
         let Some(action)=resolved.actions.remove(&action_id) else {let _=response.send(err(req_id,"not_found","project action not found"));return;};
         if action.fingerprint!=fingerprint {let _=response.send(err(req_id,"changed","project action changed since inspection"));return;}
+        if action.definition.get("confirm").and_then(Value::as_bool)==Some(true) && !confirmed {
+            let _=response.send(err(req_id,"confirmation_required","this project action requires confirmation"));return;
+        }
         use crate::project_config::project_action::{Builtin,Intent,Target};
         let intent = match action.intent {
             Intent::Agent { agent, args } => Intent::Command { command: crate::project_config::project_action::agent_command(&agent, args.as_deref()) },
@@ -382,7 +395,7 @@ pub fn run(
             Intent::Workspace { .. } | Intent::WorkspaceCommand { .. } => {
                 let Some(launch) = workspace_launch else {let _=response.send(err(req_id,"config_error","workspace launch unavailable"));return;};
                 let existing = state.workspaces.iter().position(|workspace| workspace.name == launch.name);
-                if launch.restart == crate::project_config::project_action::Restart::Confirm && existing.is_some() {
+                if launch.restart == crate::project_config::project_action::Restart::Confirm && existing.is_some() && !confirmed {
                     let _=response.send(err(req_id,"confirmation_required","recreating this workspace requires confirmation"));return;
                 }
                 let Some(result)=apply_workspace_launch(&mut state,launch,existing) else {let _=response.send(err(req_id,"launch_failed","project workspace layout could not be created"));return;};

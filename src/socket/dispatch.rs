@@ -500,11 +500,17 @@ async fn dispatch_request(
             else {
                 return err(req_id, "invalid_params", "review fingerprint required");
             };
+            let confirmed = match params.get("confirmed").filter(|value| !value.is_null()) {
+                None => false,
+                Some(serde_json::Value::Bool(value)) => *value,
+                Some(_) => return err(req_id, "invalid_params", "confirmed must be boolean"),
+            };
             commands::SocketCommand::ProjectActionRun {
                 req_id: req_id.clone(),
                 workspace,
                 action_id: action_id.into(),
                 fingerprint: fingerprint.into(),
+                confirmed,
                 resp_tx,
             }
         }

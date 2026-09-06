@@ -4460,7 +4460,7 @@ _cmux() {
             return 0
             ;;
         cmux__project__run)
-            opts="-v -h --fingerprint --workspace --socket --json --no-json --verbose --color --help <ACTION>"
+            opts="-v -h --fingerprint --workspace --confirm --socket --json --no-json --verbose --color --help <ACTION>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0

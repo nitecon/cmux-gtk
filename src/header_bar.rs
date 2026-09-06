@@ -20,6 +20,11 @@ pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBa
             "New Tab (Browser) (Ctrl+Shift+L)",
             "win.new-browser-tab",
         ),
+        (
+            "system-search-symbolic",
+            "Command Palette (Ctrl+Shift+P)",
+            "win.project-palette",
+        ),
     ] {
         header.pack_start(&action_button(icon, tooltip, action));
     }

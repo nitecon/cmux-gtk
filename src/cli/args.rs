@@ -40,6 +40,9 @@ pub enum Commands {
         fingerprint: String,
         #[arg(long)]
         workspace: Option<String>,
+        /// Confirm a reviewed action that requires an additional destructive decision
+        #[arg(long)]
+        confirm: bool,
     },
     /// Inspect resolved project actions and their source files without running them
     ProjectActions {

@@ -96,7 +96,8 @@ content:
 
   layout_restore_depth:
     - Project parser and GTK session builder share MAX_LAYOUT_DEPTH16. Inspected upstream has no explicit source-level bound; Linux limits depth for GTK responsiveness.
-    - Actions run34062084578 showed17 nested GtkPaned splits listening on the socket but failing readiness for ten seconds. The boundary fixture restores16 nested splits and asserts17 panes/surfaces plus workspace name.
+    - Actions runs34062084578 and34063064981 showed non-shrinking GtkPaned descendants listening on the socket but failing readiness for ten seconds at17 and16 nested splits. Live/restored dividers now permit constrained descendants below natural size to bound GTK negotiation.
+    - The boundary fixture restores16 nested splits and asserts17 panes/surfaces plus workspace name.
 
   default_workspace_execution:
     - Inline workspace and named workspaceCommand actions create default-layout workspaces with name/cwd/RGB color/env. Relative cwd resolves from reviewed canonical directory; preparation runs under existing reader worker/deadline before GTK mutation.
@@ -115,4 +116,9 @@ content:
   workspace_restart_policies:
     - Named definitions retain new/recreate/ignore/confirm. Existing workspaces match by exact display name, following the inspected upstream executor.
     - New always launches; ignore selects an existing match without side effects; recreate creates the replacement before closing the match so construction failure preserves the old workspace.
-    - Confirm returns confirmation_required on collision until an interactive palette caller can submit an explicit choice. Actions checks ignore/recreate workspace identity and counts; runtime pending.
+    - Confirm returns confirmation_required on collision until an interactive or explicit CLI caller submits a choice. Actions checks ignore/recreate/confirm workspace identity and counts; runtime pending.
+
+  command_palette:
+    - Header, hamburger menu and Ctrl+Shift+P open a searchable palette resolved for the captured active local workspace. Metadata-only and palette=false actions are excluded; configuration text is rendered without markup; Enter executes the first visible result.
+    - Palette resolution/execution reuse the bounded worker and fingerprint-checked project runner. Pending tasks and row callbacks retain only weak GTK/model references; open/resolve/run share a fresh trace identity without definition contents.
+    - confirm=true and restart=confirm fail closed with confirmation_required. The GTK palette presents Run/Cancel plus the complete bounded reviewed definition and referenced named command/source, then retries only after acceptance; project-run --confirm carries the same explicit decision for CLI automation.

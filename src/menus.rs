@@ -30,6 +30,19 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // win.project-palette — searchable project-defined actions for the active workspace.
+    let action = gio::SimpleAction::new("project-palette", None);
+    action.connect_activate({
+        let state = state.clone();
+        let window = window.downgrade();
+        move |_, _| {
+            if let Some(window) = window.upgrade() {
+                crate::project_palette::show(&window, &state);
+            }
+        }
+    });
+    window.add_action(&action);
+
     // win.new-terminal-tab — sibling surface in the focused pane.
     let action = gio::SimpleAction::new("new-terminal-tab", None);
     action.connect_activate({
@@ -365,6 +378,7 @@ pub fn build_hamburger_menu() -> gio::Menu {
     edit_section.append(Some("Copy"), Some("win.copy"));
     edit_section.append(Some("Paste"), Some("win.paste"));
     edit_section.append(Some("Find"), Some("win.find"));
+    edit_section.append(Some("Command Palette"), Some("win.project-palette"));
     edit_section.append(Some("Preferences"), Some("win.preferences"));
     menu.append_section(Some("Edit"), &edit_section);
 

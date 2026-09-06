@@ -40,6 +40,7 @@ _arguments "${_arguments_options[@]}" : \
 '--workspace=[]:WORKSPACE:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--confirm[Confirm a reviewed action that requires an additional destructive decision]' \
 '--json[Output raw JSON responses]' \
 '--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
 '-v[Verbose output (connection info to stderr)]' \

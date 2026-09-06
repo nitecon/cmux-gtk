@@ -191,6 +191,20 @@ pub fn install_shortcuts(
                     }
                     gtk4::glib::Propagation::Stop
                 }
+                None if keyval.to_lower() == gtk4::gdk::Key::p
+                    && mods.intersection(
+                        gtk4::gdk::ModifierType::CONTROL_MASK
+                            | gtk4::gdk::ModifierType::SHIFT_MASK
+                            | gtk4::gdk::ModifierType::ALT_MASK
+                            | gtk4::gdk::ModifierType::SUPER_MASK,
+                    ) == (gtk4::gdk::ModifierType::CONTROL_MASK
+                        | gtk4::gdk::ModifierType::SHIFT_MASK) =>
+                {
+                    if let Some(window) = window.upgrade() {
+                        crate::project_palette::show(&window, &state);
+                    }
+                    gtk4::glib::Propagation::Stop
+                }
                 // Everything else passes through to Ghostty.
                 _ => gtk4::glib::Propagation::Proceed,
             }

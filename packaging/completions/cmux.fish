@@ -89,6 +89,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l fingerprint -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l workspace -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l confirm -d 'Confirm a reviewed action that requires an additional destructive decision'
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l json -d 'Output raw JSON responses'
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-run" -s v -l verbose -d 'Verbose output (connection info to stderr)'

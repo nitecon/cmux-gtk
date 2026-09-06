@@ -6,6 +6,7 @@ import shlex
 import socket
 import subprocess
 import tempfile
+import time
 
 from linux_app import running_app
 
@@ -203,7 +204,51 @@ def main():
             assert recreated["workspace_id"] != first["workspace_id"]
             assert first["workspace_id"] not in after_restart and recreated["workspace_id"] in after_restart
             assert len(after_restart) == len(before_restart)
-            app.cli("close-workspace", recreated["workspace_id"])
+            config_file.write_text(json.dumps(restart_config("confirm")))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            fingerprint = reviewed["config"]["actions"]["fixture.restart"]["fingerprint"]
+            try:
+                app.cli("project-run", "fixture.restart", "--workspace", target["workspace_uuid"],
+                        "--fingerprint", fingerprint, "--json")
+            except subprocess.CalledProcessError:
+                pass
+            else:
+                raise AssertionError("confirm restart executed without an explicit decision")
+            assert {row["uuid"] for row in json.loads(app.cli("list-workspaces", "--json"))["workspaces"]} == after_restart
+            confirmed = json.loads(app.cli("project-run", "fixture.restart", "--workspace", target["workspace_uuid"],
+                "--fingerprint", fingerprint, "--confirm", "--json"))
+            after_confirm = {row["uuid"] for row in json.loads(app.cli("list-workspaces", "--json"))["workspaces"]}
+            assert confirmed["workspace_id"] != recreated["workspace_id"]
+            assert recreated["workspace_id"] not in after_confirm and len(after_confirm) == len(after_restart)
+            app.cli("close-workspace", confirmed["workspace_id"])
+            app.cli("select-workspace", target["workspace_uuid"])
+            palette_output = repo / "palette.out"
+            config_file.write_text(json.dumps({"actions": {"fixture.palette": {
+                "title": "Palette execution fixture", "command": "printf palette > " + shlex.quote(str(palette_output)),
+                "target": "currentTerminal"}}}))
+            main_window = subprocess.check_output(
+                ["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid)],
+                text=True, timeout=10).split()[0]
+            subprocess.check_call(["xdotool", "windowfocus", "--sync", main_window,
+                                   "key", "--clearmodifiers", "ctrl+shift+p"], timeout=10)
+            palette_windows = []
+
+            def palette_visible():
+                result = subprocess.run(
+                    ["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid),
+                     "--name", "^Command Palette$"], capture_output=True, text=True, timeout=3)
+                palette_windows[:] = result.stdout.split()
+                return bool(palette_windows)
+
+            app.wait_for(palette_visible, "project command palette")
+            subprocess.check_call(["xdotool", "type", "--window", palette_windows[-1],
+                                   "--clearmodifiers", "fixture.palette"], timeout=10)
+            deadline = time.monotonic() + 10
+            while not palette_output.exists() and time.monotonic() < deadline:
+                subprocess.run(["xdotool", "key", "--window", palette_windows[-1],
+                                "--clearmodifiers", "Return"], check=False, timeout=3)
+                time.sleep(0.25)
+            assert palette_output.read_text() == "palette"
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))

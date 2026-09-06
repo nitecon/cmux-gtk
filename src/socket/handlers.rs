@@ -245,16 +245,20 @@ fn handle_socket_command_traced(
             workspace,
             action_id,
             fingerprint,
+            confirmed,
             resp_tx,
         } => {
             super::project::run(
                 state,
-                workspace,
-                action_id,
-                fingerprint,
-                req_id,
+                super::project::RunRequest {
+                    workspace,
+                    action_id,
+                    fingerprint,
+                    confirmed,
+                    req_id,
+                    trace_id,
+                },
                 resp_tx,
-                trace_id,
             );
         }
         SocketCommand::ProjectActionsList {

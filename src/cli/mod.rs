@@ -388,9 +388,10 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             action,
             fingerprint,
             workspace,
+            confirm,
         } => (
             "project.actions.run",
-            serde_json::json!({"action_id":action,"fingerprint":fingerprint,"workspace_id":workspace}),
+            serde_json::json!({"action_id":action,"fingerprint":fingerprint,"workspace_id":workspace,"confirmed":confirm}),
         ),
         Commands::ProjectActions { workspace, .. } => (
             "project.actions.list",

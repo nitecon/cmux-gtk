@@ -40,6 +40,7 @@ pub enum SocketCommand {
         workspace: Option<uuid::Uuid>,
         action_id: String,
         fingerprint: String,
+        confirmed: bool,
         resp_tx: RespTx,
     },
     /// Resolve project actions from a captured local workspace directory on a bounded worker.

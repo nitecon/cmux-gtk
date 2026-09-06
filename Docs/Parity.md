@@ -419,7 +419,7 @@ The multi-restart fixture now checks explicit environment retention through an u
 
 ### Shared project and session layout depth
 
-Project validation and session restoration share a 16-level Linux cap. The inspected upstream source has no explicit layout-depth limit, but Actions run34062084578 showed that a 17-deep GtkPaned tree could open the socket while leaving the GTK main thread unable to answer readiness within ten seconds. Startup coverage therefore exercises the accepted boundary with16 nested splits and17 retained panes/surfaces. Full project layout application is covered below.
+Project validation and session restoration share a bounded 16-level Linux cap. The inspected upstream source has no explicit layout-depth limit. Actions runs34062084578 and34063064981 showed that trees configured with non-shrinking nested GtkPaned children could open the socket while leaving the GTK main thread unable to answer readiness within ten seconds at17 and16 nested splits. The working diagnosis is recursive minimum-width negotiation, so live and restored dividers now permit constrained descendants below their natural size. Startup coverage exercises the accepted boundary with16 nested splits and17 retained panes/surfaces; runtime proof for the divider correction is pending. Full project layout application is covered below.
 
 ### Custom project workspace layouts
 
@@ -427,7 +427,11 @@ Inline workspace and named workspaceCommand actions now create their validated p
 
 ### Named workspace restart policies
 
-Named workspace commands now retain upstream `new`, `ignore`, `recreate` and `confirm` policy values. Name collision behavior matches the inspected upstream executor: `new` creates another workspace, `ignore` selects the existing workspace without launching, and `recreate` builds the replacement before closing the old workspace. This ordering avoids destroying a working workspace when replacement construction fails. `confirm` returns `confirmation_required` when a matching name exists until the command palette can carry an explicit decision; without a collision it launches normally. Actions coverage checks stable identity/count for ignore and identity replacement with constant count for recreate; runtime verification is pending.
+Named workspace commands retain upstream `new`, `ignore`, `recreate` and `confirm` policy values. Name collision behavior matches the inspected upstream executor: `new` creates another workspace, `ignore` selects the existing workspace without launching, and `recreate` builds the replacement before closing the old workspace. This ordering avoids destroying a working workspace when replacement construction fails. `confirm` returns `confirmation_required` when a matching name exists and launches normally without a collision. The palette and CLI decision paths are covered below. Actions coverage checks stable identity/count for ignore and identity replacement with constant count for recreate; runtime verification is pending.
+
+### Project command palette and confirmation
+
+The GTK header, hamburger menu and Ctrl+Shift+P now open a searchable project-action palette for the active local workspace. It calls the shared bounded resolver and reviewed action runner directly, excludes metadata-only and `palette: false` entries, renders configuration text as plain text, and holds only weak GTK/model references while asynchronous work is pending. Enter executes the first visible search result. An action that declares `confirm: true`, or a colliding workspace with restart `confirm`, returns `confirmation_required`; the palette presents the complete bounded reviewed definition, including a referenced named command and its source, then retries with the same workspace/action/fingerprint identity only after acceptance. The CLI exposes the same explicit decision through `project-run --confirm`. Unit coverage checks palette filtering; the native project fixture opens/searches/executes the actual palette and checks fail-closed versus confirmed replacement identity/count. Runtime verification is pending.
 
 ### Restore topology preflight
 

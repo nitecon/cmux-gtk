@@ -956,9 +956,10 @@ impl SplitEngine {
             // is TRUE but be explicit to ensure drag works in both directions.
             paned.set_resize_start_child(true);
             paned.set_resize_end_child(true);
-            // Prevent children from collapsing to 0px when dragging to an extreme.
-            paned.set_shrink_start_child(false);
-            paned.set_shrink_end_child(false);
+            // Nested panes must be allowed below their natural size. Requiring every
+            // terminal's minimum width makes deep valid trees livelock GTK allocation.
+            paned.set_shrink_start_child(true);
+            paned.set_shrink_end_child(true);
             // Wide handle makes the divider grabable (default is ~5px, hard to click).
             paned.set_wide_handle(true);
 
