@@ -134,11 +134,12 @@ async fn handle_connection(
                 break;
             }
         };
-        if let Err(error) = framing::write_response(&mut writer, &response).await {
+        if let Err(error) = framing::write_response(&mut writer, &response.body).await {
             crate::diagnostics::record(
                 "rpc.response.failed",
                 serde_json::json!({
-                    "error_kind": format!("{:?}", error.kind()), "response_bytes": response.len()
+                    "error_kind": format!("{:?}", error.kind()),
+                    "response_bytes": response.body.len(), "trace_id": response.trace_id
                 }),
             );
             break;

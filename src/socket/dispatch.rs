@@ -16,14 +16,24 @@ fn optional_target(params: &serde_json::Value) -> Result<Option<String>, &'stati
 
 /// Parse a JSON-RPC line and dispatch to the appropriate SocketCommand.
 /// Consumes raw input and releases unused JSON fields before awaiting execution.
-/// Returns the JSON response string (without trailing newline).
+/// Returns encoded JSON and its validated operation identity for transport diagnostics.
 pub(super) async fn dispatch_line(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
-) -> String {
+) -> DispatchedResponse {
     let mut operation = None;
     let response = dispatch_request(line, cmd_tx, &mut operation).await;
-    super::response::encode(response, operation.as_mut())
+    let body = super::response::encode(response, operation.as_mut());
+    DispatchedResponse {
+        body,
+        trace_id: operation.as_ref().map(|operation| operation.id),
+    }
+}
+
+/// Carry correlation across encoding without retaining request contents or operation accounting.
+pub(super) struct DispatchedResponse {
+    pub body: String,
+    pub trace_id: Option<uuid::Uuid>,
 }
 
 /// Validate and execute one request; the caller retains its operation through response encoding.

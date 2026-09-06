@@ -30,7 +30,7 @@ async fn malformed_terminal_input_never_reaches_gtk() {
             )
             .await
             .expect("invalid input must not await GTK");
-            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
             assert_eq!(response["id"], 16);
             assert_eq!(response["error"]["code"], "invalid_params", "{method}");
             assert!(rx.try_recv().is_err());
@@ -99,7 +99,7 @@ async fn terminal_input_reaches_gtk_unchanged() {
         })
         .await
         .unwrap();
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
         assert_eq!(response["id"], 17);
         assert_eq!(response["ok"], true);
         assert!(rx.try_recv().is_err());
@@ -139,7 +139,7 @@ async fn malformed_envelopes_never_reach_gtk() {
     }
     for (request, code) in cases {
         let response = dispatch_line(request.to_string(), &tx).await;
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
         assert_eq!(response["error"]["code"], code);
         assert_eq!(
             response["id"],
@@ -171,7 +171,7 @@ async fn invalid_optional_targets_never_reach_gtk() {
             let request = serde_json::json!({"id": 14, "method": method,
                 "params": {"id": id, "text": "echo wrong-target", "key": "x"}});
             let response = dispatch_line(request.to_string(), &tx).await;
-            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+            let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
             assert_eq!(response["id"], 14);
             assert_eq!(response["error"]["code"], "invalid_params", "{method}");
             assert!(rx.try_recv().is_err());
@@ -198,7 +198,7 @@ async fn invalid_reorder_positions_never_reach_gtk() {
         let request =
             serde_json::json!({"id": 13, "method": "workspace.reorder", "params": params});
         let response = dispatch_line(request.to_string(), &tx).await;
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
         assert_eq!(response["id"], 13);
         assert_eq!(response["error"]["code"], "invalid_params");
         assert!(rx.try_recv().is_err());
@@ -218,7 +218,7 @@ async fn invalid_split_directions_never_reach_gtk() {
         let request = serde_json::json!({"id": 12, "method": "surface.split",
                                        "params": {"direction": direction}});
         let response = dispatch_line(request.to_string(), &tx).await;
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+        let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
         assert_eq!(response["id"], 12);
         assert_eq!(response["error"]["code"], "invalid_params");
         assert!(rx.try_recv().is_err());
@@ -242,7 +242,7 @@ async fn queue_overload_recovers_after_drain() {
     )
     .await
     .expect("full queue must not await GTK");
-    let rejected: serde_json::Value = serde_json::from_str(&rejected).unwrap();
+    let rejected: serde_json::Value = serde_json::from_str(&rejected.body).unwrap();
     assert_eq!(rejected["id"], 9);
     assert_eq!(rejected["error"]["code"], "overloaded");
     drop(rx.try_recv().unwrap());
@@ -265,7 +265,7 @@ async fn queue_overload_recovers_after_drain() {
     })
     .await
     .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
     assert_eq!(response["id"], 10);
     assert_eq!(response["result"]["pong"], true);
 }
@@ -276,7 +276,7 @@ async fn closed_queue_reports_handler_loss() {
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     drop(rx);
     let response = dispatch_line(r#"{"id":11,"method":"system.ping"}"#.into(), &tx).await;
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
     assert_eq!(response["id"], 11);
     assert_eq!(response["error"]["code"], "internal_error");
 }
@@ -290,7 +290,7 @@ async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
         &tx,
     )
     .await;
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
     assert_eq!(response["ok"], false);
     assert_eq!(response["error"]["code"], "invalid_directory");
     assert!(
@@ -363,7 +363,36 @@ async fn oversized_response_records_correlated_failure() {
     })
     .await
     .unwrap();
-    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response.body).unwrap();
     assert_eq!(response["id"], 12);
     assert_eq!(response["error"]["code"], "response_too_large");
+}
+
+/// Preserve validated or generated correlation through encoding, including protocol errors.
+#[tokio::test]
+async fn encoded_response_retains_operation_identity() {
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    let trace = uuid::Uuid::new_v4();
+    for supplied in [trace.to_string(), "invalid-trace".to_owned()] {
+        let request = serde_json::json!({
+            "id": 41, "method": "unknown.method", "trace_id": supplied
+        });
+        let response = dispatch_line(request.to_string(), &tx).await;
+        let retained = response
+            .trace_id
+            .expect("validated method creates an operation");
+        if supplied == trace.to_string() {
+            assert_eq!(retained, trace);
+        } else {
+            assert_ne!(retained, uuid::Uuid::nil());
+        }
+        let body: serde_json::Value = serde_json::from_str(&response.body).unwrap();
+        assert_eq!(body["id"], 41);
+        assert_eq!(body["ok"], false);
+        assert!(rx.try_recv().is_err());
+    }
+    let malformed = dispatch_line("{broken".to_owned(), &tx).await;
+    assert!(malformed.trace_id.is_none());
+    let body: serde_json::Value = serde_json::from_str(&malformed.body).unwrap();
+    assert_eq!(body["error"]["code"], "parse_error");
 }
