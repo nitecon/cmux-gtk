@@ -342,3 +342,7 @@ Added workspace connection/proxy observations and a real SSH reconnect scenario 
 ### Remote-only browser hostname coverage
 
 The isolated SSH browser test now supplies a hostname only through a private remote hosts-file mount. Both workspace browsers must resolve it and receive their distinct remote page identity. Syntax checks pass; runtime evidence remains pending Actions.
+
+### SOCKS handshake overload coverage
+
+Added bounded handshake gauges/outcome counters and workspace-qualified timing events. Actions coverage fills all sixteen slots, rejects the next client, observes deadline cleanup and verifies subsequent browser navigation. Strict Clippy and syntax checks pass; execution remains pending. Full transferred-data overload remains a separate gate.

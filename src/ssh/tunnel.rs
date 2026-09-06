@@ -35,7 +35,7 @@ pub async fn run_ssh_lifecycle(
     bridge: Arc<SshBridge>,
     launch_trace: uuid::Uuid,
 ) {
-    let proxy_task = tokio::spawn(super::socks::run(bridge.clone()));
+    let proxy_task = tokio::spawn(super::socks::run(bridge.clone(), workspace_id));
     let _proxy_guard = AbortOnDrop(proxy_task.abort_handle());
     let mut attempt: u32 = 0;
     let mut deployed = false;

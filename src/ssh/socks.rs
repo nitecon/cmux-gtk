@@ -103,7 +103,7 @@ async fn negotiate(socket: &mut TcpStream) -> io::Result<(String, u16)> {
 
 /// Retain the loopback bind through reconnects; cap handshakes and reject disconnected admission.
 /// Lifecycle cancellation drops negotiation tasks; the bridge retains the bind until workspace release.
-pub(super) async fn run(bridge: Arc<SshBridge>) {
+pub(super) async fn run(bridge: Arc<SshBridge>, workspace_id: u64) {
     let existing = bridge.browser_proxy_listener.lock().unwrap().clone();
     let listener = match existing {
         Some(listener) => listener,
@@ -133,7 +133,14 @@ pub(super) async fn run(bridge: Arc<SshBridge>) {
                 // Capture generation at accept, not after a potentially slow greeting.
                 let sender=bridge.browser_proxy_requests.lock().unwrap().clone();
                 tasks.spawn(async move {
+                    let _active = super::forward_metrics::Active::handshake();
+                    let started = std::time::Instant::now();
                     let parsed=tokio::time::timeout(Duration::from_secs(5),negotiate(&mut socket)).await;
+                    let outcome = match &parsed { Ok(Ok(_)) => "success", Ok(Err(_)) => "error", Err(_) => "timeout" };
+                    super::forward_metrics::handshake_completed(outcome);
+                    crate::diagnostics::record("ssh.browser_proxy.handshake", serde_json::json!({
+                        "workspace_id":workspace_id,"outcome":outcome,"duration_us":started.elapsed().as_micros() as u64,
+                    }));
                     if let Ok(Ok((host,port)))=parsed {
                         let request=Request{socket,host,port};
                         let rejected=match sender {

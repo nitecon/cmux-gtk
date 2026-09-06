@@ -3,6 +3,7 @@ import json
 from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import shlex
+import socket
 from threading import Thread
 import time
 
@@ -192,6 +193,38 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
                            if row['uuid'] == remote_id)['remote']
         assert reconnected['browser_proxy_port'] == remote_records[0]['browser_proxy_port']
         reconnect_us = (time.perf_counter_ns() - reconnect_started) / 1000
+        def forwarding_metrics():
+            """Read payload-free aggregate resource counters through the normal diagnostics API."""
+            return json.loads(cli('diagnostics', '--json'))['remote_forwarding']
+
+        eventually(lambda: forwarding_metrics()['active_socks_handshakes'] == 0)
+        overload_before = forwarding_metrics()
+        proxy_address = ('127.0.0.1', reconnected['browser_proxy_port'])
+        with ExitStack() as held:
+            for _ in range(16):
+                client = held.enter_context(socket.create_connection(proxy_address, timeout=2))
+                client.sendall(b'\x05')
+            eventually(lambda: forwarding_metrics()['active_socks_handshakes'] == 16)
+            with socket.create_connection(proxy_address, timeout=2) as extra:
+                extra.settimeout(2)
+                try:
+                    assert extra.recv(1) == b'', 'over-capacity SOCKS client was retained'
+                except ConnectionResetError:
+                    pass
+            assert forwarding_metrics()['rejected_clients'] > overload_before['rejected_clients']
+            assert json.loads(cli('ping', '--json'))['pong']
+        eventually(lambda: forwarding_metrics()['active_socks_handshakes'] == 0)
+        # A single partial greeting must also expire without client-side close.
+        deadline_before = forwarding_metrics()['socks_handshake_timeouts']
+        with socket.create_connection(proxy_address, timeout=2) as stalled:
+            stalled.settimeout(8)
+            stalled.sendall(b'\x05')
+            assert stalled.recv(1) == b''
+        eventually(lambda: forwarding_metrics()['active_socks_handshakes'] == 0)
+        assert forwarding_metrics()['socks_handshake_timeouts'] > deadline_before
+        assert json.loads(cli('browser', 'goto', first_surface, url))['success']
+        eventually(lambda: loaded(*surfaces[0]))
+        overload_after = forwarding_metrics()
         assert not requests, 'remote browser sent traffic to the local decoy'
         assert json.loads(cli('current-workspace', '--json'))['uuid'] == local_id
         assert json.loads(cli('ping', '--json'))['pong']
@@ -199,6 +232,7 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
                                     'local_decoy_requests': len(requests),
                                     'workspace_transport': remote_records,
                                     'reconnect_us': reconnect_us, 'reconnected_transport': reconnected,
+                                    'socks_overload': {'before': overload_before, 'after': overload_after},
                                     'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation', 'remote-only hostname resolution']}
     finally:
         try:
