@@ -310,3 +310,7 @@ The real SSH workspace fixture now waits for remote response FIN before sending 
 ### Remote capability negotiation
 
 Hello now negotiates listener discovery and bidirectional half-close support per connection. Older terminal-capable daemons stay usable, with unsupported discovery/forwarding disabled until daemon upgrade and reconnect. Handshake diagnostics report both feature decisions. Added transport coverage for full/partial/missing capability sets; strict workspace Clippy passes, Actions execution pending. Reconnect/collision/overload integration evidence and full browser remote-origin routing remain open.
+
+### Forwarded service retirement coverage
+
+The real SSH fixture now retires a remote listening socket while its accepted client remains open, requiring discovery-driven EOF at both peers, confirmed close, zero owned forwarding tasks and preserved workspace selection. It records retirement latency and checks the fallback port differs from the occupied preferred port. Python syntax validation passes; Actions runtime execution remains pending. This does not establish multi-workspace collision or reconnect coverage.

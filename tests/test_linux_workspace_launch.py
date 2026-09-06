@@ -243,12 +243,17 @@ Subsystem sftp internal-sftp
                                    "  if connections==1:\n"
                                    "   while c.recv(32768): pass\n"
                                    "   c.sendall(b'cmux-forwarded-'*8192)\n"
-                                   "  else:\n"
+                                   "  elif connections==2:\n"
                                    "   c.sendall(b'early-response');c.shutdown(socket.SHUT_WR)\n"
                                    "   request=bytearray()\n"
                                    "   while chunk:=c.recv(32768):\n"
                                    "    request.extend(chunk);assert len(request)<=131072\n"
                                    "   (root/'late-request').write_bytes(request)\n"
+                                   "  else:\n"
+                                   "   c.sendall(b'listener-retired');s.close();c.settimeout(20)\n"
+                                   "   assert c.recv(1)==b''\n"
+                                   "   (root/'retired-client-closed').touch()\n"
+                                   "   c.close();break\n"
                                    "  c.close()\n"
                                    " except socket.timeout: pass\n"
                                    "s.close()\n")
@@ -265,6 +270,8 @@ Subsystem sftp internal-sftp
         assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
         eventually(lambda: any(row["port"] == listener_port and row.get("forwarded_local_port") for row in (remote_ports() or [])))
         forwarded_port = next(row["forwarded_local_port"] for row in remote_ports() if row["port"] == listener_port)
+        # Loopback SSH shares this host: the real remote listener already occupies its preferred port.
+        assert forwarded_port != listener_port, "forwarding did not publish its collision fallback port"
         forwarding_before = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
         with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
             forwarded.settimeout(10)
@@ -307,9 +314,29 @@ Subsystem sftp internal-sftp
         report["forwarding"]["reverse_half_close_after"] = reverse_after
         assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
         assert json.loads(cli("ping", "--json"))["pong"]
-        (root / "remote/listener-stop").touch()
+        # The server closes only its listening socket, keeping the accepted socket alive.
+        # Discovery must retire forwarding and close that idle client without a transport restart.
+        retirement_started = time.perf_counter_ns()
+        with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
+            forwarded.settimeout(20)
+            retired_response = bytearray()
+            while chunk := forwarded.recv(32768):
+                retired_response.extend(chunk)
+                assert len(retired_response) <= len(b"listener-retired")
+            assert retired_response == b"listener-retired"
+        eventually(lambda: (root / "remote/retired-client-closed").exists())
         eventually(lambda: remote_ports() is not None and not any(row["port"] == listener_port for row in remote_ports()))
         eventually(lambda: json.loads(cli("diagnostics", "--json"))["remote_forwarding"]["active_listener_tasks"] == 0)
+        retired_after = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
+        assert retired_after["active_client_tasks"] == 0
+        assert retired_after["confirmed_closes"] > reverse_after["confirmed_closes"]
+        assert retired_after["failed_closes"] == reverse_after["failed_closes"]
+        report["forwarding"]["service_retirement"] = {
+            "duration_us": (time.perf_counter_ns() - retirement_started) / 1000,
+            "after": retired_after,
+        }
+        assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
+        assert json.loads(cli("ping", "--json"))["pong"]
         cli("select-workspace", remote_id)
 
         cli("split", "--direction", "horizontal")
