@@ -62,3 +62,7 @@ content:
   browser_builtin:
     - cmux.newBrowser opens about:blank through shared browser startup and cancellation ownership. Captured selected surface must survive unchanged until installation; successful project action selects the browser, ordinary browser.open remains no-focus.
     - project-run client timeout is now thirty seconds for resolution plus browser startup. Submission trace identifies workspace/surface. Mock-browser Actions coverage checks selection and independent daemon cleanup; runtime pending.
+
+  browser_rejection_verification:
+    - Delayed project browser fixture changes selected target pane and switches to observer before completion. Requires changed error, unchanged surface/focus snapshot and exact prior daemon set after cleanup.
+    - Shared startup owner handles rejected result retirement. Python AST passes; runtime remains in Actions.

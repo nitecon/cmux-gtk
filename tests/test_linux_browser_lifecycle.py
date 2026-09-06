@@ -23,7 +23,7 @@ def command(app, *arguments):
 
 
 @contextmanager
-def pending_open(app, browser_dir):
+def pending_open(app, browser_dir, *arguments):
     """Hold one real daemon navigation until released, always reaping its CLI on failure."""
     pause = browser_dir / "pause-navigate"
     waiting = browser_dir / "navigate-waiting"
@@ -31,7 +31,7 @@ def pending_open(app, browser_dir):
     pause.touch()
     process = None
     try:
-        process = subprocess.Popen(command(app, "browser", "open", "https://example.test/delayed"),
+        process = subprocess.Popen(command(app, *(arguments or ("browser", "open", "https://example.test/delayed"))),
                                    env=app.environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         app.wait_for(waiting.exists, "daemon navigation pause", timeout=5)
         yield process
@@ -156,6 +156,22 @@ def main():
                 (root / "cmux.json").write_text(json.dumps({"actions": {"fixture.browser": {"builtin": "cmux.newBrowser"}}}))
                 project = json.loads(app.cli("new-workspace", "--cwd", str(root), "--json"))["uuid"]
                 reviewed = json.loads(app.cli("project-actions", "--workspace", project, "--json"))
+                source_terminal = next(row["uuid"] for row in app.surfaces() if row["active"])
+                before_daemons = set(browser_dir.glob("*.pid"))
+                with pending_open(app, browser_dir, "project-run", "fixture.browser", "--workspace", project,
+                        "--fingerprint", reviewed["config"]["actions"]["fixture.browser"]["fingerprint"], "--json") as pending:
+                    app.cli("split", "--direction", "horizontal")
+                    changed_terminal = next(row["uuid"] for row in app.surfaces() if row["active"])
+                    app.cli("select-workspace", target)
+                    before_surfaces = app.surfaces()
+                    error = finish_open(pending, browser_dir, False)
+                    assert "changed" in error.lower(), error
+                    assert app.surfaces() == before_surfaces, "stale project browser changed layout or focus"
+                app.wait_for(lambda: set(browser_dir.glob("*.pid")) == before_daemons,
+                             "stale project browser daemon retirement")
+                app.cli("close-surface", changed_terminal)
+                app.cli("select-workspace", project)
+                app.cli("focus-surface", source_terminal)
                 app.cli("select-workspace", target)
                 before_daemons = set(browser_dir.glob("*.pid"))
                 created = json.loads(app.cli("project-run", "fixture.browser", "--workspace", project,

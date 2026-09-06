@@ -388,3 +388,7 @@ cmux.newWorkspace now applies the reviewed project directory through existing lo
 ### Project browser builtin execution
 
 cmux.newBrowser now reuses browser startup/cancellation/session wiring, rejects a changed target surface during startup and selects the resulting browser only for explicit project execution. CLI project-run allows thirty seconds. Mock-browser Actions coverage checks target selection and independent daemon retirement; Clippy/AST pass, runtime pending. Palette, agent/workspace intents and remaining builtins remain open.
+
+### Project browser stale-context coverage
+
+The browser lifecycle fixture now holds a project browser startup while the target pane changes. It requires explicit rejection, no added browser/focus mutation, and cleanup of only the rejected daemon. Python syntax passes; Actions runtime evidence remains pending.
