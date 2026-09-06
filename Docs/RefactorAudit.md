@@ -1443,3 +1443,7 @@ Future adaptations must isolate browser state and own created surfaces/files/ser
 ### Bound CI unit-step ownership
 
 Run 34006059866 completed workspace unit tests in 24 seconds (02:22:00–02:22:24 UTC). Added a ten-minute unit-step timeout with substantial runner/build headroom so a hanging future fails before consuming the whole 45-minute job budget. This is a CI resource-lifetime bound, not an application performance gate. It does not modify or cancel the currently running older job; the correlation fixture defect has already been corrected in main.
+
+### Keep GTK failure correlation coverage on a GTK command
+
+Updated the real-application diagnostics fixture to use selection of a nonexistent workspace for its failed GTK command. Unknown RPC methods now intentionally fail on the worker, so requiring GTK events for that request was stale. The fixture still requires matching queue, GTK-dispatch and completion trace IDs for both successful and failed GTK commands. Python syntax and whitespace checks pass; execution remains in CI.

@@ -60,8 +60,8 @@ def main():
                     return True
 
                 wait_until(heartbeat_ready, "GTK heartbeat and registered terminal", timeout=15)
-                for command in ("ping", "raw"):
-                    arguments = [command] if command == "ping" else ["raw", "unsupported_method"]
+                for command in ("ping", "select-workspace"):
+                    arguments = [command] if command == "ping" else [command, "missing-workspace"]
                     result = subprocess.run(cli + ["--verbose"] + arguments, env=env,
                                             text=True, capture_output=True, timeout=10)
                     assert (result.returncode == 0) == (command == "ping")
