@@ -76,24 +76,33 @@ def _start_external_server(base: Path, port: int) -> subprocess.Popen:
     return proc
 
 
+def _reported_ports(state: dict[str, str]) -> set[int]:
+    """Parse a required legacy ports field; malformed data cannot prove listener absence.
+
+    Empty text and none mean no ports. Numeric rows use comma-separated ASCII
+    decimal ports in 1..65535; whitespace is trimmed and duplicates collapse.
+    """
+    raw = state.get("ports")
+    if not isinstance(raw, str):
+        raise ValueError("sidebar snapshot has no ports field")
+    raw = raw.strip()
+    if raw in ("", "none"):
+        return set()
+    ports = set()
+    for item in raw.split(","):
+        item = item.strip()
+        if not item.isascii() or not item.isdecimal() or not 1 <= int(item) <= 65535:
+            raise ValueError("sidebar snapshot contains an invalid port")
+        ports.add(int(item))
+    return ports
+
+
 def _wait_for_port(client: cmux, port: int, timeout: float = 18.0) -> dict[str, str]:
     """Retry legacy sidebar snapshots until the requested numeric port appears."""
     def pred():
         """Return the matching port or listener observation for the enclosing retry loop."""
         state = _parse_sidebar_state(client.sidebar_state())
-        raw = state.get("ports", "")
-        if raw == "none" or not raw:
-            return None
-        ports = []
-        for item in raw.split(","):
-            item = item.strip()
-            if not item:
-                continue
-            try:
-                ports.append(int(item))
-            except ValueError:
-                continue
-        return state if port in ports else None
+        return state if port in _reported_ports(state) else None
 
     return _wait_for(pred, timeout=timeout, interval=0.15, label=f"ports include {port}")
 
@@ -103,19 +112,7 @@ def _wait_for_port_absent(client: cmux, port: int, timeout: float = 18.0) -> dic
     def pred():
         """Return the matching port or listener observation for the enclosing retry loop."""
         state = _parse_sidebar_state(client.sidebar_state())
-        raw = state.get("ports", "")
-        if raw == "none" or not raw:
-            return state
-        ports = []
-        for item in raw.split(","):
-            item = item.strip()
-            if not item:
-                continue
-            try:
-                ports.append(int(item))
-            except ValueError:
-                continue
-        return state if port not in ports else None
+        return state if port not in _reported_ports(state) else None
 
     return _wait_for(pred, timeout=timeout, interval=0.15, label=f"ports do not include {port}")
 
@@ -125,17 +122,11 @@ def _assert_port_absent_for_duration(client: cmux, port: int, duration: float = 
     Assert the port does not appear in sidebar_state during the full duration.
     This is important to catch "machine-wide ports" leaking into a fresh tab.
     """
-    start = time.time()
-    while time.time() - start < duration:
+    start = time.monotonic()
+    while time.monotonic() - start < duration:
         state = _parse_sidebar_state(client.sidebar_state())
-        raw = state.get("ports", "")
-        if raw and raw != "none":
-            try:
-                ports = {int(p.strip()) for p in raw.split(",") if p.strip()}
-            except ValueError:
-                ports = set()
-            if port in ports:
-                raise AssertionError(f"Port {port} unexpectedly appeared in sidebar ports: {raw}")
+        if port in _reported_ports(state):
+            raise AssertionError(f"Port {port} unexpectedly appeared in sidebar ports")
         time.sleep(interval)
 
 

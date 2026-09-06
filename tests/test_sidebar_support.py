@@ -12,6 +12,23 @@ from sidebar_support import parse_sidebar_state, wait_for_state_field, wait_for_
 class SidebarSupport(unittest.TestCase):
     """Exercise text edge cases and observation behavior used by legacy scenarios."""
 
+    def test_reported_ports_reject_malformed_absence(self):
+        """Bad rows or missing fields cannot satisfy a waiting-for-removal assertion."""
+        from test_sidebar_ports import _reported_ports, _wait_for_port_absent
+        self.assertEqual(_reported_ports({"ports": " 1, 65535,1 "}), {1, 65535})
+        for empty in ("", "none", " none "):
+            self.assertEqual(_reported_ports({"ports": empty}), set())
+        for value in (None, "1,garbage", "0", "65536", "-1", "1,", "１"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                _reported_ports({"ports": value})
+        with self.assertRaises(ValueError):
+            _reported_ports({})
+        client = Mock()
+        client.sidebar_state.return_value = "ports=12345,broken"
+        with self.assertRaises(AssertionError) as failure:
+            _wait_for_port_absent(client, 9999, timeout=0.01)
+        self.assertIsInstance(failure.exception.__cause__, ValueError)
+
     def test_listener_observation_distinguishes_errors(self):
         """Failed or partial lsof output cannot be interpreted as successful listener removal."""
         from test_sidebar_ports import _listener_pids
