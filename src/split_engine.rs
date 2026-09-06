@@ -1644,7 +1644,12 @@ impl SplitNode {
                                 .map(|pointer| {
                                     crate::ghostty::registry::working_directory(pointer as usize)
                                 })
-                                .unwrap_or_default(),
+                                .unwrap_or_else(|| {
+                                    // SAFETY: create_surface stores String under this private key on GTK.
+                                    unsafe { gl_area.data::<String>("cmux-launch-directory") }
+                                        .map(|directory| unsafe { directory.as_ref().clone() })
+                                        .unwrap_or_default()
+                                }),
                         },
                         PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
                             surface_uuid: *uuid,

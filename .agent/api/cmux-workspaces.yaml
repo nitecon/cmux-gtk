@@ -80,3 +80,5 @@ content:
     - Closing a terminal clears GTK callback handles before freeing Ghostty and unregisters its remote context. Closing a workspace cancels its SSH process and routing tasks.
     - Configure GDK before GTK initialization. Match Ghostty desktop OpenGL requirements and disable dmabuf on audited GTK 4.16 through 4.22.4 versions affected by the upstream GtkGLArea ownership leak. Dispatch render actions to their target surface.
     - Run executable behavior tests in GitHub Actions, not locally.
+
+  restored_directories: Plain local terminal restore prefers its saved native-reported CWD over the original workspace launch directory. Explicit startup-command and remote restoration keep workspace launch precedence. Deferred GLArea ownership retains the launch directory so snapshots before native initialization preserve it. tests/test_linux_scrollback_restore.py verifies actual restored shell CWD after two normal quits with an unopened background terminal; runtime pending.

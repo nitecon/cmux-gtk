@@ -23,7 +23,7 @@ struct RestoreContext<'a> {
 
 impl RestoreContext<'_> {
     /// Create a restored terminal with shared launch precedence, UUID and context-menu wiring.
-    /// Workspace directory overrides saved CWD; remote launch overrides a startup command.
+    /// Plain terminals resume their last CWD; explicit startup/remote launches retain workspace context.
     fn terminal(
         &self,
         pane_id: u64,
@@ -32,10 +32,13 @@ impl RestoreContext<'_> {
         resume: Option<&crate::resume::ResumeBinding>,
         scrollback: Option<&str>,
     ) -> PaneSurface {
-        let directory = self
-            .working_directory
-            .map(std::path::Path::to_path_buf)
-            .or_else(|| (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd)));
+        let saved_directory = (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd));
+        let workspace_directory = self.working_directory.map(std::path::Path::to_path_buf);
+        let directory = if self.launch_command.is_some() || self.remote_launch.is_some() {
+            workspace_directory.or(saved_directory)
+        } else {
+            saved_directory.or(workspace_directory)
+        };
         let launch = self.remote_launch.cloned().unwrap_or_else(|| {
             resume
                 .and_then(|binding| self.resume_policy.launch_command(binding))

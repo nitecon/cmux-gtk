@@ -250,6 +250,15 @@ pub fn create_surface(
     );
 
     let gl_area = gtk4::GLArea::new();
+    if let Some(directory) = &working_directory {
+        // SAFETY: this private key always owns String; snapshots only borrow it on GTK.
+        unsafe {
+            gl_area.set_data(
+                "cmux-launch-directory",
+                directory.to_string_lossy().into_owned(),
+            )
+        };
+    }
     eprintln!(
         "cmux: created GLArea {:p} for pane_id={}",
         gl_area.as_ptr(),

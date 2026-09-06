@@ -15,19 +15,24 @@ def main():
     """Replay before fresh child output while retaining untouched background history and workspace focus."""
     with tempfile.TemporaryDirectory(prefix="cmux-history-restore-") as directory:
         root = Path(directory)
+        changed = root / "changed-directory"
+        changed.mkdir()
         script = root / "history.py"
         script.write_text("import os\nfor i in range(120):\n    os.write(1, ('\\x1b[32mRESTORED-%04d-界\\x1b[0m\\r\\n' % i).encode())\n")
         wm = subprocess.Popen(["openbox"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             with running_app(root) as app:
                 app.wait_for(lambda: bool(app.surfaces()), "initial terminal")
+                app.cli("new-workspace", "--name", "history source", "--cwd", str(root))
                 source = next(row for row in app.surfaces() if row["active"])
+                app.wait_for(lambda: json.loads(app.cli("health", "--id", source["uuid"], "--json"))["alive"],
+                             "source native initialization")
 
                 def capture():
                     """Observe native terminal history without changing its focus."""
                     return json.loads(app.cli("read-scrollback", "--id", source["uuid"], "--json"))["text"]
 
-                app.cli("send-text", "--id", source["uuid"], "python3 " + shlex.quote(str(script)))
+                app.cli("send-text", "--id", source["uuid"], "cd " + shlex.quote(str(changed)) + "; printf '\\033]7;file://%s\\007' \"$PWD\"; python3 " + shlex.quote(str(script)))
                 app.cli("send-key", "--id", source["uuid"], "\r")
                 app.wait_for(lambda: "RESTORED-0119" in capture(), "original history")
                 app.cli("new-workspace", "--name", "keep selected")
@@ -49,6 +54,12 @@ def main():
                         return False
 
                 app.wait_for(restored, "unopened history replay")
+                cwd_file = root / "replayed-cwd"
+                app.cli("send-text", "--id", source["uuid"], "pwd > " + shlex.quote(str(cwd_file)))
+                app.cli("send-key", "--id", source["uuid"], "\r")
+                app.wait_for(lambda: cwd_file.exists() and cwd_file.stat().st_size, "restored shell directory")
+                assert cwd_file.read_text().strip() == str(changed)
+
                 text = capture()
                 assert "RESTORED-0000" in text and "界" in text
                 assert "\x1b[" in text and "\x1b]" not in text

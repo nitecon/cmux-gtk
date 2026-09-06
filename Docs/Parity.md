@@ -151,3 +151,8 @@ Local native ReleaseFast build, Rust binaries and strict clippy pass. Actions ad
 The replay entry point is pinned to nitecon/ghostty commit `86d20c5d1`, reachable on `cmux-linux-session-scrollback`; the submodule URL now uses that fork so clean CI/developer checkouts can fetch the dependency. Existing upstream-derived native behavior is preserved.
 
 Actions 34049479302 passed desktop click routing but failed caller attribution because explicit terminal read/input UUIDs were still resolved only in the selected workspace. The shared terminal resolver now searches all workspaces for an explicit UUID, preserving selected-workspace defaults only when identity is omitted. The caller and background scrollback fixtures cover this correction; cumulative verification is pending.
+
+
+## Restored working-directory checkpoint
+
+Plain local terminals now restore their last reported directory ahead of the workspace's original launch directory. Explicit startup-command and remote-workspace restoration retain workspace launch precedence. Each deferred GLArea keeps its launch directory for snapshots taken before native initialization; this prevents an untouched background terminal losing its directory during another quit. The three-launch history fixture now starts a workspace in one directory, changes to a second directory with an OSC7 report, and verifies the actual shell directory after an intermediate unopened quit. Runtime verification is pending.
