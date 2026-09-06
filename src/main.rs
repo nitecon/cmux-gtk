@@ -9,6 +9,7 @@ mod config;
 mod diagnostics;
 mod ghostty;
 mod header_bar;
+mod line_reader;
 mod menus;
 mod preferences;
 mod selection;

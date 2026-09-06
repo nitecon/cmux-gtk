@@ -28,3 +28,5 @@ Ordered selection after removal is shared by workspace rows and sibling tabs in 
 Socket startup receives a runtime handle and command sender, not application state. Worker validation and typed command construction live in `dispatch.rs`; `handlers.rs` owns GTK/model mutation. Both use `response.rs` to preserve the common success/error envelope and request identity. Command-specific fields are added before transport serialization.
 
 `src/task.rs` owns the abort-on-drop companion-task guard shared by SSH tunnel operations and browser result delivery. Aborting requests cancellation; paths requiring cleanup completion still await their task. Browser widget guards also disconnect weak GTK notifications when result delivery is abandoned.
+
+`src/line_reader.rs` owns asynchronous UTF-8 line framing shared by local socket admission and SSH daemon stdout: idle waiting is separate from a started-frame deadline and caller-selected byte cap. Consumers retire failed readers because partial bytes have been consumed. SSH stderr is a separate fixed-buffer drain with a per-connection diagnostic prefix cap and connection-owned cancellation.

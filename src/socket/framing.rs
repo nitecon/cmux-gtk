@@ -1,7 +1,7 @@
 //! Bounded request framing before JSON parsing or GTK dispatch.
 use std::io;
 use std::time::Duration;
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufRead, AsyncWrite, AsyncWriteExt};
 
 const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -10,47 +10,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) async fn next_request<R: AsyncBufRead + Unpin>(
     reader: &mut R,
 ) -> io::Result<Option<String>> {
-    if reader.fill_buf().await?.is_empty() {
-        return Ok(None);
-    }
-    read_started_request(reader, MAX_REQUEST_BYTES, REQUEST_TIMEOUT)
-        .await
-        .map(Some)
-}
-
-/// Assemble one started UTF-8 line, accepting CRLF and rejecting overflow or incomplete EOF.
-async fn read_started_request<R: AsyncBufRead + Unpin>(
-    reader: &mut R,
-    limit: usize,
-    timeout: Duration,
-) -> io::Result<String> {
-    let mut bytes = Vec::new();
-    let mut limited = reader.take(limit as u64 + 1);
-    tokio::time::timeout(timeout, limited.read_until(b'\n', &mut bytes))
-        .await
-        .map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::TimedOut,
-                "request completion deadline exceeded",
-            )
-        })??;
-    if bytes.len() > limit {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "request exceeds byte limit",
-        ));
-    }
-    if bytes.pop() != Some(b'\n') {
-        return Err(io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            "request missing newline",
-        ));
-    }
-    if bytes.last() == Some(&b'\r') {
-        bytes.pop();
-    }
-    String::from_utf8(bytes)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "request is not UTF-8"))
+    crate::line_reader::next_line(reader, MAX_REQUEST_BYTES, REQUEST_TIMEOUT).await
 }
 
 /// Send one serialized response within a byte cap and deadline, including its newline write.
@@ -85,7 +45,8 @@ async fn write_with_deadline<W: AsyncWrite + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::io::{AsyncWriteExt, BufReader};
+    use crate::line_reader::read_started_line as read_started_request;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 
     /// Complete response framing and stop a blocked writer when the receiver leaves its buffer full.
     #[tokio::test]

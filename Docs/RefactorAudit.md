@@ -8,7 +8,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
-| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 80 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
+| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 81 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
 | Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 367 functions in 62 `tests` files, and 226 among 393 functions in 36 `tests_v2` files. All 23 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
@@ -1365,3 +1365,7 @@ Retain these requirements for the separately deferred agent/browser parity work:
 - Future fixtures must own/reap the remote HTTP server and remove created files/workspaces. The removed scripts used broad process-name cleanup and best-effort remote terminal commands, so their cleanup model should not be copied.
 
 Maintained GTK browser lifecycle/focus and SSH PTY tests continue to cover their existing behavior; they do not establish remote-browser proxy or favicon coverage. This cleanup implements no deferred feature. Remaining unique v2 source inventory is refreshed above; no local tests ran.
+
+### Bound SSH stdout/stderr ownership
+
+Review found two unbounded SSH `read_line` buffers and a detached stderr task. Extracted the local request framing logic into `src/line_reader.rs`, preserving socket limits/tests and using the same implementation for SSH daemon responses (four MiB including newline, ten-second started-frame timeout, no idle timeout). Stderr now drains fixed chunks, forwards a capped diagnostic prefix and records one truncation event rather than accumulating an unterminated string. Its abort guard follows connection scope. Added behavioral tests for idle/fragmented input, invalid/oversized/truncated lines, stderr draining beyond its log cap and cancellation releasing the pipe. Workspace/all-target compilation passes; no local tests ran. Full SSH tracing and process-exit bounds remain open work.

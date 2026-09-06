@@ -6,7 +6,7 @@ use base64::Engine;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot;
 
@@ -115,21 +115,11 @@ pub async fn run_ssh_lifecycle(
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
 
-                // Log stderr from SSH/cmuxd-remote so errors aren't silently lost
-                if let Some(err_reader) = stderr {
-                    tokio::spawn(async move {
-                        let mut buf = BufReader::new(err_reader);
-                        let mut line = String::new();
-                        loop {
-                            line.clear();
-                            match buf.read_line(&mut line).await {
-                                Ok(0) => break,
-                                Ok(_) => eprintln!("cmux: SSH stderr: {}", line.trim_end()),
-                                Err(_) => break,
-                            }
-                        }
-                    });
-                }
+                // The reader belongs to this connection, including lifecycle cancellation.
+                let _stderr_guard = stderr.map(|reader| {
+                    let task = tokio::spawn(drain_stderr(reader, workspace_id));
+                    AbortOnDrop(task.abort_handle())
+                });
 
                 if let (Some(writer), Some(reader)) = (stdin, stdout) {
                     let mut buf_writer = BufWriter::new(writer);
@@ -238,12 +228,16 @@ async fn run_proxy_routing(
     let read_connected = connected.clone();
     let read_handle = tokio::spawn(async move {
         let mut buf_reader = BufReader::new(reader);
-        let mut line = String::new();
         loop {
-            line.clear();
-            match buf_reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
-                Ok(_) => {
+            match crate::line_reader::next_line(
+                &mut buf_reader,
+                4 * 1024 * 1024,
+                Duration::from_secs(10),
+            )
+            .await
+            {
+                Ok(None) => break,
+                Ok(Some(line)) => {
                     if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&line) {
                         if msg.get("id").and_then(|v| v.as_u64()) == Some(1)
                             && msg.get("ok").and_then(|v| v.as_bool()) == Some(true)
@@ -262,6 +256,12 @@ async fn run_proxy_routing(
                     }
                 }
                 Err(e) => {
+                    crate::diagnostics::record(
+                        "ssh.framing.rejected",
+                        serde_json::json!({
+                            "workspace_id": workspace_id, "error_kind": format!("{:?}", e.kind()),
+                        }),
+                    );
                     eprintln!("cmux: SSH stdout read error: {e}");
                     break;
                 }
@@ -590,5 +590,85 @@ mod tests {
         assert_eq!(backoff_duration(4), Duration::from_secs(16));
         assert_eq!(backoff_duration(5), Duration::from_secs(30)); // capped
         assert_eq!(backoff_duration(10), Duration::from_secs(30)); // still capped
+    }
+}
+
+/// Drain a connection's stderr with fixed storage; log only its first 64 KiB, then discard excess.
+/// Chunk boundaries may split UTF-8 diagnostics; lossy formatting stays bounded and content is never structured telemetry.
+async fn drain_stderr<R: AsyncRead + Unpin>(mut reader: R, workspace_id: u64) {
+    const LOG_LIMIT: usize = 64 * 1024;
+    let mut buffer = [0; 4096];
+    let mut logged = 0;
+    let mut limited = false;
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) => break,
+            Ok(count) => {
+                let emit = count.min(LOG_LIMIT - logged);
+                if emit > 0 {
+                    eprintln!(
+                        "cmux: SSH stderr: {}",
+                        String::from_utf8_lossy(&buffer[..emit])
+                    );
+                    logged += emit;
+                }
+                if emit < count && !limited {
+                    limited = true;
+                    crate::diagnostics::record(
+                        "ssh.stderr.limited",
+                        serde_json::json!({
+                            "workspace_id": workspace_id, "limit_bytes": LOG_LIMIT,
+                        }),
+                    );
+                }
+            }
+            Err(error) => {
+                crate::diagnostics::record(
+                    "ssh.stderr.failed",
+                    serde_json::json!({
+                        "workspace_id": workspace_id, "error_kind": format!("{:?}", error.kind()),
+                    }),
+                );
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod stderr_tests {
+    use super::*;
+
+    /// Keep draining beyond the logging cap so a noisy peer cannot block on its stderr pipe.
+    #[tokio::test]
+    async fn drains_unterminated_flood() {
+        let (reader, mut writer) = tokio::io::duplex(4096);
+        let task = tokio::spawn(drain_stderr(reader, 0));
+        let guard = AbortOnDrop(task.abort_handle());
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for _ in 0..32 {
+                writer.write_all(&[b'x'; 4096]).await.unwrap();
+            }
+            drop(writer);
+            task.await.unwrap();
+        })
+        .await
+        .unwrap();
+        drop(guard);
+    }
+
+    /// Retiring the connection cancels a blocked stderr reader and releases its pipe.
+    #[tokio::test]
+    async fn cancellation_releases_reader() {
+        let (reader, mut writer) = tokio::io::duplex(16);
+        let task = tokio::spawn(drain_stderr(reader, 0));
+        let guard = AbortOnDrop(task.abort_handle());
+        drop(guard);
+        assert!(tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap_err()
+            .is_cancelled());
+        assert!(writer.write_all(b"closed").await.is_err());
     }
 }
