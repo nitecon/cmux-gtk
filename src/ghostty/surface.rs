@@ -11,6 +11,7 @@ pub enum SurfaceIoMode {
     /// Validated local launch overrides; routing identities are supplied by cmux after these entries.
     Configured {
         command: Option<String>,
+        initial_input: Option<String>,
         environment: std::collections::BTreeMap<String, String>,
     },
     Remote {
@@ -29,6 +30,7 @@ struct SurfaceInit {
     working_directory: Option<std::path::PathBuf>,
     pane_id: u64,
     io_mode: SurfaceIoMode,
+    initial_input: RefCell<Option<String>>,
     retired: Rc<std::cell::Cell<bool>>,
 }
 
@@ -91,6 +93,7 @@ fn initialize_surface(
         }
         let command_c = match &init.io_mode {
             SurfaceIoMode::Configured {
+                initial_input: None,
                 command: Some(command),
                 ..
             } => std::ffi::CString::new(command.as_str()).ok(),
@@ -234,6 +237,17 @@ fn initialize_surface(
         init.working_directory.as_deref(),
     );
     *cell.borrow_mut() = Some(surface);
+    if let Some(input) = init.initial_input.borrow_mut().take() {
+        // SAFETY: this freshly registered surface is live on GTK; input is copied synchronously.
+        let delivered = unsafe {
+            super::text::send_literal(surface, &input)
+                .and_then(|_| super::text::send_character(surface, '\r'))
+        };
+        crate::diagnostics::record(
+            "workspace.setup.submit",
+            serde_json::json!({"outcome":if delivered.is_ok(){"submitted"}else{"error"},"pane_id":init.pane_id}),
+        );
+    }
     area.grab_focus();
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);
@@ -310,7 +324,7 @@ pub fn create_surface(
     unsafe {
         gl_area.set_data("cmux-surface-cell", surface_cell.clone());
     }
-    let io_mode = match io_mode {
+    let mut io_mode = match io_mode {
         SurfaceIoMode::Remote { bridge, ssh_tx } => {
             let io_write_ctx = bridge.create_context(ssh_tx);
             SurfaceIoMode::Manual {
@@ -319,6 +333,10 @@ pub fn create_surface(
             }
         }
         other => other,
+    };
+    let initial_input = match &mut io_mode {
+        SurfaceIoMode::Configured { initial_input, .. } => initial_input.take(),
+        _ => None,
     };
     if let SurfaceIoMode::Manual {
         bridge,
@@ -337,6 +355,7 @@ pub fn create_surface(
         gl_area.set_data("cmux-surface-retired", retired.clone());
     }
     let surface_init = Rc::new(SurfaceInit {
+        initial_input: RefCell::new(initial_input),
         ghostty_app,
         inherited_config,
         working_directory,
@@ -998,6 +1017,7 @@ mod clipboard_integration_tests {
             Some(first.clone()),
             900001,
             SurfaceIoMode::Configured {
+                initial_input: None,
                 command: Some(
                     "/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into(),
                 ),
@@ -1010,6 +1030,7 @@ mod clipboard_integration_tests {
             Some(second.clone()),
             900002,
             SurfaceIoMode::Configured {
+                initial_input: None,
                 command: Some("/bin/sh -c 'printf \"%s\\n%s\\n\" \"$PROJECT_VALUE\" \"$CMUX_SURFACE_ID\" > launch-environment; exec /bin/sh'".into()),
                 environment: std::collections::BTreeMap::from([
                     ("PROJECT_VALUE".into(), "literal $HOME two words".into()),

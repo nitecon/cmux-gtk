@@ -102,3 +102,7 @@ content:
     - Inline workspace and named workspaceCommand actions create default-layout workspaces with name/cwd/RGB color/env. Relative cwd resolves from reviewed canonical directory; preparation runs under existing reader worker/deadline before GTK mutation.
     - Configured creation applies env to first surface before realization and retains overrides for new tabs and session snapshots. Result carries source/destination workspace and selected surface IDs.
     - Layout/setup and explicit named restart policies other than new are rejected. Omitted restart currently creates new; complete restart semantics remain outstanding. Actions tests cover inline/named actual child values; runtime pending.
+
+  workspace_setup:
+    - Default-layout setup is one-shot literal input plus carriage return after first native terminal initialization. Pending text is consumed/released and not saved or inherited by future tabs.
+    - workspace.setup.submit records pane/outcome without script. Submission is not exit status. Inline/named fixtures check actual configured-environment output; runtime pending.

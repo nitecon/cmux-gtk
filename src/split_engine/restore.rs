@@ -55,6 +55,7 @@ impl RestoreContext<'_> {
         };
         let launch = self.remote_launch.cloned().unwrap_or_else(|| {
             crate::ghostty::surface::SurfaceIoMode::Configured {
+                initial_input: None,
                 command: resume
                     .and_then(|binding| self.resume_policy.launch_command(binding))
                     .or_else(|| self.launch_command.map(str::to_owned)),

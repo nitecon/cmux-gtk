@@ -811,6 +811,7 @@ impl SplitEngine {
             pane_id,
             self.remote_launch.clone().unwrap_or_else(|| {
                 crate::ghostty::surface::SurfaceIoMode::Configured {
+                    initial_input: None,
                     command: self.launch_command.clone(),
                     environment: self.launch_environment.clone(),
                 }

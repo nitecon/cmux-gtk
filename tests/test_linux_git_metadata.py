@@ -130,8 +130,10 @@ def main():
             assert len(json.loads(app.cli("list-workspaces", "--json"))["workspaces"]) == len(workspaces_before) + 1
             app.cli("close-workspace", created["workspace_id"])
             for family in ["inline", "named"]:
+                setup_output = repo / (family + ".setup")
                 workspace = {"name": "Configured " + family, "cwd": ".", "color": "#123456",
-                             "env": {"PROJECT_VALUE": "literal $HOME"}}
+                             "env": {"PROJECT_VALUE": "literal $HOME"},
+                             "setup": "printf '%s' \"$PROJECT_VALUE\" > " + shlex.quote(str(setup_output))}
                 definition = {"type": "workspace", "workspace": workspace}
                 config = {"actions": {"fixture.configured": definition}}
                 if family == "named":
@@ -145,6 +147,7 @@ def main():
                 assert current["name"] == workspace["name"] and current["working_directory"] == str(repo)
                 surface = created["surface_id"]
                 app.wait_for(lambda: json.loads(app.cli("health", "--id", surface, "--json"))["alive"], "configured terminal")
+                app.wait_for(lambda: setup_output.exists() and setup_output.read_text() == "literal $HOME", "workspace setup input")
                 output = repo / (family + ".environment")
                 app.cli("send-text", "--id", surface, "printf '%s' \"$PROJECT_VALUE\" > " + shlex.quote(str(output)))
                 app.cli("send-key", "--id", surface, "\r")

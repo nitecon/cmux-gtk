@@ -13,6 +13,7 @@ struct WorkspaceLaunch {
     directory: std::path::PathBuf,
     environment: std::collections::BTreeMap<String, String>,
     color: Option<String>,
+    setup: Option<String>,
 }
 
 /// Resolve inline or named workspace intent and validate all supported fields before GTK mutation.
@@ -48,8 +49,8 @@ fn prepare_workspace(
         }
         return Ok(None);
     };
-    if workspace.layout.is_some() || workspace.setup.is_some() {
-        return Err("project workspace layout and setup execution are not implemented yet".into());
+    if workspace.layout.is_some() {
+        return Err("project workspace layout execution is not implemented yet".into());
     }
     if workspace
         .color
@@ -77,6 +78,7 @@ fn prepare_workspace(
         directory,
         environment: workspace.env.clone(),
         color: workspace.color.clone(),
+        setup: workspace.setup.clone(),
     }))
 }
 
@@ -244,7 +246,7 @@ pub fn run(
         let surface=match intent {
             Intent::Workspace { .. } | Intent::WorkspaceCommand { .. } => {
                 let Some(launch) = workspace_launch else {let _=response.send(err(req_id,"config_error","workspace launch unavailable"));return;};
-                let created_id = state.create_workspace_configured(launch.name, launch.directory, launch.environment);
+                let created_id = state.create_workspace_configured(launch.name, launch.directory, launch.environment, launch.setup);
                 let created = state.active_index;
                 if let Some(color) = launch.color { state.set_workspace_color(created_id, Some(color)); }
                 result_workspace_id = state.workspaces[created].uuid;

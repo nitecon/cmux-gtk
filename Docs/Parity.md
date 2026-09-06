@@ -428,3 +428,9 @@ Session reconstruction now checks the full tree depth before allocating any GTK 
 ### Default project workspace execution
 
 Inline and named workspace actions now create configured workspaces with reviewed name/relative-or-absolute cwd/RGB color/environment. Validation and path resolution run off GTK; first terminal receives overrides before realization, with normal persistence/sidebar wiring. Actions coverage exercises both forms and child values. Layout/setup and non-new restart policies remain explicit errors pending implementation; full parity remains open.
+
+### Workspace setup input and cumulative verification
+
+Default-layout setup now delivers once as first-terminal input after native initialization, consumes pending text and excludes it from future tabs/session restore. Inline/named fixtures require setup output using configured env. Runtime pending for setup.
+
+Actions run34061210213 succeeded at11ed9692, verifying project command/terminal/workspace/browser builtin paths at that revision and isolated remote-browser routing/reconnect/overload. Downloaded benchmark artifact reports passed remote-browser workload and zero local-decoy requests. Later changes are not covered by this green result.

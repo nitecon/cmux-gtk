@@ -118,7 +118,7 @@ impl AppState {
     /// page to the GtkStack. The actual GLArea/split root is added by the caller (Plan 04).
     /// Returns the new workspace id.
     pub fn create_workspace(&mut self) -> u64 {
-        self.create_local_workspace(None, None, None, Default::default())
+        self.create_local_workspace(None, None, None, Default::default(), None)
     }
 
     /// Create a local workspace bound to an existing directory.
@@ -139,6 +139,7 @@ impl AppState {
             Some(working_directory),
             None,
             Default::default(),
+            None,
         )
     }
 
@@ -148,8 +149,15 @@ impl AppState {
         name: String,
         directory: PathBuf,
         environment: std::collections::BTreeMap<String, String>,
+        initial_input: Option<String>,
     ) -> u64 {
-        self.create_local_workspace(Some(name), Some(directory), None, environment)
+        self.create_local_workspace(
+            Some(name),
+            Some(directory),
+            None,
+            environment,
+            initial_input,
+        )
     }
 
     /// Validate the launch directory and readable script before creating a local GTK workspace.
@@ -166,6 +174,7 @@ impl AppState {
             Some(directory),
             Some(script),
             Default::default(),
+            None,
         ))
     }
 
@@ -176,6 +185,7 @@ impl AppState {
         working_directory: Option<PathBuf>,
         startup_script: Option<PathBuf>,
         environment: std::collections::BTreeMap<String, String>,
+        initial_input: Option<String>,
     ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
@@ -209,6 +219,7 @@ impl AppState {
             workspace.working_directory.clone(),
             pane_id,
             crate::ghostty::surface::SurfaceIoMode::Configured {
+                initial_input,
                 command: launch_command.clone(),
                 environment: environment.clone(),
             },
