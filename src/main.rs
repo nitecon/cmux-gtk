@@ -158,29 +158,12 @@ fn main() {
         );
     }
 
-    // Session save infrastructure: Notify for debounce, channel for session snapshots.
-    let save_notify = std::sync::Arc::new(tokio::sync::Notify::new());
-    let (session_tx, session_rx) = tokio::sync::watch::channel(None::<crate::session::SessionData>);
-
-    // Spawn debounce task in tokio. Waits for notify, debounces 500ms, then writes
-    // the latest session snapshot to disk atomically (SESS-01, SESS-03).
-    {
-        let notify = save_notify.clone();
-        let mut session_rx = session_rx;
-        runtime_handle.spawn(async move {
-            loop {
-                notify.notified().await;
-                // Debounce: 500ms window -- drain extra notifications that arrive.
-                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                let latest = session_rx.borrow_and_update().clone();
-                if let Some(session) = latest {
-                    if let Err(e) = crate::session::save_session_atomic(&session) {
-                        eprintln!("cmux: session save failed: {e}");
-                    }
-                }
-            }
-        });
-    }
+    // One watch channel coalesces immutable snapshots without a second notification mechanism.
+    let (session_tx, session_rx) = tokio::sync::watch::channel(None::<crate::session::Snapshot>);
+    runtime_handle.spawn(crate::session::write_snapshots(
+        session_rx,
+        crate::session::session_path(),
+    ));
 
     // Load config once at startup (D-06). ShortcutMap must be built inside
     // activate (after GTK init) because accelerator_parse requires GTK.
@@ -193,7 +176,6 @@ fn main() {
     app.connect_activate({
         let browser_shutdown_tasks = browser_shutdown_tasks.clone();
         let runtime_handle = runtime_handle.clone();
-        let save_notify = save_notify.clone();
         let session_tx = session_tx.clone();
         move |app| {
             let rx = cmd_rx
@@ -209,7 +191,6 @@ fn main() {
                 browser_shutdown_tasks.clone(),
                 cmd_tx.clone(),
                 rx,
-                save_notify.clone(),
                 session_tx.clone(),
                 session,
                 smap,
@@ -239,8 +220,7 @@ fn build_ui(
     browser_shutdown_tasks: browser::ShutdownTasks,
     cmd_tx: tokio::sync::mpsc::Sender<crate::socket::commands::SocketCommand>,
     mut cmd_rx: tokio::sync::mpsc::Receiver<crate::socket::commands::SocketCommand>,
-    save_notify: std::sync::Arc<tokio::sync::Notify>,
-    session_tx: tokio::sync::watch::Sender<Option<crate::session::SessionData>>,
+    session_tx: tokio::sync::watch::Sender<Option<crate::session::Snapshot>>,
     saved_session: Option<crate::session::SessionData>,
     shortcut_map: crate::config::ShortcutMap,
     config: &crate::config::Config,
@@ -328,11 +308,10 @@ fn build_ui(
     // Wire sidebar click-to-switch.
     crate::sidebar::wire_sidebar_clicks(&sidebar_list, state.clone());
 
-    // Set save_notify, session_tx, and SSH event channel on AppState.
+    // Set the session snapshot and SSH event channels on AppState.
     let (ssh_event_tx, mut ssh_event_rx) = tokio::sync::mpsc::channel::<crate::ssh::SshEvent>(256);
     {
         let mut s = state.borrow_mut();
-        s.save_notify = Some(save_notify);
         s.session_tx = Some(session_tx);
         s.ssh_event_tx = Some(ssh_event_tx);
         s.runtime_handle = Some(runtime_handle.clone());

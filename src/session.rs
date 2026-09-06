@@ -34,17 +34,33 @@ pub struct SessionData {
     pub workspaces: Vec<WorkspaceSession>,
 }
 
+/// Immutable snapshot shared by GTK publication and the worker without cloning the pane tree.
+pub type Snapshot = std::sync::Arc<SessionData>;
+
+/// Coalesce snapshots over a 500-ms window and serialize blocking writes one at a time.
+/// Channel closure ends the worker after any unseen snapshot; runtime shutdown is not a flush guarantee.
+pub async fn write_snapshots(
+    mut receiver: tokio::sync::watch::Receiver<Option<Snapshot>>,
+    path: PathBuf,
+) {
+    while receiver.changed().await.is_ok() {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let latest = receiver.borrow_and_update().clone();
+        if let Some(snapshot) = latest {
+            let path = path.clone();
+            match tokio::task::spawn_blocking(move || save_session_to(&snapshot, &path)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => eprintln!("cmux: session save failed: {error}"),
+                Err(error) => eprintln!("cmux: session save worker failed: {error}"),
+            }
+        }
+    }
+}
+
 /// Returns the session file path.
 /// Respects $XDG_DATA_HOME/cmux/session.json; falls back to ~/.local/share/cmux/session.json.
 pub fn session_path() -> PathBuf {
     cmux_platform::paths::data_dir().join("session.json")
-}
-
-/// Save session data atomically.
-/// Stages a private sibling file before replacement; readers see complete snapshots.
-/// Atomic visibility does not imply power-loss durability or a shutdown flush.
-pub fn save_session_atomic(data: &SessionData) -> std::io::Result<()> {
-    save_session_to(data, &session_path())
 }
 
 /// Stream pretty JSON through a 64-KiB buffer into an atomic replacement.
@@ -234,6 +250,32 @@ mod tests {
             std::fs::write(&path, input).unwrap();
             assert!(load_session_from(&path).is_none());
         }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    /// The writer persists the newest burst snapshot and exits after sender closure without lost work.
+    #[tokio::test]
+    async fn snapshot_writer_coalesces_and_closes() {
+        let path =
+            std::env::temp_dir().join(format!("cmux-session-worker-{}", uuid::Uuid::new_v4()));
+        let (sender, receiver) = tokio::sync::watch::channel(None);
+        sender
+            .send(Some(std::sync::Arc::new(dummy_session("first"))))
+            .unwrap();
+        let worker = tokio::spawn(write_snapshots(receiver, path.clone()));
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        sender
+            .send(Some(std::sync::Arc::new(dummy_session("latest"))))
+            .unwrap();
+        drop(sender);
+        tokio::time::timeout(std::time::Duration::from_secs(5), worker)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            load_session_from(&path).unwrap().workspaces[0].name,
+            "latest"
+        );
         std::fs::remove_file(path).unwrap();
     }
 

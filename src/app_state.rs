@@ -25,11 +25,9 @@ pub struct AppState {
     next_id: u64,
     /// Next display number for default names ("Workspace N").
     next_display_number: usize,
-    /// Notified after any workspace/pane mutation to trigger a debounced session save.
-    pub save_notify: Option<std::sync::Arc<tokio::sync::Notify>>,
     /// Sender for session snapshots to the debounce task.
     /// Each mutation snapshots SessionData on the main thread and sends it here.
-    pub session_tx: Option<tokio::sync::watch::Sender<Option<crate::session::SessionData>>>,
+    pub session_tx: Option<tokio::sync::watch::Sender<Option<crate::session::Snapshot>>>,
     /// Sender for SSH events (cloned into SSH lifecycle tokio tasks).
     pub ssh_event_tx: Option<crate::ssh::SshEventTx>,
     /// Tokio runtime handle for spawning SSH lifecycle tasks.
@@ -68,7 +66,6 @@ impl AppState {
             gtk_app,
             next_id: 1,
             next_display_number: 1,
-            save_notify: None, // Set to Some(...) after tokio runtime is available in main.rs
             session_tx: None,
             ssh_event_tx: None,
             runtime_handle: None,
@@ -622,52 +619,49 @@ impl AppState {
     /// Snapshots SessionData on the main thread (safe for Rc) and sends to the
     /// tokio debounce task which handles the file I/O.
     pub fn trigger_session_save(&self) {
-        if let Some(ref notify) = self.save_notify {
-            // Snapshot session data on main thread where Rc<RefCell<AppState>> is safe.
-            if let Some(ref tx) = self.session_tx {
-                let session = crate::session::SessionData {
-                    version: 3, // Per-pane terminal/browser tabs and persisted URLs
-                    active_index: self.active_index,
-                    workspaces: self
-                        .workspaces
-                        .iter()
-                        .enumerate()
-                        .map(|(i, ws)| {
-                            // D-02: save full split tree for ALL workspaces
-                            let layout = if i < self.split_engines.len() {
-                                self.split_engines[i].root.to_data()
-                            } else {
-                                // Fallback: shouldn't happen, but be safe
-                                crate::split_engine::SplitNodeData::Leaf {
-                                    pane_id: 0,
-                                    surface_uuid: uuid::Uuid::nil(),
-                                    shell: String::new(),
-                                    cwd: String::new(),
-                                }
-                            };
-                            // D-04: save active_pane_uuid per workspace
-                            let active_pane_uuid = if i < self.split_engines.len() {
-                                self.split_engines[i].active_pane_uuid()
-                            } else {
-                                None
-                            };
-                            crate::session::WorkspaceSession {
-                                uuid: ws.uuid.to_string(),
-                                name: ws.name.clone(),
-                                color: ws.color.clone(),
-                                startup_script: ws.startup_script.clone(),
-                                remote_target: ws.remote_target.clone(),
-                                remote_directory: ws.remote_directory.clone(),
-                                working_directory: ws.working_directory.clone(),
-                                active_pane_uuid,
-                                layout,
+        // Snapshot on GTK; the worker shares ownership rather than cloning the tree.
+        if let Some(ref tx) = self.session_tx {
+            let session = crate::session::SessionData {
+                version: 3, // Per-pane terminal/browser tabs and persisted URLs
+                active_index: self.active_index,
+                workspaces: self
+                    .workspaces
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ws)| {
+                        // D-02: save full split tree for ALL workspaces
+                        let layout = if i < self.split_engines.len() {
+                            self.split_engines[i].root.to_data()
+                        } else {
+                            // Fallback: shouldn't happen, but be safe
+                            crate::split_engine::SplitNodeData::Leaf {
+                                pane_id: 0,
+                                surface_uuid: uuid::Uuid::nil(),
+                                shell: String::new(),
+                                cwd: String::new(),
                             }
-                        })
-                        .collect(),
-                };
-                let _ = tx.send(Some(session));
-            }
-            notify.notify_one();
+                        };
+                        // D-04: save active_pane_uuid per workspace
+                        let active_pane_uuid = if i < self.split_engines.len() {
+                            self.split_engines[i].active_pane_uuid()
+                        } else {
+                            None
+                        };
+                        crate::session::WorkspaceSession {
+                            uuid: ws.uuid.to_string(),
+                            name: ws.name.clone(),
+                            color: ws.color.clone(),
+                            startup_script: ws.startup_script.clone(),
+                            remote_target: ws.remote_target.clone(),
+                            remote_directory: ws.remote_directory.clone(),
+                            working_directory: ws.working_directory.clone(),
+                            active_pane_uuid,
+                            layout,
+                        }
+                    })
+                    .collect(),
+            };
+            let _ = tx.send(Some(std::sync::Arc::new(session)));
         }
     }
 }

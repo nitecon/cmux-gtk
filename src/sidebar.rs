@@ -427,7 +427,6 @@ mod lifecycle_tests {
         );
         let (snapshots, latest) = tokio::sync::watch::channel(None);
         state.borrow_mut().session_tx = Some(snapshots);
-        state.borrow_mut().save_notify = Some(std::sync::Arc::new(tokio::sync::Notify::new()));
         for id in 1..=40 {
             let workspace = crate::workspace::Workspace::new_bound(
                 id,
