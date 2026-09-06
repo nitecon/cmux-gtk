@@ -52,6 +52,19 @@ pub fn install_shortcuts(
                     state.borrow_mut().switch_prev();
                     gtk4::glib::Propagation::Stop
                 }
+                Some(
+                    action @ (ShortcutAction::MoveWorkspaceUp | ShortcutAction::MoveWorkspaceDown),
+                ) => {
+                    let mut state = state.borrow_mut();
+                    let from = state.active_index;
+                    let to = if action == ShortcutAction::MoveWorkspaceUp {
+                        from.saturating_sub(1)
+                    } else {
+                        from.saturating_add(1)
+                    };
+                    state.reorder_workspace(from, to);
+                    gtk4::glib::Propagation::Stop
+                }
                 Some(ShortcutAction::RenameWorkspace) => {
                     let (active_index, sidebar_list) = {
                         let s = state.borrow();

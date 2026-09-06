@@ -8,7 +8,7 @@ import uuid
 
 from linux_app import running_app
 from process_support import stop_process
-from test_linux_resume_approval import quit_app
+from test_linux_resume_approval import quit_app, key, window
 
 
 def main():
@@ -52,6 +52,21 @@ def main():
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
                 app.cli("reorder-workspaces", "--order", ",".join(ids))
                 assert order() == ids
+                key(window(app), "ctrl+shift+Prior")
+                app.wait_for(lambda: order() == [ids[1], ids[0], ids[2]], "keyboard move up")
+                key(window(app), "ctrl+shift+Prior")
+                assert order() == [ids[1], ids[0], ids[2]], "top boundary wrapped"
+                key(window(app), "ctrl+shift+Next")
+                app.wait_for(lambda: order() == ids, "keyboard move down")
+                key(window(app), "ctrl+shift+Next")
+                app.wait_for(lambda: order() == [ids[0], ids[2], ids[1]], "keyboard move to bottom")
+                key(window(app), "ctrl+shift+Next")
+                assert order() == [ids[0], ids[2], ids[1]], "bottom boundary wrapped"
+                assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
+                quit_app(app)
+            with running_app(root) as app:
+                assert order() == [ids[0], ids[2], ids[1]]
+                assert next(row["uuid"] for row in app.surfaces() if row["active"]) == active
         finally:
             stop_process(wm)
     print("batch reorder atomic validation, dry-run, focus and persistence passed")

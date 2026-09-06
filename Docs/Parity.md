@@ -205,3 +205,8 @@ Actions `test_linux_workspace_reorder_many.py` covers three workspaces with the 
 [Actions 34051272228](https://github.com/nitecon/cmux-gtk/actions/runs/34051272228), at `b9b6a62c`, passed notification history/exact targeting, desktop actions, caller attribution, native scrollback capture, immediate quit-save, manual resume, Claude hooks, signed automatic restart, clipboard, terminal churn and SSH/script restoration. The run failed the scrollback restart fixture at its final shell-CWD assertion; this is not a full green run and does not verify newer sidebar or batch-order commits.
 
 The fixture emitted `file:///path` in OSC 7, but the pinned native `stream_handler.zig` requires a local hostname and rejects a missing host before recording PWD. The fixture now reports `file://<local-hostname>/path` and asserts the exact saved terminal CWD after each durable quit, before checking the final shell. This separates initial native directory reporting, uninitialized-background snapshot retention and actual launch behavior. Python syntax and diff checks pass locally; the corrected runtime scenario remains pending in Actions.
+
+
+## Workspace move shortcuts checkpoint
+
+Ctrl+Shift+Page Up / Page Down now move the selected workspace through the same model operation used by drag/drop and single-workspace CLI reorder. At either boundary the action is a no-op, preserving terminal focus and identity. `[shortcuts]` accepts `move_workspace_up` and `move_workspace_down` GTK accelerator overrides. The native batch-order fixture now also sends actual keyboard events and verifies direction, nonwrapping boundaries and an additional normal restart. Strict clippy, Python syntax and diff checks pass locally; Actions runtime evidence remains pending.

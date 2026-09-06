@@ -202,12 +202,14 @@ See [Architecture](Docs/Architecture.md), [Components](Docs/Components.md), and 
 | Ctrl+D | Split down |
 | Ctrl+Shift+W | Close workspace |
 | Ctrl+W | Close pane |
-| Ctrl+Shift+] / [ | Next / previous workspace |
+| Ctrl+] / [ | Next / previous workspace |
+| Ctrl+Shift+Page Up / Page Down | Move selected workspace up / down |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous pane |
 | Ctrl+Shift+F | Find |
 | Ctrl+Shift+K | Clear scrollback |
 
-Shortcuts are configurable via TOML config file.
+Shortcuts are configurable via TOML config file. Workspace move overrides are
+`move_workspace_up` and `move_workspace_down` under `[shortcuts]`.
 
 ## Terminal preferences
 

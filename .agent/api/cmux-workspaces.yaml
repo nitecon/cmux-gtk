@@ -51,7 +51,7 @@ content:
     - name: Workspace organization
       steps:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.
-        - workspace.reorder RPC uses the same operation and snapshots the new ordering.
+        - workspace.reorder RPC uses the same operation and snapshots the new ordering. Ctrl+Shift+Page Up/Down move the selected workspace without wrapping; configurable shortcuts move_workspace_up and move_workspace_down use the same operation. Actions batch-order coverage sends actual keyboard events and checks boundary, focus and restart behavior.
         - Background colors are validated RGB hex values. Default removes the override. Serialize color with the workspace.
   endpoints:
     - method: session.spawn
