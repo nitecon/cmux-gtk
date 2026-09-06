@@ -54,3 +54,7 @@ content:
   proxy_half_close:
     - The daemon advertises proxy.shutdown_write, requiring a registered TCP stream_id. It sends FIN without removing the stream or closing the response reader; missing/non-TCP streams fail explicitly.
     - Forwarded local EOF invokes shutdown_write and continues reading until remote EOF or listener cancellation. The Go real-TCP test and SSH integration fixture verify response-after-request-EOF. Reverse half-close and older-daemon compatibility remain outstanding.
+
+  forwarding_metrics:
+    - diagnostics.remote_forwarding exposes active listener/client task gauges, remote-write acknowledged bytes, local-write completed bytes, data/client rejection counters and close requests. Gauges include startup/draining and are balanced on task cancellation.
+    - Snapshots use independently sampled atomics and aggregate all connections, while capacity fields describe per-connection limits. Partial failed writes are excluded; requested closes are not acknowledgements. The SSH fixture verifies transfer deltas and client cleanup.

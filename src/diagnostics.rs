@@ -136,6 +136,7 @@ pub fn snapshot() -> serde_json::Value {
         "gtk_event_loop": event_loop::snapshot(),
         "browser_preview": crate::browser::metrics::snapshot(),
         "browser_commands": crate::browser::transport::snapshot(),
+        "remote_forwarding": crate::ssh::forward_metrics::snapshot(),
         "socket_connections": crate::socket::admission::snapshot(),
         "session_scrollback": crate::scrollback::metrics(),
         "notification_parser": crate::ghostty::notifications::metrics(),

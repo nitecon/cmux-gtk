@@ -296,3 +296,5 @@ Initial automatic remote forwarding now uses the existing SSH RPC transport, wit
 Forwarding cleanup now preserves existing routes on duplicate stream responses, closes capacity-rejected new streams, stops clients on listener termination and removes the matching published endpoint. Completed listener registrations are eligible for retry. Route ownership/overload tests are added for Actions; runtime evidence remains pending.
 
 Forwarded clients can now send request EOF without losing the remote response through `proxy.shutdown_write`. The real SSH fixture sends a request, shuts down its write direction and requires a multi-chunk reply from a server that waits for EOF. Go coverage also rejects non-TCP streams. Runtime verification pending; reverse half-close and remaining forwarding gates stay open.
+
+Forwarding diagnostics now report active listener/client tasks, byte counters with explicit acknowledgement/completion semantics, rejected data/client admission and requested closes. The SSH fixture checks exact transfer deltas and cleanup gauges. Runtime verification pending; counters do not establish remote-close acknowledgement.

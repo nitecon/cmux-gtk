@@ -51,6 +51,7 @@ impl Routes {
                     .filter(|bytes| bytes.len() <= 32768);
                 if data.is_none_or(|data| sender.try_send(data).is_err()) {
                     routes.remove(stream);
+                    super::forward_metrics::data_rejected();
                     crate::diagnostics::record(
                         "ssh.forward.client_rejected",
                         serde_json::json!({"reason":"invalid_or_full_input"}),
@@ -109,6 +110,7 @@ impl Drop for ClientOwner {
             .lock()
             .unwrap()
             .remove(&self.stream);
+        super::forward_metrics::close_requested();
         self.transport.bridge.request_close(self.stream.clone());
     }
 }
@@ -121,6 +123,7 @@ async fn client(
     remote: SocketAddr,
     mut stop: watch::Receiver<bool>,
 ) -> Result<(), String> {
+    let _active = super::forward_metrics::Active::client();
     let destination = match remote.ip() {
         IpAddr::V4(ip) if ip.is_unspecified() => IpAddr::V4(Ipv4Addr::LOCALHOST),
         IpAddr::V6(ip) if ip.is_unspecified() => IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -185,6 +188,7 @@ async fn client(
                     serde_json::json!({"stream_id":stream,"data_base64":data}),
                 )
                 .await?;
+            super::forward_metrics::sent(count);
         }
     };
     let inbound = async {
@@ -193,6 +197,7 @@ async fn client(
                 .write_all(&data)
                 .await
                 .map_err(|_| "local proxy write failed")?;
+            super::forward_metrics::delivered(data.len());
         }
         Ok::<(), String>(())
     };
@@ -214,6 +219,7 @@ async fn listener(
     mut stop: watch::Receiver<bool>,
     permits: Arc<Semaphore>,
 ) {
+    let _active = super::forward_metrics::Active::listener();
     let local_port = listener.local_addr().ok().map(|address| address.port());
     let (client_stop, client_receiver) = watch::channel(false);
     let mut clients = JoinSet::new();
@@ -224,7 +230,7 @@ async fn listener(
             Some(_) = clients.join_next(), if !clients.is_empty() => {},
             accepted = listener.accept() => {
                 let Ok((socket, _)) = accepted else { break; };
-                let Ok(permit) = permits.clone().try_acquire_owned() else { continue; };
+                let Ok(permit) = permits.clone().try_acquire_owned() else { super::forward_metrics::client_rejected(); continue; };
                 let transport = transport.clone(); let stop = client_receiver.clone();
                 clients.spawn(async move {
                     let _permit = permit;

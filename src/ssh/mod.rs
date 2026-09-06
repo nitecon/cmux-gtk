@@ -1,6 +1,7 @@
 pub mod bridge;
 pub mod deploy;
 mod forward;
+pub(crate) mod forward_metrics;
 mod handshake;
 mod metrics;
 mod outbound;

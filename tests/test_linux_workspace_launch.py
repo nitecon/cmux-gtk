@@ -256,6 +256,7 @@ Subsystem sftp internal-sftp
         assert json.loads(cli("current-workspace", "--json"))["uuid"] == second_remote_id
         eventually(lambda: any(row["port"] == listener_port and row.get("forwarded_local_port") for row in (remote_ports() or [])))
         forwarded_port = next(row["forwarded_local_port"] for row in remote_ports() if row["port"] == listener_port)
+        forwarding_before = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
         with socket.create_connection(("127.0.0.1", forwarded_port), timeout=10) as forwarded:
             forwarded.settimeout(10)
             forwarded.sendall(b"request finished")
@@ -265,9 +266,17 @@ Subsystem sftp internal-sftp
                 payload.extend(chunk)
                 assert len(payload) <= 15 * 8192
         assert bytes(payload) == b"cmux-forwarded-" * 8192
+        eventually(lambda: json.loads(cli("diagnostics", "--json"))["remote_forwarding"]["active_client_tasks"] == 0)
+        forwarding_after = json.loads(cli("diagnostics", "--json"))["remote_forwarding"]
+        assert forwarding_after["remote_write_acknowledged_bytes"] - forwarding_before["remote_write_acknowledged_bytes"] == len(b"request finished")
+        assert forwarding_after["local_write_completed_bytes"] - forwarding_before["local_write_completed_bytes"] == len(payload)
+        assert forwarding_after["rejected_data_chunks"] == forwarding_before["rejected_data_chunks"]
+        assert forwarding_after["close_requests"] > forwarding_before["close_requests"]
+        report["forwarding"] = {"before": forwarding_before, "after": forwarding_after}
         assert json.loads(cli("ping", "--json"))["pong"]
         (root / "remote/listener-stop").touch()
         eventually(lambda: remote_ports() is not None and not any(row["port"] == listener_port for row in remote_ports()))
+        eventually(lambda: json.loads(cli("diagnostics", "--json"))["remote_forwarding"]["active_listener_tasks"] == 0)
         cli("select-workspace", remote_id)
 
         cli("split", "--direction", "horizontal")
