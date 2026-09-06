@@ -1091,7 +1091,8 @@ fi
         cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
         let mut browser = BrowserManager::new();
         browser.binary_path = Some(binary);
-        let task = tokio::spawn(browser.navigate_async("back".into(), Uuid::new_v4()));
+        let mut task = tokio::spawn(browser.navigate_async("back".into(), Uuid::new_v4()));
+        let _task_guard = crate::task::AbortOnDrop(task.abort_handle());
         let pid = tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
                 if let Ok(text) = std::fs::read_to_string(directory.join("browser.pid")) {
@@ -1099,7 +1100,10 @@ fi
                         break pid;
                     }
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                tokio::select! {
+                    result = &mut task => panic!("browser command ended before publishing its PID: {result:?}"),
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {},
+                }
             }
         })
         .await

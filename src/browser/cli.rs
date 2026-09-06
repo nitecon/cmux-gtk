@@ -70,6 +70,13 @@ async fn run_command(
     let output = match execute(command, Duration::from_secs(15)).await {
         Ok(output) => output,
         Err(error) => {
+            crate::diagnostics::record(
+                "browser.cli.failed",
+                serde_json::json!({
+                    "trace_id": trace_id, "stage": kind,
+                    "error_kind": format!("{:?}", error.kind()), "os_error": error.raw_os_error(),
+                }),
+            );
             activity.finish(match error.kind() {
                 io::ErrorKind::TimedOut => "timeout",
                 io::ErrorKind::InvalidData => "output_limit",
