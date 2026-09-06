@@ -73,7 +73,7 @@ Subsystem sftp internal-sftp
     session_path = root / "data/cmux/session.json"
     script = root / "startup 'quoted'.sh"
     script.write_text(f'printf "%s\\n" "$PWD" >> {shlex.quote(str(root / "launches"))}\nexec /bin/sh\n')
-    local_id, remote_id = str(uuid.uuid4()), str(uuid.uuid4())
+    local_id, remote_id, second_remote_id = (str(uuid.uuid4()) for _ in range(3))
 
     def workspace(identity, name, **fields):
         """Construct one persisted workspace fixture with a fresh terminal surface and supplied launch fields."""
@@ -83,6 +83,7 @@ Subsystem sftp internal-sftp
     session_path.write_text(json.dumps(dict(version=3, active_index=0, workspaces=[
         workspace(local_id, "Script project", working_directory=str(root / "local"), startup_script=str(script), color="#24466b"),
         workspace(remote_id, "SSH project", remote_target="cmux-ci", remote_directory=str(root / "remote")),
+        workspace(second_remote_id, "Second SSH project", remote_target="cmux-ci", remote_directory=str(root / "remote")),
     ])))
 
     def cli(*args):
@@ -181,6 +182,10 @@ Subsystem sftp internal-sftp
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
         eventually(remote_setup_traced)
+        cli("select-workspace", second_remote_id)
+        remote_write("second-workspace-result")
+        cli("select-workspace", remote_id)
+        remote_write("first-workspace-still-live")
         cli("reorder-workspace", remote_id, "0")
         eventually(lambda: session()["workspaces"][0]["uuid"] == remote_id)
         saved = session()
@@ -198,6 +203,8 @@ Subsystem sftp internal-sftp
         surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
         assert len([s for s in surfaces if s["workspace_uuid"] == remote_id]) == 2, surfaces
         assert len([s for s in surfaces if s["workspace_uuid"] == local_id]) == 2, surfaces
+        cli("select-workspace", second_remote_id)
+        remote_write("second-workspace-restored")
         cli("select-workspace", local_id)
         eventually(lambda: len(launches()) >= 4)
         print("script and SSH launch contexts survive splits, reorder and restart")
