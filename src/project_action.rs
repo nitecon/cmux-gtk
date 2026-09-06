@@ -83,6 +83,23 @@ pub enum Intent {
     },
 }
 
+/// Match upstream agent aliases and shell-argument semantics after schema validation.
+/// Args are reviewed shell text, not an argv list; executable names have already been bounded.
+#[allow(dead_code)] // Shared with the discovery-only CLI binary, which never executes actions.
+pub fn agent_command(agent: &str, args: Option<&str>) -> String {
+    let executable = match agent {
+        "claudeCode" | "claude-code" => "claude",
+        "openCode" | "open-code" => "opencode",
+        value => value,
+    };
+    let args = args.unwrap_or_default().trim();
+    if args.is_empty() {
+        executable.to_string()
+    } else {
+        format!("{executable} {args}")
+    }
+}
+
 /// Require bounded, NUL-free string values; shell commands retain their literal contents.
 fn string(
     value: &Value,
@@ -152,7 +169,7 @@ pub fn parse(value: &Value) -> Result<(Intent, Target), String> {
             command: required("command")?,
         },
         Some("agent") => {
-            let agent = required("agent")?;
+            let agent = required("agent")?.trim().to_string();
             if !agent
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
@@ -213,6 +230,21 @@ mod tests {
         );
         assert_eq!(target, Target::CurrentTerminal);
     }
+    /// Provider aliases resolve while quoted arguments and shell expansion remain intact.
+    #[test]
+    fn agent_launch_matches_upstream_shell_semantics() {
+        assert_eq!(
+            agent_command("claudeCode", Some("  --resume 'two words'  ")),
+            "claude --resume 'two words'"
+        );
+        assert_eq!(agent_command("open-code", None), "opencode");
+        assert_eq!(agent_command("custom-agent", Some("  ")), "custom-agent");
+        assert_eq!(
+            agent_command("codex", Some("--model $MODEL")),
+            "codex --model $MODEL"
+        );
+    }
+
     /// Aliases normalize to stable identities, including recognized features awaiting platform adaptation.
     #[test]
     fn builtin_aliases_are_canonical_and_unknowns_fail() {

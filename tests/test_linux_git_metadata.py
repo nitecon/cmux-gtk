@@ -94,6 +94,16 @@ def main():
             app.wait_for(lambda: (repo / "current.cwd").exists(), "current-terminal action execution")
             assert (repo / "current.cwd").read_text().strip() == str(repo)
             assert {row["uuid"] for row in app.surfaces()} == before
+            config_file.write_text(json.dumps({"actions": {"fixture.agent": {
+                "agent": "printf", "args": "  '%s' 'two words' > agent.args  "}}}))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            created = json.loads(app.cli("project-run", "fixture.agent", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.agent"]["fingerprint"], "--json"))
+            app.wait_for(lambda: (repo / "agent.args").exists(), "agent action argument delivery")
+            assert (repo / "agent.args").read_text() == "two words"
+            assert created["surface_id"] != target["uuid"]
+            app.cli("close-surface", created["surface_id"])
+            app.cli("focus-surface", target["uuid"])
             for builtin in ["cmux.newTerminal", "cmux.splitRight", "cmux.splitDown"]:
                 config_file.write_text(json.dumps({"actions": {"fixture.builtin": {"builtin": builtin}}}))
                 reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))

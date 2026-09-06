@@ -145,6 +145,10 @@ pub fn run(
         let Some(action)=resolved.actions.remove(&action_id) else {let _=response.send(err(req_id,"not_found","project action not found"));return;};
         if action.fingerprint!=fingerprint {let _=response.send(err(req_id,"changed","project action changed since inspection"));return;}
         use crate::project_config::project_action::{Builtin,Intent,Target};
+        let intent = match action.intent {
+            Intent::Agent { agent, args } => Intent::Command { command: crate::project_config::project_action::agent_command(&agent, args.as_deref()) },
+            intent => intent,
+        };
         let Some(owner)=owner.upgrade() else {return;};
         let mut state=owner.borrow_mut();
         let Some(index)=state.workspaces.iter().position(|w|w.uuid==workspace_id) else {let _=response.send(err(req_id,"not_found","workspace closed"));return;};
@@ -152,7 +156,7 @@ pub fn run(
             let _=response.send(err(req_id,"changed","workspace execution context changed"));return;
         }
         if response.is_closed(){return;}
-        if matches!(action.intent, Intent::Builtin { builtin: Builtin::NewBrowser }) {
+        if matches!(intent, Intent::Builtin { builtin: Builtin::NewBrowser }) {
             let Some(pane) = pane else {let _=response.send(err(req_id,"not_found","project browser target missing"));return;};
             drop(state);
             super::handlers::start_browser_lifecycle(&owner, crate::browser::StartupRequest::Open(json!({"url":"about:blank","workspace":workspace_id})), req_id, response, trace_id, Some(pane));
@@ -160,7 +164,7 @@ pub fn run(
         }
         let mut result_workspace_id = workspace_id;
         let mut wire_row = false;
-        let surface=match action.intent {
+        let surface=match intent {
             Intent::Builtin { builtin: Builtin::NewWorkspace } => {
                 state.create_workspace_bound(String::new(), resolved.directory.clone());
                 let created = state.active_index;

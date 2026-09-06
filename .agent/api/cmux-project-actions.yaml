@@ -66,3 +66,8 @@ content:
   browser_rejection_verification:
     - Delayed project browser fixture changes selected target pane and switches to observer before completion. Requires changed error, unchanged surface/focus snapshot and exact prior daemon set after cleanup.
     - Shared startup owner handles rejected result retirement. Python AST passes; runtime remains in Actions.
+
+  agent_execution:
+    - Agent intents execute via existing reviewed command targets. Trimmed claudeCode/claude-code map to claude, openCode/open-code to opencode; args remain trimmed shell text with quoting/expansion.
+    - CLI-name validation remains ASCII alphanumeric/dot/underscore/hyphen; arbitrary paths/Unicode names unsupported. Shell resolves installed executables; cmux does not install providers.
+    - Matches inspected upstream CmuxConfigAction.terminalCommand. Alias tests and custom printf agent GTK fixture cover exact quoted output; runtime pending Actions. Provider hooks/resume remain separate work.

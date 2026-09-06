@@ -392,3 +392,7 @@ cmux.newBrowser now reuses browser startup/cancellation/session wiring, rejects 
 ### Project browser stale-context coverage
 
 The browser lifecycle fixture now holds a project browser startup while the target pane changes. It requires explicit rejection, no added browser/focus mutation, and cleanup of only the rejected daemon. Python syntax passes; Actions runtime evidence remains pending.
+
+### Project agent execution
+
+Agent intents now share reviewed command execution and target behavior, with upstream provider aliases and shell-argument trimming. Custom bounded CLI names work through the terminal shell. Tests cover alias/argument semantics and live custom-agent output in the project directory; runtime pending Actions. Provider hooks and resume integration remain separate open matrix items.
