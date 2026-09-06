@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 79 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 366 functions in 62 `tests` files, and 315 among 482 functions in 52 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 366 functions in 62 `tests` files, and 275 among 442 functions in 46 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1305,3 +1305,18 @@ Three uninvoked harnesses require interfaces absent from the current CLI schema/
 - `test_cli_non_focus_commands_preserve_workspace.py` expects upstream `new-surface`, `new-pane` and `tab-action` CLI commands plus legacy OK-prefixed creation output. Preserve the rule that explicitly non-focus commands cannot select another workspace; the current supported command contracts and Linux focus fixtures are the relevant evidence.
 
 No maintained workflow or script referenced these files. Removal changes no product commands and does not waive focus/identity requirements. Whitespace checks passed; no local tests ran. Run 34005451160 has passed the new six-case session-load startup step; its cumulative run was still active at this checkpoint.
+
+### Retire macOS split geometry and panel-snapshot harnesses
+
+Removed six uninvoked v2 harnesses after inspecting their debug dependencies. GTK `debug.layout` exists but returns the serialized split tree; it does not return the upstream selectedPanels/viewFrame/splitViews geometry records. `debug.panel_snapshot`, EmptyPanelView and Bonsplit counter hooks are absent. These harnesses therefore cannot establish GTK rendering behavior:
+
+| Former harness | Retained GTK behavior/measurement requirement |
+| --- | --- |
+| split_cmd_d_ctrl_d_geometry_fuzz | Rapid split/close operations preserve the outer container position and dimensions, with no transient empty panels. |
+| split_cmd_d_ctrl_d_two_pane_frame_guard | Repeated one-to-two horizontal pane transitions across workspaces keep geometry stable throughout transitions, not only after settling. |
+| split_flash_and_layout | New splits avoid an empty-panel flash, and selected surfaces retain nonzero bounds aligned with their panes. |
+| nested_split_panel_routing | In a three-pane nested layout, targeted input updates only the intended visible terminal without requiring refocus. |
+| nested_split_preserves_existing_split | Splitting the right pane preserves the original left sibling and all three panes remain attached and usable. |
+| new_tab_render_after_splits | New sibling tabs after split churn accept and visibly render input immediately without a focus repair. |
+
+Current Linux memory-churn, terminal-close and browser-tab-close fixtures exercise actual child processes, input and survival across related operations. They do not prove every transient geometry or pixel-difference invariant above. Future GTK visual/benchmark work must cover those outstanding observations directly rather than restoring macOS debug payload assumptions. Source-reference checks found no maintained workflow or script invocations; whitespace checks passed and no local tests ran.
