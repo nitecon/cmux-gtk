@@ -3,6 +3,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from copy import deepcopy
 
 SPEC = importlib.util.spec_from_file_location("cmux_collector", Path(__file__).resolve().parents[1] / "scripts/collect-cmux-diagnostics.py")
 COLLECTOR = importlib.util.module_from_spec(SPEC)
@@ -32,6 +33,31 @@ class CpuAccounting(unittest.TestCase):
                       record(1, 200, 200), record(float("nan"), 200, 200), record(2, 99, 300)]:
             with self.subTest(after=after):
                 self.assertIsNone(COLLECTOR.cpu_percent(before, after))
+
+    def test_idle_evidence(self):
+        """Keep raw measurements while rejecting debug builds, churn, failed samples and counter resets."""
+        samples = [record(1, 100, 100), record(3, 200, 200)]
+        for sample in samples:
+            sample["snapshot"].update(build_profile="release", terminals={"registered": 2})
+        base = {"samples": samples, "requested_samples": 2}
+        report = COLLECTOR.idle_evidence(deepcopy(base), 10, "revision")
+        self.assertEqual(report["status"], "passed")
+        self.assertEqual(report["observed_seconds"], 2)
+        self.assertAlmostEqual(report["cpu_percent"], 0.01)
+        self.assertEqual(report["samples"], samples)
+        for field, value in [("build_profile", "debug"), ("pid", 43),
+                             ("terminals", {"registered": 3}), ("terminals", {"registered": True}),
+                             ("resources", {"cpu_user_us": 0, "cpu_system_us": 200})]:
+            invalid = deepcopy(base)
+            invalid["samples"][-1]["snapshot"][field] = value
+            with self.subTest(field=field, value=value):
+                result = COLLECTOR.idle_evidence(invalid, 10, "revision")
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(len(result["samples"]), 2)
+                self.assertEqual(result["failure"]["phase"], "idle_validation")
+        for series in [samples[:1], [samples[0], {"error": "command_failed"}]]:
+            self.assertEqual(COLLECTOR.idle_evidence(
+                {"samples": series, "requested_samples": 2}, 10, "revision")["status"], "failed")
 
 
 if __name__ == "__main__":

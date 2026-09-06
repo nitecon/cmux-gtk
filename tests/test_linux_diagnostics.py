@@ -134,6 +134,18 @@ def main():
                                     "--binary", str(binary_dir / "cmux"),
                                     "--socket", str(socket), "--output", output],
                                    env=env, check=True, timeout=180)
+                    idle_output = str(Path(output).with_name("idle-resources.json"))
+                    subprocess.run([sys.executable, "scripts/collect-cmux-diagnostics.py",
+                                    "--binary", str(binary_dir / "cmux"), "--socket", str(socket),
+                                    "--idle-benchmark", "--settle", "10", "--samples", "6",
+                                    "--interval", "2", "--output", idle_output],
+                                   env=env, check=True, timeout=120)
+                    idle = json.loads(Path(idle_output).read_text())
+                    assert idle["status"] == "passed"
+                    assert idle["workload"] == "idle_resources"
+                    assert idle["cpu_percent"] >= 0
+                    assert len(idle["samples"]) == 6
+                    assert all(sample["snapshot"]["pid"] == app.pid for sample in idle["samples"])
                 print("diagnostic resources and successful/failed CLI-to-GTK traces verified")
             finally:
                 forced = stop_process(app)
