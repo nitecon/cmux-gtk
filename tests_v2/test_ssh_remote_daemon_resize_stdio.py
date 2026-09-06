@@ -13,11 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmuxError
-
-
-def _must(cond: bool, msg: str) -> None:
-    if not cond:
-        raise cmuxError(msg)
+from scenario_support import require as _must
 
 
 def _daemon_module_dir() -> Path:

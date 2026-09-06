@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise retained-scenario CLI discovery using real executable files."""
+"""Exercise shared assertions and CLI discovery for retained protocol scenarios."""
 import os
 from pathlib import Path
 import subprocess
@@ -9,10 +9,20 @@ from unittest.mock import patch
 
 from cli_support import find_cli_binary
 from cmux import cmuxError
+from scenario_support import require
 
 
-class CliDiscoveryTests(unittest.TestCase):
-    """Check explicit binary ownership and build-directory behavior without GTK."""
+class ScenarioSupportTests(unittest.TestCase):
+    """Check shared failure contracts and executable discovery without GTK."""
+
+    def test_scenario_assertions_preserve_errors(self):
+        """Truthiness and failure details retain the protocol client's public error contract."""
+        for value in (True, 1, "present", [0]):
+            self.assertIsNone(require(value, "unused"))
+        for value in (False, None, 0, "", []):
+            with self.assertRaises(cmuxError) as raised:
+                require(value, "expected workspace identity")
+            self.assertEqual(str(raised.exception), "expected workspace identity")
 
     def test_build_directory_and_explicit_override(self):
         """Run the chosen executable and reject invalid overrides rather than selecting another build."""

@@ -10,18 +10,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmuxError
+from scenario_support import require as _must
 from cli_support import find_cli_binary as _find_cli_binary
 
 
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 LAST_SOCKET_HINT_PATH = Path("/tmp/cmux-last-socket-path")
-
-
-def _must(cond: bool, msg: str) -> None:
-    if not cond:
-        raise cmuxError(msg)
-
-
 
 
 def _run(cmd: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:

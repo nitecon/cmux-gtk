@@ -10,17 +10,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmuxError
+from scenario_support import require as _must
 from cli_support import find_cli_binary as _find_cli_binary
 
 
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
-
-
-def _must(cond: bool, msg: str) -> None:
-    if not cond:
-        raise cmuxError(msg)
-
-
 
 
 def _run_cli_json(cli: str, args: List[str], extra_flags: Optional[List[str]] = None) -> Dict[str, Any]:

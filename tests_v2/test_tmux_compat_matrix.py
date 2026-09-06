@@ -12,15 +12,11 @@ from typing import Callable, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmux, cmuxError
+from scenario_support import require as _must
 from cli_support import find_cli_binary as _find_cli_binary
 
 
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
-
-
-def _must(cond: bool, msg: str) -> None:
-    if not cond:
-        raise cmuxError(msg)
 
 
 def _wait_for(pred: Callable[[], bool], timeout_s: float = 5.0, step_s: float = 0.05) -> None:
@@ -30,8 +26,6 @@ def _wait_for(pred: Callable[[], bool], timeout_s: float = 5.0, step_s: float = 
             return
         time.sleep(step_s)
     raise cmuxError("Timed out waiting for condition")
-
-
 
 
 def _run_cli(cli: str, args: List[str], *, expect_ok: bool = True) -> subprocess.CompletedProcess[str]:

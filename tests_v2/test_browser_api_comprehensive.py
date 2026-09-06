@@ -9,14 +9,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from cmux import cmux, cmuxError
+from scenario_support import require as _must
 
 
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
-
-
-def _must(cond: bool, msg: str) -> None:
-    if not cond:
-        raise cmuxError(msg)
 
 
 def _data_url(html: str) -> str:
@@ -62,7 +58,6 @@ def _expect_error_contains(label: str, fn, *needles: str) -> None:
 
 def _value(res: dict, key: str = "value"):
     return (res or {}).get(key)
-
 
 
 def _wait_with_fallback(c: cmux, surface_id: str, params: dict, pred, timeout_s: float, label: str) -> None:
