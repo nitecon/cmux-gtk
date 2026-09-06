@@ -136,16 +136,24 @@ pub fn load_session() -> Option<SessionData> {
 /// Select startup state and archive a valid normal-launch snapshot before any live autosaves.
 /// Explicit previous-session recovery leaves its backup untouched; missing/invalid backup fails closed.
 /// Blocking I/O runs before GTK activation, using the same atomic durable writer as live snapshots.
-pub fn load_startup_session(previous: bool) -> Result<Option<SessionData>, &'static str> {
+pub fn load_startup_session(
+    previous: bool,
+) -> Result<(Option<SessionData>, Option<RunMarker>), &'static str> {
     let path = session_path();
     let backup = path.with_file_name("session.previous.json");
     if previous {
-        return load_session_from(&backup)
-            .map(Some)
-            .ok_or("no valid previous session is available");
+        let session = load_session_from(&backup).ok_or("no valid previous session is available")?;
+        return Ok((Some(session), RunMarker::begin(&path)));
     }
+    let unclean = path
+        .with_file_name("session.running")
+        .try_exists()
+        .unwrap_or(true);
     let session = load_session();
-    if let Some(data) = session.as_ref().filter(|data| !data.workspaces.is_empty()) {
+    if let Some(data) = session
+        .as_ref()
+        .filter(|data| !unclean && !data.workspaces.is_empty())
+    {
         let result = save_session_to(data, &backup)
             .and_then(|()| cmux_platform::filesystem::sync_file_and_parent(&backup));
         crate::diagnostics::record(
@@ -162,7 +170,48 @@ pub fn load_startup_session(previous: bool) -> Result<Option<SessionData>, &'sta
             );
         }
     }
-    Ok(session)
+    crate::diagnostics::record(
+        "session.launch",
+        serde_json::json!({"previous_unclean": unclean}),
+    );
+    Ok((session, RunMarker::begin(&path)))
+}
+
+/// Owner identity for one launch; deliberately retained after panic, forced exit or failed final save.
+pub struct RunMarker {
+    path: PathBuf,
+    token: String,
+}
+
+impl RunMarker {
+    /// Publish an owner-only durable launch marker before GTK activation; failure is observable.
+    fn begin(session_path: &Path) -> Option<Self> {
+        let marker = Self {
+            path: session_path.with_file_name("session.running"),
+            token: uuid::Uuid::new_v4().to_string(),
+        };
+        let result = cmux_platform::filesystem::atomic_write_with(&marker.path, |file| {
+            file.write_all(marker.token.as_bytes())
+        })
+        .and_then(|()| cmux_platform::filesystem::sync_file_and_parent(&marker.path));
+        if result.is_err() {
+            eprintln!("cmux: could not record session launch state");
+            return None;
+        }
+        Some(marker)
+    }
+
+    /// Retire only this launch's marker after durable final save, then sync its directory entry.
+    pub fn finish(self) -> std::io::Result<()> {
+        if cmux_platform::filesystem::read_text_bounded(&self.path, 64)? != self.token {
+            return Ok(());
+        }
+        std::fs::remove_file(&self.path)?;
+        if let Some(parent) = self.path.parent() {
+            std::fs::File::open(parent)?.sync_all()?;
+        }
+        Ok(())
+    }
 }
 
 /// Validate UTF-8 across input chunks, including strings the JSON parser ignores.

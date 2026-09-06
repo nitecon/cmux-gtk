@@ -638,10 +638,16 @@ fn handle_socket_command_traced(
             // SOCK-05: surface.focus IS a focus-intent command — allowed to change focus.
             let focused = {
                 let mut s = state.borrow_mut();
-                let idx = s.active_index;
-                s.split_engines
-                    .get_mut(idx)
-                    .is_some_and(|engine| engine.focus_surface(&id))
+                let index = s
+                    .split_engines
+                    .iter()
+                    .position(|engine| engine.find_pane_id_by_uuid(&id).is_some());
+                if let Some(index) = index {
+                    s.switch_to_index(index);
+                    s.split_engines[index].focus_surface(&id)
+                } else {
+                    false
+                }
             };
             let response = if focused {
                 ok(req_id, json!({}))
@@ -662,10 +668,11 @@ fn handle_socket_command_traced(
             };
             let closed = {
                 let mut s = state.borrow_mut();
-                let idx = s.active_index;
-                s.split_engines
-                    .get_mut(idx)
-                    .map(|engine| engine.close_surface_and_empty_pane(uuid))
+                let index = s
+                    .split_engines
+                    .iter()
+                    .position(|engine| engine.find_pane_id_by_uuid(&id).is_some());
+                index.map(|index| s.split_engines[index].close_surface_and_empty_pane(uuid))
             };
             match closed {
                 Some(crate::split_engine::CloseSurfaceResult::Closed) => {

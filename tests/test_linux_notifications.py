@@ -97,6 +97,8 @@ def main():
                 app.cli("select-workspace", initial["workspace_uuid"])
                 assert json.loads(app.cli("notifications", "jump-to-unread", "--json"))["opened"] is False
                 assert active() == initial["uuid"]
+                app.cli("focus-surface", first["uuid"])
+                assert active() == first["uuid"]
 
         finally:
             stop_process(wm)

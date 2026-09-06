@@ -170,7 +170,7 @@ fn main() {
         .skip(1)
         .any(|argument| argument == "--restore-previous-session");
     arguments.retain(|argument| argument != "--restore-previous-session");
-    let saved_session = match crate::session::load_startup_session(previous) {
+    let (saved_session, launch_marker) = match crate::session::load_startup_session(previous) {
         Ok(session) => session,
         Err(message) => {
             eprintln!("cmux: {message}");
@@ -249,6 +249,13 @@ fn main() {
             "error_kind": save_error.as_ref().map(|error| format!("{:?}", error.kind())),
         }),
     );
+    if save_error.is_none() {
+        if let Some(marker) = launch_marker {
+            if let Err(error) = marker.finish() {
+                eprintln!("cmux: could not finalize session launch state: {error}");
+            }
+        }
+    }
     if let Some(error) = save_error {
         eprintln!("cmux: final session save failed: {error}");
     }

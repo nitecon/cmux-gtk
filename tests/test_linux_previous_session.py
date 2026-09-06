@@ -26,8 +26,17 @@ def main():
                 original = backup.read_bytes()
                 app.cli("close-workspace", recovered["workspace_uuid"])
                 assert all(row["workspace_uuid"] != recovered["workspace_uuid"] for row in app.surfaces())
-                quit_app(app)
+                app.wait_for(lambda: all(row["uuid"] != recovered["workspace_uuid"] for row in
+                                         json.loads((root / "data/cmux/session.json").read_text())["workspaces"]),
+                             "closed workspace autosave")
+                app.process.kill()
+                app.process.wait(timeout=10)
                 assert backup.read_bytes() == original, "live saves overwrote recovery source"
+            with running_app(root) as app:
+                assert backup.read_bytes() == original, "unclean restart overwrote recovery source"
+                assert all(row["workspace_uuid"] != recovered["workspace_uuid"] for row in app.surfaces())
+                quit_app(app)
+                assert not (root / "data/cmux/session.running").exists()
             with running_app(root, extra_arguments=["--restore-previous-session"]) as app:
                 assert any(row["uuid"] == recovered["uuid"] for row in app.surfaces())
                 app.cli("new-workspace", "--name", "After recovery")

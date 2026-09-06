@@ -163,3 +163,10 @@ Plain local terminals now restore their last reported directory ahead of the wor
 Before GTK activation on a normal launch, a valid nonempty current snapshot is archived atomically as `session.previous.json`, then the file and parent directory are synced. Live autosaves only update `session.json`. After quitting cmux, `cmux-app --restore-previous-session` explicitly loads the backup through the same validation/restoration path and leaves that recovery source unchanged. An invalid or missing backup fails without starting a fresh session or replacing current saved state. Backup-write failures are diagnosed and do not prevent ordinary startup.
 
 The Actions recovery fixture creates a workspace, closes it during the next run, restores it with the flag, checks stable identities and backup independence, then checks invalid-backup failure preserves the current snapshot. Local clippy and fixture syntax pass; runtime evidence is pending. Upstream's in-app reopen into additional windows and unclean-launch backup preservation remain dependent on the broader window/session lifecycle work and are not claimed complete here.
+
+
+## Unclean-launch recovery checkpoint
+
+Startup now writes a durable owner-token `session.running` marker. An existing marker preserves the previous backup instead of rotating current state over it. Only a successful final durable session save retires this launch's marker; forced termination, panic and failed saves leave recovery evidence. The recovery CI fixture now waits for a workspace-closing autosave, kills its owned process, launches normally and verifies the earlier backup survives before explicit recovery. Runtime verification remains pending.
+
+Actions 34050046754 failed at the closed-surface notification case: explicit `surface.close` still searched only the selected workspace. Both explicit close and focus now locate the owning workspace by surface identity. Close preserves the selected workspace; focus deliberately selects the owner. Existing notification and cross-workspace fixtures cover the corrected close path; further cumulative evidence is pending.
