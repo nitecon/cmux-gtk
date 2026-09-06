@@ -40,6 +40,16 @@ def validated_samples(report):
     return sorted(samples)
 
 
+def validated_label(value):
+    """Accept unknown or bounded nonempty UTF-8 driver/CPU labels without control characters."""
+    if value is not None and (
+            not isinstance(value, str) or not value.strip()
+            or len(value.encode("utf-8")) > 256
+            or any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in value)):
+        raise ValueError("hardware label must be bounded nonempty text or unknown")
+    return value
+
+
 def comparison_settings(report):
     """Require matching recorded workload/runtime metadata; this cannot establish identical hardware."""
     before = report["before"]
@@ -77,15 +87,19 @@ def comparison_settings(report):
     if (final_software is not None and type(final_software) is not bool) or final_software != software:
         raise ValueError("software rendering override changed during benchmark")
     settings["libgl_software_override"] = software
-    cpu_model = before.get("cpu_model")
-    if cpu_model is not None and (
-            not isinstance(cpu_model, str) or not cpu_model.strip()
-            or len(cpu_model.encode("utf-8")) > 256
-            or any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in cpu_model)):
-        raise ValueError("CPU model must be a bounded nonempty label or unknown")
+    cpu_model = validated_label(before.get("cpu_model"))
     if after.get("cpu_model") != cpu_model:
         raise ValueError("CPU model changed during benchmark")
     settings["cpu_model"] = cpu_model
+    renderer = before.get("first_opengl_context")
+    if renderer is not None:
+        if not isinstance(renderer, dict) or set(renderer) != {"vendor", "renderer", "version"}:
+            raise ValueError("OpenGL context metadata is invalid")
+        for value in renderer.values():
+            validated_label(value)
+    if after.get("first_opengl_context") != renderer:
+        raise ValueError("OpenGL context metadata changed during benchmark")
+    settings["first_opengl_context"] = renderer
     settings.update(host=host, iterations=report["iterations"], warmup=report["warmup"],
                     terminals=terminals, includes=report["includes"])
     return settings

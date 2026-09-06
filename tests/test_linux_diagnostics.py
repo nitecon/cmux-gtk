@@ -49,6 +49,12 @@ def main():
                     latest = json.loads(result.stdout)
                     assert latest["resources"]["cpu_user_us"] >= snapshot["resources"]["cpu_user_us"]
                     assert latest["resources"]["cpu_system_us"] >= snapshot["resources"]["cpu_system_us"]
+                    renderer = latest["first_opengl_context"]
+                    if renderer is None:
+                        return False
+                    for field in ("vendor", "renderer", "version"):
+                        assert isinstance(renderer[field], str) and renderer[field].strip()
+                        assert len(renderer[field].encode("utf-8")) <= 256
                     heartbeat = latest["gtk_event_loop"]
                     if not heartbeat["sampled"]:
                         return False

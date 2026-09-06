@@ -84,6 +84,39 @@ class Comparison(unittest.TestCase):
             with self.assertRaises(ValueError):
                 COMPARISON.compare_reports(candidate, candidate)
 
+    def test_opengl_context_compatibility(self):
+        """Compare stable first-context identities and reject unknown, changed or malformed labels."""
+        candidate = copy.deepcopy(self.baseline)
+        context = {"vendor": "Mesa", "renderer": "llvmpipe", "version": "4.5"}
+        for snapshot in (candidate["before"], candidate["after"]):
+            snapshot["first_opengl_context"] = context.copy()
+        self.assertEqual(
+            COMPARISON.compare_reports(candidate, candidate)["matched_settings"]["first_opengl_context"],
+            context,
+        )
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(self.baseline, candidate)
+        changed = copy.deepcopy(candidate)
+        changed["after"]["first_opengl_context"]["renderer"] = "Other GPU"
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(changed, changed)
+        changed["before"]["first_opengl_context"]["renderer"] = "Other GPU"
+        with self.assertRaises(ValueError):
+            COMPARISON.compare_reports(candidate, changed)
+        for invalid in [True, {}, {**context, "extra": "unexpected"},
+                        *({**context, "renderer": label} for label in
+                          [False, "", " ", "x" * 257, "λ" * 129, "bad\nlabel"])]:
+            for snapshot in (candidate["before"], candidate["after"]):
+                snapshot["first_opengl_context"] = invalid
+            with self.subTest(context=invalid), self.assertRaises(ValueError):
+                COMPARISON.compare_reports(candidate, candidate)
+        for snapshot in (candidate["before"], candidate["after"]):
+            snapshot["first_opengl_context"] = dict.fromkeys(context)
+        self.assertEqual(
+            COMPARISON.compare_reports(candidate, candidate)["matched_settings"]["first_opengl_context"],
+            dict.fromkeys(context),
+        )
+
     def test_matching_invalid_metadata_is_rejected(self):
         """Identically corrupted reports must not pass just because their settings match."""
         mutations = [
