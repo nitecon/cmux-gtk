@@ -200,3 +200,6 @@ The real SSH workspace fixture also runs against release binaries and writes `ss
 
 
 Native input/attention/history artifacts share private exclusive-file creation, failure retention, nearest-rank latency summaries and same-process resource accounting in `tests/benchmark_support.py`. CPU percentage uses cumulative app user/system time over the monotonic collection interval; 100% represents one CPU and values can exceed it. Boundary diagnostic calls contribute overhead, and child/desktop/remote CPU is excluded. Missing, negative or regressing CPU counters fail evidence instead of becoming zero. Raw snapshots remain available alongside RSS, thread and descriptor changes; no memory-growth or latency gate is inferred from a single CI run.
+
+
+[Baseline a20fc10d](Benchmarks/a20fc10d/README.md) preserves the successful optimized native input/bell and real SSH lifecycle artifacts from run 34011183573 without rewriting their measurements. The newer history-churn fixture, shared native summaries and updater changes still require their own cumulative CI confirmation.
