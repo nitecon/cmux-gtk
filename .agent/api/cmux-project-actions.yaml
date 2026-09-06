@@ -111,3 +111,8 @@ content:
     - Worker preparation canonicalizes every terminal cwd, assigns stable UUIDs and selects the last focus=true surface before GTK allocation. Unsupported project surfaces fail explicitly.
     - GTK installs the complete split tree without a placeholder terminal. Setup is consumed by the first terminal and combined with its command; later terminal commands remain independent. Surface environment wins over workspace values and persisted maps reuse bounded validation.
     - Browser surfaces use shared lazy restored-tab startup and cancellation ownership. Actions fixtures cover terminal topology/focus/setup/command/environment and browser navigation/daemon cleanup; runtime pending.
+
+  workspace_restart_policies:
+    - Named definitions retain new/recreate/ignore/confirm. Existing workspaces match by exact display name, following the inspected upstream executor.
+    - New always launches; ignore selects an existing match without side effects; recreate creates the replacement before closing the match so construction failure preserves the old workspace.
+    - Confirm returns confirmation_required on collision until an interactive palette caller can submit an explicit choice. Actions checks ignore/recreate workspace identity and counts; runtime pending.

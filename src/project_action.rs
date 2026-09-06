@@ -18,6 +18,17 @@ pub enum Target {
     NewTabInCurrentPane,
 }
 
+/// Match upstream workspace name-collision behavior; confirmation needs an interactive caller.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Restart {
+    #[default]
+    New,
+    Recreate,
+    Ignore,
+    Confirm,
+}
+
 /// Canonical upstream builtin identifiers; recognition does not imply this platform implements them.
 #[derive(Debug, Serialize, PartialEq)]
 pub enum Builtin {
@@ -85,6 +96,7 @@ pub enum Intent {
     },
     Workspace {
         workspace: Box<project_layout::Workspace>,
+        restart: Restart,
     },
 }
 
@@ -136,16 +148,12 @@ pub fn parse_named(value: &Value) -> Result<(Intent, Target), String> {
         _ => return Err("named command must define exactly one workspace or command".into()),
     };
     if let Some(restart) = value.get("restart").filter(|value| !value.is_null()) {
-        if !matches!(
-            restart.as_str(),
-            Some("new" | "recreate" | "ignore" | "confirm")
-        ) {
-            return Err("invalid named command restart behavior".into());
-        }
+        serde_json::from_value::<Restart>(restart.clone())
+            .map_err(|_| "invalid named command restart behavior")?;
     }
     let mut selected = serde_json::json!({"type":kind});
     selected[kind] = payload.clone();
-    for key in ["description", "keywords", "confirm"] {
+    for key in ["description", "keywords", "confirm", "restart"] {
         if let Some(value) = value.get(key) {
             selected[key] = value.clone();
         }
@@ -233,6 +241,15 @@ pub fn parse(value: &Value) -> Result<(Intent, Target), String> {
                 .ok_or("workspace action requires an object")?;
             Intent::Workspace {
                 workspace: Box::new(project_layout::parse(workspace)?),
+                restart: value
+                    .get("restart")
+                    .filter(|value| !value.is_null())
+                    .map(|value| {
+                        serde_json::from_value(value.clone())
+                            .map_err(|_| "invalid workspace restart behavior")
+                    })
+                    .transpose()?
+                    .unwrap_or_default(),
             }
         }
         _ => return Err("unknown action type".into()),
@@ -261,6 +278,16 @@ mod tests {
                 command: "pwd".into()
             }
         );
+        let (intent, _) =
+            parse_named(&serde_json::json!({"workspace":{"name":"Dev"},"restart":"ignore"}))
+                .unwrap();
+        assert!(matches!(
+            intent,
+            Intent::Workspace {
+                restart: Restart::Ignore,
+                ..
+            }
+        ));
         assert_eq!(target, Target::CurrentTerminal);
     }
     /// Named schema cannot be redirected by action-only fields or contain ambiguous launch data.

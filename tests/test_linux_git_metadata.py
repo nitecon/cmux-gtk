@@ -181,6 +181,29 @@ def main():
             assert (left / "command.out").read_text() == "left"
             assert (right / "command.out").read_text() == "right"
             app.cli("close-workspace", created["workspace_id"])
+            restart_workspace = {"name": "Restart policy fixture", "cwd": "."}
+            restart_config = lambda policy: {"commands": [{"name": "restartable", "workspace": restart_workspace,
+                                                              "restart": policy}],
+                                             "actions": {"fixture.restart": {"type": "workspaceCommand",
+                                                                               "name": "restartable"}}}
+            config_file.write_text(json.dumps(restart_config("ignore")))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            first = json.loads(app.cli("project-run", "fixture.restart", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.restart"]["fingerprint"], "--json"))
+            before_restart = {row["uuid"] for row in json.loads(app.cli("list-workspaces", "--json"))["workspaces"]}
+            ignored = json.loads(app.cli("project-run", "fixture.restart", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.restart"]["fingerprint"], "--json"))
+            assert ignored["workspace_id"] == first["workspace_id"]
+            assert {row["uuid"] for row in json.loads(app.cli("list-workspaces", "--json"))["workspaces"]} == before_restart
+            config_file.write_text(json.dumps(restart_config("recreate")))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            recreated = json.loads(app.cli("project-run", "fixture.restart", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.restart"]["fingerprint"], "--json"))
+            after_restart = {row["uuid"] for row in json.loads(app.cli("list-workspaces", "--json"))["workspaces"]}
+            assert recreated["workspace_id"] != first["workspace_id"]
+            assert first["workspace_id"] not in after_restart and recreated["workspace_id"] in after_restart
+            assert len(after_restart) == len(before_restart)
+            app.cli("close-workspace", recreated["workspace_id"])
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))

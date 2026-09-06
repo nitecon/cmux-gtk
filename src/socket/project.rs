@@ -14,6 +14,7 @@ struct WorkspaceLaunch {
     environment: std::collections::BTreeMap<String, String>,
     color: Option<String>,
     setup: Option<String>,
+    restart: crate::project_config::project_action::Restart,
     layout: Option<(
         crate::project_config::project_action::project_layout::PreparedLayout,
         String,
@@ -79,6 +80,74 @@ fn pane_tree(
     }
 }
 
+/// Result of applying one workspace collision policy and launch plan on the GTK thread.
+struct WorkspaceResult {
+    workspace_id: uuid::Uuid,
+    surface_id: Option<uuid::Uuid>,
+    browser_tabs: Vec<crate::browser::PreviewPaneWidgets>,
+    new_row: bool,
+}
+
+/// Apply upstream name collision behavior while keeping workspace construction centralized.
+fn apply_workspace_launch(
+    state: &mut crate::app_state::AppState,
+    launch: WorkspaceLaunch,
+    existing: Option<usize>,
+) -> Option<WorkspaceResult> {
+    use crate::project_config::project_action::Restart;
+    if launch.restart == Restart::Ignore {
+        if let Some(existing) = existing {
+            state.switch_to_index(existing);
+            return Some(WorkspaceResult {
+                workspace_id: state.workspaces[existing].uuid,
+                surface_id: state.split_engines[existing]
+                    .active_pane_uuid()
+                    .and_then(|id| uuid::Uuid::parse_str(&id).ok()),
+                browser_tabs: Vec::new(),
+                new_row: false,
+            });
+        }
+    }
+    let has_layout = launch.layout.is_some();
+    let created_id = if let Some((layout, active)) = launch.layout {
+        state.create_workspace_layout(
+            launch.name,
+            launch.directory,
+            launch.environment,
+            launch.color.clone(),
+            pane_tree(layout),
+            &active,
+        )?
+    } else {
+        state.create_workspace_configured(
+            launch.name,
+            launch.directory,
+            launch.environment,
+            launch.setup,
+        )
+    };
+    let created = state.active_index;
+    if !has_layout {
+        if let Some(color) = launch.color {
+            state.set_workspace_color(created_id, Some(color));
+        }
+    }
+    let result = WorkspaceResult {
+        workspace_id: state.workspaces[created].uuid,
+        surface_id: state.split_engines[created]
+            .active_pane_uuid()
+            .and_then(|id| uuid::Uuid::parse_str(&id).ok()),
+        browser_tabs: state.split_engines[created].browser_tabs(),
+        new_row: true,
+    };
+    if launch.restart == Restart::Recreate {
+        if let Some(existing) = existing {
+            state.close_workspace(existing);
+        }
+    }
+    Some(result)
+}
+
 /// Resolve inline or named workspace intent and validate all supported fields before GTK mutation.
 fn prepare_workspace(
     resolved: &crate::project_config::Resolved,
@@ -94,19 +163,11 @@ fn prepare_workspace(
                 .commands
                 .get(name)
                 .ok_or("named workspace command not found")?;
-            if command
-                .definition
-                .get("restart")
-                .filter(|value| !value.is_null())
-                .is_some_and(|value| value.as_str() != Some("new"))
-            {
-                return Err("named workspace restart policy is not implemented yet".into());
-            }
             &command.intent
         }
         intent => intent,
     };
-    let Intent::Workspace { workspace } = intent else {
+    let Intent::Workspace { workspace, restart } = intent else {
         if matches!(action.intent, Intent::WorkspaceCommand { .. }) {
             return Err("named command does not define a workspace".into());
         }
@@ -150,6 +211,7 @@ fn prepare_workspace(
         environment: workspace.env.clone(),
         color: workspace.color.clone(),
         setup: workspace.setup.clone(),
+        restart: *restart,
         layout,
     }))
 }
@@ -319,21 +381,15 @@ pub fn run(
         let surface=match intent {
             Intent::Workspace { .. } | Intent::WorkspaceCommand { .. } => {
                 let Some(launch) = workspace_launch else {let _=response.send(err(req_id,"config_error","workspace launch unavailable"));return;};
-                let has_layout = launch.layout.is_some();
-                let created_id = if let Some((layout, active)) = launch.layout {
-                    state.create_workspace_layout(launch.name, launch.directory, launch.environment, launch.color.clone(), pane_tree(layout), &active)
-                } else {
-                    Some(state.create_workspace_configured(launch.name, launch.directory, launch.environment, launch.setup))
-                };
-                let Some(created_id) = created_id else {let _=response.send(err(req_id,"launch_failed","project workspace layout could not be created"));return;};
-                let created = state.active_index;
-                if !has_layout {
-                    if let Some(color) = launch.color { state.set_workspace_color(created_id, Some(color)); }
+                let existing = state.workspaces.iter().position(|workspace| workspace.name == launch.name);
+                if launch.restart == crate::project_config::project_action::Restart::Confirm && existing.is_some() {
+                    let _=response.send(err(req_id,"confirmation_required","recreating this workspace requires confirmation"));return;
                 }
-                browser_tabs = state.split_engines[created].browser_tabs();
-                result_workspace_id = state.workspaces[created].uuid;
-                wire_row = true;
-                state.split_engines[created].active_pane_uuid().and_then(|id| uuid::Uuid::parse_str(&id).ok())
+                let Some(result)=apply_workspace_launch(&mut state,launch,existing) else {let _=response.send(err(req_id,"launch_failed","project workspace layout could not be created"));return;};
+                result_workspace_id=result.workspace_id;
+                browser_tabs=result.browser_tabs;
+                wire_row=result.new_row;
+                result.surface_id
             }
             Intent::Builtin { builtin: Builtin::NewWorkspace } => {
                 state.create_workspace_bound(String::new(), resolved.directory.clone());
