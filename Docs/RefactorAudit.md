@@ -1084,3 +1084,7 @@ Added CI helper cases covering observed PIDs, clean absence, partial output, war
 ### Share strict sidebar port parsing
 
 Three port checks now use one parser that requires the ports field, recognizes explicit empty/none values and accepts only comma-separated decimal ports in 1..65535. Duplicates collapse. Missing fields, malformed tokens and invalid ranges raise errors instead of silently proving absence; the sampled-duration check now also uses a monotonic clock. Added CI cases for valid boundaries, duplicates, empty rows, malformed input and the removal waiter's refusal to accept a malformed snapshot. Python syntax and diff checks pass; no local tests ran. This strengthens retained helper semantics without claiming that the legacy sidebar protocol has been migrated to GTK.
+
+### Give the directory-inheritance probe one resource owner
+
+The retained upstream inheritance runner now owns unique temporary directories and its client connection through context managers. Removed fixed shared /tmp paths, repeated connection closure and best-effort directory cleanup that was bypassed on early returns. The checks receive caller-owned paths and connection, and shell directory changes quote paths correctly; fixture names now include spaces. All retained functions and nested callbacks have contracts. Created workspace cleanup and upstream sidebar/focus API migration remain unresolved, explicitly documented by the check helper. Python syntax and diff checks pass; no local tests ran and this is not claimed as GTK inheritance coverage.

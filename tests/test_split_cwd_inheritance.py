@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import os
 import sys
+import shlex
+import tempfile
 import time
 from pathlib import Path
 
@@ -40,6 +42,7 @@ def _wait_for_focused_cwd(
     If tab is given, also require that the selected tab matches that tab.
     """
     def pred():
+        """Return a snapshot only when directory and optional pane/workspace identities all match."""
         state = _parse_sidebar_state(client.sidebar_state())
         cwd = state.get("focused_cwd", "")
         if cwd != expected:
@@ -64,14 +67,16 @@ def _send_cd_and_wait(
     surface: str | int | None = None,
 ) -> dict[str, str]:
     """cd to target and wait for sidebar focused_cwd to reflect it."""
+    command = f"cd {shlex.quote(target)}\n"
     if surface is None:
-        client.send(f"cd {target}\n")
+        client.send(command)
     else:
-        client.send_surface(surface, f"cd {target}\n")
+        client.send_surface(surface, command)
     return _wait_for_focused_cwd(client, target, timeout=timeout)
 
 
 def _focus_first_surface(client: cmux) -> str:
+    """Focus the first listed legacy surface, failing if the workspace contains none."""
     surfaces = client.list_surfaces()
     if not surfaces:
         raise AssertionError("Current tab has no surfaces")
@@ -80,25 +85,17 @@ def _focus_first_surface(client: cmux) -> str:
     return surface_id
 
 
-def main() -> int:
-    tag = os.environ.get("CMUX_TAG", "")
+def _run_inheritance_checks(client: cmux, test_dir_a: str, test_dir_b: str) -> int:
+    """Exercise legacy split/workspace inheritance with caller-owned paths and connection.
 
-    socket_path = None
-    if tag:
-        socket_path = f"/tmp/cmux-debug-{tag}.sock"
-    client = cmux(socket_path=socket_path)
-    client.connect()
-
-    # Use resolved paths to avoid /tmp -> /private/tmp symlink mismatch on macOS
-    test_dir_a = str(Path("/tmp/cmux_split_cwd_test_a").resolve())
-    test_dir_b = str(Path("/tmp/cmux_split_cwd_test_b").resolve())
-    os.makedirs(test_dir_a, exist_ok=True)
-    os.makedirs(test_dir_b, exist_ok=True)
-
+    Workspace mutation still belongs to this manual upstream scenario; this
+    helper does not establish GTK inheritance or dispose the created workspaces.
+    """
     passed = 0
     failed = 0
 
     def check(name: str, condition: bool, detail: str = ""):
+        """Record and print one assertion outcome without stopping subsequent checks."""
         nonlocal passed, failed
         if condition:
             print(f"  PASS  {name}")
@@ -129,7 +126,6 @@ def main() -> int:
     if not split_result:
         check("split created", False)
         print(f"\n{passed} passed, {failed} failed")
-        client.close()
         return 1
     check("split created", True)
 
@@ -159,7 +155,6 @@ def main() -> int:
     if not tab_result:
         check("new tab created", False)
         print(f"\n{passed} passed, {failed} failed")
-        client.close()
         return 1
     check("new tab created", True)
 
@@ -181,16 +176,21 @@ def main() -> int:
 
     print(f"\n{passed} passed, {failed} failed")
 
-    client.close()
-
-    # Cleanup
-    for d in [test_dir_a, test_dir_b]:
-        try:
-            os.rmdir(d)
-        except OSError:
-            pass
-
     return 1 if failed else 0
+
+
+def main() -> int:
+    """Own unique test directories and close the legacy client on every return or exception."""
+    tag = os.environ.get("CMUX_TAG", "")
+    socket_path = f"/tmp/cmux-debug-{tag}.sock" if tag else None
+    with tempfile.TemporaryDirectory(prefix="cmux-cwd-inheritance-") as directory:
+        root = Path(directory)
+        first = root / "first directory"
+        second = root / "second directory"
+        first.mkdir()
+        second.mkdir()
+        with cmux(socket_path=socket_path) as client:
+            return _run_inheritance_checks(client, str(first.resolve()), str(second.resolve()))
 
 
 if __name__ == "__main__":
