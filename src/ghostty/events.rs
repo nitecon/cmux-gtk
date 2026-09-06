@@ -11,6 +11,7 @@ const PER_TURN: usize = 16;
 pub(crate) enum Event {
     Bell(u64),
     NewTerminalTab(u64),
+    OpenNotification(uuid::Uuid),
     Notification {
         surface: uuid::Uuid,
         content: crate::inbox::Content,

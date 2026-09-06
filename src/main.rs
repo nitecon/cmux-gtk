@@ -438,6 +438,7 @@ fn build_ui(
     // SSH events arrive via ssh_event_rx from tokio tasks.
     {
         let state = state.clone();
+        let main_window = window.downgrade();
         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
             let (native_events, dropped) = crate::ghostty::events::take();
             if dropped > 0 {
@@ -459,6 +460,25 @@ fn build_ui(
                     }
                     crate::ghostty::events::Event::Bell(pane_id) => {
                         state.borrow_mut().set_pane_attention(pane_id);
+                    }
+                    crate::ghostty::events::Event::OpenNotification(id) => {
+                        let result = crate::inbox_actions::handle(
+                            &mut state.borrow_mut(),
+                            crate::inbox::Action::Open(id),
+                        );
+                        if result.is_ok() {
+                            let panel = state.borrow().inbox_window.upgrade();
+                            if let Some(panel) = panel {
+                                panel.close();
+                            }
+                            if let Some(window) = main_window.upgrade() {
+                                window.present();
+                            }
+                        } else {
+                            crate::diagnostics::event(format_args!(
+                                "notification.desktop_action outcome=stale_target id={id}"
+                            ));
+                        }
                     }
                     crate::ghostty::events::Event::Notification { surface, content } => {
                         let result = crate::inbox_actions::handle(

@@ -95,3 +95,10 @@ Native CI emits rapid OSC9/777 messages and fragmented OSC99 from an inactive si
 The hook installer now merges Stop and Notification handlers as well as SessionStart/SessionEnd. Stop forwards the provider's final response text; Notification forwards its title, message and notification type. Both require the native event/session/surface context, route through the shared inbox API, and preserve the resume binding and current focus. Long messages use visible UTF-8-safe truncation within inbox limits. The integration follows the [Claude hook reference](https://code.claude.com/docs/en/hooks) and does not read transcript files or make hook decisions that continue/block the agent.
 
 The installed-handler CI scenario now checks background notification routing, literal response text, Unicode truncation, unchanged focus and unchanged resume metadata. Runtime verification remains pending. This completes the first provider's turn-to-inbox wiring in source; other providers and the remaining resume/notification policy requirements stay on the matrix.
+
+
+## Desktop message delivery checkpoint
+
+Background messages now send escaped plain content through the bounded Linux notify-send service adapter. Its default action returns to the original inbox message and exact sibling terminal; dismissed or closed targets cannot redirect focus. Focused delivery remains suppressed, and desktop failure or overload preserves inbox history. Four helpers share admission with BEL delivery; actionable helpers have a 15-second deadline and bounded captured output.
+
+Actions 34047279827 passed the complete approval and live-inbox suite at ab9bbb07, including optimized benchmarks. Native OSC and Claude turn hooks await the subsequent cumulative run. The new desktop fixture exercises actual GTK routing with a controlled notify-send executable: escaped payload, background focus preservation, exact sibling activation and stale-message rejection. It validates the helper contract, not a physical desktop daemon. Desktop runtime verification is pending; advanced OSC99, caller resolution and other matrix rows remain open.

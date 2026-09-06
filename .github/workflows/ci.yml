@@ -167,6 +167,8 @@ jobs:
 
       - name: Test notification history and exact terminal routing
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_notifications.py
+      - name: Desktop notification action routing
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_desktop_notifications.py
 
       - name: Test native OSC notification bursts and chunk assembly
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_osc_notifications.py

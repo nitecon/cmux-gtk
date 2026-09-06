@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Notification inbox and exact target routing
 space: cmux-gtk
 slug: notification-inbox
-summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC title/body delivery supported; provider and desktop integration remain in progress.
+summary: Bounded persistent inbox, exact target routing, native OSC messages and actionable Linux desktop delivery; full provider and protocol parity remains in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/inbox.rs
@@ -29,7 +29,7 @@ content:
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
     verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
-    outstanding: Advanced OSC99 query/replacement/activation reports, other provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.
+    outstanding: Advanced OSC99 query/replacement/activation reports, other provider hook delivery, caller resolution remain part of the active parity goal.
 
     panel: View > Notifications or Ctrl+Shift+I opens one nonmodal live panel. Ctrl+Shift+U jumps to unread. A watch signal coalesces mutations; the GTK listener and action handlers hold weak references and closing aborts the listener. Rows render plain text, open exact targets or dismiss messages; bulk controls mark read or clear. Native CI checks live unread-title updates and navigation.
 
@@ -37,3 +37,5 @@ content:
     parser_metrics: diagnostics.notification_parser exposes output_bytes, parse_ns, accepted, queue_rejected and oversize_frames. No raw output or message content is logged.
 
     claude_hooks: cmux hooks setup claude installs Stop and Notification handlers alongside native session lifecycle handlers. Stop sends last_assistant_message; Notification sends title/message/notification_type to the originating CMUX_SURFACE_ID. Long text is visibly truncated at UTF-8 boundaries. Neither event clears resume metadata or moves focus.
+
+    desktop: Background inbox creation invokes notify-send with escaped plain body/subtitle and an explicit default action. Four active helpers share BEL admission without queueing; message execution is capped at 15 seconds, stdout 256 bytes and stderr 4096 bytes. Successful default action queues the stable notification UUID for GTK routing; stale targets do not redirect. Failure/overload retains inbox attention. Diagnostics include notification identity without content. Actions tests/test_linux_desktop_notifications.py uses a controlled helper and real GTK to verify payload and click routing; external daemon presentation is not covered.

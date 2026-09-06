@@ -13,12 +13,32 @@ pub(crate) fn send(
     command: std::process::Command,
     workspace: Uuid,
 ) -> Option<tokio::task::JoinHandle<()>> {
+    send_inner(runtime, command, workspace, None)
+}
+
+/// Admit a desktop message with a stable inbox action target, sharing the bounded bell worker pool.
+pub(crate) fn send_message(
+    runtime: &tokio::runtime::Handle,
+    command: std::process::Command,
+    workspace: Uuid,
+    notification: Uuid,
+) -> Option<tokio::task::JoinHandle<()>> {
+    send_inner(runtime, command, workspace, Some(notification))
+}
+
+/// Own one notification helper and its bounded output/deadline; no raw payload enters diagnostics.
+fn send_inner(
+    runtime: &tokio::runtime::Handle,
+    command: std::process::Command,
+    workspace: Uuid,
+    notification: Option<Uuid>,
+) -> Option<tokio::task::JoinHandle<()>> {
     let permit = match DELIVERIES.try_acquire() {
         Ok(permit) => permit,
         Err(_) => {
             crate::diagnostics::record(
                 "notification.delivery.rejected",
-                serde_json::json!({"workspace": workspace, "reason": "capacity"}),
+                serde_json::json!({"workspace": workspace, "notification": notification, "reason": "capacity"}),
             );
             return None;
         }
@@ -27,6 +47,7 @@ pub(crate) fn send(
         let _permit = permit;
         let mut delivery = Delivery {
             workspace,
+            notification,
             trace_id: Uuid::new_v4(),
             started: Instant::now(),
             outcome: "cancelled",
@@ -34,13 +55,39 @@ pub(crate) fn send(
         };
         crate::diagnostics::record(
             "notification.delivery.begin",
-            serde_json::json!({"workspace": workspace, "trace_id": delivery.trace_id}),
+            serde_json::json!({"workspace": workspace, "notification": notification, "trace_id": delivery.trace_id}),
         );
         let mut command = tokio::process::Command::from(command);
         command
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
-        match crate::task::run_status(&mut command, Duration::from_secs(5)).await {
+        let status = if let Some(notification) = notification {
+            match crate::task::run_output(command, Duration::from_secs(15), 256, 4096, |error| {
+                crate::diagnostics::event(format_args!(
+                    "notification.cleanup outcome=error kind={:?}",
+                    error.kind()
+                ));
+            })
+            .await
+            {
+                Ok(output) => {
+                    if output.status.success()
+                        && output.stdout == b"default\n"
+                        && !crate::ghostty::events::push(
+                            crate::ghostty::events::Event::OpenNotification(notification),
+                        )
+                    {
+                        delivery.outcome = "action_queue_full";
+                        return;
+                    }
+                    Ok(output.status)
+                }
+                Err(error) => Err(error),
+            }
+        } else {
+            crate::task::run_status(&mut command, Duration::from_secs(5)).await
+        };
+        match status {
             Ok(status) => {
                 delivery.outcome = if status.success() {
                     "success"
@@ -63,6 +110,7 @@ pub(crate) fn send(
 /// Record task completion even on cancellation, without command arguments or desktop payloads.
 struct Delivery {
     workspace: Uuid,
+    notification: Option<Uuid>,
     trace_id: Uuid,
     started: Instant,
     outcome: &'static str,
@@ -75,7 +123,7 @@ impl Drop for Delivery {
         crate::diagnostics::record(
             "notification.delivery.complete",
             serde_json::json!({
-                "workspace": self.workspace, "trace_id": self.trace_id,
+                "workspace": self.workspace, "notification": self.notification, "trace_id": self.trace_id,
                 "duration_us": self.started.elapsed().as_micros() as u64,
                 "outcome": self.outcome, "os_error": self.os_error,
             }),

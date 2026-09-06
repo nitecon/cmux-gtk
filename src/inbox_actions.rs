@@ -69,6 +69,13 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
                     .is_some_and(|window| window.is_active());
             let id = Uuid::new_v4();
             let workspace = state.workspaces[index].uuid;
+            let desktop = (!focused).then(|| {
+                cmux_platform::notification::message(
+                    &content.title,
+                    &content.subtitle,
+                    &content.body,
+                )
+            });
             let created_at = glib::DateTime::now_utc()
                 .and_then(|date| date.format_iso8601())
                 .map(|value| value.to_string())
@@ -81,6 +88,9 @@ pub fn handle(state: &mut AppState, action: Action) -> Result<Value, Error> {
                 created_at,
                 is_read: focused,
             });
+            if let (Some(runtime), Some(command)) = (&state.runtime_handle, desktop) {
+                crate::notification::send_message(runtime, command, workspace, id);
+            }
             crate::diagnostics::record(
                 "notification.inbox.create",
                 json!({"id":id,"workspace":workspace,"surface":surface,"focused":focused,"evicted":evicted}),
