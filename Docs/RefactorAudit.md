@@ -1451,3 +1451,7 @@ Updated the real-application diagnostics fixture to use selection of a nonexiste
 ### First terminal OpenGL context metadata
 
 Platform OpenGL ownership now captures bounded vendor, renderer and version labels once while a terminal context is current. Diagnostics expose cached nullable values without GL calls on worker threads. Benchmark comparison rejects changed, malformed or incompatible context metadata and retains unknown semantics for archived reports. Added bounded C-string behavior cases, comparison cases and a live GTK diagnostics assertion; runtime execution remains CI-only. This is first-context metadata, not a complete GPU inventory or proof of identical presentation hardware.
+
+### Optimized terminal churn and redraw workload
+
+The existing executable memory lifecycle fixture now accepts an explicit binary directory and expected build profile, verifies the process/profile on every diagnostic sample and waits for first GL metadata before baseline collection. CI repeats the workload after the optimized build and retains `memory-churn-release.json` separately; the debug lifecycle run remains. No workload sizes or coarse OOM guards changed. Python syntax and diff checks pass; runtime evidence awaits CI, and output-loop iterations do not establish presented frame latency.

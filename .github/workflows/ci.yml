@@ -207,6 +207,14 @@ jobs:
           CMUX_BENCHMARK_OUT: target/benchmarks/cli-round-trip.json
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diagnostics.py
 
+      - name: Benchmark optimized terminal memory and redraw churn
+        timeout-minutes: 5
+        env:
+          CMUX_BIN_DIR: target/release
+          CMUX_EXPECT_PROFILE: release
+          CMUX_CHURN_REPORT: target/benchmarks/memory-churn-release.json
+        run: dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1200x24' python3 tests/test_linux_memory_churn.py
+
       - name: Preserve benchmark results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

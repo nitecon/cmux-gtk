@@ -29,11 +29,13 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     )
     socket = root / "runtime/cmux/cmux.sock"
     log = (root / "app.log").open("w+")
-    app = subprocess.Popen(["target/debug/cmux-app"], env=env, stdout=log, stderr=log)
+    binary_dir = Path(os.environ.get("CMUX_BIN_DIR", "target/debug"))
+    expected_profile = os.environ.get("CMUX_EXPECT_PROFILE", "debug")
+    app = subprocess.Popen([str(binary_dir / "cmux-app")], env=env, stdout=log, stderr=log)
 
     def cli(*args):
         """Invoke the isolated application CLI with a bounded subprocess lifetime."""
-        return subprocess.check_output(["target/debug/cmux", "--socket", str(socket), *args], env=env, text=True, timeout=15)
+        return subprocess.check_output([str(binary_dir / "cmux"), "--socket", str(socket), *args], env=env, text=True, timeout=15)
 
     def rss():
         """Read current resident memory in KiB from the application process."""
@@ -46,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
 
     report = {
         "schema": 1, "revision": os.environ.get("GITHUB_SHA"),
-        "build_profile": "debug", "backend": "x11", "software_rendering": True,
+        "build_profile": expected_profile, "backend": "x11", "software_rendering": True,
         "host": {"system": platform.system(), "release": platform.release(),
                  "machine": platform.machine()},
         "workload": {"interactive_sibling_tabs": 3, "split_close_cycles": 45, "child_eof_cycles": 9,
@@ -60,6 +62,8 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
     def record_resources(phase, iteration):
         """Retain correlated resource counters without collecting terminal content or paths."""
         snapshot = json.loads(cli("diagnostics", "--json"))
+        assert snapshot["pid"] == app.pid, "diagnostics came from a different application"
+        assert snapshot["build_profile"] == expected_profile, "application profile does not match workload"
         report["samples"].append({
             "phase": phase, "iteration": iteration,
             "elapsed_seconds": time.monotonic() - measurement_start,
@@ -79,6 +83,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-memory-") as directory:
         assert windows, "application has no X11 window"
         window = windows[-1]
         baseline_children = children()
+        eventually(lambda: json.loads(cli("diagnostics", "--json"))["first_opengl_context"] is not None)
         record_resources("baseline", 0)
         # New sibling tabs must accept real GTK input without a focus-switch repair.
         split_ids = []
