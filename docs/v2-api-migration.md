@@ -1,6 +1,8 @@
-# V2 Socket API + Test Migration
+# Upstream V2 Socket API + Test Migration (historical)
 
-This doc tracks the migration from the existing v1 line protocol (space-delimited commands) to a v2 JSON protocol intended for LLM agents.
+> Historical upstream macOS record. Checked boxes below do not describe the GTK implementation; referenced VM runners and debug endpoints may be absent. Use [Architecture](../Docs/Architecture.md), [Refactor audit](../Docs/RefactorAudit.md), and the running app’s `capabilities` output for current scope.
+
+This doc tracked the migration from the existing v1 line protocol (space-delimited commands) to a v2 JSON protocol intended for LLM agents.
 
 ## Goals
 

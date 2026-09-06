@@ -825,31 +825,6 @@ class cmux:
         if not response.startswith("OK"):
             raise cmuxError(response)
 
-    def simulate_file_drop(self, surface: Union[str, int], paths: Union[str, List[str]]) -> None:
-        """Simulate dropping file path(s) onto a terminal surface (debug builds only)."""
-        payload = paths if isinstance(paths, str) else "|".join(paths)
-        response = self._send_command(f"simulate_file_drop {surface} {payload}")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def drop_hit_test(self, x: float, y: float) -> Optional[str]:
-        """Hit-test the file-drop overlay at normalised (0-1) coords.
-
-        Returns the surface UUID string if a terminal is under the point, or None.
-        """
-        response = self._send_command(f"drop_hit_test {x} {y}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        val = response.strip()
-        return None if val == "none" else val
-
-    def drag_hit_chain(self, x: float, y: float) -> str:
-        """Return hit-view chain at normalised (0-1) coordinates."""
-        response = self._send_command(f"drag_hit_chain {x} {y}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip()
-
     def activate_app(self) -> None:
         """Bring app + main window to front (debug builds only)."""
         response = self._send_command("activate_app")
@@ -872,17 +847,6 @@ class cmux:
             return json.loads(response)
         except Exception:
             return {}
-
-    def layout_debug(self) -> dict:
-        """Return bonsplit layout snapshot + selected panel bounds."""
-        response = self._send_command("layout_debug")
-        if not response.startswith("OK "):
-            raise cmuxError(response)
-        payload = response[3:].strip()
-        try:
-            return json.loads(payload)
-        except json.JSONDecodeError as e:
-            raise cmuxError(f"layout_debug JSON decode failed: {e}: {payload[:200]}")
 
     def read_terminal_text(self, panel: Union[str, int, None] = None) -> str:
         """
@@ -942,19 +906,6 @@ class cmux:
             "height": int(height),
             "path": path,
         }
-
-    def empty_panel_count(self) -> int:
-        """Return the number of EmptyPanelView appearances."""
-        response = self._send_command("empty_panel_count")
-        if response.startswith("OK "):
-            return int(response.split(" ", 1)[1])
-        raise cmuxError(response)
-
-    def reset_empty_panel_count(self) -> None:
-        """Reset the EmptyPanelView appearance counter."""
-        response = self._send_command("reset_empty_panel_count")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
 
     def new_surface(self, pane: Union[str, int, None] = None,
                     panel_type: str = "terminal", url: str = None) -> str:

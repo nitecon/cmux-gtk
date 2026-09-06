@@ -990,12 +990,6 @@ class cmux:
         # Server wraps the underlying stats object under "stats".
         return dict(res.get("stats") or {})
 
-    def layout_debug(self) -> dict:
-        """Return the layout object from the upstream layout debug hook."""
-        res = self._call("debug.layout") or {}
-        # Server wraps LayoutDebugResponse under "layout".
-        return dict(res.get("layout") or {})
-
     def panel_snapshot_reset(self, panel: Union[str, int]) -> None:
         """Reset upstream snapshot tracking for a resolved surface."""
         sid = self._resolve_surface_id(panel)
@@ -1012,24 +1006,6 @@ class cmux:
         if "panel_id" not in res and "surface_id" in res:
             res["panel_id"] = res.get("surface_id")
         return res
-
-    def bonsplit_underflow_count(self) -> int:
-        """Read the legacy Bonsplit underflow counter from the upstream debug hook."""
-        res = self._call("debug.bonsplit_underflow.count") or {}
-        return int(res.get("count") or 0)
-
-    def reset_bonsplit_underflow_count(self) -> None:
-        """Reset the legacy Bonsplit underflow counter through the upstream debug hook."""
-        self._call("debug.bonsplit_underflow.reset")
-
-    def empty_panel_count(self) -> int:
-        """Read the upstream debug counter for empty panels."""
-        res = self._call("debug.empty_panel.count") or {}
-        return int(res.get("count") or 0)
-
-    def reset_empty_panel_count(self) -> None:
-        """Reset the upstream debug counter for empty panels."""
-        self._call("debug.empty_panel.reset")
 
     def flash_count(self, surface: Union[str, int]) -> int:
         """Read the upstream flash counter for a resolved surface."""
