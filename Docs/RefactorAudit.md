@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 79 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 20 undocumented declarations among 422 functions in 63 `tests` files, and 493 among 681 functions in 80 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds 9 undocumented declarations among 372 functions in 62 `tests` files, and 482 among 631 functions in 79 `tests_v2` files. All 22 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1146,3 +1146,25 @@ Documented the six echo-fixture functions, including buffered handshake/frame re
 ### Remove absent macOS issue-464 harness
 
 Removed `tests/test_issue_464_cmdw_close_terminal_browser_split.py` after confirming that its `simulate_shortcut`, `layout_debug`, `surface_health` and `drag_hit_chain` debug commands have no owned implementation or workflow invocation. Its stale-overlay assertion specifically compared the absent `GhosttyNSView` class. The maintained `test_linux_surface_tab_reentrant_close.py` verifies surviving browser identity/selection, terminal child exit, repeated split/close operations and responsiveness through the real GTK application. That Linux scenario is narrower than the removed macOS scenario: physical close-shortcut routing, split-to-browser geometry and hit testing remain useful GTK coverage requirements, not established coverage.
+
+### Retire duplicate upstream visual harnesses
+
+Removed the v1 and v2 `test_visual_screenshots.py` harnesses after checking their client calls against the current dispatcher and CI. Neither was invoked by a maintained workflow. Desktop `debug.window.screenshot` and `surface.drag_to_split` are absent; browser screenshots are a separate service capability. GTK `surface.health` exists but returns `alive` and `has_attention`, not the upstream `surfaces` list with `in_window` records required by these suites. The v1 suite also spoke the unsupported legacy command protocol. Their cleanup targeted a running application's other workspaces, which does not fit isolated integration ownership. The historical port specification now identifies their removal and does not carry forward its non-blocking detached-view exception.
+
+The following retained requirements describe the complete 28-scenario matrix, not current GTK coverage:
+
+| Historical cases | Behavior to verify with isolated GTK fixtures |
+| --- | --- |
+| A1–A3 | Initial terminal, right split and down split render and accept input. |
+| B4–B7 | Closing right, left, bottom or top preserves the surviving terminal and correct geometry. |
+| C8–C10 | Three-way middle closure and grid top-left/bottom-right closure preserve every remaining surface. |
+| D11–D13 | Nested bottom-right closure, T-shape top closure and four-pane second closure leave no detached or blank surfaces. |
+| E14–E15 | Closing either terminal or browser in a mixed split preserves the other and its usable area. |
+| F16 | Closing the first sibling surface selects a live remaining tab. |
+| G17–G19 | Repeated down/top-close, right/left-close and alternating splits closed in reverse retain responsive terminals and bounded resources. |
+| H20 | Switching workspaces away and back preserves layout, surface identity and input. |
+| I21–I28 | Browser drag-to-split after load, immediately, with browser content focused, after focus bounce, followed by pane switching, with an initial URL, after reload, and twice in succession preserves identity and produces no empty panes. |
+
+The maintained Linux terminal-close, browser-tab-close, multi-workspace-focus and memory-churn fixtures cover subsets of these invariants through live processes. They do not establish screenshot equivalence, every geometry case or browser drag parity. Future visual checks should collect actual GTK captures and fail on detached/blank views, use fixture-owned workspaces and bounded subprocesses, and retain readable before/after artifacts. Browser drag/parity work remains subject to the separately deferred feature scope; removing unusable harnesses does not implement it.
+
+Architecture now describes the implemented asynchronous startup, restoration, mapped navigation, input queue and shutdown ownership, replacing its obsolete claim that those paths still run synchronously.
