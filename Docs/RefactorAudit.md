@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 85 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 374 functions in 62 `tests` files, and 149 among 314 functions in 21 `tests_v2` files. All 29 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 374 functions in 62 `tests` files, and 132 among 283 functions in 17 `tests_v2` files. All 29 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1531,3 +1531,17 @@ All owned Rust desktop/CLI direct Unix stream/listener imports now resolve throu
 ### Normal-quit cancellation fixture correction
 
 CI34009295275 atb047207e passed the new setup/parent trace assertions but failed the shutdown cancellation assertion. The fixture used subprocess.terminate (SIGTERM), which exits without Rust destructors or diagnostic draining; expecting an RAII completion record from that termination path was incorrect. The restart checkpoint now invokes the actual GTK Ctrl+Q quit action and awaits its normal zero exit before inspecting completion records. Finally cleanup still owns forced termination if the test fails. No application signal semantics or deferred session-resume behavior changed. Python syntax and diff checks pass; the corrected normal-quit scenario requires CI.
+
+### Retired unsupported resize/scrollback protocol suites
+
+Removed three upstream resize scenarios and their now-unreferenced shared helper. They require absent pane.resize/debug geometry commands and full-scrollback surface.read_text parameters; the remote scenario also uses absent cmux ssh/status and Cmd-D simulation. GTK currently exposes bounded viewport reads and actual widget/PTY resizing rather than those automation contracts. The helper's only importers were the two removed local suites; no maintained workflow/script invokes these scenarios.
+
+Retain these content-preservation workloads for supported GTK automation:
+
+| Scenario | Required observations |
+| --- | --- |
+| Local visible content | Draw32unique lines, verify first/last anchors and several visible lines, split/resize the original terminal, require visible overlap plus preserved history anchors and successful post-resize input. |
+| Local directory listing | List240fixture-owned filenames between exact marker lines, resize, and verify the original complete set and subsequent output remain available. |
+| Remote history churn | List320fixture-owned names, perform48alternating resize operations with periodic first/middle/last anchor checks, then confirm the same remote surface accepts input and retains earlier history. |
+
+These are retained workload parameters, not inherited performance gates. Exact output lines must distinguish executed commands from echoed input. Future Linux tests must use actual geometry/PTY observations and supported history access with bounded waits and cleanup. Current Go stdio attachment/resize and native GTK layout recovery tests remain intact; they do not establish the full scrollback observations above. Four files/thirty-one functions (seventeen undocumented) removed; no local tests ran.
