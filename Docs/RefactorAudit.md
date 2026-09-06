@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 84 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 367 functions in 62 `tests` files, and 208 among 375 functions in 34 `tests_v2` files. All 23 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 367 functions in 62 `tests` files, and 191 among 358 functions in 31 `tests_v2` files. All 23 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1419,3 +1419,23 @@ Retain the useful cases and distinctions:
 - `tests/test_linux_workspace_launch.py` already creates a real SSH workspace, verifies remote-directory execution before/after a horizontal split, reorders workspaces, restarts and checks restored remote surfaces. It does not establish every native shortcut, tab, split direction or last-session EOF case above. Existing EOF/context unit and GTK behavior remains maintained; no new parity feature is started here.
 
 Unique retained v2 source counts are refreshed above. Whitespace validation passes; no local tests ran.
+
+### Retire incompatible upstream browser CLI harnesses
+
+Removed `tests_v2/test_browser_cli_agent_port.py`, `test_browser_cli_wait_and_screenshot.py` and `test_cli_browser_console_errors_text.py` after reviewing their complete scenarios and current CLI schema. They use target-before-command ordering (`browser SURFACE COMMAND`) whereas this CLI uses command-before-target. They additionally assume absent id-format modes, upstream default text outputs, specialized command families and payload contracts. Current Open/Snapshot/Click/Fill/Wait and generic browser RPC forwarding are real supported paths; deleting incompatible callers does not imply those capabilities are absent. No maintained CI/scripts call these harnesses. Historical port-spec references are identified as retired upstream evidence.
+
+Retained parity scenarios:
+
+| Family | Scenario requirement and adaptation notes |
+| --- | --- |
+| Open and routing | Explicit workspace targeting, usable stable surface handles and trailing output/routing flags must not leak into URLs. About-blank diagnostics should be useful. Upstream id-format modes and short-ref defaults are separate compatibility choices. |
+| Wait and snapshot | Load-state and element-ref waits; snapshot annotations, compact output and useful empty-page output. Use the GTK CLI syntax and real external browser response schema when adapting. |
+| Navigation and mutation | Navigation with post-action snapshots; find-text refs; missing-frame errors/main-frame reset; fill with empty text must clear; missing-element errors should help agents recover. |
+| Data and tabs | Cookie set/get/clear, local storage set/get/clear, tab creation/list/switch/close with identity/count checks, and save/load browser state. These inherited CLI families must be evaluated against the supported adapter. |
+| Scripts and styles | Script result values, initialization scripts and observable injected CSS values. |
+| Console and errors | Generate an actual console message and thrown error; wait for their records and verify requested text output includes entries instead of only an acknowledgement. GTK browser CLI defaults to JSON; text mode must be explicit and supported. |
+| Screenshots | Usable output paths/file URLs, actual image-file existence, nested output paths and intended JSON/text formatting. Do not inherit a prohibition on png_base64 or escaped slash formatting as a GTK requirement without choosing that response contract. |
+| Platform-specific limits | The upstream fixture expected viewport mutation to fail under WKWebView. This is not a valid unsupported-feature requirement for external agent-browser. |
+| Legacy pane creation | Browser pane creation aliases and preferred handle formats remain parity decisions; current browser.open lifecycle tests continue to verify their existing behavior. |
+
+Future adaptations must isolate browser state and own created surfaces/files/server lifetimes. The removed fixtures retried timed-out mutations and left some created state behind; those patterns should not be copied. No deferred parity feature was started. Current unique v2 source counts are refreshed above; whitespace checks pass and no local tests ran.

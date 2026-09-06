@@ -18,7 +18,7 @@ This is the historical upstream macOS/WKWebView specification. Its completion cl
 As of February 12, 2026:
 1. `./scripts/run-tests-v1.sh` passes on `cmux-vm`.
 2. `./scripts/run-tests-v2.sh` passes on `cmux-vm`.
-3. Browser parity suites passing in v2: `test_browser_api_comprehensive.py`, `test_browser_api_p0.py`, `test_browser_api_extended_families.py`, `test_browser_api_unsupported_matrix.py`, and `test_browser_cli_agent_port.py`.
+3. Historical upstream browser parity claims covered the comprehensive, P0, extended-family, WKWebView unsupported-matrix and CLI agent-port suites. Incompatible harnesses have since been retired; their useful scenario requirements are preserved in [RefactorAudit](../Docs/RefactorAudit.md). These historical pass claims are not current GTK verification.
 4. Historical visual suites treated D12 (`Nested: Close Top of T-shape`) as a non-blocking VM failure when it reproduced (`VIEW_DETACHED`). Those obsolete harnesses have been removed; their scenario requirements are retained in [RefactorAudit](../Docs/RefactorAudit.md). This exception is not a GTK acceptance rule.
 
 ## Concepts (Canonical Terms)
