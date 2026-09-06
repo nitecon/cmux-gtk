@@ -138,6 +138,7 @@ jobs:
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_browser_lifecycle.py
 
       - name: Run unit tests
+        timeout-minutes: 10
         run: cargo test --workspace
 
       - name: Test idle browser preview widget cleanup

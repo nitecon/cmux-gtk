@@ -1439,3 +1439,7 @@ Retained parity scenarios:
 | Legacy pane creation | Browser pane creation aliases and preferred handle formats remain parity decisions; current browser.open lifecycle tests continue to verify their existing behavior. |
 
 Future adaptations must isolate browser state and own created surfaces/files/server lifetimes. The removed fixtures retried timed-out mutations and left some created state behind; those patterns should not be copied. No deferred parity feature was started. Current unique v2 source counts are refreshed above; whitespace checks pass and no local tests ran.
+
+### Bound CI unit-step ownership
+
+Run 34006059866 completed workspace unit tests in 24 seconds (02:22:00–02:22:24 UTC). Added a ten-minute unit-step timeout with substantial runner/build headroom so a hanging future fails before consuming the whole 45-minute job budget. This is a CI resource-lifetime bound, not an application performance gate. It does not modify or cancel the currently running older job; the correlation fixture defect has already been corrected in main.
