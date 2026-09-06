@@ -137,6 +137,28 @@ def measure(root, report):
 
             app.wait_for(failure_correlated, "failed browser exchange correlation")
             assert selected_surface(app) == terminal
+            local_page = root / "local page #?.html"
+            (root / "local-style.css").write_text("h1 { color: rgb(12, 34, 56); }")
+            (root / "local-script.js").write_text("window.localScriptReady = 'relative script loaded';")
+            local_page.write_text('<!doctype html><title>Local document</title><link rel="stylesheet" href="local-style.css">'
+                                  '<h1>Local document rendered</h1><script src="local-script.js"></script>')
+            local_before = resources()["browser_preview"]["textures_assigned"]
+            local_started = time.perf_counter_ns()
+            browser("goto", str(local_page))
+            browser("wait", "--function", "window.localScriptReady === 'relative script loaded'", "--timeout-ms", "3000")
+            local = browser("eval", "({url: location.href, title: document.title, color: getComputedStyle(document.querySelector('h1')).color})")["result"]
+            assert local == {"url": local_page.as_uri(), "title": "Local document", "color": "rgb(12, 34, 56)"}
+            assert "Local document rendered" in browser("snapshot")["snapshot"]
+            app.wait_for(lambda: resources()["browser_preview"]["textures_assigned"] > local_before,
+                         "local document preview frame")
+            report["local_document_us"] = (time.perf_counter_ns() - local_started) / 1000
+            browser("back")
+            browser("wait", "--url-contains", "127.0.0.1", "--timeout-ms", "3000")
+            browser("forward")
+            browser("wait", "--function", "document.title === 'Local document'", "--timeout-ms", "3000")
+            assert browser("eval", "location.href")["result"] == local_page.as_uri()
+            assert selected_surface(app) == terminal, "document/history navigation stole focus"
+            report["local_document_and_history"] = "passed"
             app.cli("browser", "close")
             app.wait_for(lambda: not list(browser_dir.glob("*.pid")), "browser daemon shutdown")
     finally:

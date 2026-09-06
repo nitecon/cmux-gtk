@@ -232,3 +232,8 @@ Local Git observations now include optional upstream, ahead/behind counts, HEAD 
 CLI open/goto, RPC open and the GTK address entry now share normalization. `about:blank`, `data:` and `blob:` addresses remain intact; absolute Unix paths become correctly escaped `file://` URLs. This fixes the previous HTTPS prefix applied to hostless browser schemes and local paths. The native lifecycle fixture checks delivered navigation addresses and focus using its owned browser service fixture. Strict clippy and Python syntax pass locally; runtime verification is pending.
 
 This does not complete local-document parity. Real local rendering, file subresource behavior and per-surface browser state remain open. The external service documents a separate [local-file access option](https://agent-browser.dev/commands); address normalization does not alter its JavaScript file-access policy.
+
+
+## Real local-document and history verification checkpoint
+
+The optimized real-browser Actions benchmark now opens a local HTML document through `cmux browser goto` using a filename containing spaces, `#` and `?`. It verifies the exact encoded URL, a relative classic script, stylesheet computed color, DOM snapshot and a subsequent preview frame, then navigates back to the HTTP page and forward to the document without stealing terminal focus. The existing artifact records local-document operation latency and a separate outcome. This uses pinned agent-browser/Chromium; it is added coverage awaiting execution, not evidence of a passing scenario. Cross-file JavaScript fetch access and independent multi-surface browser history remain unverified.
