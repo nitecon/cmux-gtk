@@ -416,3 +416,7 @@ Session snapshots now retain explicit workspace environment overrides and restor
 ### Restored launch environment end-to-end coverage
 
 The multi-restart fixture now checks explicit environment retention through an unopened workspace, actual restored-shell values and a later split terminal. Both must receive their own cmux identities despite a forged saved override. Existing history/style/CWD checks remain. Python syntax passes; runtime pending Actions.
+
+### Shared project and session layout depth
+
+Aligned restore depth with project validation at32 levels, removing the prior16-level restore mismatch. Actions startup coverage checks17 nested splits retain18 panes/surfaces and workspace identity. Clippy and Python syntax pass; runtime pending. Full project layout application remains open.

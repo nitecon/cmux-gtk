@@ -118,7 +118,7 @@ impl SplitEngine {
         })
     }
 
-    /// Recursively construct GTK panes from legacy or tabbed snapshots, limiting depth to 16.
+    /// Recursively construct GTK panes from legacy or tabbed snapshots, using the same depth bound as project layouts.
     /// Native terminals initialize on realization; caller launch settings override saved defaults.
     fn node_from_data(
         context: &RestoreContext<'_>,
@@ -126,8 +126,10 @@ impl SplitEngine {
         next_pane_id: &mut u64,
         depth: u32,
     ) -> Option<SplitNode> {
-        if depth > 16 {
-            eprintln!("cmux: session restore tree depth > 16, falling back (D-14)");
+        if depth as usize > crate::project_config::project_action::MAX_LAYOUT_DEPTH {
+            eprintln!(
+                "cmux: session restore tree exceeds project layout depth limit, falling back"
+            );
             return None;
         }
         match data {

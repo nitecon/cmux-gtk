@@ -106,7 +106,7 @@ fn text(value: &Value, key: &str) -> Result<Option<String>, String> {
 
 /// Recursively validate at most 32 levels and 128 surfaces before producing an executable topology.
 fn layout(value: &Value, depth: usize, surfaces: &mut usize) -> Result<Layout, String> {
-    if depth > 32 || !value.is_object() {
+    if depth > super::MAX_LAYOUT_DEPTH || !value.is_object() {
         return Err("invalid or excessively deep workspace layout".into());
     }
     if let Some(pane) = value.get("pane") {

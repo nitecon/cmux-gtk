@@ -93,3 +93,7 @@ content:
   launch_environment_runtime_coverage:
     - Multi-restart fixture seeds explicit overrides, leaves workspace unopened across another quit, verifies saved retention and actual child values in restored and later split terminals.
     - Literal dollar-sign/space values must survive and each child must receive its real surface ID despite a forged CMUX_SURFACE_ID override. Existing history/CWD checks retained. AST passes; runtime pending Actions.
+
+  layout_restore_depth:
+    - Project parser and GTK session builder share MAX_LAYOUT_DEPTH32. Prior restore bound16 could discard deeper project-valid layouts.
+    - Session loading fixture restores17 nested splits and asserts18 panes/surfaces plus workspace name. Clippy/AST pass; runtime pending.

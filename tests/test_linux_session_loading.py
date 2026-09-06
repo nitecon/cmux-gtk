@@ -3,13 +3,24 @@
 import json
 from pathlib import Path
 import tempfile
+import uuid
 
 from linux_app import running_app
 
 
 def main():
     """Observe real startup records for absent, malformed, incompatible and valid sessions."""
+    def leaf():
+        """Assign each restored terminal its own persistent identity."""
+        return {"type": "Leaf", "pane_id": 1, "surface_uuid": str(uuid.uuid4()), "shell": "/bin/sh", "cwd": "/tmp"}
+
+    deep_layout = leaf()
+    for _ in range(17):
+        deep_layout = {"type": "Split", "orientation": "horizontal", "ratio": 0.5, "start": leaf(), "end": deep_layout}
+    deep_session = json.dumps({"version": 3, "active_index": 0, "workspaces": [{
+        "uuid": str(uuid.uuid4()), "name": "Deep project layout", "active_pane_uuid": None, "layout": deep_layout}]}).encode()
     cases = [
+        (deep_session, "success", 3, 1),
         (None, "missing", None, None),
         ("symlink-loop", "read_error", None, None),
         (b"{broken", "decode_error", None, None),
@@ -29,6 +40,10 @@ def main():
             events_path = root / "events.jsonl"
             with running_app(root, {"CMUX_LOG": str(events_path)}) as app:
                 app.cli("ping")
+                if content == deep_session:
+                    records = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
+                    assert len(records) == 1 and records[0]["name"] == "Deep project layout"
+                    assert records[0]["pane_count"] == 18 and records[0]["surface_count"] == 18, records
 
                 def observed():
                     """Wait for the buffered writer to publish exactly one classified startup load."""

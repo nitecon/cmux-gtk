@@ -6,6 +6,9 @@ pub(crate) use project_layout::environment as parse_environment;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Shared project and restored workspace nesting limit.
+pub const MAX_LAYOUT_DEPTH: usize = 32;
+
 /// Terminal command targets use upstream names and default to a fresh sibling tab.
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
