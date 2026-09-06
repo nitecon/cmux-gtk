@@ -1,16 +1,17 @@
 """Real browser-origin assertions for the SSH fixture's isolated remote network namespace."""
 import json
+from contextlib import ExitStack
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 import shlex
 from threading import Thread
 import time
 
 
 SERVER = r'''
-import base64, hashlib, pathlib
+import base64, hashlib, pathlib, json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 root = pathlib.Path(__file__).parent
+identity = IDENTITY
 class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     def log_message(self, *args): pass
@@ -34,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if self.path == '/script.js':
-            body = b'window.scriptOrigin="remote-script";'
+            body = ("window.scriptOrigin=" + json.dumps("remote-script-" + identity) + ";").encode()
         elif self.path == '/relative.js':
             body = b'window.relativeOrigin="remote-relative";'
         elif self.path == '/data':
@@ -57,7 +58,7 @@ server.serve_forever()
 '''
 
 
-def verify_remote_browser(root, cli, eventually, remote_id, local_id, report):
+def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, local_id, report):
     """A same-port local decoy must receive no document, script, fetch or WebSocket traffic."""
     requests = []
 
@@ -76,37 +77,61 @@ def verify_remote_browser(root, cli, eventually, remote_id, local_id, report):
     decoy = ThreadingHTTPServer(('127.0.0.1', 0), Decoy)
     thread = Thread(target=decoy.serve_forever, daemon=True)
     thread.start()
-    surface = None
+    surfaces = []
+    cleanup = ExitStack()
     started = time.perf_counter_ns()
     try:
-        script = root / 'remote/browser-server.py'
-        script.write_text(SERVER.replace('PORT', str(decoy.server_port)))
-        cli('send-text', 'python3 ' + shlex.quote(str(script)) + ' &')
-        cli('send-key', '\r')
-        eventually(lambda: (root / 'remote/browser-server-ready').exists())
-        cli('select-workspace', local_id)
-        opened = json.loads(cli('browser', 'open', f'http://localhost:{decoy.server_port}/redirect', '--workspace', remote_id, timeout=35))
-        assert opened['success'] is True
-        surface = opened['surface_ref']
+        url = f'http://localhost:{decoy.server_port}/redirect'
+        for identity, workspace in [('first', remote_id), ('second', second_remote_id)]:
+            cli('select-workspace', workspace)
+            eventually(lambda: json.loads(cli('health', '--json'))['alive'] and
+                       str(root / 'remote') in cli('read-text').replace('\n', '').replace('\r', ''))
+            directory = root / 'remote' / identity
+            directory.mkdir()
+            script = directory / 'browser-server.py'
+            script.write_text(SERVER.replace('PORT', str(decoy.server_port)).replace('IDENTITY', repr(identity)))
+            cli('send-text', 'python3 ' + shlex.quote(str(script)) + ' &')
+            cli('send-key', '\r')
+            eventually(lambda: (directory / 'browser-server-ready').exists())
+            cli('select-workspace', local_id)
+            opened = json.loads(cli('browser', 'open', url, '--workspace', workspace, timeout=35))
+            assert opened['success'] is True
+            surfaces.append((opened['surface_ref'], identity))
+            cleanup.callback(cli, 'browser', 'close', opened['surface_ref'])
 
-        def loaded():
-            """Observe all resource paths through the normal agent-facing browser API."""
+        def loaded(surface, identity):
+            """Observe all resource paths and workspace provenance through the browser API."""
             value = json.loads(cli('browser', 'eval', surface,
                                    'JSON.stringify([window.scriptOrigin,window.relativeOrigin,window.dataOrigin,window.socketOrigin])'))
             assert value['success'] is True
-            return json.loads(value['data']['result']) == ['remote-script', 'remote-relative', 'remote-data', 'remote-only']
+            return json.loads(value['data']['result']) == ['remote-script-' + identity, 'remote-relative', 'remote-data', 'remote-only']
 
-        eventually(loaded)
+        for surface, identity in surfaces:
+            eventually(lambda: loaded(surface, identity))
+        assert surfaces[0][0] != surfaces[1][0]
+        # A fresh first-workspace navigation after creating the second must retain its remote origin.
+        assert json.loads(cli('browser', 'goto', surfaces[0][0], url))['success'] is True
+        eventually(lambda: loaded(*surfaces[0]))
+        eventually(lambda: loaded(*surfaces[1]))
+
+        def endpoint(workspace):
+            """Observe the automatically forwarded endpoint for the same remote port."""
+            rows = json.loads(cli('ports', '--workspace', workspace, '--json'))['ports'] or []
+            return next((row['forwarded_local_port'] for row in rows
+                         if row['port'] == decoy.server_port and row['provenance'] == 'remote'), None)
+
+        eventually(lambda: endpoint(remote_id) and endpoint(second_remote_id))
+        assert endpoint(remote_id) != endpoint(second_remote_id)
+        assert decoy.server_port not in [endpoint(remote_id), endpoint(second_remote_id)]
         assert not requests, 'remote browser sent traffic to the local decoy'
         assert json.loads(cli('current-workspace', '--json'))['uuid'] == local_id
         assert json.loads(cli('ping', '--json'))['pong']
         report['remote_browser'] = {'resource_ready_us': (time.perf_counter_ns() - started) / 1000,
                                     'local_decoy_requests': len(requests),
-                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace']}
+                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation']}
     finally:
         try:
-            if surface is not None:
-                cli('browser', 'close', surface)
+            cleanup.close()
         finally:
             decoy.shutdown()
             decoy.server_close()

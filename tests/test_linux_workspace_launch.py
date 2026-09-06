@@ -355,7 +355,7 @@ Subsystem sftp internal-sftp
 
         if remote_browser:
             from remote_browser_support import verify_remote_browser
-            verify_remote_browser(root, cli, eventually, remote_id, local_id, report)
+            verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, local_id, report)
             cli("select-workspace", remote_id)
         cli("split", "--direction", "horizontal")
         remote_write("split-result")

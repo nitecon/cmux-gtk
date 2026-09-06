@@ -330,3 +330,7 @@ UI, RPC and restored browser managers now capture their owning workspace proxy, 
 ### Isolated browser-origin Actions coverage
 
 Added a real SSH network-namespace mode with a same-port local decoy and real Chromium assertions for redirects, relative/absolute scripts, loopback fetches, WebSockets and background workspace selection. New Actions step writes remote-browser-release.json. Syntax checks pass; runtime results are pending. This does not yet establish remote-only DNS, multi-workspace same-port isolation or reconnect behavior.
+
+### Same-port remote workspace isolation coverage
+
+Extended the real remote browser fixture to two namespaces serving different script identities at the same port. It checks both page identities, first-page renavigation, distinct automatically forwarded local endpoints, preserved background selection and no local decoy traffic. Syntax validation passes; runtime verification remains pending Actions.
