@@ -395,6 +395,10 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::ReorderWorkspace { id, position } => {
             ("workspace.reorder", json!({"id": id, "position": position}))
         }
+        Commands::ReorderWorkspaces { order, dry_run } => (
+            "workspace.reorder_many",
+            json!({"workspace_ids":order,"dry_run":dry_run}),
+        ),
 
         Commands::Surface {
             command: SurfaceCommands::Resume { command },

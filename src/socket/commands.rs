@@ -91,6 +91,12 @@ pub enum SocketCommand {
         position: usize,
         resp_tx: RespTx,
     },
+    WorkspaceReorderMany {
+        req_id: Value,
+        order: Vec<uuid::Uuid>,
+        dry_run: bool,
+        resp_tx: RespTx,
+    },
 
     // -- surface.* (implemented in Plan 04) --
     SurfaceList {

@@ -218,6 +218,7 @@ fn handle_socket_command_traced(
                 "workspace.previous",
                 "workspace.last",
                 "workspace.reorder",
+                "workspace.reorder_many",
                 "surface.list",
                 "surface.split",
                 "surface.focus",
@@ -503,6 +504,27 @@ fn handle_socket_command_traced(
             let _ = resp_tx.send(ok(req_id, json!({})));
         }
 
+        SocketCommand::WorkspaceReorderMany {
+            req_id,
+            order,
+            dry_run,
+            resp_tx,
+        } => {
+            let result = state.borrow_mut().reorder_workspaces(&order, dry_run);
+            let response = match result {
+                Ok(result) => ok(req_id, result),
+                Err(message) => err(
+                    req_id,
+                    if message == "workspace not found" {
+                        "not_found"
+                    } else {
+                        "invalid_params"
+                    },
+                    message,
+                ),
+            };
+            let _ = resp_tx.send(response);
+        }
         SocketCommand::WorkspaceReorder {
             req_id,
             id,

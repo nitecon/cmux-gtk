@@ -82,3 +82,9 @@ content:
     - Run executable behavior tests in GitHub Actions, not locally.
 
   restored_directories: Plain local terminal restore prefers its saved native-reported CWD over the original workspace launch directory. Explicit startup-command and remote restoration keep workspace launch precedence. Deferred GLArea ownership retains the launch directory so snapshots before native initialization preserve it. tests/test_linux_scrollback_restore.py verifies actual restored shell CWD after two normal quits with an unopened background terminal; runtime pending.
+
+    - name: Atomic batch workspace order
+      steps:
+        - cmux reorder-workspaces --order UUID,UUID --dry-run calls workspace.reorder_many with workspace_ids and dry_run. RPC accepts order as an array alias. Requests contain 1..4096 UUIDs; duplicates and unknown identities fail before mutation.
+        - Listed workspaces precede unlisted workspaces while preserving unlisted relative order. A dry run returns plan entries with workspace_id/from_index/to_index and no events or session save. Applying moves existing workspace/engine/GTK rows together, preserves active identity and saves once; events contain changed entries.
+        - This is the existing single-window unpinned model. Pin/group order, multiwindow routing and upstream short refs/indices remain outstanding. Actions tests/test_linux_workspace_reorder_many.py verifies dry-run, validation atomicity, selection and restart order. Runtime evidence pending.

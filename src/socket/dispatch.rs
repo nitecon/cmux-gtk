@@ -286,6 +286,44 @@ async fn dispatch_request(
             req_id: req_id.clone(),
             resp_tx,
         },
+        "workspace.reorder_many" => {
+            let Some(values) = params
+                .get("workspace_ids")
+                .or_else(|| params.get("order"))
+                .and_then(|value| value.as_array())
+                .filter(|values| !values.is_empty() && values.len() <= 4096)
+            else {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "workspace_ids must contain 1..4096 UUIDs",
+                );
+            };
+            let Some(order) = values
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return err(req_id, "invalid_params", "invalid workspace UUID");
+            };
+            let dry_run = match params.get("dry_run") {
+                None => false,
+                Some(value) => match value.as_bool() {
+                    Some(value) => value,
+                    None => return err(req_id, "invalid_params", "dry_run must be boolean"),
+                },
+            };
+            commands::SocketCommand::WorkspaceReorderMany {
+                req_id: req_id.clone(),
+                order,
+                dry_run,
+                resp_tx,
+            }
+        }
         "workspace.reorder" => {
             let Some(position) = params
                 .get("position")

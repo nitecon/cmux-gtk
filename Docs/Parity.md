@@ -192,3 +192,10 @@ The implementation uses the [pulldown-cmark event API](https://docs.rs/pulldown-
 `report-meta-block`, `clear-meta-block` and `list-meta-blocks` now manage separate persistent summaries, with eight blocks of at most 8 KiB per workspace. GTK renders priority-ordered collapsible summaries with bounded-height scrolling; live updates preserve expansion state. Markdown headings, paragraphs, list markers, code and inline styles retain multiline structure, with escaped HTML and no remote image downloads. CLI/JSON preserve literal Markdown bytes; the upstream legacy parser's backslash expansion is not applied to this JSON adapter.
 
 Actions coverage extends the real sidebar fixture with block replacement at capacity, rejected extra/empty/oversized blocks, restart retention and removal. Rust coverage checks multiline structure and loaded bounds. Runtime verification remains pending; panel provenance, rich project views and full legacy wire compatibility remain outstanding.
+
+
+## Batch workspace ordering checkpoint
+
+`cmux reorder-workspaces --order UUID,UUID --dry-run` and `workspace.reorder_many` now validate the entire request before moving anything and return a plan with original/final indices. Listed workspaces precede unlisted workspaces, whose relative order remains unchanged, matching upstream's unpinned-workspace planner. Duplicate, malformed and unknown IDs fail atomically. Applying a batch moves the existing workspace, split engine and GTK row together, preserves active identity and publishes one session snapshot; dry runs publish none. Responses include changed-item events only for applied batches.
+
+Actions `test_linux_workspace_reorder_many.py` covers three workspaces with the middle selected, dry-run nonmutation, invalid-batch atomicity, retained focus and quit/restart ordering. Strict clippy and fixture syntax pass locally; runtime verification is pending. Pin/group ordering, multiwindow routing and upstream short reference/index normalization remain gaps; this checkpoint supports stable UUIDs in the existing single-window model.

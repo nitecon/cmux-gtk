@@ -466,6 +466,15 @@ impl AppState {
 
     /// Move a workspace and its engine together while retaining active identity and focus.
     pub fn reorder_workspace(&mut self, from: usize, to: usize) -> bool {
+        let changed = self.move_workspace_row(from, to);
+        if changed {
+            self.trigger_session_save();
+        }
+        changed
+    }
+
+    /// Move the workspace, engine and existing GTK row together without publishing an intermediate snapshot.
+    fn move_workspace_row(&mut self, from: usize, to: usize) -> bool {
         if from >= self.workspaces.len() || to >= self.workspaces.len() || from == to {
             return false;
         }
@@ -488,8 +497,70 @@ impl AppState {
                 .row_at_index(self.active_index as i32)
                 .as_ref(),
         );
-        self.trigger_session_save();
         true
+    }
+
+    /// Validate a batch before mutation, preserve unspecified order and active identity, and save only once.
+    pub fn reorder_workspaces(
+        &mut self,
+        order: &[uuid::Uuid],
+        dry_run: bool,
+    ) -> Result<serde_json::Value, &'static str> {
+        let mut seen = std::collections::HashSet::new();
+        for id in order {
+            if !seen.insert(*id) {
+                return Err("duplicate workspace");
+            }
+            if !self
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.uuid == *id)
+            {
+                return Err("workspace not found");
+            }
+        }
+        let final_order: Vec<_> = order
+            .iter()
+            .copied()
+            .chain(
+                self.workspaces
+                    .iter()
+                    .map(|workspace| workspace.uuid)
+                    .filter(|id| !seen.contains(id)),
+            )
+            .collect();
+        let plan: Vec<_> = final_order
+            .iter()
+            .enumerate()
+            .map(|(to, id)| {
+                let from = self
+                    .workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == *id)
+                    .unwrap();
+                serde_json::json!({"workspace_id":id,"from_index":from,"to_index":to})
+            })
+            .collect();
+        let mut changed = false;
+        if !dry_run {
+            for (to, id) in final_order.iter().enumerate() {
+                let from = self
+                    .workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == *id)
+                    .unwrap();
+                changed |= self.move_workspace_row(from, to);
+            }
+            if changed {
+                self.trigger_session_save();
+            }
+        }
+        let events: Vec<_> = plan
+            .iter()
+            .filter(|item| !dry_run && item["from_index"] != item["to_index"])
+            .cloned()
+            .collect();
+        Ok(serde_json::json!({"dry_run":dry_run,"plan":plan,"events":events}))
     }
 
     /// Apply a validated RGB color to model and sidebar, then schedule a session save.

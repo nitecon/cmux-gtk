@@ -118,6 +118,13 @@ pub enum Commands {
     },
 
     // -- Surface commands --
+    /// Reorder listed workspaces first, retaining the relative order of all others
+    ReorderWorkspaces {
+        #[arg(long, value_delimiter = ',', required = true)]
+        order: Vec<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// List all surfaces
     ListSurfaces,
     /// Split a surface
