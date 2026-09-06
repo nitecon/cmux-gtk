@@ -142,6 +142,9 @@ jobs:
         timeout-minutes: 10
         run: cargo test --workspace
 
+      - name: Test local listener attribution
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_ports.py
+
       - name: Test browser address editing focus
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app browser_address_editing_tracks_delegated_focus -- --ignored --test-threads=1
 

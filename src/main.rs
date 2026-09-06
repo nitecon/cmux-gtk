@@ -19,6 +19,7 @@ mod line_reader;
 mod menus;
 mod notification;
 mod notification_caller;
+mod ports;
 mod preferences;
 mod resume;
 mod resume_command;
@@ -445,6 +446,7 @@ fn build_ui(
     }
 
     crate::git_metadata::start(&state, &window);
+    crate::ports::start(&state, &window);
     crate::browser::location::start(&state, &window);
 
     // Attach command receiver to GTK main loop via glib::MainContext::default().spawn_local.

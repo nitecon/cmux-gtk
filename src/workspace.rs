@@ -92,6 +92,8 @@ pub struct Workspace {
     pub connection_state: ConnectionState,
     /// Latest local Git observation; refreshed independently of persisted agent metadata.
     pub git: Option<crate::git_metadata::GitMetadata>,
+    /// Latest attributed local listeners; None means not yet available or scan failure.
+    pub ports: Option<Vec<crate::ports::Port>>,
     pub color: Option<String>,
     pub startup_script: Option<PathBuf>,
     pub remote_directory: Option<String>,
@@ -111,6 +113,7 @@ impl Workspace {
             last_notification: None,
             metadata: Default::default(),
             git: None,
+            ports: None,
             color: None,
             startup_script: None,
             remote_directory: None,

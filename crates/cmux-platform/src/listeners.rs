@@ -132,6 +132,46 @@ fn child_identity(pid: u32, expected_parent: u32) -> io::Result<Option<ProcessId
     Ok((parent == expected_parent).then_some(ProcessIdentity { pid, start_ticks }))
 }
 
+/// Return the controlling-terminal device of an unchanged process, or None after exit/reuse.
+pub fn controlling_terminal(process: ProcessIdentity) -> io::Result<Option<u64>> {
+    if !matches_identity(process)? {
+        return Ok(None);
+    }
+    let stat = match crate::filesystem::read_text_bounded(
+        &PathBuf::from(format!("/proc/{}/stat", process.pid)),
+        8192,
+    ) {
+        Ok(stat) => stat,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let tty = stat
+        .rsplit_once(')')
+        .ok_or_else(invalid)?
+        .1
+        .split_whitespace()
+        .nth(4)
+        .ok_or_else(invalid)?
+        .parse::<i32>()
+        .map_err(|_| invalid())? as u32;
+    if !matches_identity(process)? || tty == 0 {
+        return Ok(None);
+    }
+    let major = (tty >> 8) & 0xfff;
+    let minor = (tty & 0xff) | ((tty >> 12) & 0xfff00);
+    Ok(Some(libc::makedev(major, minor)))
+}
+
+/// Read a native terminal path's character-device identity on a blocking worker.
+pub fn terminal_device(path: &std::path::Path) -> io::Result<u64> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let metadata = std::fs::metadata(path)?;
+    if !metadata.file_type().is_char_device() {
+        return Err(invalid());
+    }
+    Ok(metadata.rdev())
+}
+
 /// Inspect up to 256 explicitly qualified processes, 4096 descriptors each and 2 MiB per TCP table.
 /// Only LISTEN sockets with descriptors owned by the same unchanged process are returned.
 /// Exited/reused processes are omitted; other I/O failures remain errors, not an empty successful scan.
