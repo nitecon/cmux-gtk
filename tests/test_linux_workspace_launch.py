@@ -100,8 +100,15 @@ Subsystem sftp internal-sftp
         time.sleep(0.5)
 
     def stop():
-        """Terminate the owned GTK process and require its exit within ten seconds."""
-        assert not stop_process(app), "application required forced shutdown"
+        """Quit through the real GTK action so owned worker cancellation and log draining can finish."""
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True, timeout=10,
+        ).split()
+        assert windows, "application has no visible window for normal quit"
+        subprocess.check_call(
+            ["xdotool", "windowfocus", windows[-1], "key", "--clearmodifiers", "ctrl+q"], timeout=10,
+        )
+        assert app.wait(timeout=15) == 0, "normal GTK quit failed"
 
     def session():
         """Read the current persisted session for workspace and launch-state assertions."""

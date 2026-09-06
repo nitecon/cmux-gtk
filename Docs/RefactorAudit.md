@@ -1527,3 +1527,7 @@ The v1 panel script assumes plain-text new_surface/open_browser/new_pane plus si
 ### Native local transport type boundary
 
 All owned Rust desktop/CLI direct Unix stream/listener imports now resolve through cmux-platform local_socket exports. An optional async-io feature enables existing Tokio networking without GTK, and the CLI uses the exported blocking stream with the existing bounded connector. No transport wrapper, buffering or behavior change was introduced. The unused root libc dependency was removed; kernel calls remain in the platform crate. Workspace/all-target and both GTK-free platform configurations compile; CI checks both minimal and async configurations and existing transport behavior tests now consume the component exports. Full portability still requires a new backend; this is the Linux type-selection boundary.
+
+### Normal-quit cancellation fixture correction
+
+CI34009295275 atb047207e passed the new setup/parent trace assertions but failed the shutdown cancellation assertion. The fixture used subprocess.terminate (SIGTERM), which exits without Rust destructors or diagnostic draining; expecting an RAII completion record from that termination path was incorrect. The restart checkpoint now invokes the actual GTK Ctrl+Q quit action and awaits its normal zero exit before inspecting completion records. Finally cleanup still owns forced termination if the test fails. No application signal semantics or deferred session-resume behavior changed. Python syntax and diff checks pass; the corrected normal-quit scenario requires CI.
