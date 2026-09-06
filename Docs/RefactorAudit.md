@@ -10,7 +10,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 | --- | --- | --- |
 | Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 85 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
-| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 374 functions in 62 `tests` files, and 132 among 283 functions in 17 `tests_v2` files. All 29 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
+| Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 374 functions in 62 `tests` files, and 117 among 268 functions in 15 `tests_v2` files. All 29 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
 | Concise agent instructions and symlink | Root AGENTS.md is six bullets, 42 whitespace-delimited words; CLAUDE.md is a symlink to AGENTS.md. | Preserve these constraints during further edits. |
 | Linux component library | `cmux-platform` exports paths, filesystem, installation, notification, peer and process services, with optional GTK window/OpenGL modules and no workspace-model dependency. Headless compilation passes. | Native transport/process discovery callers still need boundary review; this does not establish complete platform isolation. |
@@ -1545,3 +1545,23 @@ Retain these content-preservation workloads for supported GTK automation:
 | Remote history churn | List320fixture-owned names, perform48alternating resize operations with periodic first/middle/last anchor checks, then confirm the same remote surface accepts input and retains earlier history. |
 
 These are retained workload parameters, not inherited performance gates. Exact output lines must distinguish executed commands from echoed input. Future Linux tests must use actual geometry/PTY observations and supported history access with bounded waits and cleanup. Current Go stdio attachment/resize and native GTK layout recovery tests remain intact; they do not establish the full scrollback observations above. Four files/thirty-one functions (seventeen undocumented) removed; no local tests ran.
+
+### Comprehensive upstream browser behavior catalog
+
+Removed the remaining comprehensive/extended browser scripts: both start with absent browser.open_split and use upstream surface_id targeting, response wrappers, tab topology and WebKit-era method contracts. Generic forwarding to the external daemon does not implement these application-level contracts. Neither suite is invoked by maintained CI/scripts; historical references now state their retired status. Keep the following catalog under the separately deferred agent capability task:
+
+| Family | Retained observable requirements |
+| --- | --- |
+| Readiness/navigation | Bound selector, text, function, load-state and URL waits; verify title/URL across forward/back/reload and distinguish timeout from missing target/invalid parameters. |
+| Forms and input | Empty fill clears, typing appends, click changes DOM state; checkbox/select values, DOM focus, hover/double-click and balanced key events must be observable. |
+| DOM inspection | Verify text/HTML/value/attribute/count/box/style data, visible/enabled predicates, scrolling and scroll-into-view against local fixtures. |
+| Snapshots/references | Return meaningful current content and usable element references, support post-action snapshots where documented, and reject stale/incorrect targets. |
+| Screenshots | Decode actual image output and verify content rather than checking only base64 length. |
+| Semantic finders/frames | Cover role/name, text, label, placeholder, alt/title/test-id and positional selectors; act through returned references, select an iframe and restore top-level context. |
+| Dialogs/downloads | Verify accept/dismiss/text and empty-queue errors. The old download case merely wrote a local file after a delay, so real browser download completion still requires an actual transfer fixture. |
+| Cookies/storage/state | Set/get/clear origin-scoped cookies and local/session storage; save/change/load state and verify restored values with private fixture-owned paths and cleanup. |
+| Browser tabs | Distinguish external browser tabs from GTK surfaces; define identity/focus mapping, membership, switch and close behavior before relying on upstream wrappers. |
+| Scripts/styles | Verify evaluated values, injected style changes and initialization scripts after navigation. |
+| Console/errors/highlight | Capture and clear real emitted entries and verify observable highlighting; do not equate command acknowledgement with a rendered effect. |
+
+Existing GTK adapter lifecycle, ordered input, response delivery and bounded snapshot/preview tests remain. They cover transport/ownership subsets, not this entire browser engine catalog. Use local deterministic fixtures, scoped cleanup and bounded observation retries without replaying uncertain mutations. Two files/fifteen undocumented functions removed; no local tests ran.

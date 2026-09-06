@@ -374,9 +374,9 @@ Hard invariant:
 
 1. `src/browser.test.ts` -> ported/adapted into:
    - Historical browser P0 harness retired; retained behavior requirements are in `Docs/RefactorAudit.md`.
-   - `tests_v2/test_browser_api_comprehensive.py`
+   - Historical comprehensive browser harness retired; behavior catalog retained in `Docs/RefactorAudit.md`.
    - `tests_v2/test_browser_api_unsupported_matrix.py`
-2. `src/actions.test.ts` -> adapted negative coverage in `tests_v2/test_browser_api_comprehensive.py` (`invalid_params`, `not_found`, `timeout`).
+2. `src/actions.test.ts` informed historical negative cases (`invalid_params`, `not_found`, `timeout`); GTK replacement coverage is still required against its actual adapter contract.
 3. `src/protocol.test.ts` -> adapted browser command/shape validation in `tests_v2/test_browser_api_unsupported_matrix.py` and existing `CLI/cmux.swift` command grammar checks.
 4. `test/file-access.test.ts` and `test/launch-options.test.ts` -> partially applicable to `WKWebView`; currently tracked as follow-up parity work (not blocking current browser method coverage).
 5. `src/daemon.test.ts`, `src/stream-server.test.ts`, `test/serverless.test.ts`, `src/ios-manager.test.ts` -> out-of-scope for cmux browser parity (different transport/runtime).
@@ -384,7 +384,7 @@ Hard invariant:
 ### Historical upstream browser suite inventory
 
 1. Retired upstream P0 harness: its `browser.open_split`, WKWebView focus and response-shape assumptions do not establish GTK behavior.
-2. `tests_v2/test_browser_api_comprehensive.py`
+2. Historical comprehensive/extended browser suites retired; upstream wrappers do not establish current GTK agent-browser parity.
 3. `tests_v2/test_browser_api_unsupported_matrix.py`
 4. `tests_v2/test_browser_goto_split.py`
 5. Historical WKWebView stability suite removed; Linux pane lifecycle coverage is now in `tests/test_linux_surface_tab_reentrant_close.py` (mock browser, not WebKit first-responder coverage).
