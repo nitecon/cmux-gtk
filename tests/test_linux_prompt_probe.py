@@ -22,7 +22,12 @@ def main():
         shell = root / "shell"
         shell.write_text("#!/bin/sh\nexec /bin/bash --noprofile --rcfile " + shlex.quote(str(rc)) + " -i\n")
         shell.chmod(0o700)
-        with running_app(root, {"SHELL": str(shell)}) as app:
+        ghostty_config = root / "config" / "ghostty"
+        ghostty_config.mkdir(parents=True)
+        # Use Ghostty's explicit launch setting: a custom SHELL path can fall back
+        # to the account shell and would not install this fixture's prompt hook.
+        (ghostty_config / "config").write_text("command = " + str(shell) + "\n")
+        with running_app(root) as app:
             app.wait_for(lambda: len(app.children()) == 1, "initial shell")
             original = json.loads(app.cli("current-workspace", "--json"))["uuid"]
             subprocess.run(
