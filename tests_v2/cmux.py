@@ -951,12 +951,6 @@ class cmux:
         res = self._call("debug.command_palette.rename_input.select_all", {"enabled": bool(enabled)}) or {}
         return bool(res.get("enabled"))
 
-    def is_terminal_focused(self, panel: Union[str, int]) -> bool:
-        """Query the upstream terminal-focus debug hook for a resolved surface."""
-        sid = self._resolve_surface_id(panel)
-        res = self._call("debug.terminal.is_focused", {"surface_id": sid}) or {}
-        return bool(res.get("focused"))
-
     def read_terminal_text(self, panel: Union[str, int, None] = None) -> str:
         """Read plain or base64 terminal text, falling back to the older debug method if unavailable."""
         params: Dict[str, Any] = {}
@@ -979,33 +973,6 @@ class cmux:
         b64 = str(res.get("base64") or "")
         raw = base64.b64decode(b64) if b64 else b""
         return raw.decode("utf-8", errors="replace")
-
-    def render_stats(self, panel: Union[str, int, None] = None) -> dict:
-        """Return the stats object from the upstream terminal render-statistics hook."""
-        params: Dict[str, Any] = {}
-        if panel is not None:
-            sid = self._resolve_surface_id(panel)
-            params["surface_id"] = sid
-        res = self._call("debug.terminal.render_stats", params) or {}
-        # Server wraps the underlying stats object under "stats".
-        return dict(res.get("stats") or {})
-
-    def panel_snapshot_reset(self, panel: Union[str, int]) -> None:
-        """Reset upstream snapshot tracking for a resolved surface."""
-        sid = self._resolve_surface_id(panel)
-        self._call("debug.panel_snapshot.reset", {"surface_id": sid})
-
-    def panel_snapshot(self, panel: Union[str, int], label: str = "") -> dict:
-        """Capture upstream panel diagnostics and normalize surface_id to the v1 panel_id key."""
-        sid = self._resolve_surface_id(panel)
-        params: Dict[str, Any] = {"surface_id": sid}
-        if label:
-            params["label"] = label
-        res = dict(self._call("debug.panel_snapshot", params) or {})
-        # Normalize key to match the v1 client (panel_id).
-        if "panel_id" not in res and "surface_id" in res:
-            res["panel_id"] = res.get("surface_id")
-        return res
 
     def flash_count(self, surface: Union[str, int]) -> int:
         """Read the upstream flash counter for a resolved surface."""

@@ -831,13 +831,6 @@ class cmux:
         if not response.startswith("OK"):
             raise cmuxError(response)
 
-    def is_terminal_focused(self, panel: Union[str, int]) -> bool:
-        """Return True if the terminal panel's Ghostty view is first responder."""
-        response = self._send_command(f"is_terminal_focused {panel}")
-        if response.startswith("ERROR"):
-            raise cmuxError(response)
-        return response.strip().lower() == "true"
-
     def identify(self) -> dict:
         """Best-effort legacy identify helper."""
         response = self._send_command("identify")
@@ -862,50 +855,6 @@ class cmux:
         b64 = response[3:].strip()
         raw = base64.b64decode(b64) if b64 else b""
         return raw.decode("utf-8", errors="replace")
-
-    def render_stats(self, panel: Union[str, int, None] = None) -> dict:
-        """Return terminal render stats (debug builds only)."""
-        cmd = "render_stats"
-        if panel is not None:
-            cmd += f" {panel}"
-        response = self._send_command(cmd)
-        if not response.startswith("OK "):
-            raise cmuxError(response)
-        payload = response[3:].strip()
-        try:
-            return json.loads(payload)
-        except json.JSONDecodeError as e:
-            raise cmuxError(f"render_stats JSON decode failed: {e}: {payload[:200]}")
-
-    def panel_snapshot_reset(self, panel: Union[str, int]) -> None:
-        """Reset the stored snapshot for a panel (debug builds only)."""
-        response = self._send_command(f"panel_snapshot_reset {panel}")
-        if not response.startswith("OK"):
-            raise cmuxError(response)
-
-    def panel_snapshot(self, panel: Union[str, int], label: str = "") -> dict:
-        """
-        Capture a screenshot of a panel and return pixel-diff info.
-        Returns: panel_id, changed_pixels, width, height, path.
-        """
-        cmd = f"panel_snapshot {panel}"
-        if label:
-            cmd += f" {label}"
-        response = self._send_command(cmd)
-        if not response.startswith("OK "):
-            raise cmuxError(response)
-        payload = response[3:].strip()
-        parts = payload.split(" ", 4)
-        if len(parts) != 5:
-            raise cmuxError(f"panel_snapshot parse failed: {response}")
-        panel_id, changed, width, height, path = parts
-        return {
-            "panel_id": panel_id,
-            "changed_pixels": int(changed),
-            "width": int(width),
-            "height": int(height),
-            "path": path,
-        }
 
     def new_surface(self, pane: Union[str, int, None] = None,
                     panel_type: str = "terminal", url: str = None) -> str:
