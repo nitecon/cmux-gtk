@@ -790,6 +790,22 @@ impl AppState {
         }
     }
 
+    /// Cancel only an unfinished restored manager, retaining the existing surface reference for retries.
+    pub fn cancel_browser_restore(&mut self, id: uuid::Uuid, session: &str) {
+        if self.browser_sessions.get(&id).is_some_and(|browser| {
+            browser.session_identity() == session
+                && !matches!(
+                    browser.preview_state,
+                    crate::browser::PreviewState::Connected
+                        | crate::browser::PreviewState::Streaming
+                )
+        }) {
+            if let Some(browser) = self.browser_sessions.remove(&id) {
+                self.retire_browser_session(browser);
+            }
+        }
+    }
+
     /// Retire a failed provisional startup only if its session still owns the admission slot.
     pub fn cancel_browser_startup(&mut self, session: &str) {
         if self

@@ -97,10 +97,16 @@ fn resolve_surface_ref(
 
 /// Resolve explicit browser identity or the selected browser; a sole session is an unambiguous fallback.
 fn browser_target(state: &crate::app_state::AppState, target: Option<&str>) -> Option<uuid::Uuid> {
+    let surfaces: Vec<_> = state
+        .split_engines
+        .iter()
+        .flat_map(|engine| engine.browser_tabs())
+        .map(|widgets| widgets.uuid)
+        .collect();
     if let Some(target) = target {
         let value = resolve_surface_ref(target, &state.browser_surface_refs).ok()?;
         let id = uuid::Uuid::parse_str(&value).ok()?;
-        return state.browser_sessions.contains_key(&id).then_some(id);
+        return surfaces.contains(&id).then_some(id);
     }
     let selected = state
         .split_engines
@@ -108,11 +114,8 @@ fn browser_target(state: &crate::app_state::AppState, target: Option<&str>) -> O
         .and_then(|engine| engine.active_pane_uuid())
         .and_then(|id| uuid::Uuid::parse_str(&id).ok());
     selected
-        .filter(|id| state.browser_sessions.contains_key(id))
-        .or_else(|| {
-            (state.browser_sessions.len() == 1)
-                .then(|| *state.browser_sessions.keys().next().unwrap())
-        })
+        .filter(|id| surfaces.contains(id))
+        .or_else(|| (surfaces.len() == 1).then(|| surfaces[0]))
 }
 
 /// Dispatch a SocketCommand on the GTK main thread.
@@ -1122,7 +1125,7 @@ fn handle_socket_command_traced(
                 let id = widgets.uuid;
                 let reference = s.browser_surface_refs.iter().find(|(_, value)| *value == &id.to_string()).map(|(reference, _)| format!("surface:{reference}"));
                 let status = match s.browser_sessions.get(&id) {
-                    Some(browser) if matches!(browser.preview_state, crate::browser::PreviewState::Connected) => "connected",
+                    Some(browser) if matches!(browser.preview_state, crate::browser::PreviewState::Connected | crate::browser::PreviewState::Streaming) => "connected",
                     Some(_) => "starting",
                     None => "suspended",
                 };
@@ -1137,7 +1140,7 @@ fn handle_socket_command_traced(
             action,
             mut params,
             surface_ref,
-            resp_tx,
+            mut resp_tx,
         } => {
             if action == "close" {
                 let mut s = state.borrow_mut();
@@ -1185,6 +1188,27 @@ fn handle_socket_command_traced(
                 ));
                 return;
             };
+            if !s.browser_sessions.contains_key(&id) {
+                drop(s);
+                let weak = std::rc::Rc::downgrade(state);
+                glib::MainContext::default().spawn_local(async move {
+                    let trace = trace_id.as_deref().and_then(|value| uuid::Uuid::parse_str(value).ok());
+                    let result = tokio::select! {
+                        biased;
+                        _ = resp_tx.closed() => return,
+                        result = crate::browser::ui::initialize_browser_surface(weak.clone(), id, trace) => result,
+                    };
+                    match (result, weak.upgrade()) {
+                        (Ok(()), Some(state)) => handle_socket_command_traced(
+                            SocketCommand::BrowserAction { req_id, action, params, surface_ref: Some(id.to_string()), resp_tx },
+                            &state, trace_id,
+                        ),
+                        (Err(error), _) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); }
+                        (_, None) => { let _ = resp_tx.send(err(req_id, "not_running", "application closed")); }
+                    }
+                });
+                return;
+            }
             if let Some(bm) = s.browser_sessions.get(&id) {
                 if let Some(params) = params.as_object_mut() {
                     params.remove("surface_ref");

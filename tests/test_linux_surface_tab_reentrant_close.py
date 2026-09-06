@@ -37,7 +37,11 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             "AGENT_BROWSER_SOCKET_DIR": str(browser_dir),
             "CMUX_AGENT_BROWSER": str(mock_browser), "CMUX_LOG": str(diagnostic_log),
         }) as app:
-            app.cli("focus-surface", browser_id)
+            # A hidden saved browser initializes for an agent command without selecting it.
+            before = {surface["uuid"] for surface in app.surfaces() if surface["active"]}
+            assert before == {terminal_id}, before
+            assert json.loads(app.cli("browser", "eval", browser_id, "document.title"))["success"] is True
+            assert {surface["uuid"] for surface in app.surfaces() if surface["active"]} == before
             app.wait_for(lambda: recorded(f"browser tab wiring complete uuid={browser_id}"), "browser wiring")
             panes = json.loads(app.cli("list-panes", "--json"))["panes"]
             assert len(panes) == 1, panes

@@ -174,81 +174,119 @@ fn schedule_browser_restore(state: std::rc::Weak<RefCell<AppState>>, uuid: uuid:
     glib::idle_add_local_once(move || restore_browser_surface(state, uuid));
 }
 
-/// Start one visible restored surface through serialized worker admission and widget-owned cancellation.
+/// Start a mapped saved page without taking focus; map callbacks share the agent startup path.
 fn restore_browser_surface(state: std::rc::Weak<RefCell<AppState>>, uuid: uuid::Uuid) {
     glib::MainContext::default().spawn_local(async move {
-        let mut activity = super::metrics::Activity::begin("preview_restore", None);
-        let (session, completion) = {
-            let Some(state) = state.upgrade() else {
-                return;
-            };
-            let mut s = state.borrow_mut();
-            let Some(widgets) = find_browser_tab(&s, uuid) else {
-                return;
-            };
-            if !widgets.container.is_mapped() || s.browser_sessions.contains_key(&uuid) {
-                return;
-            }
-            let gate = s.browser_restore_gate.clone();
-            let Some(runtime) = s.runtime_handle.clone() else {
-                return;
-            };
-            let browser = s
-                .browser_sessions
-                .entry(uuid)
-                .or_insert_with(super::BrowserManager::new);
-            let session = browser.session_identity();
-            let url = widgets.url_entry.text().to_string();
-            let prepare = browser.prepare_preview_async(
-                if url.is_empty() {
-                    "about:blank".into()
-                } else {
-                    url
-                },
-                activity.id,
-            );
-            let task = runtime.spawn(async move {
-                let _permit = gate
-                    .acquire_owned()
-                    .await
-                    .map_err(|_| "browser restore stopped".to_owned())?;
-                prepare.await
-            });
-            (session, widget_task_result(&widgets.container, task))
-        };
-        let completed = completion.await;
-        let Some(state) = state.upgrade() else {
-            return;
-        };
-        let widgets = {
-            let mut s = state.borrow_mut();
-            match completed {
-                Some(Ok(Ok(binary))) => {
-                    let Some(browser) = s
-                        .browser_sessions
-                        .get_mut(&uuid)
-                        .filter(|browser| browser.session_identity() == session)
-                    else {
-                        return;
-                    };
-                    browser.binary_path = Some(binary);
-                    browser.preview_state = super::PreviewState::Connected;
-                    find_browser_tab(&s, uuid)
-                }
-                _ => {
-                    activity.finish("error_or_cancelled");
-                    s.shutdown_browser_surface(uuid);
-                    None
-                }
-            }
-        };
-        if let Some(widgets) = widgets {
-            wire_browser_tab(&state, widgets, activity.id);
-            activity.finish("success");
-        } else {
-            state.borrow_mut().shutdown_browser_surface(uuid);
+        let visible = state.upgrade().is_some_and(|state| {
+            find_browser_tab(&state.borrow(), uuid)
+                .is_some_and(|widgets| widgets.container.is_mapped())
+        });
+        if visible {
+            let _ = initialize_browser_surface(state, uuid, None).await;
         }
     });
+}
+
+/// Own an unfinished restored session; cancellation retires the daemon but preserves its live pane reference.
+struct RestoreOwner {
+    state: std::rc::Weak<RefCell<AppState>>,
+    uuid: uuid::Uuid,
+    session: String,
+}
+
+impl Drop for RestoreOwner {
+    /// Defer cleanup past reentrant model borrows; a connected or replaced manager is not ours to retire.
+    fn drop(&mut self) {
+        fn retire(state: std::rc::Weak<RefCell<AppState>>, uuid: uuid::Uuid, session: String) {
+            let Some(owner) = state.upgrade() else {
+                return;
+            };
+            if let Ok(mut owner) = owner.try_borrow_mut() {
+                owner.cancel_browser_restore(uuid, &session);
+            } else {
+                glib::idle_add_local_once(move || retire(state, uuid, session));
+            };
+        }
+        retire(self.state.clone(), self.uuid, self.session.clone());
+    }
+}
+
+/// Initialize a saved page on demand without selecting its workspace or surface.
+/// Serialized admission and widget-owned cancellation bound startup; duplicate in-flight requests fail explicitly.
+pub(crate) async fn initialize_browser_surface(
+    state: std::rc::Weak<RefCell<AppState>>,
+    uuid: uuid::Uuid,
+    trace: Option<uuid::Uuid>,
+) -> Result<(), String> {
+    let mut activity = super::metrics::Activity::begin("preview_restore", trace);
+    let (session, completion) = {
+        let owner = state.upgrade().ok_or("application closed")?;
+        let mut s = owner.borrow_mut();
+        let widgets = find_browser_tab(&s, uuid).ok_or("browser surface closed")?;
+        if let Some(browser) = s.browser_sessions.get(&uuid) {
+            return if matches!(
+                browser.preview_state,
+                super::PreviewState::Connected | super::PreviewState::Streaming
+            ) {
+                Ok(())
+            } else {
+                Err("browser surface is already starting".into())
+            };
+        }
+        let gate = s.browser_restore_gate.clone();
+        let runtime = s
+            .runtime_handle
+            .clone()
+            .ok_or("async runtime unavailable")?;
+        let browser = s
+            .browser_sessions
+            .entry(uuid)
+            .or_insert_with(super::BrowserManager::new);
+        let session = browser.session_identity();
+        let url = widgets.url_entry.text().to_string();
+        let prepare = browser.prepare_preview_async(
+            if url.is_empty() {
+                "about:blank".into()
+            } else {
+                url
+            },
+            activity.id,
+        );
+        let task = runtime.spawn(async move {
+            let _permit =
+                tokio::time::timeout(std::time::Duration::from_secs(15), gate.acquire_owned())
+                    .await
+                    .map_err(|_| "browser restore admission timed out".to_owned())?
+                    .map_err(|_| "browser restore stopped".to_owned())?;
+            prepare.await
+        });
+        (session, widget_task_result(&widgets.container, task))
+    };
+    let _owner = RestoreOwner {
+        state: state.clone(),
+        uuid,
+        session: session.clone(),
+    };
+    let binary = completion
+        .await
+        .ok_or("browser surface closed")?
+        .map_err(|_| "browser startup worker failed")??;
+    let owner = state.upgrade().ok_or("application closed")?;
+    let widgets = {
+        let mut s = owner.borrow_mut();
+        let widgets = find_browser_tab(&s, uuid).ok_or("browser surface closed")?;
+        let browser = s
+            .browser_sessions
+            .get_mut(&uuid)
+            .filter(|browser| browser.session_identity() == session)
+            .ok_or("browser session replaced")?;
+        browser.binary_path = Some(binary);
+        browser.preview_state = super::PreviewState::Connected;
+        widgets
+    };
+    wire_browser_tab(&owner, widgets, activity.id);
+    activity.finish("success");
+    Ok(())
 }
 
 /// Defer retirement when GTK destruction is emitted during a model mutation.
