@@ -430,11 +430,13 @@ async fn dispatch_request(
             }
         }
 
-        _ => commands::SocketCommand::NotImplemented {
-            req_id: req_id.clone(),
-            method: method.clone(),
-            resp_tx,
-        },
+        _ => {
+            return err(
+                req_id,
+                "not_implemented",
+                &format!("{method} is not implemented"),
+            )
+        }
     };
 
     drop(params);

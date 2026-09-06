@@ -210,11 +210,4 @@ pub enum SocketCommand {
         surface_ref: Option<String>,
         resp_tx: RespTx,
     },
-
-    // -- Tier-2 stub (not_implemented) --
-    NotImplemented {
-        req_id: Value,
-        method: String,
-        resp_tx: RespTx,
-    },
 }

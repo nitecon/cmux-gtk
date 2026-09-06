@@ -402,3 +402,26 @@ async fn encoded_response_retains_operation_identity() {
     let body: serde_json::Value = serde_json::from_str(&malformed.body).unwrap();
     assert_eq!(body["error"]["code"], "parse_error");
 }
+
+/// Unsupported methods preserve errors and correlation without depending on GTK queue availability.
+#[tokio::test]
+async fn unknown_method_rejected_on_worker() {
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    drop(rx);
+    let trace = uuid::Uuid::new_v4();
+    let request = serde_json::json!({"id": 42, "method": "unknown.method", "trace_id": trace});
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        dispatch_line(request.to_string(), &tx),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.trace_id, Some(trace));
+    let body: serde_json::Value = serde_json::from_str(&response.body).unwrap();
+    assert_eq!(body["id"], 42);
+    assert_eq!(body["error"]["code"], "not_implemented");
+    assert_eq!(
+        body["error"]["message"],
+        "unknown.method is not implemented"
+    );
+}

@@ -1377,3 +1377,7 @@ Replaced the indefinite SSH post-routing child wait and duplicated browser CLI f
 ### Correct correlation fixture dispatch assumption
 
 The new `encoded_response_retains_operation_identity` fixture incorrectly assumed unknown methods return on the worker; production intentionally enqueues `NotImplemented` for GTK, leaving the fixture waiting with no consumer. Changed its request to invalid terminal text, a real worker validation failure, and added a one-second timeout plus explicit invalid_params assertion. Supplied/generated trace preservation, parse-error absence and empty GTK queue remain covered. This corrects the fixture without changing production dispatch semantics. The running CI job was inspected and left live; compilation and whitespace checks pass, execution remains in subsequent CI.
+
+### Reject unsupported methods before GTK admission
+
+After correcting the fixture independently, removed the production `NotImplemented` command variant and GTK handler. Unknown methods now return the identical not_implemented code/message on the worker, preserving request and trace identities. They no longer consume GTK queue capacity or depend on its receiver. Generic browser action forwarding remains supported and unchanged. A dispatcher test closes the GTK receiver and verifies the exact unknown-method response and trace with a deadline. All-target compilation and whitespace checks pass; CI execution remains pending.

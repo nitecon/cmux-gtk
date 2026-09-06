@@ -963,19 +963,6 @@ fn handle_socket_command_traced(
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
             }
         }
-
-        // -- Tier-2 stubs (D-10) --
-        SocketCommand::NotImplemented {
-            req_id,
-            method,
-            resp_tx,
-        } => {
-            let _ = resp_tx.send(err(
-                req_id,
-                "not_implemented",
-                &format!("{method} is not implemented"),
-            ));
-        }
     }
 }
 
