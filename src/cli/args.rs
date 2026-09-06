@@ -206,6 +206,44 @@ pub enum Commands {
         text: String,
     },
 
+    /// Set a keyed plain-text status in a workspace sidebar
+    SetStatus {
+        key: String,
+        value: String,
+        #[arg(long)]
+        icon: Option<String>,
+        #[arg(long)]
+        color: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        priority: i32,
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// Clear one sidebar status key
+    ClearStatus {
+        key: String,
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// List workspace status entries and progress
+    ListStatus {
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// Set determinate workspace progress from zero to one
+    SetProgress {
+        value: f64,
+        #[arg(long, default_value = "")]
+        label: String,
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+    /// Clear workspace progress
+    ClearProgress {
+        #[arg(long, alias = "tab", env = "CMUX_WORKSPACE_ID")]
+        workspace: Option<String>,
+    },
+
     // -- Notification commands --
     /// Deliver a notification to a terminal without changing focus
     Notify {

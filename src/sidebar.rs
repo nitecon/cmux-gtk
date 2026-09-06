@@ -325,6 +325,10 @@ pub fn workspace_row_content(workspace: &crate::workspace::Workspace) -> gtk4::B
     subtitle.add_css_class("dim-label");
     subtitle.set_visible(!workspace.subtitle().is_empty());
     vbox.append(&subtitle);
+    let metadata = gtk4::Box::new(gtk4::Orientation::Vertical, 2);
+    metadata.add_css_class("workspace-metadata");
+    crate::workspace_metadata::render(&metadata, &workspace.metadata);
+    vbox.append(&metadata);
     if workspace.connection_state.is_remote() {
         let status = gtk4::Label::new(Some(workspace.connection_state.display_text()));
         status.set_xalign(0.0);

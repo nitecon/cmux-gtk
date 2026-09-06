@@ -34,6 +34,12 @@ pub enum SocketCommand {
         resp_tx: RespTx,
     },
 
+    WorkspaceMetadata {
+        req_id: Value,
+        workspace: Option<uuid::Uuid>,
+        action: crate::workspace_metadata::Action,
+        resp_tx: RespTx,
+    },
     // -- workspace.* --
     WorkspaceList {
         req_id: Value,

@@ -70,6 +70,8 @@ impl ConnectionState {
 /// The root GTK widget of a workspace's split tree is added as a named page in the GtkStack.
 #[derive(Debug)]
 pub struct Workspace {
+    /// Bounded agent status and progress displayed in the sidebar.
+    pub metadata: crate::workspace_metadata::Metadata,
     /// Unique workspace ID — used as the GtkStack page name.
     pub id: u64,
     /// Display name shown in the sidebar GtkListBox row.
@@ -105,6 +107,7 @@ impl Workspace {
             uuid: Uuid::new_v4(),
             has_attention: false,
             last_notification: None,
+            metadata: Default::default(),
             color: None,
             startup_script: None,
             remote_directory: None,

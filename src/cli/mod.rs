@@ -490,6 +490,35 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::Layout => ("debug.layout", json!({})),
         Commands::Type { text } => ("debug.type", json!({"text": text})),
 
+        Commands::SetStatus {
+            key,
+            value,
+            icon,
+            color,
+            priority,
+            workspace,
+        } => (
+            "sidebar.set_status",
+            json!({"key":key,"value":value,"icon":icon,"color":color,"priority":priority,"workspace_id":workspace}),
+        ),
+        Commands::ClearStatus { key, workspace } => (
+            "sidebar.clear_status",
+            json!({"key":key,"workspace_id":workspace}),
+        ),
+        Commands::ListStatus { workspace } => {
+            ("sidebar.metadata", json!({"workspace_id":workspace}))
+        }
+        Commands::SetProgress {
+            value,
+            label,
+            workspace,
+        } => (
+            "sidebar.set_progress",
+            json!({"value":value,"label":label,"workspace_id":workspace}),
+        ),
+        Commands::ClearProgress { workspace } => {
+            ("sidebar.clear_progress", json!({"workspace_id":workspace}))
+        }
         Commands::ListNotifications => ("notification.list", json!({})),
         Commands::Notify {
             title,

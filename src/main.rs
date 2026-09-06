@@ -38,6 +38,7 @@ mod updater;
 mod window_state;
 mod workspace;
 mod workspace_dialog;
+mod workspace_metadata;
 
 const APP_ID: &str = "io.cmux.App";
 

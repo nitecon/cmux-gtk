@@ -138,11 +138,73 @@ fn handle_socket_command_traced(
             ));
         }
 
+        SocketCommand::WorkspaceMetadata {
+            req_id,
+            workspace,
+            action,
+            resp_tx,
+        } => {
+            let mut state = state.borrow_mut();
+            let index = match workspace {
+                Some(id) => state
+                    .workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == id),
+                None => Some(state.active_index).filter(|index| *index < state.workspaces.len()),
+            };
+            let Some(index) = index else {
+                let _ = resp_tx.send(err(req_id, "not_found", "workspace not found"));
+                return;
+            };
+            match crate::workspace_metadata::apply(&mut state.workspaces[index].metadata, action) {
+                Ok(changed) => {
+                    if changed {
+                        if let Some(row) = state.sidebar_list.row_at_index(index as i32) {
+                            if let Some(vbox) = row
+                                .child()
+                                .and_then(|child| child.first_child())
+                                .and_downcast::<gtk4::Box>()
+                            {
+                                let mut child = vbox.first_child();
+                                while let Some(widget) = child {
+                                    child = widget.next_sibling();
+                                    if widget.has_css_class("workspace-metadata") {
+                                        if let Ok(container) = widget.downcast::<gtk4::Box>() {
+                                            crate::workspace_metadata::render(
+                                                &container,
+                                                &state.workspaces[index].metadata,
+                                            );
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        state.trigger_session_save();
+                    }
+                    let metadata = &state.workspaces[index].metadata;
+                    let _ = resp_tx.send(ok(
+                        req_id,
+                        json!({"workspace_id":state.workspaces[index].uuid,
+                        "statuses":metadata.statuses,"progress":metadata.progress}),
+                    ));
+                }
+                Err(message) => {
+                    let _ = resp_tx.send(err(req_id, "capacity", message));
+                }
+            }
+        }
+
         SocketCommand::Capabilities { req_id, resp_tx } => {
             let methods: Vec<&str> = vec![
                 "system.ping",
                 "system.identify",
                 "system.capabilities",
+                "sidebar.metadata",
+                "sidebar.set_status",
+                "sidebar.clear_status",
+                "sidebar.set_progress",
+                "sidebar.clear_progress",
                 "system.diagnostics",
                 "workspace.list",
                 "workspace.current",

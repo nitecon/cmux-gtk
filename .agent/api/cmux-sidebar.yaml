@@ -1,0 +1,24 @@
+app: cmux-gtk
+title: Agent workspace status and progress
+space: cmux-gtk
+slug: workspace-sidebar-metadata
+summary: Bounded persistent keyed status and progress updates without focus changes.
+kind: agent_context
+source_format: agent_context
+source_ref: src/workspace_metadata.rs
+labels: [sidebar, workspace, cli, session]
+content:
+  purpose: Agents publish status and determinate progress for a selected workspace independently of terminal focus.
+  workflows:
+    - name: Update workspace metadata
+      steps:
+        - cmux set-status KEY VALUE accepts --icon (GTK theme name), --color (#RRGGBB), --priority and --workspace UUID (--tab alias). Higher priorities render first, then lexical key order. Values are plain text, escaped when styled.
+        - cmux clear-status KEY removes a key; cmux list-status --json returns workspace_id, statuses and progress. Commands use CMUX_WORKSPACE_ID when available, otherwise the active workspace. Unknown explicit targets fail.
+        - cmux set-progress VALUE --label TEXT clamps finite values to 0..1; cmux clear-progress removes the bar. Both accept --workspace.
+  contracts:
+    transport: JSON sidebar.metadata, sidebar.set_status, sidebar.clear_status, sidebar.set_progress and sidebar.clear_progress use workspace_id. These are Linux adapters; upstream legacy v1 wire commands are not yet bridged.
+    limits: At most 32 keyed status entries per workspace, 64-byte nonempty keys, 1024-byte values, 128-byte icons and 512-byte progress labels. NUL and invalid colors are rejected before GTK dispatch. At capacity existing keys may update; new keys fail without eviction. Loaded state is bounded and sanitized.
+    ownership: GTK owns state and widgets. Mutation refreshes only the metadata container and uses the existing serialized session writer; reads do not save. Existing common RPC timing covers operations without logging status content.
+    outstanding: Markdown, URL actions, panel provenance, SF Symbols translation, automatic Git/PR/port updates and project/diff views remain separate parity gaps. Unsupported format, url or panel fields fail explicitly.
+  operations:
+    verification: Strict workspace clippy passed locally. Actions tests/test_linux_sidebar_metadata.py exercises the real CLI, inactive workspace targeting, capacity and invalid input, persistence and progress clearing. Runtime verification is pending; GTK presentation has no screenshot assertion yet.

@@ -204,6 +204,7 @@ impl AppState {
 
         let mut workspace = Workspace::new(id, display_number);
         workspace.name = ws.name.clone();
+        workspace.metadata = ws.metadata.clone().validated();
         workspace.uuid = uuid::Uuid::parse_str(&ws.uuid).unwrap_or_else(|_| uuid::Uuid::new_v4());
         workspace.color = ws
             .color
@@ -707,6 +708,7 @@ impl AppState {
                             None
                         };
                         crate::session::WorkspaceSession {
+                            metadata: ws.metadata.clone(),
                             uuid: ws.uuid.to_string(),
                             name: ws.name.clone(),
                             color: ws.color.clone(),

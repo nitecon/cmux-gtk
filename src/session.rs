@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 /// Serializable snapshot of a single workspace for session persistence.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct WorkspaceSession {
+    #[serde(default)]
+    pub metadata: crate::workspace_metadata::Metadata,
     pub uuid: String,
     pub name: String,
     #[serde(default)]
@@ -450,6 +452,7 @@ mod tests {
             inbox: Default::default(),
             active_index: 0,
             workspaces: vec![WorkspaceSession {
+                metadata: Default::default(),
                 uuid: "test-uuid-1".to_string(),
                 name: name.to_string(),
                 color: None,

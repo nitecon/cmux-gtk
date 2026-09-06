@@ -437,6 +437,29 @@ async fn dispatch_request(
             resp_tx,
         },
 
+        "sidebar.metadata"
+        | "sidebar.set_status"
+        | "sidebar.clear_status"
+        | "sidebar.set_progress"
+        | "sidebar.clear_progress" => {
+            let workspace = match params.get("workspace_id").filter(|value| !value.is_null()) {
+                Some(value) => match value.as_str().and_then(|id| uuid::Uuid::parse_str(id).ok()) {
+                    Some(id) => Some(id),
+                    None => return err(req_id, "invalid_params", "invalid workspace UUID"),
+                },
+                None => None,
+            };
+            let action = match crate::workspace_metadata::parse(&method, &params) {
+                Ok(action) => action,
+                Err(message) => return err(req_id, "invalid_params", message),
+            };
+            commands::SocketCommand::WorkspaceMetadata {
+                req_id: req_id.clone(),
+                workspace,
+                action,
+                resp_tx,
+            }
+        }
         "notification.list" => commands::SocketCommand::NotificationList {
             req_id: req_id.clone(),
             resp_tx,
