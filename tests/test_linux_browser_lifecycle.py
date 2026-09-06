@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 from linux_app import running_app
-from process_support import stop_process
+from process_support import linux_process_belongs_to, stop_process
 
 
 def command(app, *arguments):
@@ -61,6 +61,7 @@ def main():
         try:
             with running_app(root, {"CMUX_AGENT_BROWSER": str(mock), "AGENT_BROWSER_SOCKET_DIR": str(browser_dir), "SHELL": "/bin/bash"}) as app:
                 app.wait_for(lambda: bool(app.children()), "initial terminal child")
+                terminal_children = app.children()
                 first = app.surfaces()[0]
                 source, terminal = first["workspace_uuid"], first["uuid"]
                 app.cli("focus-surface", terminal)
@@ -69,12 +70,12 @@ def main():
                 assert {item["uuid"] for item in app.surfaces() if item["active"]} == {terminal}
                 window = subprocess.check_output(["xdotool", "search", "--sync", "--onlyvisible", "--pid", str(app.process.pid)], text=True, timeout=10).split()[-1]
                 marker = root / "keyboard-owner"
-                text = "printf '%s' \"$CMUX_SURFACE_ID\" > " + shlex.quote(str(marker))
+                text = "printf '%s' \"$$\" > " + shlex.quote(str(marker))
                 subprocess.run(["xdotool", "windowfocus", window], check=True, timeout=3)
                 subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "1", "--", text], check=True, timeout=5)
                 subprocess.run(["xdotool", "key", "--clearmodifiers", "Return"], check=True, timeout=3)
-                app.wait_for(lambda: marker.exists() and marker.read_text() == terminal, "keyboard input in original terminal")
-                assert marker.read_text() == terminal
+                app.wait_for(lambda: marker.exists() and linux_process_belongs_to(marker.read_text(), terminal_children),
+                             "keyboard input in original terminal")
 
                 with pending_open(app, browser_dir) as pending:
                     subprocess.run(command(app, "ping"), env=app.environment, check=True, capture_output=True, timeout=2)
