@@ -123,11 +123,72 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
         eventually(lambda: endpoint(remote_id) and endpoint(second_remote_id))
         assert endpoint(remote_id) != endpoint(second_remote_id)
         assert decoy.server_port not in [endpoint(remote_id), endpoint(second_remote_id)]
+        records = json.loads(cli('list-workspaces', '--json'))['workspaces']
+        remote_records = [next(row for row in records if row['uuid'] == identity)['remote']
+                          for identity in [remote_id, second_remote_id]]
+        assert all(row['connection_state'] == 'connected' and row['browser_proxy_ready'] for row in remote_records)
+        assert remote_records[0]['browser_proxy_port'] != remote_records[1]['browser_proxy_port']
+        assert next(row for row in records if row['uuid'] == local_id)['remote'] is None
+        def connection_events():
+            """Read bounded complete trace records, tolerating an in-progress final log line."""
+            events = []
+            with (root / 'events.jsonl').open() as source:
+                for line in source.read(8 * 1024 * 1024).splitlines():
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+            return events
+
+        old_connections = {event['fields']['trace_id'] for event in connection_events()
+                           if event['event'] == 'ssh.handshake.complete'}
+
+        def new_terminal_subscribed():
+            """Require the new generation's PTY subscription before submitting shell input."""
+            return any(event['event'] == 'ssh.rpc.complete' and
+                       event['fields'].get('parent_trace_id') not in old_connections and
+                       event['fields'].get('method') == 'proxy.stream.subscribe' and
+                       event['fields'].get('outcome') == 'success'
+                       for event in connection_events())
+
+        # Retire only the fixture's owning daemon via its registered shell, leaving browsers alive.
+        cli('select-workspace', remote_id)
+        first_surface = surfaces[0][0]
+        assert json.loads(cli('browser', 'eval', first_surface, 'window.reconnectToken="retained"'))['success']
+        ready_file = root / 'remote/first/browser-server-ready'
+        ready_file.unlink()
+        reconnect_started = time.perf_counter_ns()
+        cli('send-text', 'kill -TERM "$PPID"')
+        cli('send-key', '\r')
+        eventually(lambda: '[Reconnected' in cli('read-text'))
+        eventually(new_terminal_subscribed)
+        eventually(lambda: next(row for row in json.loads(cli('list-workspaces', '--json'))['workspaces']
+                                if row['uuid'] == remote_id)['remote']['browser_proxy_ready'])
+        retained = json.loads(cli('browser', 'eval', first_surface, 'window.reconnectToken'))
+        assert retained['success'] and retained['data']['result'] == 'retained'
+        # The new namespace has no HTTP server yet; a request must fail instead of using the local decoy.
+        failed_fetch = json.loads(cli('browser', 'eval', first_surface,
+            f'fetch("http://localhost:{decoy.server_port}/data").then(()=>"unexpected",()=>"unavailable")'))
+        assert failed_fetch['success'] and failed_fetch['data']['result'] == 'unavailable'
+        script = root / 'remote/first/browser-server.py'
+        cli('send-text', 'python3 ' + shlex.quote(str(script)) + ' &')
+        cli('send-key', '\r')
+        eventually(ready_file.exists)
+        cli('select-workspace', local_id)
+        assert json.loads(cli('browser', 'goto', first_surface, url))['success']
+        eventually(lambda: loaded(*surfaces[0]))
+        eventually(lambda: loaded(*surfaces[1]))
+        reconnected = next(row for row in json.loads(cli('list-workspaces', '--json'))['workspaces']
+                           if row['uuid'] == remote_id)['remote']
+        assert reconnected['browser_proxy_port'] == remote_records[0]['browser_proxy_port']
+        reconnect_us = (time.perf_counter_ns() - reconnect_started) / 1000
         assert not requests, 'remote browser sent traffic to the local decoy'
         assert json.loads(cli('current-workspace', '--json'))['uuid'] == local_id
         assert json.loads(cli('ping', '--json'))['pong']
         report['remote_browser'] = {'resource_ready_us': (time.perf_counter_ns() - started) / 1000,
                                     'local_decoy_requests': len(requests),
+                                    'workspace_transport': remote_records,
+                                    'reconnect_us': reconnect_us, 'reconnected_transport': reconnected,
                                     'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation']}
     finally:
         try:

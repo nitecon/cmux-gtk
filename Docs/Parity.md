@@ -334,3 +334,7 @@ Added a real SSH network-namespace mode with a same-port local decoy and real Ch
 ### Same-port remote workspace isolation coverage
 
 Extended the real remote browser fixture to two namespaces serving different script identities at the same port. It checks both page identities, first-page renavigation, distinct automatically forwarded local endpoints, preserved background selection and no local decoy traffic. Syntax validation passes; runtime verification remains pending Actions.
+
+### Remote browser reconnect scenario
+
+Added workspace connection/proxy observations and a real SSH reconnect scenario that retains browser DOM/session identity and its stable proxy port, rejects requests before service restart without local fallback, and restores resource loading after a new-generation PTY subscription. Second-workspace content remains independent. Strict Clippy and syntax checks pass; runtime evidence is pending Actions.

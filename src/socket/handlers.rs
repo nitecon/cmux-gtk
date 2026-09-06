@@ -21,6 +21,16 @@ fn workspace_record(state: &crate::app_state::AppState, index: usize) -> Option<
         "uuid": workspace.uuid,
         "git": workspace.git,
         "ports": workspace.ports,
+        "remote": workspace.remote_target.as_ref().map(|_| {
+            let bridge = state.workspace_bridges.get(&workspace.id);
+            let port = bridge.map(|bridge| bridge.browser_proxy_port.load(std::sync::atomic::Ordering::Acquire)).filter(|port| *port != 0);
+            json!({
+                "connection_state": workspace.connection_state.css_class(),
+                "reconnect_attempt": match workspace.connection_state { crate::workspace::ConnectionState::Reconnecting(attempt) => Some(attempt), _ => None },
+                "browser_proxy_port": port,
+                "browser_proxy_ready": bridge.and_then(|bridge| bridge.browser_proxy_ready()).is_some(),
+            })
+        }),
         "title": workspace.name,
         "name": workspace.name,
         "working_directory": workspace.working_directory.as_ref().map(|path| path.to_string_lossy()),

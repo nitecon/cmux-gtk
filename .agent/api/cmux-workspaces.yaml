@@ -87,3 +87,7 @@ content:
     - Run executable behavior tests in GitHub Actions, not locally.
 
   restored_directories: Plain local terminal restore prefers its saved native-reported CWD over the original workspace launch directory. Explicit startup-command and remote restoration keep workspace launch precedence. Deferred GLArea ownership retains the launch directory so snapshots before native initialization preserve it. tests/test_linux_scrollback_restore.py verifies actual restored shell CWD after two normal quits with an unopened background terminal; runtime pending.
+
+  remote_observation:
+    - Workspace list/current JSON includes remote null for local workspaces, otherwise connection_state, nullable reconnect_attempt, nullable retained browser_proxy_port and browser_proxy_ready. Retained port is not proof of current readiness; GTK state and bridge observations are independently sampled and never persisted.
+    - Isolated remote browser Actions coverage compares proxy ports and browser DOM before and after terminating the owned daemon, requires new-generation subscription before shell input and verifies remote resources recover without local decoy traffic. Runtime evidence is pending.
