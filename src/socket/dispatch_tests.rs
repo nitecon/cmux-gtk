@@ -298,3 +298,72 @@ async fn workspace_create_rejects_invalid_directory_before_ui_dispatch() {
         "invalid request reached GTK dispatch"
     );
 }
+
+/// Run an isolated dispatcher to verify overflow events and final outcome share the caller trace.
+#[tokio::test]
+async fn oversized_response_records_correlated_failure() {
+    const CHILD: &str = "CMUX_TEST_RESPONSE_TRACE_CHILD";
+    const TRACE: &str = "c7069e3b-fafd-466d-a4f0-85815be68d86";
+    if std::env::var_os(CHILD).is_none() {
+        // Isolation keeps the global logger and concurrent request counters out of this assertion.
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "socket::dispatch::tests::oversized_response_records_correlated_failure",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let records: Vec<serde_json::Value> = String::from_utf8(output.stderr)
+            .unwrap()
+            .lines()
+            .filter_map(|line| line.strip_prefix("cmux: "))
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .filter(|record: &serde_json::Value| record["fields"]["trace_id"] == TRACE)
+            .collect();
+        let overflow = records
+            .iter()
+            .position(|record| record["event"] == "rpc.response.oversized")
+            .unwrap();
+        let completions: Vec<_> = records
+            .iter()
+            .enumerate()
+            .filter(|(_, record)| record["event"] == "rpc.complete")
+            .collect();
+        assert_eq!(completions.len(), 1);
+        assert!(overflow < completions[0].0);
+        assert_eq!(completions[0].1["fields"]["outcome"], "error");
+        return;
+    }
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    let request = serde_json::json!({"id": 12, "method": "system.ping", "trace_id": TRACE});
+    let dispatch = dispatch_line(request.to_string(), &tx);
+    let consume = async {
+        let commands::SocketCommand::Observed { command, .. } = rx.recv().await.unwrap() else {
+            panic!("missing observed request");
+        };
+        let commands::SocketCommand::Ping { req_id, resp_tx } = *command else {
+            panic!("wrong command");
+        };
+        resp_tx
+            .send(super::ok(
+                req_id,
+                serde_json::json!("x".repeat(super::super::response::MAX_RESPONSE_BYTES)),
+            ))
+            .unwrap();
+    };
+    let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::join!(dispatch, consume)
+    })
+    .await
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["id"], 12);
+    assert_eq!(response["error"]["code"], "response_too_large");
+}

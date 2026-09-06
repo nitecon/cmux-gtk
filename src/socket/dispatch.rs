@@ -21,13 +21,16 @@ pub(super) async fn dispatch_line(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) -> String {
-    super::response::encode(dispatch_request(line, cmd_tx).await)
+    let mut operation = None;
+    let response = dispatch_request(line, cmd_tx, &mut operation).await;
+    super::response::encode(response, operation.as_mut())
 }
 
-/// Validate and execute one request while retaining its response as structured data.
+/// Validate and execute one request; the caller retains its operation through response encoding.
 async fn dispatch_request(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
+    operation: &mut Option<crate::diagnostics::Operation>,
 ) -> serde_json::Value {
     let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
@@ -57,10 +60,10 @@ async fn dispatch_request(
         .map(serde_json::Value::take)
         .unwrap_or(serde_json::Value::Object(Default::default()));
 
-    let mut operation = crate::diagnostics::Operation::begin(
+    let operation = operation.insert(crate::diagnostics::Operation::begin(
         &method,
         req.get("trace_id").and_then(|id| id.as_str()),
-    );
+    ));
     drop(req);
     // Early validation failures below are errors; cancellation while awaiting
     // execution is reset explicitly before yielding to the response channel.

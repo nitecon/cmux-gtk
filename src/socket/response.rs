@@ -6,11 +6,19 @@ pub(super) const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 /// Bound JSON allocation before transport; preserve identity in an oversized-response error when it fits.
 /// Extremely large request identities fall back to null. Result construction is a separate bound.
-pub(super) fn encode(mut response: Value) -> String {
+/// Encoding overflow marks the retained request as failed and emits its trace identity.
+pub(super) fn encode(
+    mut response: Value,
+    operation: Option<&mut crate::diagnostics::Operation>,
+) -> String {
     let bytes = crate::bounded_json::json_line(&response, MAX_RESPONSE_BYTES).or_else(|| {
+        let trace_id = operation.map(|operation| {
+            operation.finish(false);
+            operation.id
+        });
         crate::diagnostics::record(
             "rpc.response.oversized",
-            json!({"limit_bytes": MAX_RESPONSE_BYTES}),
+            json!({"trace_id": trace_id, "limit_bytes": MAX_RESPONSE_BYTES}),
         );
         let id = response
             .get_mut("id")
@@ -59,13 +67,13 @@ mod tests {
     /// A complete line may exactly fill the budget; one additional payload byte returns a small error.
     #[test]
     fn exact_line_budget() {
-        let overhead = encode(ok(json!(1), json!(""))).len() + 1;
+        let overhead = encode(ok(json!(1), json!("")), None).len() + 1;
         let payload = "x".repeat(MAX_RESPONSE_BYTES - overhead);
-        let encoded = encode(ok(json!(1), json!(payload)));
+        let encoded = encode(ok(json!(1), json!(payload)), None);
         assert_eq!(encoded.len() + 1, MAX_RESPONSE_BYTES);
         let decoded: Value = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded["ok"], true);
-        let oversized = encode(ok(json!(1), json!(format!("{payload}x"))));
+        let oversized = encode(ok(json!(1), json!(format!("{payload}x"))), None);
         let decoded: Value = serde_json::from_str(&oversized).unwrap();
         assert_eq!(decoded["id"], 1);
         assert_eq!(decoded["error"]["code"], "response_too_large");
@@ -74,10 +82,13 @@ mod tests {
     /// Escaping overflow becomes a valid correlated error, rather than a partial serialized result.
     #[test]
     fn oversized_escaped_payload() {
-        let encoded = encode(ok(
-            json!(42),
-            json!({"text": "\u{0001}".repeat(MAX_RESPONSE_BYTES / 2)}),
-        ));
+        let encoded = encode(
+            ok(
+                json!(42),
+                json!({"text": "\u{0001}".repeat(MAX_RESPONSE_BYTES / 2)}),
+            ),
+            None,
+        );
         let decoded: Value = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded["id"], 42);
         assert_eq!(decoded["error"]["code"], "response_too_large");
@@ -89,10 +100,10 @@ mod tests {
     fn response_identity_and_unicode() {
         let value = ok(json!("request"), json!({"text": "日本語\n"}));
         assert_eq!(
-            serde_json::from_str::<Value>(&encode(value.clone())).unwrap(),
+            serde_json::from_str::<Value>(&encode(value.clone(), None)).unwrap(),
             value
         );
-        let encoded = encode(ok(json!("x".repeat(MAX_RESPONSE_BYTES)), Value::Null));
+        let encoded = encode(ok(json!("x".repeat(MAX_RESPONSE_BYTES)), Value::Null), None);
         let decoded: Value = serde_json::from_str(&encoded).unwrap();
         assert!(decoded["id"].is_null());
         assert_eq!(decoded["ok"], false);
