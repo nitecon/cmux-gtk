@@ -55,3 +55,5 @@ Direct-binary updates stream downloads to the private staging directory while ha
 `src/browser_timeout.rs` shares explicit wait budgets between the CLI and browser transport, keeping response margins outside the requested browser wait. Ordinary exchange deadlines and startup CLI allowance remain explicit at their callers.
 
 SSH task setup for RPC, dialog and restore shares `AppState::start_ssh`. The helper retains the bridge, records launch identity and schedules the owned lifecycle handle; every reconnect attempt keeps the original launch parent. Model creation and UI row wiring remain with their callers.
+
+The maintained Python JSON client now exposes bounded raw method calls and basic system queries. The prompt diagnostic and stdio/protocol fixtures supply current wire fields explicitly; unused upstream window, workspace, browser, notification and metadata convenience wrappers have been removed. The minimal older line client remains solely for discovery/transport compatibility checks and raw manual forwarding, not as a GTK command catalog. Both share socket discovery and bounded transport helpers.
