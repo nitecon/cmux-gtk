@@ -468,7 +468,7 @@ mod lifecycle_tests {
         for id in 1..=20 {
             let widgets = crate::browser::create_preview_pane(id);
             let weak = widgets.container.downgrade();
-            crate::browser::ui::wire_browser_tab(&state, widgets);
+            crate::browser::ui::wire_browser_tab(&state, widgets, uuid::Uuid::new_v4());
             // Deferred viewport work is finite, but must be allowed to release its clone.
             while glib::MainContext::default().pending() {
                 glib::MainContext::default().iteration(false);

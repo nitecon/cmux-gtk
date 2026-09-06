@@ -79,7 +79,7 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
                 .and_then(|engine| engine.split_active_with_preview())
         };
         if let Some(widgets) = widgets {
-            wire_browser_tab(&state, widgets);
+            wire_browser_tab(&state, widgets, activity.id);
             activity.finish("success");
         } else {
             activity.finish("missing_pane");
@@ -168,7 +168,7 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
                 find_browser_tab(&s, uuid)
             };
             if let Some(widgets) = widgets {
-                wire_browser_tab(&state, widgets);
+                wire_browser_tab(&state, widgets, activity.id);
                 activity.finish("success");
             } else {
                 activity.finish("missing_surface");
@@ -191,6 +191,7 @@ fn find_browser_tab(state: &AppState, uuid: uuid::Uuid) -> Option<super::Preview
 pub(crate) fn wire_browser_tab(
     state: &Rc<RefCell<AppState>>,
     widgets: crate::browser::PreviewPaneWidgets,
+    trace: uuid::Uuid,
 ) {
     let surface_uuid = widgets.uuid;
     let pane_id = widgets.pane_id;
@@ -204,7 +205,7 @@ pub(crate) fn wire_browser_tab(
         let runtime = s.runtime_handle.clone();
         let bm = s.browser_manager.as_mut().unwrap();
         if let Some(ref rt) = runtime {
-            bm.start_stream(rt, picture, None);
+            bm.start_stream(rt, picture, Some(trace));
         }
     } // drop borrow
 

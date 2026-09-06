@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -59,13 +60,35 @@ def main():
         shutil.copyfile(Path(__file__).parent / "fixtures/mock_agent_browser.py", mock)
         mock.chmod(0o700)
         try:
-            with running_app(root, {"CMUX_AGENT_BROWSER": str(mock), "AGENT_BROWSER_SOCKET_DIR": str(browser_dir), "SHELL": "/bin/bash"}) as app:
+            with running_app(root, {"CMUX_AGENT_BROWSER": str(mock), "AGENT_BROWSER_SOCKET_DIR": str(browser_dir), "SHELL": "/bin/bash", "CMUX_LOG": str(root / "events.jsonl")}) as app:
                 app.wait_for(lambda: bool(app.children()), "initial terminal child")
                 terminal_children = app.children()
                 first = app.surfaces()[0]
                 source, terminal = first["workspace_uuid"], first["uuid"]
                 app.cli("focus-surface", terminal)
-                result = json.loads(app.cli("browser", "open", "https://example.test/initial"))
+                opened = subprocess.run(command(app, "--verbose", "browser", "open", "https://example.test/initial"),
+                                        env=app.environment, capture_output=True, text=True, check=True, timeout=15)
+                result = json.loads(opened.stdout)
+                trace = re.search(r"trace_id=([0-9a-f-]+)", opened.stderr).group(1)
+
+                def stream_correlated():
+                    """Observe CLI, metadata and WebSocket connection records sharing the caller trace."""
+                    try:
+                        with (root / "events.jsonl").open() as log:
+                            records = [json.loads(line) for line in log.read(1024 * 1024).splitlines()]
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        return False
+                    records = [record for record in records if record["fields"].get("trace_id") == trace]
+                    stages = {record["fields"].get("stage") for record in records
+                              if record["event"] == "browser.activity.complete"}
+                    connects = [record["fields"] for record in records if record["event"] == "browser.stream.connect"]
+                    if not {"rpc_startup", "stream_metadata"} <= stages or not connects:
+                        return False
+                    assert connects[0]["duration_ms"] >= 0
+                    assert connects[0]["outcome"] in {"success", "error", "timeout"}
+                    return True
+
+                app.wait_for(stream_correlated, "correlated browser stream attachment")
                 assert "surface_ref" in result, result
                 assert {item["uuid"] for item in app.surfaces() if item["active"]} == {terminal}
                 window = subprocess.check_output(["xdotool", "search", "--sync", "--onlyvisible", "--pid", str(app.process.pid)], text=True, timeout=10).split()[-1]

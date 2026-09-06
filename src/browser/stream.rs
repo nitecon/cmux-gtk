@@ -36,44 +36,43 @@ pub(super) fn start(
                 return;
             }
         };
-        receive(format!("ws://127.0.0.1:{port}"), frame_tx).await;
+        let trace = activity.id;
+        drop(activity);
+        receive(format!("ws://127.0.0.1:{port}"), frame_tx, trace).await;
     })
 }
 
 /// Receive bounded envelopes until transport failure, task cancellation or delivery receiver closure.
-async fn receive(url: String, frame_tx: tokio::sync::watch::Sender<Option<glib::Bytes>>) {
+async fn receive(
+    url: String,
+    frame_tx: tokio::sync::watch::Sender<Option<glib::Bytes>>,
+    trace: uuid::Uuid,
+) {
     let _stream_metrics = metrics::Stream::begin();
     let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig {
         max_message_size: Some(8 * 1024 * 1024),
         max_frame_size: Some(8 * 1024 * 1024),
         ..Default::default()
     };
+    let started = std::time::Instant::now();
     let ws_result = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         tokio_tungstenite::connect_async_with_config(&url, Some(config), false),
     )
     .await;
-    let (ws_stream, _) = match ws_result {
-        Ok(Ok(conn)) => conn,
-        Ok(Err(_)) => {
-            crate::diagnostics::record(
-                "browser.stream.connect",
-                serde_json::json!({"outcome": "error"}),
-            );
-            return;
-        }
-        Err(_) => {
-            crate::diagnostics::record(
-                "browser.stream.connect",
-                serde_json::json!({"outcome": "timeout"}),
-            );
-            return;
-        }
+    let (connection, outcome) = match ws_result {
+        Ok(Ok(connection)) => (Some(connection), "success"),
+        Ok(Err(_)) => (None, "error"),
+        Err(_) => (None, "timeout"),
     };
     crate::diagnostics::record(
         "browser.stream.connect",
-        serde_json::json!({"outcome": "success"}),
+        serde_json::json!({"outcome": outcome, "trace_id": trace,
+            "duration_ms": started.elapsed().as_secs_f64() * 1000.0}),
     );
+    let Some((ws_stream, _)) = connection else {
+        return;
+    };
     let (_write, mut read) = ws_stream.split();
     loop {
         let Some(msg_result) = (tokio::select! {
@@ -246,7 +245,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("ws://{}", listener.local_addr().unwrap());
         let (tx, mut rx) = tokio::sync::watch::channel(None);
-        let reader = tokio::spawn(receive(url, tx));
+        let reader = tokio::spawn(receive(url, tx, uuid::Uuid::new_v4()));
         let (socket, _) = listener.accept().await.unwrap();
         let mut peer = tokio_tungstenite::accept_async(socket).await.unwrap();
         peer.send(tokio_tungstenite::tungstenite::Message::Text(

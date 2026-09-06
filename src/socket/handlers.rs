@@ -1087,7 +1087,7 @@ fn start_browser_lifecycle(
             (widgets, picture, s.runtime_handle.clone())
         };
         if let Some(widgets) = new_widgets {
-            crate::browser::ui::wire_browser_tab(&state, widgets);
+            crate::browser::ui::wire_browser_tab(&state, widgets, activity.id);
         } else if let (Some(picture), Some(runtime)) = (picture, runtime) {
             if let Some(browser) = state.borrow_mut().browser_manager.as_mut() {
                 browser.start_stream(&runtime, picture, Some(activity.id));
