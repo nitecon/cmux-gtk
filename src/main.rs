@@ -11,6 +11,7 @@ mod ghostty;
 mod header_bar;
 mod line_reader;
 mod menus;
+mod notification;
 mod preferences;
 mod selection;
 mod session;

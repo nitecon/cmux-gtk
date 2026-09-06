@@ -8,7 +8,7 @@ This table supersedes the historical checkpoint notes below. Inventory refreshed
 
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
-| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 85 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
+| Identify owned/required stacks | Architecture lists languages, roles and version sources. Tracked owned source has 86 Rust, 12 Go and one C file; no Swift, Objective-C `.m` or Zig files outside Ghostty. | Continue distinguishing runtime dependencies from retained upstream test tooling. |
 | Remove unnecessary legacy artifacts | Website, copied native headers/stubs, duplicate desktop asset and multiple absent-Swift/AppleScript tests removed. Complete Ghostty submodule preserved. | Audit remaining legacy protocol/debug tests and historical planning material before removing or adapting them. |
 | Document every owned function | Both Python clients and six maintained Python scripts have function docstrings; earlier Rust/Go declaration passes are recorded below. | Recursive Python AST scan finds zero undocumented declarations among 369 functions in 61 `tests` files, and zero among 142 functions in 6 `tests_v2` files. All 29 functions in the six maintained `scripts` Python files have docstrings. Audit unsupported scenarios before documenting them. Continue semantic review of existing contracts and embedded script helpers. |
 | Language standards and architecture | All seven linked standards files exist: Rust, Go, Python, Shell, C, Zig and Configuration. Architecture links Components, Observability and gateway adaptations. | Keep contracts aligned as ownership boundaries change. |
@@ -1609,3 +1609,8 @@ The tmux matrix combined existing navigation concepts with absent capture/pipe/h
 ### GTK persistence snapshot cost
 
 Added `session.snapshot` timing around main-thread model construction and watch-channel publication, distinguishing successful admission from a closed worker. Existing `session.save` timing covers only the later worker. This makes snapshot copying/replaced-tree destruction visible without introducing another queue or changing persistence behavior. The real GTK diagnostics fixture now requires construction/publication evidence alongside a successful save. All-target compilation, formatting and Python syntax checks pass; executable assertions await CI. Review confirms there is still no explicit final writer drain at quit; publication is not durability, and deferred resume/hooks were not started.
+
+
+### Bounded desktop notification ownership
+
+Replaced one unbounded waiting thread per desktop bell with four globally admitted async commands and no pending queue. Platform code constructs the Linux command; the app reuses the existing status-only child deadline/reaping helper, keeps per-workspace rate limiting and attention policy, and records delivery outcomes without payloads. Runtime shutdown requests child termination. Real-process CI coverage starts four sleeping children, rejects an extra command before it can create a marker, cancels and verifies child removal, then exercises execution expiry and admission reuse. Workspace/all-target compilation and formatting pass; runtime checks remain CI-only and pending.

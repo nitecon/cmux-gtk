@@ -26,6 +26,7 @@
   - src/task.rs
   - src/ssh/outbound.rs
   - src/ssh/metrics.rs
+  - src/notification.rs
 019df63f-c5cd-7b93-bde1-507cb33d958c:
   - src/session.rs
   - crates/cmux-platform/src/filesystem.rs

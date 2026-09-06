@@ -33,6 +33,12 @@ content:
       steps:
         - session.snapshot records GTK construction_us, total duration_us, workspace count and published or worker_closed outcome without user content. Publication cost includes replaced-snapshot destruction and excludes diagnostic recording.
         - session.save records worker serialization and atomic-write timing. Latest-value coalescing prevents one-to-one snapshot/save mapping; publication does not guarantee durability and shutdown does not explicitly drain the session writer.
+    - name: Desktop attention delivery
+      steps:
+        - Pane bells update GTK attention before optional desktop delivery. Preserve the per-workspace five-second rate limit and unfocused-window policy.
+        - The platform builds notify-send commands; src/notification.rs admits at most four async commands with no queue. Capacity rejection does not clear attention.
+        - Commands use five-second execution and up to five-second kill/reap cleanup through shared task helpers. Runtime shutdown cancels tasks with direct-child kill-on-drop. Success is helper exit, not desktop presentation.
+        - notification.delivery.begin/complete records workspace UUID, generated trace ID, elapsed time and fixed outcome plus optional OS error; rejected records report capacity. Never log workspace names, command arguments or notification content.
     - name: Workspace organization
       steps:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.

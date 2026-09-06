@@ -560,7 +560,15 @@ impl AppState {
                         .unwrap_or(true);
                     if should_notify {
                         self.workspaces[idx].last_notification = Some(std::time::Instant::now());
-                        cmux_platform::notification::terminal_bell(&self.workspaces[idx].name);
+                        if let Some(runtime) = &self.runtime_handle {
+                            crate::notification::send(
+                                runtime,
+                                cmux_platform::notification::terminal_bell(
+                                    &self.workspaces[idx].name,
+                                ),
+                                self.workspaces[idx].uuid,
+                            );
+                        }
                     }
                 }
                 break;
