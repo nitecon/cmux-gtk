@@ -20,3 +20,4 @@
 019df63f-151e-7a11-aa4c-be114fa39c76:
   - src/browser/ui.rs
   - src/browser.rs
+  - src/browser/input_queue.rs

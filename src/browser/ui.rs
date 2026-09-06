@@ -271,24 +271,10 @@ pub(crate) fn wire_browser_tab(
                 return;
             };
 
-            let s = state_for_click.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                // mousePressed + mouseReleased = click
-                let _ = bm.send_command(
-                    "input_mouse",
-                    serde_json::json!({
-                        "type": "mousePressed", "x": cx, "y": cy,
-                        "button": "left", "clickCount": 1
-                    }),
-                );
-                let _ = bm.send_command(
-                    "input_mouse",
-                    serde_json::json!({
-                        "type": "mouseReleased", "x": cx, "y": cy,
-                        "button": "left", "clickCount": 1
-                    }),
-                );
-            }
+            forward_mouse_input(&state_for_click, vec![
+                serde_json::json!({"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1}),
+                serde_json::json!({"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1}),
+            ]);
         });
         picture_ref.add_controller(click_ctrl);
 
@@ -330,17 +316,16 @@ pub(crate) fn wire_browser_tab(
             // CDP mouseWheel uses pixel delta; ~120px per scroll tick
             let delta_y = (dy * 120.0) as i64;
 
-            let s = state_for_scroll.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                let _ = bm.send_command(
-                    "input_mouse",
-                    serde_json::json!({
-                        "type": "mouseWheel", "x": cx, "y": cy,
-                        "deltaX": 0, "deltaY": delta_y
-                    }),
-                );
+            if forward_mouse_input(
+                &state_for_scroll,
+                vec![serde_json::json!({
+                    "type": "mouseWheel", "x": cx, "y": cy, "deltaX": 0, "deltaY": delta_y,
+                })],
+            ) {
+                gtk4::glib::Propagation::Stop
+            } else {
+                gtk4::glib::Propagation::Proceed
             }
-            gtk4::glib::Propagation::Stop
         });
         picture_ref.add_controller(scroll_ctrl);
 
@@ -349,33 +334,43 @@ pub(crate) fn wire_browser_tab(
         // Bubble phase so cmux capture-phase shortcuts (Ctrl+Shift+B etc) take priority
         key_ctrl.set_propagation_phase(gtk4::PropagationPhase::Bubble);
         let state_for_key = Rc::downgrade(state);
-        key_ctrl.connect_key_pressed(move |_ctrl, keyval, _keycode, mods| {
-            let Some(state_for_key) = state_for_key.upgrade() else {
+        key_ctrl.connect_key_pressed(move |_ctrl, keyval, keycode, mods| {
+            let Some(state) = state_for_key.upgrade() else {
                 return gtk4::glib::Propagation::Proceed;
-            };
-            let s = state_for_key.borrow();
-            let bm = match s.browser_manager.as_ref() {
-                Some(bm) => bm,
-                None => return gtk4::glib::Propagation::Proceed,
             };
             let Some(params) = keyboard_event(keyval, mods, true) else {
                 return gtk4::glib::Propagation::Proceed;
             };
-            let _ = bm.send_command("input_keyboard", params);
-            gtk4::glib::Propagation::Stop
-        });
-        let state_for_keyup = Rc::downgrade(state);
-        key_ctrl.connect_key_released(move |_ctrl, keyval, _keycode, mods| {
-            let Some(state_for_keyup) = state_for_keyup.upgrade() else {
-                return;
-            };
-            let s = state_for_keyup.borrow();
-            if let Some(ref bm) = s.browser_manager {
-                if let Some(params) = keyboard_event(keyval, mods, false) {
-                    let _ = bm.send_command("input_keyboard", params);
-                }
+            if forward_key_input(&state, keycode, true, params) {
+                gtk4::glib::Propagation::Stop
+            } else {
+                gtk4::glib::Propagation::Proceed
             }
         });
+        let state_for_keyup = Rc::downgrade(state);
+        key_ctrl.connect_key_released(move |_ctrl, keyval, keycode, mods| {
+            let Some(state) = state_for_keyup.upgrade() else {
+                return;
+            };
+            if let Some(params) = keyboard_event(keyval, mods, false) {
+                forward_key_input(&state, keycode, false, params);
+            }
+        });
+        let focus = gtk4::EventControllerFocus::new();
+        let state_for_blur = Rc::downgrade(state);
+        let session_for_blur = state
+            .borrow()
+            .browser_manager
+            .as_ref()
+            .map(|browser| browser.session_name.clone());
+        focus.connect_leave(move |_| {
+            if let (Some(state), Some(session)) =
+                (state_for_blur.upgrade(), session_for_blur.as_ref())
+            {
+                release_browser_keys(state, session.clone());
+            }
+        });
+        picture_ref.add_controller(focus);
         picture_ref.set_focusable(true);
         picture_ref.add_controller(key_ctrl);
     }
@@ -525,6 +520,53 @@ fn restore_mapped_browser_url(state: Rc<RefCell<AppState>>, url: String) {
             crate::diagnostics::event(format_args!("browser map navigation failed error={error}"));
         }
     }
+}
+
+/// Release held keys for the originating manager; defer focus signals emitted during model mutation.
+fn release_browser_keys(state: Rc<RefCell<AppState>>, session: String) {
+    if let Ok(mut s) = state.try_borrow_mut() {
+        if let Some(browser) = s
+            .browser_manager
+            .as_mut()
+            .filter(|browser| browser.session_name == session)
+        {
+            browser.release_input_keys();
+        }
+    } else {
+        let state = Rc::downgrade(&state);
+        glib::idle_add_local_once(move || {
+            if let Some(state) = state.upgrade() {
+                release_browser_keys(state, session);
+            }
+        });
+    }
+}
+
+/// Admit a mouse gesture under a short GTK borrow; the manager owns ordered socket delivery.
+fn forward_mouse_input(state: &Rc<RefCell<AppState>>, events: Vec<serde_json::Value>) -> bool {
+    let mut s = state.borrow_mut();
+    let Some(runtime) = s.runtime_handle.clone() else {
+        return false;
+    };
+    s.browser_manager
+        .as_mut()
+        .is_some_and(|browser| browser.queue_mouse(&runtime, events))
+}
+
+/// Admit a physical key transition without blocking GTK, reserving future release capacity.
+fn forward_key_input(
+    state: &Rc<RefCell<AppState>>,
+    physical: u32,
+    pressed: bool,
+    params: serde_json::Value,
+) -> bool {
+    let mut s = state.borrow_mut();
+    let Some(runtime) = s.runtime_handle.clone() else {
+        return false;
+    };
+    s.browser_manager
+        .as_mut()
+        .is_some_and(|browser| browser.queue_key(&runtime, physical, pressed, params))
 }
 
 /// Run history navigation on Tokio and update its surviving address widget on GTK.

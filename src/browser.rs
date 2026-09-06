@@ -4,6 +4,7 @@ mod cli;
 mod discovery;
 mod frames;
 mod input;
+mod input_queue;
 pub(crate) mod metrics;
 mod motion;
 mod pixels;
@@ -55,6 +56,7 @@ pub struct BrowserManager {
     navigation_shutdown: tokio::sync::watch::Sender<bool>,
     binary_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
+    input_queue: Option<input_queue::InputQueue>,
 
     pub preview_state: PreviewState,
 }
@@ -70,6 +72,7 @@ impl BrowserManager {
             navigation_shutdown: tokio::sync::watch::channel(false).0,
             binary_path: None,
             stream_task: None,
+            input_queue: None,
             preview_state: PreviewState::Empty,
         }
     }
@@ -342,6 +345,49 @@ impl BrowserManager {
         }
     }
 
+    /// Lazily attach an ordered input worker to this manager and runtime.
+    fn input_queue(&mut self, runtime: &tokio::runtime::Handle) -> &mut input_queue::InputQueue {
+        let path = self.daemon_socket_path();
+        self.input_queue
+            .get_or_insert_with(|| input_queue::InputQueue::new(runtime, path))
+    }
+
+    /// Queue an entire mouse gesture; report overload without retaining payloads in diagnostics.
+    fn queue_mouse(&mut self, runtime: &tokio::runtime::Handle, events: Vec<Value>) -> bool {
+        let batch = events
+            .into_iter()
+            .map(|params| Self::command_request("input_mouse", params))
+            .collect();
+        let admitted = self.input_queue(runtime).send(batch);
+        if !admitted {
+            crate::diagnostics::record("browser.input.overloaded", serde_json::json!({}));
+        }
+        admitted
+    }
+
+    /// Queue physical key transitions while reserving a slot for every admitted key release.
+    fn queue_key(
+        &mut self,
+        runtime: &tokio::runtime::Handle,
+        physical: u32,
+        pressed: bool,
+        params: Value,
+    ) -> bool {
+        let request = Self::command_request("input_keyboard", params);
+        let admitted = self.input_queue(runtime).key(physical, pressed, request);
+        if !admitted {
+            crate::diagnostics::record("browser.input.overloaded", serde_json::json!({}));
+        }
+        admitted
+    }
+
+    /// Release browser keys when the preview loses GTK focus.
+    fn release_input_keys(&mut self) {
+        if let Some(queue) = self.input_queue.as_mut() {
+            queue.release_keys();
+        }
+    }
+
     /// Send a newline-delimited JSON command to the daemon socket.
     pub fn send_command(&self, action: &str, params: Value) -> Result<Value, String> {
         transport::request(
@@ -427,6 +473,7 @@ impl BrowserManager {
     /// Allow up to one second for admitted navigation to release before the five-second exchange.
     pub fn shutdown(mut self) -> impl std::future::Future<Output = ()> + Send + 'static {
         self.stop_navigation();
+        self.input_queue.take();
         self.stop_stream();
         let gate = self.navigation_gate.clone();
         let close = self.send_command_async("close", serde_json::json!({}));
@@ -467,6 +514,7 @@ impl Drop for BrowserManager {
     /// Cancel owned navigation and frame work without issuing blocking browser commands.
     fn drop(&mut self) {
         self.stop_navigation();
+        self.input_queue.take();
         self.stop_stream();
     }
 }
