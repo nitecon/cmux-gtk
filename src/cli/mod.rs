@@ -129,7 +129,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     if matches!(
         &cli.command,
         Commands::Hooks {
-            command: args::HookCommands::Claude { .. }
+            command: args::HookCommands::Claude { .. } | args::HookCommands::Codex { .. }
         }
     ) && std::env::var_os("CMUX_SURFACE_ID").is_none()
         && cli.socket.is_none()
@@ -168,6 +168,12 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     } = &cli.command
     {
         return hooks::claude_event(&mut client, *event);
+    }
+    if let Commands::Hooks {
+        command: args::HookCommands::Codex { event },
+    } = &cli.command
+    {
+        return hooks::codex_event(&mut client, *event);
     }
 
     if let Commands::Restore {

@@ -124,15 +124,16 @@ complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l json -d 'O
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -s h -l help -d 'Print help'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -l color -d 'Color mode: always, never, auto' -r
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -l json -d 'Output raw JSON responses'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -s v -l verbose -d 'Verbose output (connection info to stderr)'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -s h -l help -d 'Print help'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -l json -d 'Output raw JSON responses'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -s v -l verbose -d 'Verbose output (connection info to stderr)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -s h -l help -d 'Print help'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -f -a "codex" -d 'Receive a Codex lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l color -d 'Color mode: always, never, auto' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l json -d 'Output raw JSON responses'
@@ -150,8 +151,19 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "notification"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -l json -d 'Output raw JSON responses'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -s v -l verbose -d 'Verbose output (connection info to stderr)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -s h -l help -d 'Print help'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "session-end"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "stop"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "codex" -d 'Receive a Codex lifecycle hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand restore" -l surface -r
 complete -c cmux -n "__fish_cmux_using_subcommand restore" -l checkpoint -r
@@ -903,6 +915,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand help; and not __fish_seen_subc
 complete -c cmux -n "__fish_cmux_using_subcommand help; and not __fish_seen_subcommand_from claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "codex" -d 'Receive a Codex lifecycle hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from surface" -f -a "resume" -d 'Register or inspect a saved resume command (does not execute it)'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from notifications" -f -a "list" -d 'List retained messages and read state'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from notifications" -f -a "clear" -d 'Remove all messages, or messages in an explicit workspace/surface scope'

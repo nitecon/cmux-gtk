@@ -231,6 +231,98 @@ esac
     ;;
 esac
 ;;
+(codex)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__codex_commands" \
+"*::: :->codex" \
+&& ret=0
+
+    case $state in
+    (codex)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-codex-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__codex__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-codex-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -272,6 +364,34 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(codex)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__codex_commands" \
+"*::: :->codex" \
+&& ret=0
+
+    case $state in
+    (codex)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-codex-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1905,6 +2025,34 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(codex)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__codex_commands" \
+"*::: :->codex" \
+&& ret=0
+
+    case $state in
+    (codex)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-codex-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -3115,6 +3263,7 @@ _cmux__help__hooks_commands() {
     local commands; commands=(
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
+'codex:Receive a Codex lifecycle hook payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -3147,6 +3296,30 @@ _cmux__help__hooks__claude__session-start_commands() {
 _cmux__help__hooks__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks claude stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codex_commands] )) ||
+_cmux__help__hooks__codex_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+    )
+    _describe -t commands 'cmux help hooks codex commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codex__session-end_commands] )) ||
+_cmux__help__hooks__codex__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codex session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codex__session-start_commands] )) ||
+_cmux__help__hooks__codex__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codex session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codex__stop_commands] )) ||
+_cmux__help__hooks__codex__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codex stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__setup_commands] )) ||
 _cmux__help__hooks__setup_commands() {
@@ -3441,6 +3614,7 @@ _cmux__hooks_commands() {
     local commands; commands=(
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
+'codex:Receive a Codex lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -3512,11 +3686,67 @@ _cmux__hooks__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks claude stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__codex_commands] )) ||
+_cmux__hooks__codex_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks codex commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help_commands] )) ||
+_cmux__hooks__codex__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks codex help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help__help_commands] )) ||
+_cmux__hooks__codex__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help__session-end_commands] )) ||
+_cmux__hooks__codex__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help__session-start_commands] )) ||
+_cmux__hooks__codex__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help__stop_commands] )) ||
+_cmux__hooks__codex__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__session-end_commands] )) ||
+_cmux__hooks__codex__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__session-start_commands] )) ||
+_cmux__hooks__codex__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__stop_commands] )) ||
+_cmux__hooks__codex__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help_commands] )) ||
 _cmux__hooks__help_commands() {
     local commands; commands=(
 'setup:Install supported hooks while preserving unrelated agent configuration' \
 'claude:Receive a Claude Code hook payload on stdin' \
+'codex:Receive a Codex lifecycle hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -3550,6 +3780,30 @@ _cmux__hooks__help__claude__session-start_commands() {
 _cmux__hooks__help__claude__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help claude stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codex_commands] )) ||
+_cmux__hooks__help__codex_commands() {
+    local commands; commands=(
+'session-start:' \
+'session-end:' \
+'stop:' \
+    )
+    _describe -t commands 'cmux hooks help codex commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codex__session-end_commands] )) ||
+_cmux__hooks__help__codex__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codex session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codex__session-start_commands] )) ||
+_cmux__hooks__help__codex__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codex session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codex__stop_commands] )) ||
+_cmux__hooks__help__codex__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codex stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__help_commands] )) ||
 _cmux__hooks__help__help_commands() {

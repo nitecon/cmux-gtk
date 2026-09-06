@@ -32,6 +32,12 @@ content:
         - cmux hooks claude session-start/session-end accepts at most 65536 stdin bytes and requires a matching hook_event_name, native session_id and originating surface identity. Start records a quoted absolute provider command, native checkpoint, absolute cwd and only known configuration directory overrides. End clears only that checkpoint.
         - Context-free implicit hooks outside cmux skip successfully; explicit sockets retain connection failures. Hook-created bindings are not automatically trusted. Stop forwards last_assistant_message and Notification forwards title/message/notification_type into the exact surface inbox without changing the resume binding or focusing the source. Text is visibly truncated at UTF-8 boundaries to inbox limits. Other providers remain incomplete.
 
+    - name: Codex native lifecycle hooks
+      steps:
+        - cmux hooks setup codex merges owned SessionStart, Stop and SessionEnd command handlers into CODEX_HOME/hooks.json or HOME/.codex/hooks.json using Codex's documented nested lifecycle schema. Repeated setup preserves unrelated matcher groups and is byte-stable; malformed, oversized and symlink files fail without replacement.
+        - Each callback accepts at most 65536 stdin bytes and requires the documented hook_event_name, native session_id, absolute cwd and originating CMUX_SURFACE_ID. SessionStart binds the absolute Codex executable as codex resume SESSION_ID and retains only CODEX_HOME. SessionEnd clears only the matching native checkpoint.
+        - Stop routes bounded summary, message or assistant text into the exact surface inbox without selecting it. Context-free implicit callbacks skip outside cmux while explicit missing sockets fail. Hooks remain manually trusted until an exact or prefix approval is recorded.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.

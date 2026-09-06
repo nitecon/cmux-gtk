@@ -466,6 +466,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: ClaudeHookEvent,
     },
+    /// Receive a Codex lifecycle hook payload on stdin
+    Codex {
+        #[command(subcommand)]
+        event: CodexHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.
@@ -475,6 +480,13 @@ pub enum ClaudeHookEvent {
     SessionEnd,
     Stop,
     Notification,
+}
+
+#[derive(Clone, Copy, Subcommand)]
+pub enum CodexHookEvent {
+    SessionStart,
+    SessionEnd,
+    Stop,
 }
 
 /// Manual resume binding controls; automatic execution is a separate hook policy.

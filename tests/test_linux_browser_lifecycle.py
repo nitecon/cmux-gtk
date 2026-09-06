@@ -208,7 +208,7 @@ def main():
                 assert {row["uuid"] for row in app.surfaces() if row["active"]} == {layout_workspace["surface_id"]}
                 app.wait_for(lambda: len(set(browser_dir.glob("*.pid")) - before_daemons) == 1,
                              "custom-layout browser daemon")
-                app.wait_for(lambda: json.loads((browser_dir / "last-navigation.json").read_text())["url"] == "https://layout.example/path",
+                app.wait_for(lambda: json.loads((browser_dir / "last-launch.json").read_text())["url"] == "https://layout.example/path",
                              "custom-layout browser navigation")
                 layout_daemon = set(browser_dir.glob("*.pid")) - before_daemons
                 app.cli("close-workspace", layout_workspace["workspace_id"])

@@ -625,6 +625,9 @@ _cmux() {
             cmux__help__hooks,claude)
                 cmd="cmux__help__hooks__claude"
                 ;;
+            cmux__help__hooks,codex)
+                cmd="cmux__help__hooks__codex"
+                ;;
             cmux__help__hooks,setup)
                 cmd="cmux__help__hooks__setup"
                 ;;
@@ -639,6 +642,15 @@ _cmux() {
                 ;;
             cmux__help__hooks__claude,stop)
                 cmd="cmux__help__hooks__claude__stop"
+                ;;
+            cmux__help__hooks__codex,session-end)
+                cmd="cmux__help__hooks__codex__session__end"
+                ;;
+            cmux__help__hooks__codex,session-start)
+                cmd="cmux__help__hooks__codex__session__start"
+                ;;
+            cmux__help__hooks__codex,stop)
+                cmd="cmux__help__hooks__codex__stop"
                 ;;
             cmux__help__notifications,clear)
                 cmd="cmux__help__notifications__clear"
@@ -672,6 +684,9 @@ _cmux() {
                 ;;
             cmux__hooks,claude)
                 cmd="cmux__hooks__claude"
+                ;;
+            cmux__hooks,codex)
+                cmd="cmux__hooks__codex"
                 ;;
             cmux__hooks,help)
                 cmd="cmux__hooks__help"
@@ -709,8 +724,35 @@ _cmux() {
             cmux__hooks__claude__help,stop)
                 cmd="cmux__hooks__claude__help__stop"
                 ;;
+            cmux__hooks__codex,help)
+                cmd="cmux__hooks__codex__help"
+                ;;
+            cmux__hooks__codex,session-end)
+                cmd="cmux__hooks__codex__session__end"
+                ;;
+            cmux__hooks__codex,session-start)
+                cmd="cmux__hooks__codex__session__start"
+                ;;
+            cmux__hooks__codex,stop)
+                cmd="cmux__hooks__codex__stop"
+                ;;
+            cmux__hooks__codex__help,help)
+                cmd="cmux__hooks__codex__help__help"
+                ;;
+            cmux__hooks__codex__help,session-end)
+                cmd="cmux__hooks__codex__help__session__end"
+                ;;
+            cmux__hooks__codex__help,session-start)
+                cmd="cmux__hooks__codex__help__session__start"
+                ;;
+            cmux__hooks__codex__help,stop)
+                cmd="cmux__hooks__codex__help__stop"
+                ;;
             cmux__hooks__help,claude)
                 cmd="cmux__hooks__help__claude"
+                ;;
+            cmux__hooks__help,codex)
+                cmd="cmux__hooks__help__codex"
                 ;;
             cmux__hooks__help,help)
                 cmd="cmux__hooks__help__help"
@@ -729,6 +771,15 @@ _cmux() {
                 ;;
             cmux__hooks__help__claude,stop)
                 cmd="cmux__hooks__help__claude__stop"
+                ;;
+            cmux__hooks__help__codex,session-end)
+                cmd="cmux__hooks__help__codex__session__end"
+                ;;
+            cmux__hooks__help__codex,session-start)
+                cmd="cmux__hooks__help__codex__session__start"
+                ;;
+            cmux__hooks__help__codex,stop)
+                cmd="cmux__hooks__help__codex__stop"
                 ;;
             cmux__notifications,clear)
                 cmd="cmux__notifications__clear"
@@ -2818,7 +2869,7 @@ _cmux() {
             return 0
             ;;
         cmux__help__hooks)
-            opts="setup claude"
+            opts="setup claude codex"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2888,6 +2939,62 @@ _cmux() {
             return 0
             ;;
         cmux__help__hooks__claude__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__codex)
+            opts="session-start session-end stop"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__codex__session__end)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__codex__session__start)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__codex__stop)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -3672,7 +3779,7 @@ _cmux() {
             return 0
             ;;
         cmux__hooks)
-            opts="-v -h --socket --json --no-json --verbose --color --help setup claude help"
+            opts="-v -h --socket --json --no-json --verbose --color --help setup claude codex help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3887,8 +3994,166 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__hooks__codex)
+            opts="-v -h --socket --json --no-json --verbose --color --help session-start session-end stop help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__help)
+            opts="session-start session-end stop help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__help__session__end)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__help__session__start)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__help__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__session__end)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__session__start)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__codex__stop)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__hooks__help)
-            opts="setup claude help"
+            opts="setup claude codex help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3958,6 +4223,62 @@ _cmux() {
             return 0
             ;;
         cmux__hooks__help__claude__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__codex)
+            opts="session-start session-end stop"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__codex__session__end)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__codex__session__start)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__codex__stop)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

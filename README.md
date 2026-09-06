@@ -166,7 +166,8 @@ cmux split --direction horizontal  # split current pane
 cmux list-panes                # list all panes
 
 # Agent teamwork
-cmux hooks setup claude        # install native session/notification hooks once
+cmux hooks setup               # install detected Claude and Codex hooks
+cmux hooks setup codex         # install only Codex lifecycle hooks
 cmux claude-teams              # launch Claude teams in native cmux splits
 cmux claude-teams --model sonnet  # forward ordinary Claude arguments
 
