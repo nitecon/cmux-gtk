@@ -50,7 +50,13 @@ impl RestoreContext<'_> {
         PaneSurface::Terminal {
             gl_area,
             uuid,
-            resume: resume.filter(|binding| binding.validate().is_ok()).cloned(),
+            resume: resume
+                .filter(|binding| binding.validate().is_ok())
+                .cloned()
+                .map(|mut binding| {
+                    binding.sanitize_environment();
+                    binding
+                }),
         }
     }
 }

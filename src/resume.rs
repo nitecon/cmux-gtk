@@ -13,11 +13,39 @@ pub struct ResumeBinding {
     pub cwd: Option<String>,
     #[serde(default)]
     pub checkpoint_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "environment_or_empty")]
     pub environment: BTreeMap<String, String>,
 }
 
+/// Treat an omitted or explicit null environment as no overrides, matching upstream payloads.
+fn environment_or_empty<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<BTreeMap<String, String>, D::Error> {
+    use serde::Deserialize;
+    Ok(Option::<BTreeMap<String, String>>::deserialize(deserializer)?.unwrap_or_default())
+}
+
 impl ResumeBinding {
+    /// Drop secret-like overrides and application routing identities before persistence or launch.
+    /// Ambient process credentials remain managed by the user's shell, not by saved metadata.
+    pub fn sanitize_environment(&mut self) {
+        self.environment.retain(|key, _| {
+            let key = key.to_ascii_uppercase();
+            !key.starts_with("CMUX_")
+                && ![
+                    "TOKEN",
+                    "PASSWORD",
+                    "SECRET",
+                    "API_KEY",
+                    "APIKEY",
+                    "ACCESS_KEY",
+                    "PRIVATE_KEY",
+                    "CREDENTIAL",
+                ]
+                .iter()
+                .any(|part| key.contains(part))
+        });
+    }
     /// Validate both incoming and persisted metadata without logging commands or environment values.
     /// Commands are shell text, not parsed argv; NUL, invalid environment names and oversize data fail.
     pub fn validate(&self) -> Result<(), &'static str> {
@@ -90,5 +118,25 @@ mod tests {
         assert!(binding.validate().is_err());
         binding.command = "bad\0command".into();
         assert!(binding.validate().is_err());
+    }
+
+    /// Null maps are compatible and persisted overrides omit secrets and routing identities.
+    #[test]
+    fn environment_sanitization() {
+        let mut binding: ResumeBinding = serde_json::from_value(serde_json::json!({
+            "command": "true", "environment": null
+        }))
+        .unwrap();
+        assert!(binding.environment.is_empty());
+        binding.environment.extend([
+            ("SERVICE_API_KEY".into(), "secret".into()),
+            ("CMUX_SOCKET".into(), "/wrong".into()),
+            ("CLAUDE_SECURESTORAGE_CONFIG_DIR".into(), "/settings".into()),
+        ]);
+        binding.sanitize_environment();
+        assert_eq!(
+            binding.environment,
+            BTreeMap::from([("CLAUDE_SECURESTORAGE_CONFIG_DIR".into(), "/settings".into())])
+        );
     }
 }

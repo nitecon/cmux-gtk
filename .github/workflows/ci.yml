@@ -156,6 +156,9 @@ jobs:
       - name: Test final session save on immediate quit
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_session_quit.py
 
+      - name: Test manual resume in its owning terminal
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_resume.py
+
       - name: Test process diagnostics and request correlation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diagnostics.py
 

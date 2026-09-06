@@ -7,6 +7,9 @@
 mod bounded_json;
 use cmux_platform::discovery;
 pub mod format;
+#[path = "../resume.rs"]
+#[allow(dead_code)]
+mod resume;
 pub mod socket_client;
 #[path = "../updater.rs"]
 #[allow(dead_code)]
@@ -18,6 +21,60 @@ mod args;
 pub use args::{BrowserCommand, Cli, Commands};
 use std::io::Write;
 use std::time::Duration;
+
+/// Replace this CLI in its owning local terminal with an explicitly requested saved command.
+/// Validate identity/checkpoint/location before exec; never inject text into a foreground application.
+fn restore_terminal(
+    mut client: socket_client::SocketClient,
+    surface: Option<&str>,
+    checkpoint: Option<&str>,
+) -> Result<(), CliError> {
+    use std::io::IsTerminal;
+    let current = std::env::var("CMUX_SURFACE_ID").ok();
+    let surface = surface
+        .ok_or_else(|| CliError::Command("restore requires a cmux terminal surface".into()))?;
+    if current.as_deref() != Some(surface) || !std::io::stdin().is_terminal() {
+        return Err(CliError::Command(
+            "run restore inside the target cmux terminal".into(),
+        ));
+    }
+    let response = client.call(
+        "surface.resume.show",
+        serde_json::json!({"surface_id": surface}),
+    )?;
+    if response
+        .get("execution_location")
+        .and_then(|value| value.as_str())
+        != Some("local")
+    {
+        return Err(CliError::Command(
+            "remote resume must run through its remote workspace transport".into(),
+        ));
+    }
+    let mut binding: resume::ResumeBinding =
+        serde_json::from_value(response.get("resume_binding").cloned().unwrap_or_default())
+            .map_err(|_| CliError::Command("terminal has no usable resume binding".into()))?;
+    binding
+        .validate()
+        .map_err(|error| CliError::Command(error.into()))?;
+    binding.sanitize_environment();
+    if checkpoint.is_some() && checkpoint != binding.checkpoint_id.as_deref() {
+        return Err(CliError::Command("checkpoint mismatch".into()));
+    }
+    let mut command = std::process::Command::new("/bin/sh");
+    command
+        .arg("-c")
+        .arg(&binding.command)
+        .envs(&binding.environment);
+    if let Some(cwd) = binding.cwd.as_ref().filter(|cwd| !cwd.is_empty()) {
+        command.current_dir(cwd);
+    }
+    drop(client);
+    Err(CliError::Command(format!(
+        "resume launch failed: {}",
+        cmux_platform::process::replace_current(&mut command)
+    )))
+}
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
@@ -46,6 +103,14 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     };
 
     let mut client = socket_client::SocketClient::connect(&socket_path, timeout)?;
+
+    if let Commands::Restore {
+        surface,
+        checkpoint,
+    } = &cli.command
+    {
+        return restore_terminal(client, surface.as_deref(), checkpoint.as_deref());
+    }
 
     if cli.verbose {
         eprintln!("Connected to {}", socket_path);
@@ -315,6 +380,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
                 json!({"surface_id": surface, "checkpoint_id": checkpoint}),
             ),
         },
+        Commands::Restore { .. } => unreachable!("restore executes in the caller terminal"),
         Commands::ListSurfaces => ("surface.list", json!({})),
         Commands::Split { direction, id } => {
             let mut p = serde_json::Map::new();

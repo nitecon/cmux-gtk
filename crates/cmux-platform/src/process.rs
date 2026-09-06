@@ -3,6 +3,13 @@
 use std::io;
 use std::io::Read;
 
+/// Replace the calling process with a prepared command, retaining its terminal descriptors.
+/// Success never returns; an exec failure returns the OS error without spawning a second process.
+pub fn replace_current(command: &mut std::process::Command) -> io::Error {
+    use std::os::unix::process::CommandExt;
+    command.exec()
+}
+
 /// Read the first kernel CPU model name from at most 64 KiB of procfs data.
 /// Blocking worker-only I/O; None means unavailable or unsupported, not generic hardware.
 /// This identifies one reported model, not every CPU in a heterogeneous system.

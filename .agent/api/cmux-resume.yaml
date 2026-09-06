@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Terminal resume binding metadata
 space: cmux-gtk
 slug: terminal-resume
-summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; execution and hook policy remain in progress.
+summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual execution supported; automatic hook policy remains in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/resume.rs
@@ -14,8 +14,8 @@ content:
       steps:
         - CLI surface resume set accepts --surface UUID, --shell COMMAND, --kind, --checkpoint, --cwd and --name. Surface defaults from CMUX_SURFACE_ID, otherwise to the selected surface.
         - Socket surface.resume.set accepts surface_id (or id), command, name, kind, cwd, checkpoint_id and environment string map. Exact UUID targeting searches all workspaces without selecting them. Browser and stale targets fail.
-        - surface.resume.show returns surface_id, workspace_id, resume_binding and auto_resume=false. A missing binding is null. Metadata registration never launches a process.
-        - Bindings allow at most 16384 bytes per value, 65536 total bytes and 64 environment entries. NUL bytes and non-shell-variable environment names fail before GTK admission. Restored bindings are validated again.
+        - surface.resume.show returns surface_id, workspace_id, resume_binding and auto_resume=false. A missing binding is null. Metadata registration never launches a process. execution_location identifies local versus remote_ssh bindings.
+        - Bindings allow at most 16384 bytes per value, 65536 total bytes and 64 environment entries. NUL bytes and non-shell-variable environment names fail before GTK admission. Null environment maps mean no overrides. Secret-like keys and CMUX routing overrides are dropped before storage and again before restore/launch.
     - name: Clear without deleting a newer checkpoint
       steps:
         - surface.resume.clear accepts optional checkpoint_id. A mismatch returns conflict and retains the binding. Omission explicitly clears unconditionally.
@@ -23,5 +23,5 @@ content:
     - name: Persistence and execution boundary
       steps:
         - Bindings live in their terminal entry in the pane layout; normal snapshot/save and final quit drain persist them. New sibling/split terminals start without a binding.
-        - This checkpoint implements manual metadata only. Automatic requests return not_supported until a configured hook/approval policy exists. Untrusted source strings do not confer automatic launch authority.
-        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Launching, provider hooks and lifecycle metrics remain part of the active parity goal.
+        - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Automatic requests return not_supported until a configured hook/approval policy exists. Untrusted source strings do not confer automatic launch authority.
+        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Provider hooks, automatic approval, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.

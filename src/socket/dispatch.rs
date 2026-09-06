@@ -141,7 +141,7 @@ async fn dispatch_request(
                             "automatic resume requires a configured hook policy",
                         );
                     }
-                    let binding =
+                    let mut binding =
                         match serde_json::from_value::<crate::resume::ResumeBinding>(params.take())
                         {
                             Ok(binding) => binding,
@@ -156,6 +156,7 @@ async fn dispatch_request(
                     if let Err(message) = binding.validate() {
                         return err(req_id, "invalid_params", message);
                     }
+                    binding.sanitize_environment();
                     crate::resume::ResumeAction::Set(binding)
                 }
                 "surface.resume.clear" => {

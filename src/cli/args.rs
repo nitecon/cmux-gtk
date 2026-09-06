@@ -33,6 +33,13 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Execute this terminal's saved manual resume command in the calling terminal
+    Restore {
+        #[arg(long, env = "CMUX_SURFACE_ID")]
+        surface: Option<String>,
+        #[arg(long)]
+        checkpoint: Option<String>,
+    },
     /// Manage persistent terminal surface state
     Surface {
         #[command(subcommand)]

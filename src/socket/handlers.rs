@@ -537,7 +537,8 @@ fn handle_socket_command_traced(
                         ok(
                             req_id,
                             json!({"surface_id": id, "workspace_id": s.workspaces[index].uuid,
-                            "resume_binding": binding, "auto_resume": false}),
+                            "resume_binding": binding, "auto_resume": false,
+                            "execution_location": if s.workspaces[index].remote_target.is_some() { "remote_ssh" } else { "local" }}),
                         )
                     }
                     Err(message) => err(

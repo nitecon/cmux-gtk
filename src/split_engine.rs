@@ -216,6 +216,12 @@ fn append_pane_surface(
     surface: PaneSurface,
     select: bool,
 ) -> u32 {
+    if let PaneSurface::Terminal { gl_area, uuid, .. } = &surface {
+        // SAFETY: this private key always stores a UUID, before page realization.
+        unsafe {
+            gl_area.set_data("cmux-surface-uuid", *uuid);
+        }
+    }
     let label = surface_tab_label(&surface);
     let page = notebook.append_page(&surface.widget(), Some(&label));
     notebook.set_tab_reorderable(&surface.widget(), true);
