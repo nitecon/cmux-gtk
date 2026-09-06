@@ -22,3 +22,7 @@ content:
     - Raw definitions also produce typed command, agent, builtin, workspaceCommand, workspace or metadata intent using upstream explicit-type/inference precedence.
     - Terminal targets are currentTerminal or newTabInCurrentPane, defaulting to new sibling tab. Required executable strings reject blank, NUL and oversized content; literal shell text is preserved. Presentation booleans/strings/keywords are bounded and type-checked.
     - Workspace payloads remain raw objects and builtin names await capability resolution. This is not a validated execution plan. Runtime tests for inference, target and malformed fields await Actions.
+
+  builtin_identity:
+    - Builtin names resolve through a closed enum retaining all inspected upstream canonical IDs and aliases; unknown names fail validation.
+    - Canonical identity is distinct from execution availability. Agent-chat/cloud/mobile/simulator adaptation and project action dispatch remain outstanding; aliases are covered by Actions tests.

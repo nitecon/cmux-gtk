@@ -354,3 +354,7 @@ Added [project action resolution](ProjectActions.md) and offline `cmux project-a
 ### Typed project action intent
 
 Read-only action inspection now reports typed intent/target and rejects malformed command/agent fields, targets, presentation booleans and unknown action types. Workspace layouts and builtin capability resolution remain incomplete, along with execution and palette integration. Strict Clippy passes; Actions runtime pending. Earlier SOCKS transport foundation ce95b481 passed full Actions run 34058349025.
+
+### Project builtin identity validation
+
+Builtin actions now resolve upstream aliases into explicit canonical identities and reject unknown names. Recognized but unimplemented platform features remain represented; no execution or parity completion is implied. Strict Clippy passes; runtime tests await Actions.

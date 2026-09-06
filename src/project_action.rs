@@ -11,6 +11,53 @@ pub enum Target {
     NewTabInCurrentPane,
 }
 
+/// Canonical upstream builtin identifiers; recognition does not imply this platform implements them.
+#[derive(Debug, Serialize, PartialEq)]
+pub enum Builtin {
+    #[serde(rename = "cmux.newWorkspace")]
+    NewWorkspace,
+    #[serde(rename = "cmux.newAgentChat")]
+    NewAgentChat,
+    #[serde(rename = "cmux.cloudvm")]
+    CloudVm,
+    #[serde(rename = "cmux.mobileconnect")]
+    MobileConnect,
+    #[serde(rename = "cmux.newTerminal")]
+    NewTerminal,
+    #[serde(rename = "cmux.newBrowser")]
+    NewBrowser,
+    #[serde(rename = "cmux.newSimulator")]
+    NewSimulator,
+    #[serde(rename = "cmux.splitRight")]
+    SplitRight,
+    #[serde(rename = "cmux.splitDown")]
+    SplitDown,
+}
+
+impl Builtin {
+    /// Normalize upstream spelling aliases; unknown names never become executable string dispatch.
+    fn parse(name: &str) -> Result<Self, String> {
+        Ok(match name.trim() {
+            "cmux.newWorkspace" | "newWorkspace" => Self::NewWorkspace,
+            "cmux.newAgentChat" | "cmux.agentChat" | "newAgentChat" | "new-agent-chat"
+            | "agentChat" => Self::NewAgentChat,
+            "cmux.cloudvm" | "cmux.cloudVM" | "cloudVM" | "cloudvm" | "cmux.newCloudVM"
+            | "cmux.newCloudVm" | "newCloudVM" | "newCloudVm" | "cmux.startCloudVM"
+            | "cmux.startCloudVm" | "startCloudVM" | "startCloudVm" => Self::CloudVm,
+            "cmux.mobileconnect" | "cmux.mobileConnect" | "mobileConnect" | "mobileconnect"
+            | "cmux.connectPhone" | "connectPhone" => Self::MobileConnect,
+            "cmux.newTerminal" | "newTerminal" => Self::NewTerminal,
+            "cmux.newBrowser" | "newBrowser" => Self::NewBrowser,
+            "cmux.newSimulator" | "newSimulator" | "new-simulator" | "simulator" => {
+                Self::NewSimulator
+            }
+            "cmux.splitRight" | "splitRight" => Self::SplitRight,
+            "cmux.splitDown" | "splitDown" => Self::SplitDown,
+            _ => return Err("unknown builtin action".into()),
+        })
+    }
+}
+
 /// Recognized action families; workspace layout validation remains a separate implementation gate.
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -18,7 +65,7 @@ pub enum Intent {
     Metadata,
     Command { command: String },
     Agent { agent: String, args: Option<String> },
-    Builtin { builtin: String },
+    Builtin { builtin: Builtin },
     WorkspaceCommand { name: String },
     Workspace { workspace: Value },
 }
@@ -105,7 +152,7 @@ pub fn parse(value: &Value) -> Result<(Intent, Target), String> {
             }
         }
         Some("builtin") => Intent::Builtin {
-            builtin: required("builtin")?,
+            builtin: Builtin::parse(&required("builtin")?)?,
         },
         Some("workspaceCommand") => {
             let key = ["commandName", "name", "command"]
@@ -153,6 +200,21 @@ mod tests {
         );
         assert_eq!(target, Target::CurrentTerminal);
     }
+    /// Aliases normalize to stable identities, including recognized features awaiting platform adaptation.
+    #[test]
+    fn builtin_aliases_are_canonical_and_unknowns_fail() {
+        for (alias, canonical) in [
+            ("newTerminal", "cmux.newTerminal"),
+            ("cmux.startCloudVm", "cmux.cloudvm"),
+            ("connectPhone", "cmux.mobileconnect"),
+            ("simulator", "cmux.newSimulator"),
+        ] {
+            let (intent, _) = parse(&serde_json::json!({"builtin":alias})).unwrap();
+            assert_eq!(serde_json::to_value(intent).unwrap()["builtin"], canonical);
+        }
+        assert!(parse(&serde_json::json!({"builtin":"cmux.typo"})).is_err());
+    }
+
     /// Malformed executable fields cannot be mistaken for metadata-only definitions.
     #[test]
     fn rejects_malformed_actions() {
