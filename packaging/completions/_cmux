@@ -1403,6 +1403,82 @@ esac
     ;;
 esac
 ;;
+(rovodev)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__rovodev_commands" \
+"*::: :->rovodev" \
+&& ret=0
+
+    case $state in
+    (rovodev)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-rovodev-command-$line[1]:"
+        case $line[1] in
+            (prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__rovodev__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-rovodev-help-command-$line[1]:"
+        case $line[1] in
+            (prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__hooks__help_commands" \
@@ -1792,6 +1868,30 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(rovodev)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__rovodev_commands" \
+"*::: :->rovodev" \
+&& ret=0
+
+    case $state in
+    (rovodev)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-rovodev-command-$line[1]:"
+        case $line[1] in
+            (prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3773,6 +3873,30 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(rovodev)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__rovodev_commands" \
+"*::: :->rovodev" \
+&& ret=0
+
+    case $state in
+    (rovodev)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-rovodev-command-$line[1]:"
+        case $line[1] in
+            (prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
         esac
     ;;
 esac
@@ -4994,6 +5118,7 @@ _cmux__help__hooks_commands() {
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
+'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
     )
     _describe -t commands 'cmux help hooks commands' commands "$@"
 }
@@ -5351,6 +5476,24 @@ _cmux__help__hooks__qoder__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks qoder stop commands' commands "$@"
 }
+(( $+functions[_cmux__help__hooks__rovodev_commands] )) ||
+_cmux__help__hooks__rovodev_commands() {
+    local commands; commands=(
+'prompt-submit:' \
+'stop:' \
+    )
+    _describe -t commands 'cmux help hooks rovodev commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__rovodev__prompt-submit_commands] )) ||
+_cmux__help__hooks__rovodev__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks rovodev prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__rovodev__stop_commands] )) ||
+_cmux__help__hooks__rovodev__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks rovodev stop commands' commands "$@"
+}
 (( $+functions[_cmux__help__hooks__setup_commands] )) ||
 _cmux__help__hooks__setup_commands() {
     local commands; commands=()
@@ -5655,6 +5798,7 @@ _cmux__hooks_commands() {
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
+'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks commands' commands "$@"
@@ -6266,6 +6410,7 @@ _cmux__hooks__help_commands() {
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
+'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cmux hooks help commands' commands "$@"
@@ -6629,6 +6774,24 @@ _cmux__hooks__help__qoder__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help qoder stop commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__rovodev_commands] )) ||
+_cmux__hooks__help__rovodev_commands() {
+    local commands; commands=(
+'prompt-submit:' \
+'stop:' \
+    )
+    _describe -t commands 'cmux hooks help rovodev commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__rovodev__prompt-submit_commands] )) ||
+_cmux__hooks__help__rovodev__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help rovodev prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__rovodev__stop_commands] )) ||
+_cmux__hooks__help__rovodev__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help rovodev stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__setup_commands] )) ||
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
@@ -6834,6 +6997,49 @@ _cmux__hooks__qoder__session-start_commands() {
 _cmux__hooks__qoder__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks qoder stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev_commands] )) ||
+_cmux__hooks__rovodev_commands() {
+    local commands; commands=(
+'prompt-submit:' \
+'stop:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks rovodev commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__help_commands] )) ||
+_cmux__hooks__rovodev__help_commands() {
+    local commands; commands=(
+'prompt-submit:' \
+'stop:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks rovodev help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__help__help_commands] )) ||
+_cmux__hooks__rovodev__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks rovodev help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__help__prompt-submit_commands] )) ||
+_cmux__hooks__rovodev__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks rovodev help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__help__stop_commands] )) ||
+_cmux__hooks__rovodev__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks rovodev help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__prompt-submit_commands] )) ||
+_cmux__hooks__rovodev__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks rovodev prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__rovodev__stop_commands] )) ||
+_cmux__hooks__rovodev__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks rovodev stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__setup_commands] )) ||
 _cmux__hooks__setup_commands() {

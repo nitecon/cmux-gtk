@@ -186,6 +186,9 @@ jobs:
       - name: Test installed Amp lifecycle plugin
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_amp_hooks.py
 
+      - name: Test installed Rovo Dev lifecycle hooks
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_rovodev_hooks.py
+
       - name: Test Claude Teams native split translation
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_teams.py
 

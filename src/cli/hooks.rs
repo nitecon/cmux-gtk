@@ -1,6 +1,6 @@
 //! Native agent hook installation and bounded session payload ingestion.
 use super::{
-    args::{ClaudeHookEvent, CodexHookEvent, JsonHookEvent},
+    args::{ClaudeHookEvent, CodexHookEvent, JsonHookEvent, RovoHookEvent},
     socket_client::SocketClient,
     CliError,
 };
@@ -175,6 +175,20 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             notification_event: None,
             end_event: None,
         },
+        "rovodev" => JsonProvider {
+            name: "rovodev",
+            display: "Rovo Dev",
+            binary: "acli",
+            directory: ".rovodev",
+            directory_env: None,
+            environment: &["CMUX_ROVODEV_SESSIONS_DIR"],
+            file: "config.yml",
+            resume_prefix: &["rovodev", "run", "--restore"],
+            start_event: "on_tool_permission",
+            stop_event: "on_complete",
+            notification_event: None,
+            end_event: None,
+        },
         _ => return None,
     })
 }
@@ -232,6 +246,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
         Some("cursor") => setup_cursor(true),
         Some("pi") => setup_pi(true),
         Some("amp") => setup_amp(true),
+        Some("rovodev" | "rovo") => setup_rovodev(true),
         Some(name) if json_provider(name).is_some() => setup_json_provider(name, true),
         Some(other) => Err(CliError::Command(format!(
             "unsupported hook provider: {other}"
@@ -246,6 +261,7 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
             setup_cursor(false)?;
             setup_pi(false)?;
             setup_amp(false)?;
+            setup_rovodev(false)?;
             Ok(())
         }
     }
@@ -863,6 +879,135 @@ fn setup_amp(explicit: bool) -> Result<(), CliError> {
     Ok(())
 }
 
+const ROVO_BEGIN: &str = "# cmux hooks rovodev begin";
+const ROVO_END: &str = "# cmux hooks rovodev end";
+
+fn yaml_double_quoted(value: &str) -> String {
+    format!(
+        "\"{}\"",
+        value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+    )
+}
+
+fn rovo_event_lines(indent: &str, binary: &Path) -> Vec<String> {
+    let prefix = shell_argument(&binary.to_string_lossy());
+    [
+        ("on_complete", "stop"),
+        ("on_error", "stop"),
+        ("on_tool_permission", "prompt-submit"),
+    ]
+    .into_iter()
+    .flat_map(|(event, command)| {
+        let hook = yaml_double_quoted(&format!("{prefix} hooks rovodev {command}"));
+        [
+            format!("{indent}- name: {event}"),
+            format!("{indent}  commands:"),
+            format!("{indent}    - command: {hook}"),
+        ]
+    })
+    .collect()
+}
+
+fn merge_rovodev_hooks(existing: &str, binary: &Path) -> String {
+    let normalized = existing.replace("\r\n", "\n").replace('\r', "\n");
+    let mut lines: Vec<String> = normalized.split('\n').map(ToOwned::to_owned).collect();
+    if lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    let mut cursor = 0;
+    while cursor < lines.len() {
+        if lines[cursor].trim() != ROVO_BEGIN {
+            cursor += 1;
+            continue;
+        }
+        if let Some(relative) = lines[cursor + 1..]
+            .iter()
+            .position(|line| line.trim() == ROVO_END)
+        {
+            lines.drain(cursor..=cursor + 1 + relative);
+        } else {
+            cursor += 1;
+        }
+    }
+    let root = lines
+        .iter()
+        .position(|line| !line.starts_with([' ', '\t']) && line.trim() == "eventHooks:");
+    if let Some(root) = root {
+        let root_end = ((root + 1)..lines.len())
+            .find(|index| {
+                !lines[*index].trim().is_empty() && !lines[*index].starts_with([' ', '\t'])
+            })
+            .unwrap_or(lines.len());
+        let events = ((root + 1)..root_end)
+            .find(|index| lines[*index].starts_with("  ") && lines[*index].trim() == "events:");
+        if let Some(events) = events {
+            let mut block = vec![format!("    {ROVO_BEGIN}")];
+            block.extend(rovo_event_lines("    ", binary));
+            block.push(format!("    {ROVO_END}"));
+            lines.splice(events + 1..events + 1, block);
+        } else {
+            let mut block = vec![format!("  {ROVO_BEGIN}"), "  events:".into()];
+            block.extend(rovo_event_lines("    ", binary));
+            block.push(format!("  {ROVO_END}"));
+            lines.splice(root + 1..root + 1, block);
+        }
+    } else {
+        if lines.last().is_some_and(|line| !line.trim().is_empty()) {
+            lines.push(String::new());
+        }
+        lines.push(ROVO_BEGIN.into());
+        lines.push("eventHooks:".into());
+        lines.push("  events:".into());
+        lines.extend(rovo_event_lines("    ", binary));
+        lines.push(ROVO_END.into());
+    }
+    lines.join("\n") + "\n"
+}
+
+fn setup_rovodev(explicit: bool) -> Result<(), CliError> {
+    let provider = json_provider("rovodev").expect("static provider");
+    if cmux_platform::paths::find_command_on_path(provider.binary).is_none() {
+        if explicit {
+            return Err(CliError::Command(
+                "install Rovo Dev before installing its hooks".into(),
+            ));
+        }
+        println!("Skipped Rovo Dev: executable not found on PATH");
+        return Ok(());
+    }
+    let directory = std::env::var_os("HOME")
+        .map(|home| PathBuf::from(home).join(".rovodev"))
+        .ok_or_else(|| CliError::Command("cannot resolve Rovo Dev config directory".into()))?;
+    cmux_platform::filesystem::create_private_directory(&directory)
+        .map_err(|error| CliError::Command(format!("create Rovo Dev config directory: {error}")))?;
+    let path = directory.join("config.yml");
+    if path.is_symlink() {
+        return Err(CliError::Command(
+            "Rovo Dev config is a symlink; configure its target explicitly".into(),
+        ));
+    }
+    let existing = match cmux_platform::filesystem::read_text_bounded(&path, 1024 * 1024) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(CliError::Command(format!("read Rovo Dev config: {error}"))),
+    };
+    let binary = std::env::current_exe().map_err(|error| CliError::Command(error.to_string()))?;
+    let merged = merge_rovodev_hooks(&existing, &binary);
+    if merged.len() > 1024 * 1024 {
+        return Err(CliError::Command(
+            "merged Rovo Dev config exceeds one MiB".into(),
+        ));
+    }
+    cmux_platform::filesystem::atomic_write(&path, merged.as_bytes())
+        .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(&path))
+        .map_err(|error| CliError::Command(format!("save Rovo Dev config: {error}")))?;
+    println!("Installed Rovo Dev lifecycle hooks in {}", path.display());
+    Ok(())
+}
+
 /// Consume a bounded native payload and persist its exact session identity without granting automatic trust.
 /// Session-end clears only the matching checkpoint; commands, prompts and payload bodies are not logged.
 pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result<(), CliError> {
@@ -1031,7 +1176,203 @@ pub fn json_provider_event(
     Ok(())
 }
 
+fn rovo_yaml_scalar(raw: &str) -> Option<String> {
+    let value = raw.trim();
+    if let Some(value) = value.strip_prefix('\'') {
+        let mut result = String::new();
+        let mut chars = value.chars().peekable();
+        while let Some(character) = chars.next() {
+            if character == '\'' {
+                if chars.peek() == Some(&'\'') {
+                    chars.next();
+                    result.push('\'');
+                } else {
+                    return Some(result);
+                }
+            } else {
+                result.push(character);
+            }
+        }
+        return None;
+    }
+    if let Some(value) = value.strip_prefix('"') {
+        return value.split('"').next().map(ToOwned::to_owned);
+    }
+    Some(value.split(" #").next().unwrap_or(value).trim().to_owned())
+}
+
+fn rovo_sessions_root() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("CMUX_ROVODEV_SESSIONS_DIR") {
+        return Some(PathBuf::from(path));
+    }
+    let home = PathBuf::from(std::env::var_os("HOME")?);
+    let config_path = home.join(".rovodev/config.yml");
+    if let Ok(config) = cmux_platform::filesystem::read_text_bounded(&config_path, 1024 * 1024) {
+        let mut in_sessions = false;
+        for line in config.replace("\r\n", "\n").replace('\r', "\n").lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
+            if indent == 0 {
+                in_sessions = trimmed == "sessions:";
+                continue;
+            }
+            if in_sessions && indent == 2 {
+                if let Some(raw) = trimmed.strip_prefix("persistenceDir:") {
+                    if let Some(value) = rovo_yaml_scalar(raw).filter(|value| !value.is_empty()) {
+                        if value == "~" {
+                            return Some(home);
+                        }
+                        if let Some(relative) = value.strip_prefix("~/") {
+                            return Some(home.join(relative));
+                        }
+                        return Some(PathBuf::from(value));
+                    }
+                }
+            }
+        }
+    }
+    Some(home.join(".rovodev/sessions"))
+}
+
+fn normalized_existing_path(path: &Path) -> Option<PathBuf> {
+    std::fs::canonicalize(path).ok().or_else(|| {
+        path.is_absolute()
+            .then(|| path.components().collect::<PathBuf>())
+    })
+}
+
+fn infer_rovodev_session(cwd: &Path) -> Result<Option<String>, CliError> {
+    let Some(root) = rovo_sessions_root() else {
+        return Ok(None);
+    };
+    let Some(cwd) = normalized_existing_path(cwd) else {
+        return Ok(None);
+    };
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(CliError::Command(format!(
+                "read Rovo Dev sessions: {error}"
+            )))
+        }
+    };
+    let mut candidates = Vec::new();
+    for (index, entry) in entries.enumerate() {
+        if index >= 256 {
+            return Err(CliError::Command(
+                "Rovo Dev session directory exceeds 256 entries".into(),
+            ));
+        }
+        let entry = entry.map_err(|error| CliError::Command(error.to_string()))?;
+        if !entry
+            .file_type()
+            .map_err(|error| CliError::Command(error.to_string()))?
+            .is_dir()
+        {
+            continue;
+        }
+        let id = entry.file_name().to_string_lossy().into_owned();
+        if id.is_empty()
+            || id.len() > 1024
+            || id.starts_with('-')
+            || id.chars().any(char::is_control)
+        {
+            continue;
+        }
+        let metadata_path = entry.path().join("metadata.json");
+        let metadata_text =
+            match cmux_platform::filesystem::read_text_bounded(&metadata_path, 65536) {
+                Ok(text) => text,
+                Err(_) => continue,
+            };
+        let metadata: Value = match serde_json::from_str(&metadata_text) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let Some(workspace) = hook_string(
+            &metadata,
+            &[
+                "workspace_path",
+                "workspacePath",
+                "working_directory",
+                "cwd",
+            ],
+        )
+        .map(PathBuf::from)
+        .and_then(|path| normalized_existing_path(&path)) else {
+            continue;
+        };
+        if workspace != cwd {
+            continue;
+        }
+        let modified = [metadata_path, entry.path().join("session_context.json")]
+            .into_iter()
+            .filter_map(|path| std::fs::metadata(path).ok()?.modified().ok())
+            .max()
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        candidates.push((modified, id));
+    }
+    candidates.sort_by(|left, right| right.cmp(left));
+    Ok(candidates.into_iter().next().map(|(_, id)| id))
+}
+
+/// Rovo's lifecycle payload omits its durable session ID. Resolve the newest bounded metadata
+/// candidate for the exact workspace before recording or notifying; unrelated sessions are ignored.
+pub fn rovodev_event(client: &mut SocketClient, event: RovoHookEvent) -> Result<(), CliError> {
+    let expected: &[&str] = match event {
+        RovoHookEvent::PromptSubmit => &["on_tool_permission"],
+        RovoHookEvent::Stop => &["on_complete", "on_error"],
+    };
+    let (payload, supplied_id, surface) = read_hook_payload_optional(expected)?;
+    let cwd = hook_string(&payload, &["cwd", "working_directory", "workingDirectory"])
+        .filter(|cwd| Path::new(cwd).is_absolute());
+    let inferred_id = match (supplied_id, cwd) {
+        (Some(id), _) => Some(id),
+        (None, Some(cwd)) => infer_rovodev_session(Path::new(cwd))?,
+        (None, None) => None,
+    };
+    let Some(id) = inferred_id else {
+        return Ok(());
+    };
+    set_agent_resume(
+        client,
+        &payload,
+        &surface,
+        &id,
+        ResumeCommand {
+            kind: "rovodev",
+            executable: "acli",
+            prefix: &["rovodev", "run", "--restore"],
+            environment: &["CMUX_ROVODEV_SESSIONS_DIR"],
+        },
+    )?;
+    if matches!(event, RovoHookEvent::Stop) {
+        let body = hook_string(&payload, &["message", "summary", "error"])
+            .unwrap_or("Rovo Dev has finished responding.");
+        create_agent_notification(
+            client,
+            &surface,
+            "Rovo Dev response ready".into(),
+            String::new(),
+            bounded_notification_text(body, 8192)?,
+        )?;
+    }
+    Ok(())
+}
+
 fn read_hook_payload(expected: &str) -> Result<(Value, String, String), CliError> {
+    let (payload, id, surface) = read_hook_payload_optional(&[expected])?;
+    let id = id.ok_or_else(|| CliError::Command("hook has no valid native session_id".into()))?;
+    Ok((payload, id, surface))
+}
+
+fn read_hook_payload_optional(
+    expected: &[&str],
+) -> Result<(Value, Option<String>, String), CliError> {
     let mut input = Vec::new();
     std::io::stdin()
         .take(65537)
@@ -1052,7 +1393,7 @@ fn read_hook_payload(expected: &str) -> Result<(Value, String, String), CliError
             "event",
         ],
     );
-    if event_name != Some(expected) {
+    if !event_name.is_some_and(|event| expected.contains(&event)) {
         return Err(CliError::Command(
             "hook event does not match its payload".into(),
         ));
@@ -1073,8 +1414,7 @@ fn read_hook_payload(expected: &str) -> Result<(Value, String, String), CliError
             && !id.starts_with('-')
             && !id.chars().any(char::is_control)
     })
-    .ok_or_else(|| CliError::Command("hook has no valid native session_id".into()))?
-    .to_owned();
+    .map(ToOwned::to_owned);
     let surface = std::env::var("CMUX_SURFACE_ID")
         .ok()
         .filter(|id| uuid::Uuid::parse_str(id).is_ok())

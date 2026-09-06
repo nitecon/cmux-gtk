@@ -521,6 +521,11 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive a Rovo Dev YAML hook payload on stdin
+    Rovodev {
+        #[command(subcommand)]
+        event: RovoHookEvent,
+    },
 }
 
 /// Claude session lifecycle and per-turn attention events.
@@ -545,6 +550,12 @@ pub enum JsonHookEvent {
     SessionEnd,
     Stop,
     Notification,
+}
+
+#[derive(Clone, Copy, Subcommand)]
+pub enum RovoHookEvent {
+    PromptSubmit,
+    Stop,
 }
 
 /// Manual resume binding controls; automatic execution is a separate hook policy.

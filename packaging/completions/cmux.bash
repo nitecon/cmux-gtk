@@ -658,6 +658,9 @@ _cmux() {
             cmux__help__hooks,qoder)
                 cmd="cmux__help__hooks__qoder"
                 ;;
+            cmux__help__hooks,rovodev)
+                cmd="cmux__help__hooks__rovodev"
+                ;;
             cmux__help__hooks,setup)
                 cmd="cmux__help__hooks__setup"
                 ;;
@@ -802,6 +805,12 @@ _cmux() {
             cmux__help__hooks__qoder,stop)
                 cmd="cmux__help__hooks__qoder__stop"
                 ;;
+            cmux__help__hooks__rovodev,prompt-submit)
+                cmd="cmux__help__hooks__rovodev__prompt__submit"
+                ;;
+            cmux__help__hooks__rovodev,stop)
+                cmd="cmux__help__hooks__rovodev__stop"
+                ;;
             cmux__help__notifications,clear)
                 cmd="cmux__help__notifications__clear"
                 ;;
@@ -870,6 +879,9 @@ _cmux() {
                 ;;
             cmux__hooks,qoder)
                 cmd="cmux__hooks__qoder"
+                ;;
+            cmux__hooks,rovodev)
+                cmd="cmux__hooks__rovodev"
                 ;;
             cmux__hooks,setup)
                 cmd="cmux__hooks__setup"
@@ -1177,6 +1189,9 @@ _cmux() {
             cmux__hooks__help,qoder)
                 cmd="cmux__hooks__help__qoder"
                 ;;
+            cmux__hooks__help,rovodev)
+                cmd="cmux__hooks__help__rovodev"
+                ;;
             cmux__hooks__help,setup)
                 cmd="cmux__hooks__help__setup"
                 ;;
@@ -1321,6 +1336,12 @@ _cmux() {
             cmux__hooks__help__qoder,stop)
                 cmd="cmux__hooks__help__qoder__stop"
                 ;;
+            cmux__hooks__help__rovodev,prompt-submit)
+                cmd="cmux__hooks__help__rovodev__prompt__submit"
+                ;;
+            cmux__hooks__help__rovodev,stop)
+                cmd="cmux__hooks__help__rovodev__stop"
+                ;;
             cmux__hooks__opencode,help)
                 cmd="cmux__hooks__opencode__help"
                 ;;
@@ -1410,6 +1431,24 @@ _cmux() {
                 ;;
             cmux__hooks__qoder__help,stop)
                 cmd="cmux__hooks__qoder__help__stop"
+                ;;
+            cmux__hooks__rovodev,help)
+                cmd="cmux__hooks__rovodev__help"
+                ;;
+            cmux__hooks__rovodev,prompt-submit)
+                cmd="cmux__hooks__rovodev__prompt__submit"
+                ;;
+            cmux__hooks__rovodev,stop)
+                cmd="cmux__hooks__rovodev__stop"
+                ;;
+            cmux__hooks__rovodev__help,help)
+                cmd="cmux__hooks__rovodev__help__help"
+                ;;
+            cmux__hooks__rovodev__help,prompt-submit)
+                cmd="cmux__hooks__rovodev__help__prompt__submit"
+                ;;
+            cmux__hooks__rovodev__help,stop)
+                cmd="cmux__hooks__rovodev__help__stop"
                 ;;
             cmux__notifications,clear)
                 cmd="cmux__notifications__clear"
@@ -3499,7 +3538,7 @@ _cmux() {
             return 0
             ;;
         cmux__help__hooks)
-            opts="setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp"
+            opts="setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4338,6 +4377,48 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__help__hooks__rovodev)
+            opts="prompt-submit stop"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__rovodev__prompt__submit)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__hooks__rovodev__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__help__hooks__setup)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -5109,7 +5190,7 @@ _cmux() {
             return 0
             ;;
         cmux__hooks)
-            opts="-v -h --socket --json --no-json --verbose --color --help setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp help"
+            opts="-v -h --socket --json --no-json --verbose --color --help setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6841,7 +6922,7 @@ _cmux() {
             return 0
             ;;
         cmux__hooks__help)
-            opts="setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp help"
+            opts="setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -7694,6 +7775,48 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__hooks__help__rovodev)
+            opts="prompt-submit stop"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__rovodev__prompt__submit)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__help__rovodev__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__hooks__help__setup)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
@@ -8269,6 +8392,128 @@ _cmux() {
             return 0
             ;;
         cmux__hooks__qoder__stop)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev)
+            opts="-v -h --socket --json --no-json --verbose --color --help prompt-submit stop help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__help)
+            opts="prompt-submit stop help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__help__prompt__submit)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__help__stop)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__prompt__submit)
+            opts="-v -h --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__hooks__rovodev__stop)
             opts="-v -h --socket --json --no-json --verbose --color --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

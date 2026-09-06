@@ -141,6 +141,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
                 | args::HookCommands::Cursor { .. }
                 | args::HookCommands::Pi { .. }
                 | args::HookCommands::Amp { .. }
+                | args::HookCommands::Rovodev { .. }
         }
     ) && std::env::var_os("CMUX_SURFACE_ID").is_none()
         && cli.socket.is_none()
@@ -187,6 +188,9 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         return hooks::codex_event(&mut client, *event);
     }
     if let Commands::Hooks { command } = &cli.command {
+        if let args::HookCommands::Rovodev { event } = command {
+            return hooks::rovodev_event(&mut client, *event);
+        }
         let provider_event = match command {
             args::HookCommands::Grok { event } => Some(("grok", *event)),
             args::HookCommands::Gemini { event } => Some(("gemini", *event)),

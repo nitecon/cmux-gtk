@@ -69,6 +69,12 @@ content:
         - The generated dependency-free ESM registers session.start and agent.end, prefers the event thread identity over context and root identities, and dispatches through an inherited exact surface with a five-second child deadline.
         - Start stores amp threads continue SESSION_ID. Completion creates an exact-surface inbox entry and retains the binding because Amp provides no terminal session-end callback.
 
+    - name: Rovo Dev YAML lifecycle hooks
+      steps:
+        - cmux hooks setup rovodev, with rovo as an alias, merges owned on_tool_permission, on_complete and on_error commands into HOME/.rovodev/config.yml eventHooks.events while preserving unrelated YAML and handlers. The bounded result is atomically synced; symlinks and unreadable files fail closed.
+        - Rovo payloads omit the durable ID. The handler scans at most 256 session directories under CMUX_ROVODEV_SESSIONS_DIR, the direct sessions.persistenceDir config value, or HOME/.rovodev/sessions; each metadata file is bounded to 65536 bytes. It requires an exact canonical workspace match and selects the newest metadata or context timestamp.
+        - Permission and completion events store acli rovodev run --restore SESSION_ID with only CMUX_ROVODEV_SESSIONS_DIR retained. Completion creates exact-surface attention and retains the durable binding.
+
     - name: Review automatic local execution
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
