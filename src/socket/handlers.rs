@@ -967,19 +967,25 @@ fn handle_socket_command_traced(
         }
 
         SocketCommand::BrowserStreamDisable { req_id, resp_tx } => {
-            let mut s = state.borrow_mut();
-            if let Some(ref mut bm) = s.browser_manager {
-                match bm.send_command("stream_disable", serde_json::json!({})) {
-                    Ok(result) => {
-                        let _ = resp_tx.send(ok(req_id, result));
-                    }
-                    Err(e) => {
-                        let _ = resp_tx.send(err(req_id, "stream_error", &e));
-                    }
-                }
-            } else {
+            let s = state.borrow();
+            let Some(browser) = s.browser_manager.as_ref() else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
-            }
+                return;
+            };
+            let Some(runtime) = s.runtime_handle.clone() else {
+                let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
+                return;
+            };
+            let exchange = browser.send_command_async("stream_disable", json!({}));
+            drop(s);
+            spawn_browser_exchange(
+                &runtime,
+                exchange,
+                req_id,
+                resp_tx,
+                "stream_error",
+                trace_id,
+            );
         }
 
         SocketCommand::BrowserList { req_id, resp_tx } => {
@@ -1041,27 +1047,14 @@ fn handle_socket_command_traced(
                 };
                 let exchange = bm.send_command_async(daemon_action, params);
                 drop(s);
-                runtime.spawn(async move {
-                    let started = std::time::Instant::now();
-                    let mut resp_tx = resp_tx;
-                    // Dropping the exchange closes its socket and releases its capacity permit.
-                    // Prefer cancellation when the caller has already stopped awaiting a response.
-                    let outcome = tokio::select! {
-                        biased;
-                        _ = resp_tx.closed() => "cancelled",
-                        result = exchange => {
-                            match result {
-                                Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); "success" }
-                                Err(error) => { let _ = resp_tx.send(err(req_id, "browser_error", &error)); "error" }
-                            }
-                        }
-                    };
-                    crate::diagnostics::record("browser.rpc.complete", json!({
-                        "trace_id": trace_id,
-                        "outcome": outcome,
-                        "duration_us": started.elapsed().as_micros(),
-                    }));
-                });
+                spawn_browser_exchange(
+                    &runtime,
+                    exchange,
+                    req_id,
+                    resp_tx,
+                    "browser_error",
+                    trace_id,
+                );
             } else {
                 let _ = resp_tx.send(err(req_id, "not_running", "No browser session active"));
             }
@@ -1082,7 +1075,100 @@ fn handle_socket_command_traced(
     }
 }
 
+/// Deliver a browser exchange off GTK, preserving endpoint errors and cancelling when its caller leaves.
+fn spawn_browser_exchange(
+    runtime: &tokio::runtime::Handle,
+    exchange: impl std::future::Future<Output = Result<Value, String>> + Send + 'static,
+    req_id: Value,
+    mut resp_tx: super::commands::RespTx,
+    error_code: &'static str,
+    trace_id: Option<String>,
+) {
+    runtime.spawn(async move {
+        let started = std::time::Instant::now();
+        let outcome = tokio::select! {
+            biased;
+            _ = resp_tx.closed() => "cancelled",
+            result = exchange => {
+                match result {
+                    Ok(result) => { let _ = resp_tx.send(ok(req_id, result)); "success" }
+                    Err(error) => { let _ = resp_tx.send(err(req_id, error_code, &error)); "error" }
+                }
+            }
+        };
+        crate::diagnostics::record(
+            "browser.rpc.complete",
+            json!({
+                "trace_id": trace_id, "outcome": outcome,
+                "duration_us": started.elapsed().as_micros(),
+            }),
+        );
+    });
+}
+
 /// Walk the split tree to find the first Preview node's Picture widget.
 fn find_preview_picture(node: &crate::split_engine::SplitNode) -> Option<gtk4::Picture> {
     crate::split_engine::first_browser_picture(node)
+}
+
+#[cfg(test)]
+mod browser_exchange_tests {
+    use super::*;
+
+    /// Shared browser delivery preserves identities, successful data and endpoint-specific failures.
+    #[tokio::test]
+    async fn responses_preserve_endpoint_contract() {
+        for result in [
+            Ok(json!({"streaming":false})),
+            Err("unavailable".to_string()),
+        ] {
+            let success = result.is_ok();
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            spawn_browser_exchange(
+                &tokio::runtime::Handle::current(),
+                async move { result },
+                json!(7),
+                tx,
+                "stream_error",
+                None,
+            );
+            let response = tokio::time::timeout(std::time::Duration::from_secs(1), rx)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(response["id"], 7);
+            assert_eq!(response["ok"], success);
+            if success {
+                assert_eq!(response["result"]["streaming"], false);
+            } else {
+                assert_eq!(response["error"]["code"], "stream_error");
+            }
+        }
+    }
+
+    /// A caller that stops awaiting its response releases the exchange's owned resources.
+    #[tokio::test]
+    async fn abandoned_response_cancels_exchange() {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let (resource, dropped) = tokio::sync::oneshot::channel::<()>();
+        let exchange = async move {
+            let _resource = resource;
+            std::future::pending::<Result<Value, String>>().await
+        };
+        spawn_browser_exchange(
+            &tokio::runtime::Handle::current(),
+            exchange,
+            json!(8),
+            tx,
+            "browser_error",
+            None,
+        );
+        drop(rx);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_secs(1), dropped)
+                .await
+                .unwrap()
+                .is_err()
+        );
+    }
 }
