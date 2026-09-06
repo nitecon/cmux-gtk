@@ -109,6 +109,7 @@ impl SplitEngine {
             ghostty_app,
             working_directory,
             launch_command,
+            launch_environment: std::collections::BTreeMap::new(),
             remote_launch,
         })
     }

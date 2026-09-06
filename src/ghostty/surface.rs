@@ -10,6 +10,11 @@ use std::rc::Rc;
 pub enum SurfaceIoMode {
     Exec,
     Command(String),
+    /// Validated local launch overrides; routing identities are supplied by cmux after these entries.
+    Configured {
+        command: Option<String>,
+        environment: std::collections::BTreeMap<String, String>,
+    },
     Remote {
         bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
         ssh_tx: crate::ssh::SshEventTx,
@@ -87,7 +92,11 @@ fn initialize_surface(
             config.working_directory = cwd.as_ptr();
         }
         let command_c = match &init.io_mode {
-            SurfaceIoMode::Command(command) => std::ffi::CString::new(command.as_str()).ok(),
+            SurfaceIoMode::Command(command)
+            | SurfaceIoMode::Configured {
+                command: Some(command),
+                ..
+            } => std::ffi::CString::new(command.as_str()).ok(),
             _ => None,
         };
         if let Some(command) = &command_c {
@@ -101,21 +110,38 @@ fn initialize_surface(
         let socket = cmux_platform::paths::socket_path()
             .to_string_lossy()
             .into_owned();
-        let environment_strings: Vec<_> = identity
+        let overrides = match &init.io_mode {
+            SurfaceIoMode::Configured { environment, .. } => environment
+                .iter()
+                .filter(|(key, _)| !key.to_ascii_uppercase().starts_with("CMUX_"))
+                .filter_map(|(key, value)| {
+                    Some((
+                        std::ffi::CString::new(key.as_str()).ok()?,
+                        std::ffi::CString::new(value.as_str()).ok()?,
+                    ))
+                })
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        let environment_strings: Vec<_> = overrides
             .into_iter()
-            .flat_map(|identity| {
-                [
-                    ("CMUX_SURFACE_ID", identity),
-                    ("CMUX_SOCKET_PATH", socket.clone()),
-                    ("CMUX_SOCKET", socket.clone()),
-                ]
-            })
-            .map(|(key, value)| {
-                (
-                    std::ffi::CString::new(key).unwrap(),
-                    std::ffi::CString::new(value).unwrap(),
-                )
-            })
+            .chain(
+                identity
+                    .into_iter()
+                    .flat_map(|identity| {
+                        [
+                            ("CMUX_SURFACE_ID", identity),
+                            ("CMUX_SOCKET_PATH", socket.clone()),
+                            ("CMUX_SOCKET", socket.clone()),
+                        ]
+                    })
+                    .map(|(key, value)| {
+                        (
+                            std::ffi::CString::new(key).unwrap(),
+                            std::ffi::CString::new(value).unwrap(),
+                        )
+                    }),
+            )
             .collect();
         let mut environment = if config.env_vars.is_null() || config.env_var_count == 0 {
             Vec::new()
@@ -983,8 +1009,19 @@ mod clipboard_integration_tests {
             None,
             Some(second.clone()),
             900002,
-            SurfaceIoMode::Exec,
+            SurfaceIoMode::Configured {
+                command: Some("/bin/sh -c 'printf \"%s\\n%s\\n\" \"$PROJECT_VALUE\" \"$CMUX_SURFACE_ID\" > launch-environment; exec /bin/sh'".into()),
+                environment: std::collections::BTreeMap::from([
+                    ("PROJECT_VALUE".into(), "literal $HOME two words".into()),
+                    ("CMUX_SURFACE_ID".into(), "incorrect-project-identity".into()),
+                ]),
+            },
         );
+        let right_identity = uuid::Uuid::new_v4();
+        // SAFETY: private UUID data has the same owned type installed by normal pane construction.
+        unsafe {
+            right.set_data("cmux-surface-uuid", right_identity);
+        }
         let content = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         content.set_homogeneous(true);
         content.append(&left);
@@ -998,6 +1035,13 @@ mod clipboard_integration_tests {
             .build();
         window.present();
         pump_until(|| left_cell.borrow().is_some() && right_cell.borrow().is_some());
+        let expected_environment = format!("literal $HOME two words\n{right_identity}\n");
+        pump_until(|| {
+            std::fs::read_to_string(second.join("launch-environment"))
+                .ok()
+                .as_deref()
+                == Some(expected_environment.as_str())
+        });
         settle();
         let window_id = std::process::Command::new("xdotool")
             .args(["search", "--name", "^cmux-clipboard-integration$"])

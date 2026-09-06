@@ -404,3 +404,7 @@ Config resolution now exposes bounded named commands with local precedence, sour
 ### Named command schema validation
 
 Named definitions now require exactly one workspace or command and validate restart values independently of action inference. Action-only fields cannot redirect intent; duplicate definitions are validated before precedence. Clippy passes; schema tests await Actions. Layout/restart execution remains open.
+
+### Native project launch environment boundary
+
+Added local configured surface launch with owned environment strings, inherited/explicit/managed identity precedence and CMUX_ override filtering. SplitEngine passes workspace overrides to new terminals without process-global mutation. Native Actions fixture checks literal values and protected surface identity; Clippy passes, runtime pending. Project layout application and persistence remain open.

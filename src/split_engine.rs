@@ -606,6 +606,8 @@ pub struct SplitEngine {
     /// Workspace binding used for every new local terminal pane.
     working_directory: Option<std::path::PathBuf>,
     pub launch_command: Option<String>,
+    /// Validated workspace overrides, copied into each new terminal before cmux routing identity.
+    pub launch_environment: std::collections::BTreeMap<String, String>,
     pub remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
 }
 
@@ -635,6 +637,7 @@ impl SplitEngine {
             ghostty_app,
             working_directory,
             launch_command: None,
+            launch_environment: std::collections::BTreeMap::new(),
             remote_launch: None,
         }
     }
@@ -807,10 +810,10 @@ impl SplitEngine {
             self.working_directory.clone(),
             pane_id,
             self.remote_launch.clone().unwrap_or_else(|| {
-                self.launch_command
-                    .clone()
-                    .map(crate::ghostty::surface::SurfaceIoMode::Command)
-                    .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+                crate::ghostty::surface::SurfaceIoMode::Configured {
+                    command: self.launch_command.clone(),
+                    environment: self.launch_environment.clone(),
+                }
             }),
         );
         attach_terminal_context_menu(&gl_area);

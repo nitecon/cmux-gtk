@@ -80,3 +80,8 @@ content:
   named_command_schema:
     - Dedicated adapter requires exactly one non-null workspace or command and rejects blank commands. Restart accepts new/recreate/ignore/confirm; metadata validation is bounded.
     - Action-only fields cannot override named intent. All duplicates validate before first-name precedence. Tests cover ambiguity, malformed restart/confirm and inference isolation. Restart launch semantics remain outstanding.
+
+  native_launch_environment:
+    - Configured local SurfaceIoMode owns optional command and validated environment. SplitEngine retains overrides for new tabs/splits; native strings survive ghostty_surface_new.
+    - Merge inherited values then explicit overrides then fresh routing identity. Filter CMUX_ overrides case-insensitively; no process-global mutation.
+    - Native Actions fixture checks literal values and forged surface-ID rejection. Workspace action application and environment persistence remain outstanding.
