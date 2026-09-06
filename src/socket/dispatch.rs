@@ -524,19 +524,28 @@ async fn dispatch_request(
             }
         }
 
-        "browser.open" => commands::SocketCommand::BrowserOpen {
-            req_id: req_id.clone(),
-            url: params
-                .get("url")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            workspace: params
-                .get("workspace")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            resp_tx,
-        },
+        "browser.open" => {
+            let workspace = match params.get("workspace").filter(|value| !value.is_null()) {
+                Some(value) => match value
+                    .as_str()
+                    .filter(|value| uuid::Uuid::parse_str(value).is_ok())
+                {
+                    Some(value) => Some(value.to_owned()),
+                    None => return err(req_id, "invalid_params", "invalid workspace UUID"),
+                },
+                None => None,
+            };
+            commands::SocketCommand::BrowserOpen {
+                req_id: req_id.clone(),
+                url: params
+                    .get("url")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("")
+                    .to_owned(),
+                workspace,
+                resp_tx,
+            }
+        }
         "browser.stream.enable" => commands::SocketCommand::BrowserStreamEnable {
             req_id: req_id.clone(),
             resp_tx,

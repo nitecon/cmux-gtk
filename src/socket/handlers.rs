@@ -1131,7 +1131,7 @@ fn handle_socket_command_traced(
 /// Initialize and command the daemon on Tokio, then apply surviving results on GTK without stealing focus.
 fn start_browser_lifecycle(
     state: &std::rc::Rc<std::cell::RefCell<crate::app_state::AppState>>,
-    request: crate::browser::StartupRequest,
+    mut request: crate::browser::StartupRequest,
     req_id: Value,
     mut resp_tx: super::commands::RespTx,
     trace_id: Option<String>,
@@ -1147,10 +1147,32 @@ fn start_browser_lifecycle(
             let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
             return;
         };
-        let workspace = s
-            .workspaces
-            .get(s.active_index)
-            .map(|workspace| workspace.uuid);
+        let explicit_workspace = match &mut request {
+            crate::browser::StartupRequest::Open(params) => params
+                .as_object_mut()
+                .and_then(|params| params.remove("workspace")),
+            _ => None,
+        };
+        let workspace = match explicit_workspace.filter(|value| !value.is_null()) {
+            Some(value) => {
+                let Some(id) = value
+                    .as_str()
+                    .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                else {
+                    let _ = resp_tx.send(err(req_id, "invalid_params", "invalid workspace UUID"));
+                    return;
+                };
+                if !s.workspaces.iter().any(|workspace| workspace.uuid == id) {
+                    let _ = resp_tx.send(err(req_id, "not_found", "workspace not found"));
+                    return;
+                }
+                Some(id)
+            }
+            None => s
+                .workspaces
+                .get(s.active_index)
+                .map(|workspace| workspace.uuid),
+        };
         let browser = s
             .browser_manager
             .get_or_insert_with(crate::browser::BrowserManager::new);

@@ -11,6 +11,7 @@ import signal
 import subprocess
 import tempfile
 import uuid
+import uuid
 
 from linux_app import running_app
 from process_support import linux_process_belongs_to, stop_process
@@ -130,6 +131,24 @@ def main():
                     assert app.surfaces() == before, "browser completion changed the new workspace"
                     assert json.loads(app.cli("current-workspace", "--json"))["uuid"] == target
 
+                for invalid in (str(uuid.uuid4()), 17):
+                    before = app.surfaces()
+                    try:
+                        app.cli("raw", "browser.open", "--params", json.dumps({"url": "about:blank", "workspace": invalid}))
+                    except subprocess.CalledProcessError:
+                        pass
+                    else:
+                        raise AssertionError("invalid explicit browser workspace was accepted")
+                    assert app.surfaces() == before
+                # Target a third workspace while the observer stays selected.
+                third = json.loads(app.cli("new-workspace", "--name", "explicit browser target", "--json"))["uuid"]
+                app.cli("select-workspace", target)
+                active_before = {item["uuid"] for item in app.surfaces() if item["active"]}
+                app.cli("browser", "open", "about:blank", "--workspace", third)
+                third_surfaces = [item for item in app.surfaces() if item["workspace_uuid"] == third]
+                assert len(third_surfaces) == 2, third_surfaces
+                assert {item["uuid"] for item in app.surfaces() if item["active"]} == active_before
+                app.cli("close-workspace", third)
                 app.cli("select-workspace", source)
                 with pending_open(app, browser_dir) as pending:
                     app.cli("select-workspace", target)

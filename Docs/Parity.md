@@ -237,3 +237,8 @@ This does not complete local-document parity. Real local rendering, file subreso
 ## Real local-document and history verification checkpoint
 
 The optimized real-browser Actions benchmark now opens a local HTML document through `cmux browser goto` using a filename containing spaces, `#` and `?`. It verifies the exact encoded URL, a relative classic script, stylesheet computed color, DOM snapshot and a subsequent preview frame, then navigates back to the HTTP page and forward to the document without stealing terminal focus. The existing artifact records local-document operation latency and a separate outcome. This uses pinned agent-browser/Chromium; it is added coverage awaiting execution, not evidence of a passing scenario. Cross-file JavaScript fetch access and independent multi-surface browser history remain unverified.
+
+
+## Explicit browser workspace routing correction
+
+`browser open --workspace UUID` previously forwarded the local workspace selector to the external service while attaching the GTK pane to the active workspace. The target is now validated and resolved locally before daemon startup, removed from external service parameters, and retained across asynchronous completion. Malformed/nonexistent targets fail without creating a pane; closing a target during startup retains the existing stale-result rejection. Native lifecycle coverage opens into a third background workspace and checks unchanged active terminal identity, plus invalid-target nonmutation. Strict clippy and Python syntax pass locally; runtime pending. This corrects pane placement, not the remaining shared-browser page-state limitation.
