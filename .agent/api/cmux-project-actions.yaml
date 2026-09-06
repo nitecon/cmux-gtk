@@ -85,3 +85,7 @@ content:
     - Configured local SurfaceIoMode owns optional command and validated environment. SplitEngine retains overrides for new tabs/splits; native strings survive ghostty_surface_new.
     - Merge inherited values then explicit overrides then fresh routing identity. Filter CMUX_ overrides case-insensitively; no process-global mutation.
     - Native Actions fixture checks literal values and forged surface-ID rejection. Workspace action application and environment persistence remain outstanding.
+
+  launch_environment_persistence:
+    - WorkspaceSession launch_environment defaults empty and captures explicit SplitEngine overrides only. Restored local surfaces and later tabs retain overrides; native managed identity still wins.
+    - Deserialization shares project environment entry/key/value/aggregate bounds. Round-trip, legacy omission and malformed-map tests await Actions. Project layout application remains outstanding.

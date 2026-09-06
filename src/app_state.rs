@@ -266,6 +266,7 @@ impl AppState {
                 .map(crate::workspace::startup_command),
             remote_launch,
             &self.resume_policy,
+            ws.launch_environment.clone(),
         )?;
 
         self.sidebar_list.append(&row);
@@ -887,6 +888,11 @@ impl AppState {
                             None
                         };
                         crate::session::WorkspaceSession {
+                            launch_environment: self
+                                .split_engines
+                                .get(i)
+                                .map(|engine| engine.launch_environment.clone())
+                                .unwrap_or_default(),
                             metadata: ws.metadata.clone(),
                             uuid: ws.uuid.to_string(),
                             name: ws.name.clone(),

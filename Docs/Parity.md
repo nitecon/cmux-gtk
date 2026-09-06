@@ -408,3 +408,7 @@ Named definitions now require exactly one workspace or command and validate rest
 ### Native project launch environment boundary
 
 Added local configured surface launch with owned environment strings, inherited/explicit/managed identity precedence and CMUX_ override filtering. SplitEngine passes workspace overrides to new terminals without process-global mutation. Native Actions fixture checks literal values and protected surface identity; Clippy passes, runtime pending. Project layout application and persistence remain open.
+
+### Workspace launch environment persistence
+
+Session snapshots now retain explicit workspace environment overrides and restore them into local terminals and future tabs. Shared bounded validation rejects malformed saved values; old sessions default empty. Tests cover round-trip and compatibility; runtime pending Actions. Project layout launch remains open.

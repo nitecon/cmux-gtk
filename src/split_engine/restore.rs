@@ -18,6 +18,7 @@ struct RestoreContext<'a> {
     resume_policy: &'a crate::resume_policy::ResumePolicy,
     working_directory: Option<&'a std::path::Path>,
     launch_command: Option<&'a str>,
+    launch_environment: &'a std::collections::BTreeMap<String, String>,
     remote_launch: Option<&'a crate::ghostty::surface::SurfaceIoMode>,
 }
 
@@ -40,12 +41,12 @@ impl RestoreContext<'_> {
             saved_directory.or(workspace_directory)
         };
         let launch = self.remote_launch.cloned().unwrap_or_else(|| {
-            resume
-                .and_then(|binding| self.resume_policy.launch_command(binding))
-                .as_deref()
-                .or(self.launch_command)
-                .map(|command| crate::ghostty::surface::SurfaceIoMode::Command(command.to_owned()))
-                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
+            crate::ghostty::surface::SurfaceIoMode::Configured {
+                command: resume
+                    .and_then(|binding| self.resume_policy.launch_command(binding))
+                    .or_else(|| self.launch_command.map(str::to_owned)),
+                environment: self.launch_environment.clone(),
+            }
         });
         let (gl_area, _) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
@@ -73,6 +74,7 @@ impl RestoreContext<'_> {
 impl SplitEngine {
     /// Rebuild a saved tree with fresh pane IDs and the supplied launch context.
     /// Preserve surface UUIDs; reject excessive nesting and fall back to the first pane for focus.
+    #[allow(clippy::too_many_arguments)] // Explicit immutable restore dependencies; no global launch state.
     pub fn from_data_with_command(
         ghostty_app: ffi::ghostty_app_t,
         data: &SplitNodeData,
@@ -81,6 +83,7 @@ impl SplitEngine {
         launch_command: Option<String>,
         remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
         resume_policy: &crate::resume_policy::ResumePolicy,
+        launch_environment: std::collections::BTreeMap<String, String>,
     ) -> Option<Self> {
         static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 =
             std::sync::atomic::AtomicU64::new(1 << 24);
@@ -90,6 +93,7 @@ impl SplitEngine {
             resume_policy,
             working_directory: working_directory.as_deref(),
             launch_command: launch_command.as_deref(),
+            launch_environment: &launch_environment,
             remote_launch: remote_launch.as_ref(),
         };
         let root = Self::node_from_data(&context, data, &mut next_pane_id, 0)?;
@@ -109,7 +113,7 @@ impl SplitEngine {
             ghostty_app,
             working_directory,
             launch_command,
-            launch_environment: std::collections::BTreeMap::new(),
+            launch_environment,
             remote_launch,
         })
     }

@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 pub struct WorkspaceSession {
     #[serde(default)]
     pub metadata: crate::workspace_metadata::Metadata,
+    /// Explicit workspace launch overrides only, never a snapshot of the ambient process environment.
+    #[serde(default, deserialize_with = "launch_environment")]
+    pub launch_environment: std::collections::BTreeMap<String, String>,
     pub uuid: String,
     pub name: String,
     #[serde(default)]
@@ -24,6 +27,16 @@ pub struct WorkspaceSession {
     pub active_pane_uuid: Option<String>,
     /// The full pane layout tree for this workspace.
     pub layout: SplitNodeData,
+}
+
+/// Apply the same entry and aggregate bounds to saved overrides as to project configuration.
+fn launch_environment<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, String>, D::Error> {
+    use serde::Deserialize;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    crate::project_config::project_action::parse_environment(&serde_json::json!({"env":value}))
+        .map_err(serde::de::Error::custom)
 }
 
 /// Root session data written to session.json.
@@ -315,6 +328,38 @@ pub fn load_session_from(path: &Path) -> Option<SessionData> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Explicit launch overrides round-trip; old snapshots default empty and malformed maps fail.
+    #[test]
+    fn workspace_launch_environment_is_bounded_and_compatible() {
+        let mut session = dummy_session("environment");
+        session.workspaces[0]
+            .launch_environment
+            .insert("PROJECT_MODE".into(), "two words $HOME".into());
+        let mut value = serde_json::to_value(&session).unwrap();
+        let restored: SessionData = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(
+            restored.workspaces[0].launch_environment,
+            session.workspaces[0].launch_environment
+        );
+        value["workspaces"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("launch_environment");
+        assert!(serde_json::from_value::<SessionData>(value.clone())
+            .unwrap()
+            .workspaces[0]
+            .launch_environment
+            .is_empty());
+        for invalid in [
+            serde_json::json!({"BAD=KEY":"value"}),
+            serde_json::json!({"KEY":17}),
+            serde_json::json!({"KEY":"x".repeat(16385)}),
+        ] {
+            value["workspaces"][0]["launch_environment"] = invalid;
+            assert!(serde_json::from_value::<SessionData>(value.clone()).is_err());
+        }
+    }
     use crate::split_engine::SplitNodeData;
 
     /// Streaming across several buffer flushes preserves escaped UTF-8 and pretty-JSON compatibility.
@@ -452,6 +497,7 @@ mod tests {
             inbox: Default::default(),
             active_index: 0,
             workspaces: vec![WorkspaceSession {
+                launch_environment: std::collections::BTreeMap::new(),
                 metadata: Default::default(),
                 uuid: "test-uuid-1".to_string(),
                 name: name.to_string(),

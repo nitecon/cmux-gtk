@@ -1,6 +1,8 @@
 //! Typed action intent; parsing validates data and never launches commands.
 #[path = "project_layout.rs"]
 mod project_layout;
+#[allow(unused_imports)] // The standalone CLI resolves config but does not read session files.
+pub(crate) use project_layout::environment as parse_environment;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

@@ -65,7 +65,7 @@ pub struct Surface {
 }
 
 /// Validate environment names and bounded literal values without expansion or secret logging.
-fn environment(value: &Value) -> Result<BTreeMap<String, String>, String> {
+pub(crate) fn environment(value: &Value) -> Result<BTreeMap<String, String>, String> {
     let Some(env) = value.get("env").filter(|value| !value.is_null()) else {
         return Ok(BTreeMap::new());
     };
