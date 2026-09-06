@@ -38,6 +38,7 @@ pub async fn run_ssh_lifecycle(
     let mut deployed = false;
 
     loop {
+        let mut connection = super::metrics::Attempt::begin(workspace_id, attempt);
         // Update state to reconnecting
         let _ = ssh_tx
             .send(SshEvent::StateChanged {
@@ -49,6 +50,7 @@ pub async fn run_ssh_lifecycle(
         // A failed upload must be retried; never fall through to an older or
         // missing daemon simply because the connection attempt count advanced.
         if !deployed {
+            connection.phase("deployment");
             if let Err(e) = crate::ssh::deploy::deploy_remote(&target).await {
                 eprintln!("cmux: SSH deploy failed: {e}");
 
@@ -67,6 +69,7 @@ pub async fn run_ssh_lifecycle(
                         })
                         .await;
                     eprintln!("cmux: SSH permanent failure, giving up: {e}");
+                    connection.finish("permanent_failure");
                     break;
                 }
 
@@ -77,18 +80,22 @@ pub async fn run_ssh_lifecycle(
                     })
                     .await;
                 let backoff = backoff_duration(attempt);
+                connection.phase("deployment_backoff");
                 tokio::time::sleep(backoff).await;
                 attempt += 1;
                 if attempt >= MAX_RETRIES {
                     eprintln!("cmux: SSH deployment exhausted retries");
+                    connection.finish("retries_exhausted");
                     break;
                 }
+                connection.finish("retry");
                 continue;
             }
             deployed = true;
         }
 
         // Start SSH connection with cmuxd-remote in stdio mode
+        connection.phase("process_spawn");
         match start_ssh(&target).await {
             Ok(mut child) => {
                 let was_reconnect = attempt > 0;
@@ -106,9 +113,14 @@ pub async fn run_ssh_lifecycle(
                 });
 
                 if let (Some(writer), Some(reader)) = (stdin, stdout) {
-                    let writer = Arc::new(RpcWriter::new(BufWriter::new(writer), workspace_id));
+                    let writer = Arc::new(RpcWriter::new(
+                        BufWriter::new(writer),
+                        workspace_id,
+                        connection.id,
+                    ));
                     let mut reader = BufReader::new(reader);
                     let started = std::time::Instant::now();
+                    connection.phase("handshake");
                     let result =
                         super::handshake::establish(&writer, &mut reader, Duration::from_secs(15))
                             .await;
@@ -116,6 +128,8 @@ pub async fn run_ssh_lifecycle(
                         "ssh.handshake.complete",
                         serde_json::json!({
                             "workspace_id": workspace_id, "duration_us": started.elapsed().as_micros() as u64,
+                            "trace_id": connection.id,
+                            "remote_handler_duration_us": result.as_ref().ok().copied().flatten(),
                             "outcome": if result.is_ok() { "success" } else { "error" },
                             "error_kind": result.as_ref().err().map(|error| format!("{:?}", error.kind())),
                         }),
@@ -124,6 +138,7 @@ pub async fn run_ssh_lifecycle(
                         eprintln!("cmux: SSH handshake failed: {error}");
                     } else {
                         connected = true;
+                        connection.phase("connected_gtk_admission");
                         let _ = ssh_tx
                             .send(SshEvent::StateChanged {
                                 workspace_id,
@@ -148,6 +163,7 @@ pub async fn run_ssh_lifecycle(
                             }
                         }
 
+                        connection.phase("routing");
                         input_rejected =
                             run_proxy_routing(workspace_id, writer, reader, &bridge, &ssh_tx).await;
                     }
@@ -158,11 +174,13 @@ pub async fn run_ssh_lifecycle(
                 }
                 // Routing has ended; an uncooperative child cannot indefinitely stall reconnect.
                 let exit_started = std::time::Instant::now();
+                connection.phase("process_reap");
                 let exit_status = crate::task::reap_child(child, Duration::from_secs(2)).await;
                 crate::diagnostics::record(
                     "ssh.process.exit",
                     serde_json::json!({
                         "workspace_id": workspace_id,
+                        "trace_id": connection.id,
                         "duration_us": exit_started.elapsed().as_micros() as u64,
                         "forced": exit_status.as_ref().ok().map(|(_, forced)| *forced),
                         "input_rejected": input_rejected,
@@ -171,6 +189,7 @@ pub async fn run_ssh_lifecycle(
                     }),
                 );
                 eprintln!("cmux: SSH to {target} exited: {exit_status:?}");
+                connection.phase("disconnected_gtk_admission");
 
                 // D-06: inject disconnect message into all active panes
                 {
@@ -198,6 +217,7 @@ pub async fn run_ssh_lifecycle(
                     .await;
             }
             Err(e) => {
+                connection.phase("spawn_failed_gtk_admission");
                 eprintln!("cmux: SSH connection to {target} failed: {e}");
                 let _ = ssh_tx
                     .send(SshEvent::StateChanged {
@@ -216,6 +236,7 @@ pub async fn run_ssh_lifecycle(
                     state: ConnectionState::Disconnected,
                 })
                 .await;
+            connection.finish("retries_exhausted");
             break;
         }
 
@@ -226,8 +247,10 @@ pub async fn run_ssh_lifecycle(
             backoff.as_secs(),
             attempt + 1
         );
+        connection.phase("reconnect_backoff");
         tokio::time::sleep(backoff).await;
         attempt += 1;
+        connection.finish("retry");
     }
 }
 
@@ -530,6 +553,7 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
         "ssh.rpc.begin",
         serde_json::json!({
             "workspace_id": writer.workspace_id(), "trace_id": awaiting.trace_id,
+            "parent_trace_id": writer.connection_id(),
             "request_id": id, "method": method,
         }),
     );
@@ -551,21 +575,8 @@ async fn request_remote<W: tokio::io::AsyncWrite + Unpin>(
     if response.get("id").and_then(|value| value.as_u64()) != Some(id) {
         return Err(format!("{method} response identity mismatch"));
     }
-    if let Some(trace) = response.get("trace_id") {
-        if trace
-            .as_str()
-            .and_then(|value| uuid::Uuid::parse_str(value).ok())
-            != Some(awaiting.trace_id)
-        {
-            return Err(format!("{method} trace identity mismatch"));
-        }
-        awaiting.remote_duration_us = Some(
-            response
-                .get("handler_duration_us")
-                .and_then(|value| value.as_u64())
-                .ok_or_else(|| format!("{method} handler duration invalid"))?,
-        );
-    }
+    awaiting.remote_duration_us = super::metrics::remote_timing(&response, awaiting.trace_id)
+        .map_err(|message| format!("{method} {message}"))?;
     let accepted = response
         .get("ok")
         .and_then(|value| value.as_bool())
@@ -636,6 +647,7 @@ impl<W: tokio::io::AsyncWrite + Unpin> Drop for PendingRequest<'_, W> {
             "ssh.rpc.complete",
             serde_json::json!({
                 "workspace_id": self.writer.workspace_id(), "trace_id": self.trace_id,
+                "parent_trace_id": self.writer.connection_id(),
                 "request_id": self.id, "method": self.method, "outcome": self.outcome,
                 "duration_us": self.started.elapsed().as_micros(),
                 "remote_handler_duration_us": self.remote_duration_us,
@@ -772,7 +784,7 @@ mod request_tests {
                 .as_ref()
                 .is_some_and(|value| value["id"] == 42 && value["ok"].is_boolean());
             let (pipe, reader) = tokio::io::duplex(4096);
-            let writer = RpcWriter::new(pipe, 0);
+            let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
             let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
             let request =
                 serde_json::json!({"id": 42, "method": "proxy.stream.subscribe", "params": {}});
@@ -829,7 +841,7 @@ mod request_tests {
     async fn validates_optional_remote_trace_metadata() {
         for mode in ["legacy", "matched", "mismatch", "invalid_duration"] {
             let (pipe, reader) = tokio::io::duplex(4096);
-            let writer = RpcWriter::new(pipe, 0);
+            let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
             let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
             let respond = async {
                 let mut line = String::new();
@@ -884,7 +896,7 @@ mod request_tests {
     /// Cancellation while awaiting a peer response removes the slot without leaving a response waiter.
     #[tokio::test]
     async fn cancellation_releases_pending_request() {
-        let writer = Arc::new(RpcWriter::new(tokio::io::sink(), 0));
+        let writer = Arc::new(RpcWriter::new(tokio::io::sink(), 0, uuid::Uuid::new_v4()));
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         let task_pending = pending.clone();
         let observe_writer = writer.clone();

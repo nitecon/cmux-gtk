@@ -8,6 +8,7 @@ pub(super) struct RpcWriter<W> {
     writer: Mutex<W>,
     failed: watch::Sender<bool>,
     workspace_id: u64,
+    connection_id: uuid::Uuid,
 }
 
 impl<W: AsyncWrite + Unpin> RpcWriter<W> {
@@ -17,12 +18,18 @@ impl<W: AsyncWrite + Unpin> RpcWriter<W> {
     }
 
     /// Start a usable connection writer; the parent routing scope owns its lifetime.
-    pub(super) fn new(writer: W, workspace_id: u64) -> Self {
+    pub(super) fn new(writer: W, workspace_id: u64, connection_id: uuid::Uuid) -> Self {
         Self {
             writer: Mutex::new(writer),
             failed: watch::channel(false).0,
             workspace_id,
+            connection_id,
         }
+    }
+
+    /// Return the parent connection identity shared by setup request lifetimes.
+    pub(super) fn connection_id(&self) -> uuid::Uuid {
+        self.connection_id
     }
 
     /// Serialize within four MiB and allow ten seconds for lock admission, write and flush together.
@@ -128,7 +135,7 @@ mod tests {
     #[tokio::test]
     async fn serializes_complete_requests() {
         let (pipe, reader) = tokio::io::duplex(1024);
-        let writer = RpcWriter::new(pipe, 0);
+        let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
         let a = serde_json::json!({"id": 1, "text": "λ\n"});
         let b = serde_json::json!({"id": 2});
         let (first, second) = tokio::join!(writer.send(&a), writer.send(&b));
@@ -149,7 +156,7 @@ mod tests {
     #[tokio::test]
     async fn timeout_retires_partial_frame() {
         let (pipe, mut reader) = tokio::io::duplex(8);
-        let writer = RpcWriter::new(pipe, 0);
+        let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
         let value = serde_json::json!({"data": "x".repeat(128)});
         assert_eq!(
             writer
@@ -180,7 +187,7 @@ mod tests {
     #[tokio::test]
     async fn cancellation_retires_partial_frame() {
         let (pipe, mut reader) = tokio::io::duplex(8);
-        let writer = Arc::new(RpcWriter::new(pipe, 0));
+        let writer = Arc::new(RpcWriter::new(pipe, 0, uuid::Uuid::new_v4()));
         let owned = writer.clone();
         let task = tokio::spawn(async move {
             owned
@@ -211,7 +218,7 @@ mod tests {
     #[tokio::test]
     async fn bounds_admission_and_encoding() {
         let (pipe, _reader) = tokio::io::duplex(16);
-        let writer = RpcWriter::new(pipe, 0);
+        let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
         assert_eq!(
             writer
                 .send(&serde_json::json!("x".repeat(4 * 1024 * 1024)))

@@ -10,10 +10,13 @@ pub(super) async fn establish<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(
     writer: &RpcWriter<W>,
     reader: &mut R,
     timeout: Duration,
-) -> io::Result<()> {
+) -> io::Result<Option<u64>> {
     tokio::time::timeout(timeout, async {
         writer
-            .send(&serde_json::json!({"jsonrpc":"2.0", "id":1, "method":"hello", "params":{}}))
+            .send(
+                &serde_json::json!({"jsonrpc":"2.0", "id":1, "method":"hello", "params":{},
+                "trace_id": writer.connection_id()}),
+            )
             .await?;
         let line = crate::line_reader::next_line(reader, 4 * 1024 * 1024, timeout)
             .await?
@@ -48,7 +51,8 @@ pub(super) async fn establish<R: AsyncBufRead + Unpin, W: AsyncWrite + Unpin>(
                 ));
             }
         }
-        Ok(())
+        super::metrics::remote_timing(&reply, writer.connection_id())
+            .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))
     })
     .await
     .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "SSH handshake deadline exceeded"))?
@@ -72,7 +76,7 @@ mod tests {
         let (client, peer) = tokio::io::duplex(4096);
         let (reader, pipe) = tokio::io::split(client);
         let mut reader = BufReader::new(reader);
-        let writer = RpcWriter::new(pipe, 0);
+        let writer = RpcWriter::new(pipe, 0, uuid::Uuid::new_v4());
         let serve = async {
             let mut peer = BufReader::new(peer);
             let mut line = String::new();
@@ -80,14 +84,21 @@ mod tests {
             let request: serde_json::Value = serde_json::from_str(&line).unwrap();
             assert_eq!(request["id"], 1);
             assert_eq!(request["method"], "hello");
-            let response = format!("{}\nfollowing\n", valid_reply());
+            assert_eq!(
+                request["trace_id"],
+                serde_json::json!(writer.connection_id())
+            );
+            let mut reply = valid_reply();
+            reply["trace_id"] = request["trace_id"].clone();
+            reply["handler_duration_us"] = serde_json::json!(3);
+            let response = format!("{reply}\nfollowing\n");
             peer.get_mut().write_all(response.as_bytes()).await.unwrap();
         };
         let (result, ()) = tokio::join!(
             establish(&writer, &mut reader, Duration::from_secs(1)),
             serve
         );
-        result.unwrap();
+        assert_eq!(result.unwrap(), Some(3));
         let mut following = String::new();
         reader.read_line(&mut following).await.unwrap();
         assert_eq!(following, "following\n");
@@ -119,7 +130,7 @@ mod tests {
             *reply.pointer_mut(pointer).unwrap() = value;
             let line = format!("{reply}\n");
             let mut reader = BufReader::new(line.as_bytes());
-            let writer = RpcWriter::new(tokio::io::sink(), 0);
+            let writer = RpcWriter::new(tokio::io::sink(), 0, uuid::Uuid::new_v4());
             assert_eq!(
                 establish(&writer, &mut reader, Duration::from_secs(1))
                     .await
@@ -135,7 +146,7 @@ mod tests {
     async fn bounds_missing_or_malformed_hello() {
         let (pipe, _peer) = tokio::io::duplex(16);
         let mut reader = BufReader::new(pipe);
-        let writer = RpcWriter::new(tokio::io::sink(), 0);
+        let writer = RpcWriter::new(tokio::io::sink(), 0, uuid::Uuid::new_v4());
         assert_eq!(
             establish(&writer, &mut reader, Duration::from_millis(30))
                 .await

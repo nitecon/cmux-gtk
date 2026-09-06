@@ -28,7 +28,7 @@ content:
         - session.spawn and proxy.stream.subscribe carry a generated trace_id. Local ssh.rpc.begin and ssh.rpc.complete records include workspace, request ID, fixed method, elapsed time and success/error/timeout/cancelled categories without request parameters.
         - The owned daemon echoes valid UUID-shaped trace_id values and handler_duration_us in stdio responses; handler time excludes framing, JSON decode, response serialization, output delivery and transport. Invalid string labels are omitted.
         - Missing trace metadata from older daemons remains compatible and remote duration is unknown. Present mismatched trace IDs or invalid durations retire the uncertain setup connection. No remote cancellation or side-effect rollback is implied.
-        - Connection/deployment/handshake parent tracing, input/output operation correlation and external browser propagation remain unfinished.
+        - Each connection attempt owns ssh.connection.begin/stage/complete records through deployment, handshake, routing, GTK admission and backoff; aborted attempts report cancelled with their current phase. Setup RPC parent_trace_id links to this identity. Hello carries it to the daemon and shares response metadata validation with setup requests. Input/output operation correlation and external browser propagation remain unfinished.
     - name: Workspace organization
       steps:
         - GTK drag/drop and Move Up/Down use AppState.reorder_workspace. Move the workspace and corresponding split engine together; preserve active identity and focus.

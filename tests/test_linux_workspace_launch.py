@@ -134,7 +134,7 @@ Subsystem sftp internal-sftp
                 lines = source.read(8 * 1024 * 1024).splitlines()
         except FileNotFoundError:
             return False
-        starts, completed = {}, []
+        starts, completed, connections, handshakes = {}, [], set(), {}
         for line in lines:
             try:
                 event = json.loads(line)
@@ -146,6 +146,10 @@ Subsystem sftp internal-sftp
                 starts[event["fields"]["trace_id"]] = event["fields"]
             elif event["event"] == "ssh.rpc.complete":
                 completed.append(event["fields"])
+            elif event["event"] == "ssh.connection.begin":
+                connections.add(event["fields"]["trace_id"])
+            elif event["event"] == "ssh.handshake.complete":
+                handshakes[event["fields"]["trace_id"]] = event["fields"]
         successful = [fields for fields in completed if fields["outcome"] == "success"]
         if any(sum(fields["method"] == method for fields in successful) < 2
                for method in ("session.spawn", "proxy.stream.subscribe")):
@@ -156,6 +160,10 @@ Subsystem sftp internal-sftp
             assert identity in starts
             assert fields["request_id"] == starts[identity]["request_id"]
             assert fields["workspace_id"] == starts[identity]["workspace_id"]
+            parent = fields["parent_trace_id"]
+            assert parent == starts[identity]["parent_trace_id"] and parent in connections
+            assert handshakes[parent]["outcome"] == "success"
+            assert type(handshakes[parent]["remote_handler_duration_us"]) is int
             assert type(fields["remote_handler_duration_us"]) is int
             assert fields["remote_handler_duration_us"] >= 0
             assert fields["duration_us"] >= 0
@@ -181,6 +189,10 @@ Subsystem sftp internal-sftp
         assert saved["workspaces"][1]["startup_script"] == str(script)
         assert saved["workspaces"][0]["remote_directory"] == str(root / "remote")
         stop()
+        with (root / "events.jsonl").open() as source:
+            stopped_events = [json.loads(line) for line in source.read(8 * 1024 * 1024).splitlines()]
+        assert any(event["pid"] == app.pid and event["event"] == "ssh.connection.complete"
+                   and event["fields"]["outcome"] == "cancelled" for event in stopped_events)
         start()
         remote_write("restored-result")
         surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
