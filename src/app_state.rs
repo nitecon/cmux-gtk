@@ -25,6 +25,8 @@ pub struct AppState {
     next_id: u64,
     /// Next display number for default names ("Workspace N").
     next_display_number: usize,
+    /// Validated application-owned authority for automatic local terminal resume.
+    pub resume_policy: crate::resume_policy::ResumePolicy,
     /// Sender for session snapshots to the debounce task.
     /// Each mutation snapshots SessionData on the main thread and sends it here.
     pub session_tx: Option<tokio::sync::watch::Sender<Option<crate::session::Snapshot>>>,
@@ -67,6 +69,7 @@ impl AppState {
             next_id: 1,
             next_display_number: 1,
             session_tx: None,
+            resume_policy: Default::default(),
             ssh_event_tx: None,
             runtime_handle: None,
             ssh_task_handles: std::collections::HashMap::new(),
@@ -229,6 +232,7 @@ impl AppState {
                 .as_deref()
                 .map(crate::workspace::startup_command),
             remote_launch,
+            &self.resume_policy,
         )?;
 
         self.sidebar_list.append(&row);
@@ -659,6 +663,7 @@ impl AppState {
             let session = crate::session::SessionData {
                 version: 3, // Per-pane terminal/browser tabs and persisted URLs
                 active_index: self.active_index,
+                resume_policy: self.resume_policy.clone(),
                 workspaces: self
                     .workspaces
                     .iter()

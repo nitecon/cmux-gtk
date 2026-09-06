@@ -29,6 +29,7 @@ fn restore_terminal(
     mut client: socket_client::SocketClient,
     surface: Option<&str>,
     checkpoint: Option<&str>,
+    automatic: bool,
 ) -> Result<(), CliError> {
     use std::io::IsTerminal;
     let current = std::env::var("CMUX_SURFACE_ID").ok();
@@ -50,6 +51,16 @@ fn restore_terminal(
     {
         return Err(CliError::Command(
             "remote resume must run through its remote workspace transport".into(),
+        ));
+    }
+    if automatic
+        && response
+            .get("auto_resume")
+            .and_then(|value| value.as_bool())
+            != Some(true)
+    {
+        return Err(CliError::Command(
+            "automatic resume requires a current approval in Preferences".into(),
         ));
     }
     let mut binding: resume::ResumeBinding =
@@ -132,9 +143,15 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     if let Commands::Restore {
         surface,
         checkpoint,
+        automatic,
     } = &cli.command
     {
-        return restore_terminal(client, surface.as_deref(), checkpoint.as_deref());
+        return restore_terminal(
+            client,
+            surface.as_deref(),
+            checkpoint.as_deref(),
+            *automatic,
+        );
     }
 
     if cli.verbose {

@@ -7,6 +7,54 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
+/// Load or create a durable, owner-only 32-byte signing key without following symlinks.
+/// Performs blocking I/O before the UI starts. Invalid or concurrently incomplete files fail closed.
+pub fn load_or_create_secret(path: &Path) -> io::Result<[u8; 32]> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("key has no parent"))?;
+    std::fs::create_dir_all(parent)?;
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+    {
+        Ok(mut file) => {
+            let mut secret = [0u8; 32];
+            std::fs::File::open("/dev/urandom")?.read_exact(&mut secret)?;
+            file.write_all(&secret)?;
+            file.sync_all()?;
+            std::fs::File::open(parent)?.sync_all()?;
+            Ok(secret)
+        }
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            let mut file = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                .open(path)?;
+            let metadata = file.metadata()?;
+            use std::os::unix::fs::MetadataExt;
+            // SAFETY: geteuid has no pointer or initialization preconditions.
+            let owner = unsafe { libc::geteuid() };
+            if !metadata.is_file()
+                || metadata.len() != 32
+                || metadata.mode() & 0o077 != 0
+                || metadata.uid() != owner
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "invalid signing key file",
+                ));
+            }
+            let mut secret = [0u8; 32];
+            file.read_exact(&mut secret)?;
+            Ok(secret)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// Read a complete UTF-8 file without retaining more than limit plus one input bytes.
 /// Oversize or invalid UTF-8 returns InvalidData; filesystem errors pass through.
 /// Follows symlinks and performs blocking I/O; callers own path selection and worker scheduling.
@@ -127,6 +175,28 @@ pub fn atomic_write_with<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A real key round-trips privately; symlinks, permissive modes and partial files fail closed.
+    #[test]
+    fn signing_key_is_private_persistent_and_validated() {
+        let root = directory();
+        let key = root.join("key");
+        let first = load_or_create_secret(&key).unwrap();
+        assert_eq!(first, load_or_create_secret(&key).unwrap());
+        assert_eq!(
+            std::fs::metadata(&key).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let link = root.join("link");
+        std::os::unix::fs::symlink(&key, &link).unwrap();
+        assert!(load_or_create_secret(&link).is_err());
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(load_or_create_secret(&key).is_err());
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::write(&key, b"partial").unwrap();
+        assert!(load_or_create_secret(&key).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     /// Build a per-test directory without mutating shared environment variables.
     fn directory() -> std::path::PathBuf {

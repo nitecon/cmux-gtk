@@ -46,7 +46,7 @@ fn surfaces() -> Vec<usize> {
 }
 
 /// Display the font-size editor and apply successful changes to live terminal surfaces.
-pub fn show(parent: &gtk4::ApplicationWindow) {
+pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppStateRef) {
     let dialog = gtk4::Dialog::builder()
         .title("Preferences")
         .transient_for(parent)
@@ -84,6 +84,7 @@ pub fn show(parent: &gtk4::ApplicationWindow) {
     help.set_xalign(0.0);
     help.set_wrap(true);
     content.append(&help);
+    crate::resume_review::append(&content, state);
     let error_label = gtk4::Label::new(None);
     error_label.set_wrap(true);
     content.append(&error_label);

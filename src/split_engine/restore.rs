@@ -15,6 +15,7 @@ use uuid::Uuid;
 /// Borrow immutable launch dependencies while rebuilding one saved pane tree on GTK.
 struct RestoreContext<'a> {
     ghostty_app: ffi::ghostty_app_t,
+    resume_policy: &'a crate::resume_policy::ResumePolicy,
     working_directory: Option<&'a std::path::Path>,
     launch_command: Option<&'a str>,
     remote_launch: Option<&'a crate::ghostty::surface::SurfaceIoMode>,
@@ -35,7 +36,10 @@ impl RestoreContext<'_> {
             .map(std::path::Path::to_path_buf)
             .or_else(|| (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd)));
         let launch = self.remote_launch.cloned().unwrap_or_else(|| {
-            self.launch_command
+            resume
+                .and_then(|binding| self.resume_policy.launch_command(binding))
+                .as_deref()
+                .or(self.launch_command)
                 .map(|command| crate::ghostty::surface::SurfaceIoMode::Command(command.to_owned()))
                 .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec)
         });
@@ -71,12 +75,14 @@ impl SplitEngine {
         working_directory: Option<std::path::PathBuf>,
         launch_command: Option<String>,
         remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
+        resume_policy: &crate::resume_policy::ResumePolicy,
     ) -> Option<Self> {
         static NEXT_RESTORE_BASE: std::sync::atomic::AtomicU64 =
             std::sync::atomic::AtomicU64::new(1 << 24);
         let mut next_pane_id = NEXT_RESTORE_BASE.fetch_add(1 << 18, Ordering::Relaxed);
         let context = RestoreContext {
             ghostty_app,
+            resume_policy,
             working_directory: working_directory.as_deref(),
             launch_command: launch_command.as_deref(),
             remote_launch: remote_launch.as_ref(),

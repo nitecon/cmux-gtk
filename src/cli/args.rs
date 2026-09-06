@@ -44,6 +44,9 @@ pub enum Commands {
         surface: Option<String>,
         #[arg(long)]
         checkpoint: Option<String>,
+        /// Require a current application-signed approval before executing
+        #[arg(long)]
+        automatic: bool,
     },
     /// Manage persistent terminal surface state
     Surface {

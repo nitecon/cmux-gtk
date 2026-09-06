@@ -15,6 +15,8 @@ mod menus;
 mod notification;
 mod preferences;
 mod resume;
+mod resume_policy;
+mod resume_review;
 mod selection;
 mod session;
 mod shortcuts;
@@ -154,6 +156,7 @@ fn main() {
 
     // Try to restore session from previous run (SESS-02, SESS-04).
     // load_session() returns None if file is missing or invalid -- that's fine.
+    crate::resume_policy::initialize();
     let saved_session = crate::session::load_session();
     if let Some(ref s) = saved_session {
         eprintln!(
@@ -346,6 +349,10 @@ fn build_ui(
         s.ssh_event_tx = Some(ssh_event_tx);
         s.runtime_handle = Some(runtime_handle.clone());
         s.browser_shutdown_tasks = browser_shutdown_tasks;
+        s.resume_policy = saved_session
+            .as_ref()
+            .map(|session| session.resume_policy.clone().validated())
+            .unwrap_or_default();
     }
 
     // Restore session if available (SESS-02), otherwise create default workspace.

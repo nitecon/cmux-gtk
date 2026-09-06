@@ -180,9 +180,10 @@ pub fn register_actions(
     let action = gio::SimpleAction::new("preferences", None);
     action.connect_activate({
         let window = window.downgrade();
+        let state = state.clone();
         move |_, _| {
             if let Some(window) = window.upgrade() {
-                crate::preferences::show(&window);
+                crate::preferences::show(&window, &state);
             }
         }
     });
@@ -325,6 +326,7 @@ pub fn register_accels(app: &gtk4::Application, shortcuts: &crate::config::Short
     app.set_accels_for_action("win.copy", &["<Ctrl><Shift>c"]);
     app.set_accels_for_action("win.paste", &["<Ctrl><Shift>v"]);
     app.set_accels_for_action("win.find", &["<Ctrl>f"]);
+    app.set_accels_for_action("win.preferences", &["<Ctrl>comma"]);
     app.set_accels_for_action("app.quit", &["<Ctrl>q"]);
 }
 

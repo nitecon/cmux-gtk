@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Terminal resume binding metadata
 space: cmux-gtk
 slug: terminal-resume
-summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual execution supported; automatic hook policy remains in progress.
+summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual and exact-approved local execution supported; prefix and provider policy remain in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/resume.rs
@@ -14,7 +14,7 @@ content:
       steps:
         - CLI surface resume set accepts --surface UUID, --shell COMMAND, --kind, --checkpoint, --cwd and --name. Surface defaults from CMUX_SURFACE_ID, otherwise to the selected surface.
         - Socket surface.resume.set accepts surface_id (or id), command, name, kind, cwd, checkpoint_id and environment string map. Exact UUID targeting searches all workspaces without selecting them. Browser and stale targets fail.
-        - surface.resume.show returns surface_id, workspace_id, resume_binding and auto_resume=false. A missing binding is null. Metadata registration never launches a process. execution_location identifies local versus remote_ssh bindings.
+        - surface.resume.show returns surface_id, workspace_id, resume_binding and computed auto_resume (true only for a signed local approval). A missing binding is null. Metadata registration never launches a process. execution_location identifies local versus remote_ssh bindings.
         - Bindings allow at most 16384 bytes per value, 65536 total bytes and 64 environment entries. NUL bytes and non-shell-variable environment names fail before GTK admission. Null environment maps mean no overrides. Secret-like keys and CMUX routing overrides are dropped before storage and again before restore/launch.
     - name: Clear without deleting a newer checkpoint
       steps:
@@ -23,11 +23,18 @@ content:
     - name: Persistence and execution boundary
       steps:
         - Bindings live in their terminal entry in the pane layout; normal snapshot/save and final quit drain persist them. New sibling/split terminals start without a binding.
-        - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Automatic requests return not_supported until a configured hook/approval policy exists. Untrusted source strings do not confer automatic launch authority.
-        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Provider hooks, automatic approval, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
+        - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Binding writes cannot grant automatic approval; explicit auto_resume=true requests remain not_supported. Untrusted source strings do not confer automatic launch authority.
+        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Broader provider hooks, prefix approval, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
 
     - name: Claude native session hooks
       steps:
         - cmux hooks setup claude discovers the provider on PATH and merges owned SessionStart/SessionEnd command handlers into CLAUDE_CONFIG_DIR/settings.json or HOME/.claude/settings.json. Unrelated settings/handlers survive repeated installs; malformed, oversized or symlink settings fail without replacement. No current-user setup is run by repository verification.
         - cmux hooks claude session-start/session-end accepts at most 65536 stdin bytes and requires a matching hook_event_name, native session_id and originating surface identity. Start records a quoted absolute provider command, native checkpoint, absolute cwd and only known configuration directory overrides. End clears only that checkpoint.
         - Context-free implicit hooks outside cmux skip successfully; explicit sockets retain connection failures. Hook-created bindings are not automatically trusted. Per-turn notifications and other providers remain incomplete.
+
+    - name: Review automatic local execution
+      steps:
+        - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
+        - HMAC-SHA256 approval records are persisted by the session writer, separate from the owner-only configuration resume-approval.key. Unavailable, malformed or unsafe key files disable approvals. Persisted records are validated before startup decisions.
+        - Approved local bindings override the workspace startup command during restoration. cmux restore --automatic requires the current backend approval as well as matching terminal identity and TTY; it executes the returned binding through the manual execution path. The wrapper returns to an interactive shell after completion or failure. Remote bindings cannot use this path.
+        - This checkpoint supports exact launches only. Upstream command-prefix policy, trusted provider automatic approvals, agent toggles and expanded lifecycle metrics remain open. CI tests UI approval and revocation through real GTK keyboard input rather than a test-only socket bypass.

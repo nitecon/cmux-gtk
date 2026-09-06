@@ -32,6 +32,7 @@ pub fn install_shortcuts(
 
     key_ctrl.connect_key_pressed({
         let state = state.clone();
+        let window = window.downgrade();
         move |_ctrl, keyval, _keycode, mods| {
             match shortcut_map.lookup(mods, keyval) {
                 // -- Workspace shortcuts --
@@ -138,6 +139,19 @@ pub fn install_shortcuts(
                 }
                 Some(ShortcutAction::BrowserClose) => {
                     handle_browser_close(&state);
+                    gtk4::glib::Propagation::Stop
+                }
+                None if keyval == gtk4::gdk::Key::comma
+                    && mods.intersection(
+                        gtk4::gdk::ModifierType::CONTROL_MASK
+                            | gtk4::gdk::ModifierType::SHIFT_MASK
+                            | gtk4::gdk::ModifierType::ALT_MASK
+                            | gtk4::gdk::ModifierType::SUPER_MASK,
+                    ) == gtk4::gdk::ModifierType::CONTROL_MASK =>
+                {
+                    if let Some(window) = window.upgrade() {
+                        crate::preferences::show(&window, &state);
+                    }
                     gtk4::glib::Propagation::Stop
                 }
                 // Everything else passes through to Ghostty.
