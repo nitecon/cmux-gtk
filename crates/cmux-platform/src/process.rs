@@ -49,11 +49,13 @@ pub struct Resources {
     pub file_descriptors: Option<usize>,
 }
 
-/// Read this process's Linux resources; return an error if procfs is unavailable.
+/// Read this process's Linux resources; reject unavailable, invalid or over-64-KiB status data.
 ///
 /// Performs blocking filesystem I/O; call on a worker, never on GTK's main thread.
 pub fn resources() -> io::Result<Resources> {
-    let mut sample = parse_status(&std::fs::read_to_string("/proc/self/status")?);
+    let status =
+        crate::filesystem::read_text_bounded(std::path::Path::new("/proc/self/status"), 64 * 1024)?;
+    let mut sample = parse_status(&status);
     sample.file_descriptors = std::fs::read_dir("/proc/self/fd")
         .ok()
         .map(|entries| entries.filter_map(Result::ok).count().saturating_sub(1));

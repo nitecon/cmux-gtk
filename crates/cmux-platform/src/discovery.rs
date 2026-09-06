@@ -1,7 +1,5 @@
 //! Linux control-socket discovery shared by command-line adapters.
 
-use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Discover the cmux socket path using the standard search chain.
@@ -49,17 +47,8 @@ pub fn discover_socket() -> Option<String> {
 
 /// Read at most 4097 bytes and reject oversized, non-UTF-8, empty or missing marker targets.
 fn read_marker(marker: &Path) -> Option<PathBuf> {
-    const MAX_MARKER_BYTES: u64 = 4096;
-    let mut contents = Vec::new();
-    File::open(marker)
-        .ok()?
-        .take(MAX_MARKER_BYTES + 1)
-        .read_to_end(&mut contents)
-        .ok()?;
-    if contents.len() > MAX_MARKER_BYTES as usize {
-        return None;
-    }
-    let target = std::str::from_utf8(&contents).ok()?.trim();
+    let contents = crate::filesystem::read_text_bounded(marker, 4096).ok()?;
+    let target = contents.trim();
     if target.is_empty() {
         return None;
     }
@@ -93,6 +82,7 @@ fn newest_debug_path(directory: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
     use std::time::{Duration, SystemTime};
 
     /// Own a unique filesystem fixture without changing process environment or shared debug paths.

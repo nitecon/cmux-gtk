@@ -1,11 +1,33 @@
 //! Linux filesystem operations shared by persistent application settings.
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
+
+/// Read a complete UTF-8 file without retaining more than limit plus one input bytes.
+/// Oversize or invalid UTF-8 returns InvalidData; filesystem errors pass through.
+/// Follows symlinks and performs blocking I/O; callers own path selection and worker scheduling.
+pub fn read_text_bounded(path: &Path, limit: usize) -> io::Result<String> {
+    let capacity = u64::try_from(limit)
+        .ok()
+        .and_then(|limit| limit.checked_add(1))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid file byte limit"))?;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(capacity)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "file exceeds byte limit",
+        ));
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "file is not UTF-8"))
+}
 
 /// Create a directory tree and restrict its final directory to its owner.
 /// New directories are created with mode 0700 (subject to umask); the final
@@ -91,6 +113,33 @@ mod tests {
             std::process::id(),
             NEXT_TEMPORARY.fetch_add(1, Ordering::Relaxed)
         ))
+    }
+
+    /// Real files enforce byte boundaries, UTF-8 validity and ordinary filesystem error behavior.
+    #[test]
+    fn bounded_text_reads_validate_complete_contents() {
+        let root = directory();
+        create_private_directory(&root).unwrap();
+        let file = root.join("metadata");
+        std::fs::write(&file, "λ").unwrap();
+        assert_eq!(read_text_bounded(&file, 2).unwrap(), "λ");
+        assert_eq!(
+            read_text_bounded(&file, 1).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        std::fs::write(&file, [0xff]).unwrap();
+        assert_eq!(
+            read_text_bounded(&file, 1).unwrap_err().kind(),
+            io::ErrorKind::InvalidData
+        );
+        std::fs::write(&file, b"").unwrap();
+        assert_eq!(read_text_bounded(&file, 0).unwrap(), "");
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(
+            read_text_bounded(&file, 4).unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+        std::fs::remove_dir(root).unwrap();
     }
 
     /// Private paths and staged binaries receive exact access modes, including existing paths.
