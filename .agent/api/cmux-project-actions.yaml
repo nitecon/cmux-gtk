@@ -97,3 +97,8 @@ content:
   layout_restore_depth:
     - Project parser and GTK session builder share MAX_LAYOUT_DEPTH32. Prior restore bound16 could discard deeper project-valid layouts.
     - Session loading fixture restores17 nested splits and asserts18 panes/surfaces plus workspace name. Clippy/AST pass; runtime pending.
+
+  default_workspace_execution:
+    - Inline workspace and named workspaceCommand actions create default-layout workspaces with name/cwd/RGB color/env. Relative cwd resolves from reviewed canonical directory; preparation runs under existing reader worker/deadline before GTK mutation.
+    - Configured creation applies env to first surface before realization and retains overrides for new tabs and session snapshots. Result carries source/destination workspace and selected surface IDs.
+    - Layout/setup and explicit named restart policies other than new are rejected. Omitted restart currently creates new; complete restart semantics remain outstanding. Actions tests cover inline/named actual child values; runtime pending.

@@ -118,7 +118,7 @@ impl AppState {
     /// page to the GtkStack. The actual GLArea/split root is added by the caller (Plan 04).
     /// Returns the new workspace id.
     pub fn create_workspace(&mut self) -> u64 {
-        self.create_local_workspace(None, None, None)
+        self.create_local_workspace(None, None, None, Default::default())
     }
 
     /// Create a local workspace bound to an existing directory.
@@ -134,7 +134,22 @@ impl AppState {
 
     /// Create a workspace from inputs already validated off the GTK main thread.
     pub fn create_workspace_bound(&mut self, name: String, working_directory: PathBuf) -> u64 {
-        self.create_local_workspace(Some(name), Some(working_directory), None)
+        self.create_local_workspace(
+            Some(name),
+            Some(working_directory),
+            None,
+            Default::default(),
+        )
+    }
+
+    /// Create from worker-validated project inputs; overrides reach the first surface before realization.
+    pub(crate) fn create_workspace_configured(
+        &mut self,
+        name: String,
+        directory: PathBuf,
+        environment: std::collections::BTreeMap<String, String>,
+    ) -> u64 {
+        self.create_local_workspace(Some(name), Some(directory), None, environment)
     }
 
     /// Validate the launch directory and readable script before creating a local GTK workspace.
@@ -146,7 +161,12 @@ impl AppState {
     ) -> Result<u64, String> {
         let (name, directory) = crate::workspace::prepare_local_workspace(&name, directory)?;
         let script = crate::workspace::prepare_startup_script(script)?;
-        Ok(self.create_local_workspace(Some(name), Some(directory), Some(script)))
+        Ok(self.create_local_workspace(
+            Some(name),
+            Some(directory),
+            Some(script),
+            Default::default(),
+        ))
     }
 
     /// Allocate identity, construct the pane tree and sidebar row, select and schedule persistence.
@@ -155,6 +175,7 @@ impl AppState {
         name: Option<String>,
         working_directory: Option<PathBuf>,
         startup_script: Option<PathBuf>,
+        environment: std::collections::BTreeMap<String, String>,
     ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
@@ -187,10 +208,10 @@ impl AppState {
             None,
             workspace.working_directory.clone(),
             pane_id,
-            launch_command
-                .clone()
-                .map(crate::ghostty::surface::SurfaceIoMode::Command)
-                .unwrap_or(crate::ghostty::surface::SurfaceIoMode::Exec),
+            crate::ghostty::surface::SurfaceIoMode::Configured {
+                command: launch_command.clone(),
+                environment: environment.clone(),
+            },
         );
         let mut engine = SplitEngine::new(
             self.ghostty_app,
@@ -200,6 +221,7 @@ impl AppState {
         );
 
         engine.launch_command = launch_command;
+        engine.launch_environment = environment;
 
         // Add to stack
         let page_name = format!("workspace-{}", id);

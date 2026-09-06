@@ -424,3 +424,7 @@ Aligned restore depth with project validation at32 levels, removing the prior16-
 ### Restore topology preflight
 
 Session reconstruction now checks the full tree depth before allocating any GTK widgets or scheduling ratio callbacks. An invalid late branch previously caused earlier branches to be constructed before fallback. Boundary tests cover the shared maximum and a too-deep late branch; Clippy passes, runtime pending Actions. This avoids partial allocation for rejected trees and is not evidence that the reported OOM is resolved.
+
+### Default project workspace execution
+
+Inline and named workspace actions now create configured workspaces with reviewed name/relative-or-absolute cwd/RGB color/environment. Validation and path resolution run off GTK; first terminal receives overrides before realization, with normal persistence/sidebar wiring. Actions coverage exercises both forms and child values. Layout/setup and non-new restart policies remain explicit errors pending implementation; full parity remains open.

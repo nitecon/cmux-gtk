@@ -4,12 +4,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// I/O mode for a Ghostty surface.
-/// - `Exec`: normal mode — Ghostty spawns a local shell process.
+/// - `Configured`: Ghostty spawns a local shell or command with explicit overrides.
 /// - `Manual`: SSH remote mode — keystrokes route through io_write_cb to the SSH bridge.
 #[derive(Clone)]
 pub enum SurfaceIoMode {
-    Exec,
-    Command(String),
     /// Validated local launch overrides; routing identities are supplied by cmux after these entries.
     Configured {
         command: Option<String>,
@@ -92,8 +90,7 @@ fn initialize_surface(
             config.working_directory = cwd.as_ptr();
         }
         let command_c = match &init.io_mode {
-            SurfaceIoMode::Command(command)
-            | SurfaceIoMode::Configured {
+            SurfaceIoMode::Configured {
                 command: Some(command),
                 ..
             } => std::ffi::CString::new(command.as_str()).ok(),
@@ -1000,9 +997,12 @@ mod clipboard_integration_tests {
             None,
             Some(first.clone()),
             900001,
-            SurfaceIoMode::Command(
-                "/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into(),
-            ),
+            SurfaceIoMode::Configured {
+                command: Some(
+                    "/bin/sh -c 'printf \"\\033[2J\\033[HCMUXPRIMARY\\n\"; exec /bin/sh'".into(),
+                ),
+                environment: Default::default(),
+            },
         );
         let (right, right_cell) = create_surface(
             ghostty,

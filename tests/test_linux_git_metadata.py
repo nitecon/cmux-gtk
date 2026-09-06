@@ -129,6 +129,27 @@ def main():
             assert next(row["uuid"] for row in app.surfaces() if row["active"]) == created["surface_id"]
             assert len(json.loads(app.cli("list-workspaces", "--json"))["workspaces"]) == len(workspaces_before) + 1
             app.cli("close-workspace", created["workspace_id"])
+            for family in ["inline", "named"]:
+                workspace = {"name": "Configured " + family, "cwd": ".", "color": "#123456",
+                             "env": {"PROJECT_VALUE": "literal $HOME"}}
+                definition = {"type": "workspace", "workspace": workspace}
+                config = {"actions": {"fixture.configured": definition}}
+                if family == "named":
+                    config = {"commands": [{"name": "configured", "workspace": workspace, "restart": "new"}],
+                              "actions": {"fixture.configured": {"type": "workspaceCommand", "name": "configured"}}}
+                config_file.write_text(json.dumps(config))
+                reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+                created = json.loads(app.cli("project-run", "fixture.configured", "--workspace", target["workspace_uuid"],
+                    "--fingerprint", reviewed["config"]["actions"]["fixture.configured"]["fingerprint"], "--json"))
+                current = json.loads(app.cli("current-workspace", "--json"))
+                assert current["name"] == workspace["name"] and current["working_directory"] == str(repo)
+                surface = created["surface_id"]
+                app.wait_for(lambda: json.loads(app.cli("health", "--id", surface, "--json"))["alive"], "configured terminal")
+                output = repo / (family + ".environment")
+                app.cli("send-text", "--id", surface, "printf '%s' \"$PROJECT_VALUE\" > " + shlex.quote(str(output)))
+                app.cli("send-key", "--id", surface, "\r")
+                app.wait_for(lambda: output.exists() and output.read_text() == "literal $HOME", "configured workspace environment")
+                app.cli("close-workspace", created["workspace_id"])
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))
