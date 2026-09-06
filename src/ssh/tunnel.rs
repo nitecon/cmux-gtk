@@ -33,12 +33,13 @@ pub async fn run_ssh_lifecycle(
     target: String,
     ssh_tx: SshEventTx,
     bridge: Arc<SshBridge>,
+    launch_trace: uuid::Uuid,
 ) {
     let mut attempt: u32 = 0;
     let mut deployed = false;
 
     loop {
-        let mut connection = super::metrics::Attempt::begin(workspace_id, attempt);
+        let mut connection = super::metrics::Attempt::begin(workspace_id, attempt, launch_trace);
         // Update state to reconnecting
         let _ = ssh_tx
             .send(SshEvent::StateChanged {

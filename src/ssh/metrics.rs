@@ -27,6 +27,7 @@ pub(super) fn remote_timing(
 pub(super) struct Attempt {
     pub id: uuid::Uuid,
     workspace_id: u64,
+    parent_trace_id: uuid::Uuid,
     attempt: u32,
     started: Instant,
     phase_started: Instant,
@@ -36,11 +37,12 @@ pub(super) struct Attempt {
 
 impl Attempt {
     /// Generate a new attempt identity; unfinished scope exit records cancellation.
-    pub fn begin(workspace_id: u64, attempt: u32) -> Self {
+    pub fn begin(workspace_id: u64, attempt: u32, parent_trace_id: uuid::Uuid) -> Self {
         let started = Instant::now();
         let result = Self {
             id: uuid::Uuid::new_v4(),
             workspace_id,
+            parent_trace_id,
             attempt,
             started,
             phase_started: started,
@@ -50,7 +52,7 @@ impl Attempt {
         crate::diagnostics::record(
             "ssh.connection.begin",
             serde_json::json!({
-                "trace_id": result.id, "workspace_id": workspace_id, "attempt": attempt,
+                "trace_id": result.id, "parent_trace_id": parent_trace_id, "workspace_id": workspace_id, "attempt": attempt,
             }),
         );
         result
@@ -63,7 +65,7 @@ impl Attempt {
         crate::diagnostics::record(
             "ssh.connection.stage",
             serde_json::json!({
-                "trace_id": self.id, "workspace_id": self.workspace_id, "phase": phase,
+                "trace_id": self.id, "parent_trace_id": self.parent_trace_id, "workspace_id": self.workspace_id, "phase": phase,
                 "elapsed_us": self.started.elapsed().as_micros(),
             }),
         );
@@ -81,7 +83,7 @@ impl Drop for Attempt {
         crate::diagnostics::record(
             "ssh.connection.complete",
             serde_json::json!({
-                "trace_id": self.id, "workspace_id": self.workspace_id, "attempt": self.attempt,
+                "trace_id": self.id, "parent_trace_id": self.parent_trace_id, "workspace_id": self.workspace_id, "attempt": self.attempt,
                 "phase": self.phase, "outcome": self.outcome,
                 "duration_us": self.started.elapsed().as_micros(),
                 "stage_duration_us": self.phase_started.elapsed().as_micros(),

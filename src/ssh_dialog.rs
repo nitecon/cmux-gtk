@@ -140,7 +140,6 @@ fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory:
             )));
             crate::sidebar::style_workspace_row(&row, &s.workspaces[index]);
         }
-        s.workspace_bridges.insert(id, bridge.clone());
         s.trigger_session_save();
     }
     let (list, app) = {
@@ -149,12 +148,7 @@ fn trigger_ssh_connect(state: &Rc<RefCell<AppState>>, target: String, directory:
     };
     crate::sidebar::wire_latest_row(&list, state.clone(), &app);
 
-    let ssh_tx = state.borrow().ssh_event_tx.clone();
-    let rt_handle = state.borrow().runtime_handle.clone();
-    if let (Some(tx), Some(rt)) = (ssh_tx, rt_handle) {
-        let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
-            id, target, tx, bridge,
-        ));
-        state.borrow_mut().ssh_task_handles.insert(id, handle);
-    }
+    state
+        .borrow_mut()
+        .start_ssh(id, target, bridge, None, "dialog");
 }

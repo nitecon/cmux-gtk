@@ -279,11 +279,6 @@ fn handle_socket_command_traced(
                 let id = state
                     .borrow_mut()
                     .create_remote_workspace(target.clone(), &bridge);
-                // Store bridge on AppState for later access
-                state
-                    .borrow_mut()
-                    .workspace_bridges
-                    .insert(id, bridge.clone());
                 let uuid_str = {
                     let s = state.borrow();
                     s.workspaces
@@ -292,15 +287,15 @@ fn handle_socket_command_traced(
                         .map(|ws| ws.uuid.to_string())
                         .unwrap_or_default()
                 };
-                // Spawn SSH lifecycle task using the runtime_handle stored on AppState
-                let ssh_tx = state.borrow().ssh_event_tx.clone();
-                let rt_handle = state.borrow().runtime_handle.clone();
-                if let (Some(tx), Some(rt)) = (ssh_tx, rt_handle) {
-                    let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
-                        id, target, tx, bridge,
-                    ));
-                    state.borrow_mut().ssh_task_handles.insert(id, handle);
-                }
+                state.borrow_mut().start_ssh(
+                    id,
+                    target,
+                    bridge,
+                    trace_id
+                        .as_deref()
+                        .and_then(|value| uuid::Uuid::parse_str(value).ok()),
+                    "rpc",
+                );
                 let _ = resp_tx.send(ok(req_id, json!({"uuid": uuid_str, "remote": true})));
             } else {
                 let id = if let Some(path) = working_directory {

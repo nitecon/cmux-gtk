@@ -242,19 +242,37 @@ impl AppState {
         self.split_engines.push(engine);
 
         if let (Some(bridge), Some(target)) = (remote_bridge, ws.remote_target.clone()) {
-            if let (Some(rt), Some(tx)) = (self.runtime_handle.as_ref(), self.ssh_event_tx.clone())
-            {
-                let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
-                    id,
-                    target,
-                    tx,
-                    bridge.clone(),
-                ));
-                self.ssh_task_handles.insert(id, handle);
-            }
-            self.workspace_bridges.insert(id, bridge);
+            self.start_ssh(id, target, bridge, None, "restore");
         }
         Some(id)
+    }
+
+    /// Retain the workspace bridge and own its SSH task, linking retries to the initiating operation.
+    /// Call on GTK after workspace creation; absent runtime/channel records unavailable without spawning.
+    pub(crate) fn start_ssh(
+        &mut self,
+        id: u64,
+        target: String,
+        bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
+        parent: Option<uuid::Uuid>,
+        origin: &'static str,
+    ) {
+        let trace_id = parent.unwrap_or_else(uuid::Uuid::new_v4);
+        self.workspace_bridges.insert(id, bridge.clone());
+        let ready = self.runtime_handle.is_some() && self.ssh_event_tx.is_some();
+        crate::diagnostics::record(
+            "workspace.ssh.launch",
+            serde_json::json!({"trace_id": trace_id, "workspace_id": id, "origin": origin,
+                "outcome": if ready { "scheduled" } else { "unavailable" }}),
+        );
+        if let (Some(rt), Some(tx)) = (self.runtime_handle.as_ref(), self.ssh_event_tx.clone()) {
+            let handle = rt.spawn(crate::ssh::tunnel::run_ssh_lifecycle(
+                id, target, tx, bridge, trace_id,
+            ));
+            if let Some(previous) = self.ssh_task_handles.insert(id, handle) {
+                previous.abort();
+            }
+        }
     }
 
     /// Build an unattached GTK sidebar row with workspace identity, styling and controls.

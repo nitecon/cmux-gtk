@@ -180,7 +180,7 @@ Subsystem sftp internal-sftp
                 lines = source.read(8 * 1024 * 1024).splitlines()
         except FileNotFoundError:
             return False
-        starts, completed, connections, handshakes = {}, [], set(), {}
+        starts, completed, connections, handshakes, launches_by_trace = {}, [], {}, {}, {}
         for line in lines:
             try:
                 event = json.loads(line)
@@ -193,7 +193,9 @@ Subsystem sftp internal-sftp
             elif event["event"] == "ssh.rpc.complete":
                 completed.append(event["fields"])
             elif event["event"] == "ssh.connection.begin":
-                connections.add(event["fields"]["trace_id"])
+                connections[event["fields"]["trace_id"]] = event["fields"]
+            elif event["event"] == "workspace.ssh.launch":
+                launches_by_trace[event["fields"]["trace_id"]] = event["fields"]
             elif event["event"] == "ssh.handshake.complete":
                 handshakes[event["fields"]["trace_id"]] = event["fields"]
         successful = [fields for fields in completed if fields["outcome"] == "success"]
@@ -208,6 +210,9 @@ Subsystem sftp internal-sftp
             assert fields["workspace_id"] == starts[identity]["workspace_id"]
             parent = fields["parent_trace_id"]
             assert parent == starts[identity]["parent_trace_id"] and parent in connections
+            launch = launches_by_trace[connections[parent]["parent_trace_id"]]
+            assert launch["workspace_id"] == fields["workspace_id"]
+            assert launch["outcome"] == "scheduled" and launch["origin"] == "restore"
             assert handshakes[parent]["outcome"] == "success"
             assert type(handshakes[parent]["remote_handler_duration_us"]) is int
             assert type(fields["remote_handler_duration_us"]) is int

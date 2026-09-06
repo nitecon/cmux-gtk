@@ -15,6 +15,10 @@ content:
         - Create Workspace accepts an existing local folder and an optional readable POSIX shell script.
         - Pass the canonical folder through Ghostty working_directory. Source the script through config.command before exec of the login shell.
         - Inherit the launch command for splits and terminal tabs. Replay on session restore.
+    - name: SSH launch ownership
+      steps:
+        - AppState.start_ssh owns bridge storage and task scheduling for RPC creation, the SSH dialog and restored workspaces. Replacing a handle aborts its previous task.
+        - workspace.ssh.launch records workspace identity, fixed origin and scheduled or unavailable outcome. RPC launches inherit the request trace; dialog and restore generate a new launch UUID. Every retry records this parent_trace_id, linking deployment, hello and PTY setup to the original launch without storing target or command text.
     - name: SSH workspace
       steps:
         - Use an SSH config alias or user@host and an optional absolute remote folder. Authentication uses SSH keys/agent with BatchMode enabled.
