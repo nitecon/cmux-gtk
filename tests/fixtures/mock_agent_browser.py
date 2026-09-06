@@ -80,9 +80,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--session", default=os.environ.get("AGENT_BROWSER_SESSION", "cmux"))
     parser.add_argument("--mock-daemon", action="store_true")
-    args, _ = parser.parse_known_args()
+    args, commands = parser.parse_known_args()
     if args.mock_daemon:
         run_daemon(args.session)
     else:
         ensure_daemon(args.session)
+        # The real agent-browser CLI performs the initial navigation itself;
+        # mirror that public boundary so restored/project-created panes can be
+        # verified without depending on a later socket navigation.
+        if "open" in commands:
+            index = commands.index("open")
+            if index + 1 < len(commands):
+                (socket_dir() / "last-navigation.json").write_text(
+                    json.dumps({"action": "navigate", "url": commands[index + 1],
+                                "session": args.session}),
+                    encoding="utf-8",
+                )
         print(json.dumps({"success": True, "data": {}}))
