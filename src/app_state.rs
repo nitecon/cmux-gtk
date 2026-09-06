@@ -381,8 +381,8 @@ impl AppState {
     /// Close the workspace at `index`. Removes the sidebar row and GtkStack page.
     /// Returns false if there is only one workspace (cannot close the last one).
     pub fn close_workspace(&mut self, index: usize) -> bool {
-        if self.workspaces.len() <= 1 {
-            return false; // Cannot close the last workspace
+        if self.workspaces.len() <= 1 || index >= self.workspaces.len() {
+            return false; // Cannot close the last workspace or an unknown index
         }
 
         // Abort SSH lifecycle task if this is a remote workspace.
@@ -390,6 +390,16 @@ impl AppState {
             if let Some(handle) = self.ssh_task_handles.remove(&ws.id) {
                 handle.abort();
             }
+        }
+
+        // Retire browser owners before widget removal; GTK destruction can be delayed by retained widgets.
+        let browsers: Vec<_> = self.split_engines[index]
+            .browser_tabs()
+            .into_iter()
+            .map(|widgets| widgets.uuid)
+            .collect();
+        for id in browsers {
+            self.shutdown_browser_surface(id);
         }
 
         // Stop PTYs and unregister their callbacks before removing GTK widgets.

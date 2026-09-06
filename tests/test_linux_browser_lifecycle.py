@@ -11,7 +11,6 @@ import signal
 import subprocess
 import tempfile
 import uuid
-import uuid
 
 from linux_app import running_app
 from process_support import linux_process_belongs_to, stop_process
@@ -144,11 +143,16 @@ def main():
                 third = json.loads(app.cli("new-workspace", "--name", "explicit browser target", "--json"))["uuid"]
                 app.cli("select-workspace", target)
                 active_before = {item["uuid"] for item in app.surfaces() if item["active"]}
+                previous_daemons = set(browser_dir.glob("*.pid"))
                 app.cli("browser", "open", "about:blank", "--workspace", third)
+                third_daemons = set(browser_dir.glob("*.pid")) - previous_daemons
+                assert len(third_daemons) == 1, third_daemons
                 third_surfaces = [item for item in app.surfaces() if item["workspace_uuid"] == third]
                 assert len(third_surfaces) == 2, third_surfaces
                 assert {item["uuid"] for item in app.surfaces() if item["active"]} == active_before
                 app.cli("close-workspace", third)
+                app.wait_for(lambda: all(not pid.exists() for pid in third_daemons), "closed workspace browser daemon exit")
+                assert all(pid.exists() for pid in previous_daemons), "closing one workspace retired another browser"
                 app.cli("select-workspace", source)
                 with pending_open(app, browser_dir) as pending:
                     app.cli("select-workspace", target)
@@ -157,6 +161,7 @@ def main():
                     error = finish_open(pending, browser_dir, False)
                     assert "closed during browser startup" in error, error
                     assert app.surfaces() == before, "stale completion mutated another workspace"
+                app.wait_for(lambda: not list(browser_dir.glob("*.pid")), "closed workspace and cancelled startup daemon exit")
                 app.cli("ping")
         finally:
             for pid_file in browser_dir.glob("*.pid"):
