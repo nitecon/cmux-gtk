@@ -7,10 +7,14 @@ const CAPACITY: usize = 128;
 const PER_TURN: usize = 16;
 
 /// An owned pane identity; closed panes are ignored when GTK consumes the event.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Event {
     Bell(u64),
     NewTerminalTab(u64),
+    Notification {
+        surface: uuid::Uuid,
+        content: crate::inbox::Content,
+    },
 }
 
 #[derive(Default)]

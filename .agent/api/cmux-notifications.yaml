@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Notification inbox and exact target routing
 space: cmux-gtk
 slug: notification-inbox
-summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC and provider integration remain in progress.
+summary: Bounded persistent message history, exact surface routing, read state and intentional navigation; native OSC title/body delivery supported; provider and desktop integration remain in progress.
 kind: agent_context
 source_format: agent_context
 source_ref: src/inbox.rs
@@ -29,6 +29,9 @@ content:
         - Creation diagnostics include message/target IDs, focused state and evicted count without message content. Common RPC tracing covers validation, queueing, execution and response.
   operations:
     verification: Actions runs tests/test_linux_notifications.py with real GTK terminals, plus retained-bound/selector unit cases. Runtime evidence is pending for the initial implementation.
-    outstanding: Native OSC9/99/777 chunking, per-turn provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.
+    outstanding: Advanced OSC99 query/replacement/activation reports, per-turn provider hook delivery, desktop content/click routing and caller resolution remain part of the active parity goal.
 
     panel: View > Notifications or Ctrl+Shift+I opens one nonmodal live panel. Ctrl+Shift+U jumps to unread. A watch signal coalesces mutations; the GTK listener and action handlers hold weak references and closing aborts the listener. Rows render plain text, open exact targets or dismiss messages; bulk controls mark read or clear. Native CI checks live unread-title updates and navigation.
+
+    native_output: The initial native PTY tee installs a surface-owned bounded OSC parser before IO startup; manual remote output uses the same callback. OSC9 and OSC777 notifications plus OSC99 title/body/i/d/e chunk fields enter the bounded native event queue with exact sibling UUIDs. Native desktop callbacks are acknowledged to avoid duplicates. Maximum frame 16384 bytes, eight incomplete messages per terminal, 60-second idle expiry and existing notification field caps. Context is freed after native IO joins.
+    parser_metrics: diagnostics.notification_parser exposes output_bytes, parse_ns, accepted, queue_rejected and oversize_frames. No raw output or message content is logged.

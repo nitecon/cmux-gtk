@@ -59,112 +59,127 @@ fn initialize_surface(
     }
 
     let scale = area.scale_factor() as f64;
-    let surface =
-        unsafe {
-            let platform = ffi::ghostty_platform_u {
-                opengl: ffi::ghostty_platform_opengl_s {
-                    userdata: area.as_ptr() as *mut std::ffi::c_void,
-                    make_current: Some(cmux_platform::opengl::make_current),
-                    clear_current: Some(cmux_platform::opengl::clear_current),
-                    get_proc_address: Some(cmux_platform::opengl::get_proc_address),
-                    swap_buffers: Some(cmux_platform::opengl::swap_buffers),
-                },
-            };
-            let mut config = init
-                .inherited_config
-                .as_ref()
-                .map(super::inherited::InheritedConfig::config)
-                .unwrap_or_else(|| ffi::ghostty_surface_config_new());
-            config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
-            config.platform = platform;
-            config.userdata = area.as_ptr() as *mut std::ffi::c_void;
-            config.scale_factor = scale;
+    let surface = unsafe {
+        let platform = ffi::ghostty_platform_u {
+            opengl: ffi::ghostty_platform_opengl_s {
+                userdata: area.as_ptr() as *mut std::ffi::c_void,
+                make_current: Some(cmux_platform::opengl::make_current),
+                clear_current: Some(cmux_platform::opengl::clear_current),
+                get_proc_address: Some(cmux_platform::opengl::get_proc_address),
+                swap_buffers: Some(cmux_platform::opengl::swap_buffers),
+            },
+        };
+        let mut config = init
+            .inherited_config
+            .as_ref()
+            .map(super::inherited::InheritedConfig::config)
+            .unwrap_or_else(|| ffi::ghostty_surface_config_new());
+        config.platform_tag = ffi::ghostty_platform_e_GHOSTTY_PLATFORM_OPENGL;
+        config.platform = platform;
+        config.userdata = area.as_ptr() as *mut std::ffi::c_void;
+        config.scale_factor = scale;
 
-            let working_directory_c = init
-                .working_directory
-                .as_ref()
-                .and_then(|path| std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok());
-            if let Some(ref cwd) = working_directory_c {
-                config.working_directory = cwd.as_ptr();
-            }
-            let command_c = match &init.io_mode {
-                SurfaceIoMode::Command(command) => std::ffi::CString::new(command.as_str()).ok(),
-                _ => None,
-            };
-            if let Some(command) = &command_c {
-                config.command = command.as_ptr();
-            }
-            // Keep owned strings and the merged array alive through ghostty_surface_new.
-            // Appended entries replace inherited terminal identity in Ghostty's environment map.
-            let identity = area
-                .data::<uuid::Uuid>("cmux-surface-uuid")
-                .map(|identity| identity.as_ref().to_string());
-            let socket = cmux_platform::paths::socket_path()
-                .to_string_lossy()
-                .into_owned();
-            let environment_strings: Vec<_> = identity
-                .into_iter()
-                .flat_map(|identity| {
-                    [
-                        ("CMUX_SURFACE_ID", identity),
-                        ("CMUX_SOCKET_PATH", socket.clone()),
-                        ("CMUX_SOCKET", socket.clone()),
-                    ]
-                })
-                .map(|(key, value)| {
-                    (
-                        std::ffi::CString::new(key).unwrap(),
-                        std::ffi::CString::new(value).unwrap(),
-                    )
-                })
-                .collect();
-            let mut environment = if config.env_vars.is_null() || config.env_var_count == 0 {
-                Vec::new()
-            } else {
-                std::slice::from_raw_parts(config.env_vars, config.env_var_count).to_vec()
-            };
-            environment.extend(environment_strings.iter().map(|(key, value)| {
-                ffi::ghostty_env_var_s {
+        let working_directory_c = init
+            .working_directory
+            .as_ref()
+            .and_then(|path| std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok());
+        if let Some(ref cwd) = working_directory_c {
+            config.working_directory = cwd.as_ptr();
+        }
+        let command_c = match &init.io_mode {
+            SurfaceIoMode::Command(command) => std::ffi::CString::new(command.as_str()).ok(),
+            _ => None,
+        };
+        if let Some(command) = &command_c {
+            config.command = command.as_ptr();
+        }
+        // Keep owned strings and the merged array alive through ghostty_surface_new.
+        // Appended entries replace inherited terminal identity in Ghostty's environment map.
+        let identity = area
+            .data::<uuid::Uuid>("cmux-surface-uuid")
+            .map(|identity| identity.as_ref().to_string());
+        let socket = cmux_platform::paths::socket_path()
+            .to_string_lossy()
+            .into_owned();
+        let environment_strings: Vec<_> = identity
+            .into_iter()
+            .flat_map(|identity| {
+                [
+                    ("CMUX_SURFACE_ID", identity),
+                    ("CMUX_SOCKET_PATH", socket.clone()),
+                    ("CMUX_SOCKET", socket.clone()),
+                ]
+            })
+            .map(|(key, value)| {
+                (
+                    std::ffi::CString::new(key).unwrap(),
+                    std::ffi::CString::new(value).unwrap(),
+                )
+            })
+            .collect();
+        let mut environment = if config.env_vars.is_null() || config.env_var_count == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(config.env_vars, config.env_var_count).to_vec()
+        };
+        environment.extend(
+            environment_strings
+                .iter()
+                .map(|(key, value)| ffi::ghostty_env_var_s {
                     key: key.as_ptr(),
                     value: value.as_ptr(),
-                }
-            }));
-            config.env_vars = environment.as_mut_ptr();
-            config.env_var_count = environment.len();
-            if let SurfaceIoMode::Manual {
-                ref io_write_ctx, ..
-            } = init.io_mode
-            {
-                config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
-                config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
-                config.io_write_userdata =
-                    std::sync::Arc::as_ptr(io_write_ctx) as *mut std::ffi::c_void;
-            }
-            eprintln!(
-                "cmux: initializing Ghostty surface at {}x{} logical pixels",
-                logical_width, logical_height
-            );
-            if let Some(size) = crate::preferences::saved_font_size() {
-                config.font_size = size;
-            }
-            let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
-            // The embedded command is borrowed by Ghostty's shell argv. Keep its
-            // C allocation alive until this surface has been freed, including when
-            // the IO thread starts the subprocess after surface_new returns.
-            if let Some(command) = command_c {
-                area.set_data("cmux-launch-command", command);
-            }
-            if surface.is_null() {
-                eprintln!("cmux: FATAL — ghostty_surface_new returned null");
-                std::process::exit(1);
-            }
-            let phys_width = (logical_width as f64 * scale) as u32;
-            let phys_height = (logical_height as f64 * scale) as u32;
-            ffi::ghostty_surface_set_size(surface, phys_width, phys_height);
-            ffi::ghostty_surface_set_content_scale(surface, scale, scale);
-            ffi::ghostty_surface_set_focus(surface, true);
-            surface
-        };
+                }),
+        );
+        config.env_vars = environment.as_mut_ptr();
+        config.env_var_count = environment.len();
+        if let SurfaceIoMode::Manual {
+            ref io_write_ctx, ..
+        } = init.io_mode
+        {
+            config.io_mode = ffi::ghostty_surface_io_mode_e_GHOSTTY_SURFACE_IO_MANUAL;
+            config.io_write_cb = Some(crate::ssh::bridge::ssh_io_write_cb);
+            config.io_write_userdata =
+                std::sync::Arc::as_ptr(io_write_ctx) as *mut std::ffi::c_void;
+        }
+        eprintln!(
+            "cmux: initializing Ghostty surface at {}x{} logical pixels",
+            logical_width, logical_height
+        );
+        if let Some(size) = crate::preferences::saved_font_size() {
+            config.font_size = size;
+        }
+        // Private UUID data is installed by pane construction before native startup. The box
+        // stays at a stable address until native IO has stopped during terminal destruction.
+        let mut notifications = area
+            .data::<uuid::Uuid>("cmux-surface-uuid")
+            .map(|id| Box::new(super::notifications::Context::new(*id.as_ref())));
+        config.pty_tee_cb = None;
+        config.pty_tee_userdata = std::ptr::null_mut();
+        if let Some(context) = notifications.as_mut() {
+            config.pty_tee_cb = Some(super::notifications::output);
+            config.pty_tee_userdata = (&mut **context as *mut super::notifications::Context).cast();
+        }
+        let surface = ffi::ghostty_surface_new(init.ghostty_app, &config);
+        if let Some(context) = notifications {
+            area.set_data("cmux-notification-context", context);
+        }
+        // The embedded command is borrowed by Ghostty's shell argv. Keep its
+        // C allocation alive until this surface has been freed, including when
+        // the IO thread starts the subprocess after surface_new returns.
+        if let Some(command) = command_c {
+            area.set_data("cmux-launch-command", command);
+        }
+        if surface.is_null() {
+            eprintln!("cmux: FATAL — ghostty_surface_new returned null");
+            std::process::exit(1);
+        }
+        let phys_width = (logical_width as f64 * scale) as u32;
+        let phys_height = (logical_height as f64 * scale) as u32;
+        ffi::ghostty_surface_set_size(surface, phys_width, phys_height);
+        ffi::ghostty_surface_set_content_scale(surface, scale, scale);
+        ffi::ghostty_surface_set_focus(surface, true);
+        surface
+    };
 
     crate::ghostty::registry::register(
         surface as usize,

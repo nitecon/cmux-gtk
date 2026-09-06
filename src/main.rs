@@ -460,6 +460,23 @@ fn build_ui(
                     crate::ghostty::events::Event::Bell(pane_id) => {
                         state.borrow_mut().set_pane_attention(pane_id);
                     }
+                    crate::ghostty::events::Event::Notification { surface, content } => {
+                        let result = crate::inbox_actions::handle(
+                            &mut state.borrow_mut(),
+                            crate::inbox::Action::Create {
+                                scope: crate::inbox::Scope {
+                                    workspace_id: None,
+                                    surface_id: Some(surface),
+                                },
+                                content,
+                            },
+                        );
+                        if let Err((code, _)) = result {
+                            crate::diagnostics::event(format_args!(
+                                "notification.native outcome={code} surface={surface}"
+                            ));
+                        }
+                    }
                 }
             }
             if created {

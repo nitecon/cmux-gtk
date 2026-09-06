@@ -90,6 +90,12 @@ pub unsafe extern "C" fn action_cb(
         None
     };
 
+    // Raw output already queues bounded OSC messages before native desktop throttling/truncation.
+    // Acknowledge this presentation callback without creating a duplicate inbox record.
+    if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_DESKTOP_NOTIFICATION {
+        return true;
+    }
+
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_PWD {
         if let Some(surface) = surface_target {
             // SAFETY: The discriminants above select these union members. Ghostty

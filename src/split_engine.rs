@@ -140,6 +140,10 @@ pub(crate) fn destroy_terminal_area(area: &gtk4::GLArea) {
         }
     }
     unsafe { ffi::ghostty_surface_free(surface) };
+    // SAFETY: Ghostty has joined its IO thread; no output callback can still borrow this context.
+    unsafe {
+        area.steal_data::<Box<crate::ghostty::notifications::Context>>("cmux-notification-context");
+    }
     crate::ghostty::registry::unregister(surface as usize);
 }
 

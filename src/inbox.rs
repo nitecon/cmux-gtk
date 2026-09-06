@@ -7,7 +7,7 @@ const MAX_RECORDS: usize = 256;
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// User-visible notification content, validated before admission to GTK.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Content {
     #[serde(default = "default_title")]
     pub title: String,
