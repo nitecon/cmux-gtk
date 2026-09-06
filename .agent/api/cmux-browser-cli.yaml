@@ -64,3 +64,8 @@ content:
     - Successful daemon results carrying data.url update only the original surviving surface and schedule session persistence. Navigation lacking URL metadata and page-driven changes still require reconciliation.
     - Startup cancellation owns provisional daemon retirement; window shutdown drains all installed and provisional sessions through shared bounded close tasks.
     - Independent real-page DOM, history, target isolation and close survival are covered by the Actions browser benchmark. Aggregate browser-process memory and resident-page admission remain separate verification gaps.
+
+  page_location:
+    - A window-owned round-robin loop refreshes one initialized browser URL per second through the bounded public CLI navigation gate. It never initializes suspended pages and permits only one refresh worker at a time.
+    - Weak application ownership and AbortOnDrop cancel the loop and active worker when the window is destroyed. Results require the same surface and daemon session, an unchanged address entry and no active address editing; accepted changes schedule session persistence.
+    - URL refresh is eventual and can be rejected by concurrent navigation admission. It does not guarantee capturing a page-driven change immediately before quit. The real-browser Actions fixture checks a background History API change in live and persisted metadata without selecting the page.

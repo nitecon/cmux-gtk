@@ -5,6 +5,7 @@ mod discovery;
 mod frames;
 mod input;
 mod input_queue;
+pub mod location;
 pub(crate) mod metrics;
 mod motion;
 mod pixels;
@@ -309,6 +310,14 @@ impl BrowserManager {
         }
         commands.push(vec!["open".into(), url]);
         self.navigation_commands(commands, true, trace_id)
+    }
+
+    /// Read the current page URL through the bounded public CLI without navigating or launching a session.
+    pub fn current_url_async(
+        &self,
+        trace: Uuid,
+    ) -> impl std::future::Future<Output = Result<Option<String>, String>> + Send + 'static {
+        self.navigation_commands(Vec::new(), true, trace)
     }
 
     /// Set an allocated preview size on the bounded CLI worker without requesting URL refresh.

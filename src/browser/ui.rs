@@ -903,7 +903,7 @@ fn finish_browser_navigation(
         match result {
             Ok(Ok(Some(url))) => {
                 if let (Some(entry), Some(state)) = (entry.upgrade(), state.upgrade()) {
-                    if !entry.is_mapped() || entry.text() != original_url {
+                    if entry.text() != original_url {
                         activity.finish("stale_widget");
                         return;
                     }

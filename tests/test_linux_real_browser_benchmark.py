@@ -164,6 +164,30 @@ def measure(root, report):
             assert browser("eval", "({value: document.querySelector('#name').value, count: window.count})")["result"] == {"value": "fixture-14", "count": 15}
             assert other_browser("eval", "({value: document.querySelector('#name').value, count: window.count})")["result"] == {"value": "second page", "count": 1}
             assert selected_surface(app) == terminal
+            # A page-driven History API change has no navigation URL in the eval response.
+            other_browser("eval", "history.replaceState(null, '', '#background-location'); true")
+            expected_location = f"http://127.0.0.1:{server.server_port}/#background-location"
+
+            def saved_background_location():
+                """Require the exact background surface URL in both live metadata and durable session data."""
+                rows = json.loads(app.cli("browser", "list"))["surfaces"]
+                if not any(row["uuid"] == second_open["uuid"] and row["url"] == expected_location for row in rows):
+                    return False
+                try:
+                    saved = json.loads((root / "data/cmux/session.json").read_text())
+                except (FileNotFoundError, json.JSONDecodeError):
+                    return False
+                def contains(value):
+                    """Walk the bounded fixture layout to find this browser's persisted identity and URL."""
+                    if isinstance(value, dict):
+                        return (value.get("surface_uuid") == second_open["uuid"] and value.get("url") == expected_location
+                                or any(contains(child) for child in value.values()))
+                    return isinstance(value, list) and any(contains(child) for child in value)
+                return contains(saved)
+
+            app.wait_for(saved_background_location, "background page location persisted", timeout=15)
+            assert selected_surface(app) == terminal
+            report["background_location_persistence"] = "passed"
             local_page = root / "local page #?.html"
             (root / "local-style.css").write_text("h1 { color: rgb(12, 34, 56); }")
             (root / "local-script.js").write_text("window.localScriptReady = 'relative script loaded';")
