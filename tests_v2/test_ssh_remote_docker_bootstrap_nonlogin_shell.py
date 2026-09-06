@@ -22,12 +22,7 @@ DOCKER_SSH_HOST = os.environ.get("CMUX_SSH_TEST_DOCKER_HOST", "127.0.0.1")
 DOCKER_PUBLISH_ADDR = os.environ.get("CMUX_SSH_TEST_DOCKER_BIND_ADDR", "127.0.0.1")
 
 
-def _run(cmd: list[str], *, env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
-    if check and proc.returncode != 0:
-        merged = f"{proc.stdout}\n{proc.stderr}".strip()
-        raise cmuxError(f"Command failed ({' '.join(cmd)}): {merged}")
-    return proc
+from scenario_support import run_command as _run
 
 
 def _docker_available() -> bool:

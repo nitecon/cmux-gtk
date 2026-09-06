@@ -25,12 +25,7 @@ SSH_IDENTITY = os.environ.get("CMUX_SSH_TEST_IDENTITY", "").strip()
 SSH_OPTIONS_RAW = os.environ.get("CMUX_SSH_TEST_OPTIONS", "").strip()
 
 
-def _run(cmd: list[str], *, env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
-    if check and proc.returncode != 0:
-        merged = f"{proc.stdout}\n{proc.stderr}".strip()
-        raise cmuxError(f"Command failed ({' '.join(cmd)}): {merged}")
-    return proc
+from scenario_support import run_command as _run
 
 
 def _run_cli_json(cli: str, args: list[str]) -> dict:
