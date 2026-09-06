@@ -1280,8 +1280,10 @@ fn handle_socket_command_traced(
                         .flat_map(|engine| engine.browser_tabs())
                         .find(|widgets| widgets.uuid == id)
                     {
-                        widgets.url_entry.set_text(&url);
-                        s.trigger_session_save();
+                        if !crate::browser::location::is_editing(&widgets.url_entry) {
+                            widgets.url_entry.set_text(&url);
+                            s.trigger_session_save();
+                        }
                     }
                 });
             } else {

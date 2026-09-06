@@ -142,6 +142,9 @@ jobs:
         timeout-minutes: 10
         run: cargo test --workspace
 
+      - name: Test browser address editing focus
+        run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app browser_address_editing_tracks_delegated_focus -- --ignored --test-threads=1
+
       - name: Test idle browser preview widget cleanup
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app destroyed_picture_releases_delivery -- --ignored --test-threads=1
 
