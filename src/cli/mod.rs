@@ -16,6 +16,7 @@ mod project_config;
 #[allow(dead_code)]
 mod resume;
 pub mod socket_client;
+mod teams;
 #[path = "../updater.rs"]
 #[allow(dead_code)]
 mod updater;
@@ -94,6 +95,12 @@ fn restore_terminal(
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
+    if let Commands::ClaudeTeams { args } = &cli.command {
+        return teams::launch(args);
+    }
+    if let Commands::TmuxCompat { args } = &cli.command {
+        return teams::tmux_compat(args, cli.socket.as_deref());
+    }
     if let Commands::ProjectActions {
         directory,
         workspace: None,
@@ -405,6 +412,9 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             serde_json::json!({"workspace_id":workspace}),
         ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
+        Commands::ClaudeTeams { .. } | Commands::TmuxCompat { .. } => {
+            unreachable!("team launch commands are handled before socket discovery")
+        }
         Commands::Ping => ("system.ping", json!({})),
         Commands::Identify => ("system.identify", json!({})),
         Commands::Capabilities => ("system.capabilities", json!({})),

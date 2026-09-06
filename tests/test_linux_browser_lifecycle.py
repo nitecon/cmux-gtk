@@ -73,7 +73,7 @@ def main():
                                         env=app.environment, capture_output=True, text=True, check=True, timeout=15)
                 result = json.loads(opened.stdout)
                 app.wait_for(
-                    lambda: json.loads((browser_dir / "last-navigation.json").read_text()).get("profile") == str(profile),
+                    lambda: json.loads((browser_dir / "last-launch.json").read_text()).get("profile") == str(profile),
                     "explicit browser profile launch",
                 )
                 listed_profile = next(

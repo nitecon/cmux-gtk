@@ -96,8 +96,8 @@ if __name__ == "__main__":
                     profile_index = commands.index("--profile")
                     if profile_index + 1 < len(commands):
                         profile = commands[profile_index + 1]
-                (socket_dir() / "last-navigation.json").write_text(
-                    json.dumps({"action": "navigate", "url": commands[index + 1],
+                (socket_dir() / "last-launch.json").write_text(
+                    json.dumps({"action": "open", "url": commands[index + 1],
                                 "session": args.session, "profile": profile}),
                     encoding="utf-8",
                 )

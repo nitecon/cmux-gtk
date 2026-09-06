@@ -27,6 +27,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **SSH remote workspaces** — cmuxd-remote deployment with bidirectional PTY proxy and reconnect
 - **Ghostty compatible** — Reads your existing `~/.config/ghostty/config` for themes, fonts, and colors
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
+- **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
 
 ## Workspace workflows
 
@@ -163,6 +164,11 @@ cmux new-workspace --cwd ~/src/project --name project  # create a directory-boun
 cmux list-surfaces             # list terminal surfaces
 cmux split --direction horizontal  # split current pane
 cmux list-panes                # list all panes
+
+# Agent teamwork
+cmux hooks setup claude        # install native session/notification hooks once
+cmux claude-teams              # launch Claude teams in native cmux splits
+cmux claude-teams --model sonnet  # forward ordinary Claude arguments
 
 # System
 cmux identify                  # instance info (version, platform, pid)

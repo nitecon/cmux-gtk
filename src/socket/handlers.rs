@@ -938,7 +938,7 @@ fn handle_socket_command_traced(
             direction,
             resp_tx,
         } => {
-            // Split the requested surface in the active workspace, or its active pane.
+            // Split the requested surface in its owning workspace, or the active pane.
             // Selecting/splitting is focus intent; invalid targets must not create a pane.
             let orientation = match direction {
                 super::commands::SplitDirection::Vertical => gtk4::Orientation::Vertical,
@@ -946,7 +946,20 @@ fn handle_socket_command_traced(
             };
             let result = {
                 let mut s = state.borrow_mut();
-                let idx = s.active_index;
+                let idx = if let Some(target) = id.as_deref() {
+                    let Some(index) = s
+                        .split_engines
+                        .iter()
+                        .position(|engine| engine.find_pane_id_by_uuid(target).is_some())
+                    else {
+                        let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                        return;
+                    };
+                    s.switch_to_index(index);
+                    index
+                } else {
+                    s.active_index
+                };
                 if let Some(engine) = s.split_engines.get_mut(idx) {
                     if id
                         .as_deref()

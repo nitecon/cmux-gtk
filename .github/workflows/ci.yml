@@ -168,6 +168,9 @@ jobs:
       - name: Test installed Claude session hook lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_hooks.py
 
+      - name: Test Claude Teams native split translation
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_teams.py
+
       - name: Test signed resume approval and automatic PTY restart
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_resume_approval.py
 

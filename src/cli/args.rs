@@ -33,6 +33,18 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Launch Claude Code teams with teammate panes translated into native cmux splits
+    ClaudeTeams {
+        /// Arguments forwarded verbatim to Claude Code
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Private tmux compatibility endpoint used only by managed team launchers
+    #[command(name = "tmux-compat-internal", hide = true, alias = "__tmux-compat")]
+    TmuxCompat {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Execute an explicitly requested project command after checking its inspected fingerprint
     ProjectRun {
         action: String,

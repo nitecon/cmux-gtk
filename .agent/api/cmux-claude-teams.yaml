@@ -1,0 +1,27 @@
+app: cmux-gtk
+title: Native Claude Code agent teams
+space: cmux-gtk
+slug: claude-code-teams
+summary: Launch Claude Code teams in native cmux panes through a private bounded compatibility bridge.
+kind: agent_context
+source_format: agent_context
+source_ref: src/cli/teams.rs
+labels: [terminal, agents, claude, teams, cli]
+content:
+  purpose: Let Claude create teammate terminals as native cmux splits while preserving exact surface ownership, resume hooks and notification routing.
+  workflows:
+    - name: Launch a team
+      steps:
+        - Run cmux claude-teams inside a cmux terminal. All following arguments are forwarded to the resolved Claude executable.
+        - The launcher supplies teammate-mode auto and a named-teammate system hint only when equivalent caller options are absent. The exact dangerously-skip-permissions option before the argument terminator controls the sandbox marker.
+        - A private executable shim under XDG_RUNTIME_DIR translates Claude's tmux calls. The shim and its bounded per-leader layout record are atomically replaced under an owner-only directory.
+    - name: Create and manage teammates
+      steps:
+        - split-window resolves the stable leader or prior teammate surface across all workspaces, creates a native split, sends the requested shell command, and returns an opaque percent-prefixed surface UUID.
+        - select-layout main-vertical makes later horizontal teammate requests stack vertically in the agent column. list-panes returns only surfaces in the leader workspace.
+        - respawn-pane interrupts the foreground command and submits the replacement command; kill-pane closes the exact surface. Setup and resize calls used by Claude are accepted without inventing an external tmux session.
+        - Each new native terminal receives its own CMUX_SURFACE_ID. Installed Claude hooks therefore attach resume checkpoints and notifications to the correct teammate surface.
+  safety:
+    - The launcher requires a valid originating surface UUID and a discoverable executable Claude binary.
+    - Compatibility calls use the authenticated local cmux socket and a ten-second response deadline. Unsupported commands fail explicitly.
+    - Runtime behavior is verified only in GitHub Actions through a real headless GTK process.

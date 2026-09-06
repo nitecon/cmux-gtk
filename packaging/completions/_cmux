@@ -34,7 +34,33 @@ _cmux() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-command-$line[1]:"
         case $line[1] in
-            (project-run)
+            (claude-teams)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::args -- Arguments forwarded verbatim to Claude Code:_default' \
+&& ret=0
+;;
+(tmux-compat-internal)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::args:_default' \
+&& ret=0
+;;
+(project-run)
 _arguments "${_arguments_options[@]}" : \
 '--fingerprint=[]:FINGERPRINT:_default' \
 '--workspace=[]:WORKSPACE:_default' \
@@ -1815,7 +1841,15 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-help-command-$line[1]:"
         case $line[1] in
-            (project-run)
+            (claude-teams)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(tmux-compat-internal)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(project-run)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2307,6 +2341,8 @@ esac
 (( $+functions[_cmux_commands] )) ||
 _cmux_commands() {
     local commands; commands=(
+'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
+'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
 'project-actions:Inspect resolved project actions and their source files without running them' \
 'hooks:Install and receive native agent session hooks' \
@@ -2689,6 +2725,11 @@ _cmux__capabilities_commands() {
     local commands; commands=()
     _describe -t commands 'cmux capabilities commands' commands "$@"
 }
+(( $+functions[_cmux__claude-teams_commands] )) ||
+_cmux__claude-teams_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux claude-teams commands' commands "$@"
+}
 (( $+functions[_cmux__clear-meta-block_commands] )) ||
 _cmux__clear-meta-block_commands() {
     local commands; commands=()
@@ -2762,6 +2803,8 @@ _cmux__health_commands() {
 (( $+functions[_cmux__help_commands] )) ||
 _cmux__help_commands() {
     local commands; commands=(
+'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
+'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
 'project-actions:Inspect resolved project actions and their source files without running them' \
 'hooks:Install and receive native agent session hooks' \
@@ -2986,6 +3029,11 @@ _cmux__help__browser__wait_commands() {
 _cmux__help__capabilities_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help capabilities commands' commands "$@"
+}
+(( $+functions[_cmux__help__claude-teams_commands] )) ||
+_cmux__help__claude-teams_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help claude-teams commands' commands "$@"
 }
 (( $+functions[_cmux__help__clear-meta-block_commands] )) ||
 _cmux__help__clear-meta-block_commands() {
@@ -3367,6 +3415,11 @@ _cmux__help__surface__resume__set_commands() {
 _cmux__help__surface__resume__show_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help surface resume show commands' commands "$@"
+}
+(( $+functions[_cmux__help__tmux-compat-internal_commands] )) ||
+_cmux__help__tmux-compat-internal_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help tmux-compat-internal commands' commands "$@"
 }
 (( $+functions[_cmux__help__type_commands] )) ||
 _cmux__help__type_commands() {
@@ -3893,6 +3946,11 @@ _cmux__surface__resume__set_commands() {
 _cmux__surface__resume__show_commands() {
     local commands; commands=()
     _describe -t commands 'cmux surface resume show commands' commands "$@"
+}
+(( $+functions[_cmux__tmux-compat-internal_commands] )) ||
+_cmux__tmux-compat-internal_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux tmux-compat-internal commands' commands "$@"
 }
 (( $+functions[_cmux__type_commands] )) ||
 _cmux__type_commands() {
