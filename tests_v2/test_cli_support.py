@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 from cli_support import find_cli_binary
 from cmux import cmuxError
-from scenario_support import require, run_command, wait_for, wait_until
+from scenario_support import require, run_command, wait_for, wait_for_browser, wait_until
 
 
 class ScenarioSupportTests(unittest.TestCase):
@@ -101,6 +101,22 @@ class ScenarioSupportTests(unittest.TestCase):
                 wait_until(lambda: True, timeout_s=limit)
             with self.assertRaises(ValueError):
                 wait_until(lambda: True, interval_s=limit)
+
+    def test_browser_polling_retries_only_observation_errors(self):
+        """Transient failures retry, expiry retains context and cancellation escapes unchanged."""
+        observation = Mock(side_effect=[ValueError("not ready"), False, True])
+        self.assertIsNone(wait_for_browser(observation, 1, "page title"))
+        self.assertEqual(observation.call_count, 3)
+        transient = ValueError("page loading")
+        with self.assertRaisesRegex(cmuxError, "Timed out waiting for title: page loading") as raised:
+            wait_for_browser(Mock(side_effect=transient), 0.01, "title")
+        self.assertIs(raised.exception.__cause__, transient)
+        with self.assertRaisesRegex(cmuxError, "^Timed out waiting for title$"):
+            wait_for_browser(lambda: False, 0.01, "title")
+        cancelled = KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt) as raised:
+            wait_for_browser(Mock(side_effect=cancelled), 1, "title")
+        self.assertIs(raised.exception, cancelled)
 
     def test_build_directory_and_explicit_override(self):
         """Run the chosen executable and reject invalid overrides rather than selecting another build."""

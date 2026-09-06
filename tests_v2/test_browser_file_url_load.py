@@ -15,19 +15,7 @@ from scenario_support import require as _must
 SOCKET_PATH = os.environ.get("CMUX_SOCKET", "/tmp/cmux-debug.sock")
 
 
-def _wait_until(pred, timeout_s: float, label: str) -> None:
-    deadline = time.time() + timeout_s
-    last_exc = None
-    while time.time() < deadline:
-        try:
-            if pred():
-                return
-        except Exception as exc:  # noqa: BLE001
-            last_exc = exc
-        time.sleep(0.05)
-    if last_exc is not None:
-        raise cmuxError(f"Timed out waiting for {label}: {last_exc}")
-    raise cmuxError(f"Timed out waiting for {label}")
+from scenario_support import wait_for_browser as _wait_until
 
 
 def main() -> int:

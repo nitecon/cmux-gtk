@@ -89,3 +89,28 @@ def wait_until(predicate, timeout_s: float = 4.0, interval_s: float = 0.05,
 def wait_for(pred, timeout_s: float = 8.0, step_s: float = 0.1) -> None:
     """Preserve the remote scenario polling defaults and error through the shared loop."""
     wait_until(pred, timeout_s, step_s, "Timed out waiting for condition")
+
+
+def wait_for_browser(pred, timeout_s: float, label: str) -> None:
+    """Retry browser observations on the shared clock, reporting the last exception on expiry.
+
+    Unlike fail-fast polling, this adapter intentionally retries Exception values.
+    BaseException still propagates; successful observation returns immediately.
+    """
+    last_error = None
+
+    def ready():
+        """Evaluate one observation and retain its latest transient error for timeout context."""
+        nonlocal last_error
+        try:
+            return bool(pred())
+        except Exception as error:
+            last_error = error
+            return False
+
+    try:
+        wait_until(ready, timeout_s, 0.05, f"Timed out waiting for {label}")
+    except cmuxError as deadline:
+        if last_error is not None:
+            raise cmuxError(f"{deadline}: {last_error}") from last_error
+        raise
