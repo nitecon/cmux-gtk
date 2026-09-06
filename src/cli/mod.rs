@@ -158,7 +158,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         eprintln!("Connected to {}", socket_path);
     }
 
-    let use_color = format::use_color(&cli.color);
+    let use_color = format::use_color(cli.color.as_deref().unwrap_or("auto"));
 
     let started = std::time::Instant::now();
     // Handle Raw command separately (dynamic method name)

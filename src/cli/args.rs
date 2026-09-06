@@ -23,8 +23,8 @@ pub struct Cli {
     pub(super) verbose: bool,
 
     /// Color mode: always, never, auto
-    #[arg(long, global = true, default_value = "auto")]
-    pub(super) color: String,
+    #[arg(long, global = true)]
+    pub(super) color: Option<String>,
 
     #[command(subcommand)]
     pub(super) command: Commands,
@@ -601,4 +601,35 @@ pub enum BrowserCommand {
     /// Disable browser streaming
     #[command(name = "stream-disable")]
     StreamDisable,
+}
+
+#[cfg(test)]
+mod color_argument_tests {
+    use super::*;
+
+    /// Output-color fallback must not propagate as an explicit status text color.
+    #[test]
+    fn unstyled_status_has_no_inherited_color() {
+        let cli = Cli::try_parse_from(["cmux", "set-status", "agent", "working"]).unwrap();
+        let Commands::SetStatus { color, .. } = cli.command else {
+            panic!("wrong command");
+        };
+        assert!(color.is_none());
+        assert!(cli.color.is_none());
+        let cli = Cli::try_parse_from([
+            "cmux",
+            "set-status",
+            "agent",
+            "working",
+            "--color",
+            "#123456",
+        ])
+        .unwrap();
+        let Commands::SetStatus { color, .. } = cli.command else {
+            panic!("wrong command");
+        };
+        assert_eq!(color.as_deref(), Some("#123456"));
+        let cli = Cli::try_parse_from(["cmux", "list-workspaces", "--color", "never"]).unwrap();
+        assert_eq!(cli.color.as_deref(), Some("never"));
+    }
 }
