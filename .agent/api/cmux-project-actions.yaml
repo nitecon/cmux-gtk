@@ -29,8 +29,8 @@ content:
 
   workspace_layout:
     - Workspace intents contain typed launch strings/environment and recursive pane or split layouts. Panes require surfaces, splits require horizontal/vertical and exactly two children; mixed node types fail.
-    - Depth32 and surfaces128 bounds apply per workspace. Ratios default0.5 and clamp0.1to0.9. Environment entries64, identifier keys128bytes and aggregate64KiB are checked; strings are bounded and NUL-free.
-    - Terminal/browser/project surface kinds and focus booleans are typed. Project rendering, color resolution, restart semantics, managed environment precedence and actual execution remain outstanding. Tests run in Actions only.
+    - Linux depth16 and surfaces128 bounds apply per workspace. Ratios default0.5 and clamp0.1to0.9. Environment entries64, identifier keys128bytes and aggregate64KiB are checked; strings are bounded and NUL-free.
+    - Terminal/browser/project surface kinds and focus booleans are typed. Terminal and browser layouts execute; project rendering, named color resolution and restart semantics remain outstanding. Tests run in Actions only.
 
   workspace_discovery:
     - project.actions.list accepts optional workspace_id UUID, default current. CLI project-actions --workspace uses this RPC; --directory remains offline and mutually exclusive.
@@ -95,8 +95,8 @@ content:
     - Literal dollar-sign/space values must survive and each child must receive its real surface ID despite a forged CMUX_SURFACE_ID override. Existing history/CWD checks retained. AST passes; runtime pending Actions.
 
   layout_restore_depth:
-    - Project parser and GTK session builder share MAX_LAYOUT_DEPTH32. Prior restore bound16 could discard deeper project-valid layouts.
-    - Session loading fixture restores17 nested splits and asserts18 panes/surfaces plus workspace name. Clippy/AST pass; runtime pending.
+    - Project parser and GTK session builder share MAX_LAYOUT_DEPTH16. Inspected upstream has no explicit source-level bound; Linux limits depth for GTK responsiveness.
+    - Actions run34062084578 showed17 nested GtkPaned splits listening on the socket but failing readiness for ten seconds. The boundary fixture restores16 nested splits and asserts17 panes/surfaces plus workspace name.
 
   default_workspace_execution:
     - Inline workspace and named workspaceCommand actions create default-layout workspaces with name/cwd/RGB color/env. Relative cwd resolves from reviewed canonical directory; preparation runs under existing reader worker/deadline before GTK mutation.
@@ -106,3 +106,8 @@ content:
   workspace_setup:
     - Default-layout setup is one-shot literal input plus carriage return after first native terminal initialization. Pending text is consumed/released and not saved or inherited by future tabs.
     - workspace.setup.submit records pane/outcome without script. Submission is not exit status. Inline/named fixtures check actual configured-environment output; runtime pending.
+
+  custom_workspace_layout_execution:
+    - Worker preparation canonicalizes every terminal cwd, assigns stable UUIDs and selects the last focus=true surface before GTK allocation. Unsupported project surfaces fail explicitly.
+    - GTK installs the complete split tree without a placeholder terminal. Setup is consumed by the first terminal and combined with its command; later terminal commands remain independent. Surface environment wins over workspace values and persisted maps reuse bounded validation.
+    - Browser surfaces use shared lazy restored-tab startup and cancellation ownership. Actions fixtures cover terminal topology/focus/setup/command/environment and browser navigation/daemon cleanup; runtime pending.

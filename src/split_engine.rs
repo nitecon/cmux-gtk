@@ -1591,12 +1591,19 @@ pub enum SplitNodeData {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[allow(clippy::large_enum_variant)] // Terminal snapshots own bounded resume/env/history state.
 #[serde(tag = "type")]
 pub enum PaneSurfaceData {
     Terminal {
         surface_uuid: Uuid,
         shell: String,
         cwd: String,
+        /// Explicit per-surface launch overrides. Older snapshots default empty.
+        #[serde(default, deserialize_with = "surface_environment")]
+        environment: std::collections::BTreeMap<String, String>,
+        /// Construction-only input for project layouts; live snapshots never retain it.
+        #[serde(skip)]
+        initial_input: Option<String>,
         #[serde(default)]
         resume: Option<crate::resume::ResumeBinding>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1607,6 +1614,20 @@ pub enum PaneSurfaceData {
         #[serde(default = "default_browser_url")]
         url: String,
     },
+}
+
+/// Apply project-action environment bounds to persisted per-surface launch overrides.
+fn surface_environment<'de, D>(
+    deserializer: D,
+) -> Result<std::collections::BTreeMap<String, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+    crate::project_config::project_action::project_layout::environment(
+        &serde_json::json!({ "env": value }),
+    )
+    .map_err(serde::de::Error::custom)
 }
 
 /// Supply a blank page when an older saved browser tab lacks its URL.
@@ -1644,6 +1665,14 @@ impl SplitNode {
                             resume,
                         } => PaneSurfaceData::Terminal {
                             resume: resume.clone(),
+                            environment: unsafe {
+                                gl_area.data::<std::collections::BTreeMap<String, String>>(
+                                    "cmux-launch-environment",
+                                )
+                            }
+                            .map(|value| unsafe { value.as_ref().clone() })
+                            .unwrap_or_default(),
+                            initial_input: None,
                             scrollback: crate::scrollback::capture(
                                 gl_area,
                                 surface_for_area(gl_area),
@@ -1778,6 +1807,11 @@ mod tests {
             surfaces: vec![
                 PaneSurfaceData::Terminal {
                     resume: None,
+                    environment: std::collections::BTreeMap::from([(
+                        "PROJECT_VALUE".into(),
+                        "literal".into(),
+                    )]),
+                    initial_input: Some("must-not-repeat".into()),
                     scrollback: None,
                     surface_uuid: terminal_uuid,
                     shell: "/bin/sh".to_string(),
@@ -1800,11 +1834,23 @@ mod tests {
             panic!("expected Pane session node");
         };
         assert_eq!(active_surface_uuid, Some(browser_uuid));
+        assert!(!json.contains("must-not-repeat"));
+        assert!(matches!(
+            &surfaces[0],
+            PaneSurfaceData::Terminal { environment, initial_input, .. }
+                if environment.get("PROJECT_VALUE").map(String::as_str) == Some("literal")
+                    && initial_input.is_none()
+        ));
         assert!(matches!(
             &surfaces[1],
             PaneSurfaceData::Browser { surface_uuid, url }
                 if *surface_uuid == browser_uuid && url == "https://example.com/path"
         ));
+        let injected = json.replace(
+            "\"environment\":{\"PROJECT_VALUE\":\"literal\"}",
+            "\"environment\":{\"BAD=KEY\":\"literal\"},\"initial_input\":\"must-not-run\"",
+        );
+        assert!(serde_json::from_str::<SplitNodeData>(&injected).is_err());
     }
 
     /// Preserve split orientation, divider ratio and child identities in saved layouts.

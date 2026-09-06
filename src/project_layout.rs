@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// Workspace launch settings with validated nested pane topology.
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Workspace {
     pub name: Option<String>,
     pub cwd: Option<String>,
@@ -15,7 +15,7 @@ pub struct Workspace {
 }
 
 /// Preserve upstream pane/split object shapes while excluding structurally ambiguous nodes.
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum Layout {
     Pane {
@@ -29,7 +29,7 @@ pub enum Layout {
 }
 
 /// Split orientation uses upstream horizontal/vertical names.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     Horizontal,
@@ -37,13 +37,13 @@ pub enum Direction {
 }
 
 /// A nonempty sibling surface list, bounded across the entire workspace.
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Pane {
     pub surfaces: Vec<Surface>,
 }
 
 /// Project surfaces remain recognized even though their Linux renderer is still outstanding.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SurfaceType {
     Terminal,
@@ -52,7 +52,7 @@ pub enum SurfaceType {
 }
 
 /// Surface-specific launch fields; callers must protect managed environment variables when launching.
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Surface {
     #[serde(rename = "type")]
     pub kind: SurfaceType,
@@ -62,6 +62,35 @@ pub struct Surface {
     pub env: BTreeMap<String, String>,
     pub url: Option<String>,
     pub focus: Option<bool>,
+}
+
+/// Platform-neutral prepared tree shared by the offline CLI and GTK application binary.
+#[allow(dead_code)] // The offline CLI validates layouts but never builds desktop panes.
+pub(crate) enum PreparedLayout {
+    Pane {
+        active_surface_uuid: uuid::Uuid,
+        surfaces: Vec<PreparedSurface>,
+    },
+    Split {
+        direction: Direction,
+        split: f64,
+        children: Box<(PreparedLayout, PreparedLayout)>,
+    },
+}
+
+/// Validated launch data with resolved terminal directories and stable surface identities.
+#[allow(dead_code)] // The offline CLI validates surfaces but never launches them.
+pub(crate) enum PreparedSurface {
+    Terminal {
+        uuid: uuid::Uuid,
+        cwd: std::path::PathBuf,
+        environment: BTreeMap<String, String>,
+        initial_input: Option<String>,
+    },
+    Browser {
+        uuid: uuid::Uuid,
+        url: String,
+    },
 }
 
 /// Validate environment names and bounded literal values without expansion or secret logging.
@@ -104,7 +133,7 @@ fn text(value: &Value, key: &str) -> Result<Option<String>, String> {
     super::string(value, key, false, 16384)
 }
 
-/// Recursively validate at most 32 levels and 128 surfaces before producing an executable topology.
+/// Recursively validate the shared Linux depth cap and 128 surfaces before execution.
 fn layout(value: &Value, depth: usize, surfaces: &mut usize) -> Result<Layout, String> {
     if depth > super::MAX_LAYOUT_DEPTH || !value.is_object() {
         return Err("invalid or excessively deep workspace layout".into());
@@ -193,6 +222,103 @@ pub fn parse(value: &Value) -> Result<Workspace, String> {
     })
 }
 
+/// Convert a validated layout into the single pane-tree format used by live state and sessions.
+/// Directory checks finish on the caller's worker before any GTK objects are allocated.
+#[allow(dead_code)] // Used by the desktop binary; the shared offline parser omits GTK state.
+pub(crate) fn prepare_tree(
+    layout: &Layout,
+    base: &std::path::Path,
+    setup: Option<&str>,
+) -> Result<(PreparedLayout, String), String> {
+    fn node(
+        layout: &Layout,
+        base: &std::path::Path,
+        pending_setup: &mut Option<String>,
+        first: &mut Option<uuid::Uuid>,
+        focused: &mut Option<uuid::Uuid>,
+    ) -> Result<PreparedLayout, String> {
+        match layout {
+            Layout::Pane { pane } => {
+                let mut active = None;
+                let mut pane_first = None;
+                let mut surfaces = Vec::with_capacity(pane.surfaces.len());
+                for surface in &pane.surfaces {
+                    let uuid = uuid::Uuid::new_v4();
+                    first.get_or_insert(uuid);
+                    pane_first.get_or_insert(uuid);
+                    if surface.focus == Some(true) {
+                        active = Some(uuid);
+                        *focused = Some(uuid);
+                    }
+                    let saved = match surface.kind {
+                        SurfaceType::Terminal => {
+                            let candidate = surface
+                                .cwd
+                                .as_deref()
+                                .map(std::path::PathBuf::from)
+                                .unwrap_or_else(|| base.to_owned());
+                            let candidate = if candidate.is_absolute() {
+                                candidate
+                            } else {
+                                base.join(candidate)
+                            };
+                            let directory = candidate
+                                .canonicalize()
+                                .map_err(|error| error.to_string())?;
+                            if !directory.is_dir() {
+                                return Err("workspace surface directory is not a directory".into());
+                            }
+                            let mut input = pending_setup.take().into_iter().collect::<Vec<_>>();
+                            input.extend(surface.command.clone());
+                            PreparedSurface::Terminal {
+                                uuid,
+                                cwd: directory,
+                                environment: surface.env.clone(),
+                                initial_input: (!input.is_empty()).then(|| input.join("\n")),
+                            }
+                        }
+                        SurfaceType::Browser => PreparedSurface::Browser {
+                            uuid,
+                            url: surface.url.clone().unwrap_or_else(|| "about:blank".into()),
+                        },
+                        SurfaceType::Project => {
+                            return Err("project surfaces are not available on Linux yet".into())
+                        }
+                    };
+                    surfaces.push(saved);
+                }
+                Ok(PreparedLayout::Pane {
+                    active_surface_uuid: active.or(pane_first).expect("validated pane is nonempty"),
+                    surfaces,
+                })
+            }
+            Layout::Split {
+                direction,
+                split,
+                children,
+            } => Ok(PreparedLayout::Split {
+                direction: direction.clone(),
+                split: *split,
+                children: Box::new((
+                    node(&children[0], base, pending_setup, first, focused)?,
+                    node(&children[1], base, pending_setup, first, focused)?,
+                )),
+            }),
+        }
+    }
+    let mut setup = setup.map(str::to_owned);
+    let mut first = None;
+    let mut focused = None;
+    let tree = node(layout, base, &mut setup, &mut first, &mut focused)?;
+    Ok((
+        tree,
+        focused
+            .or(first)
+            .expect("validated layouts contain a surface")
+            .to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,5 +338,46 @@ mod tests {
         assert!(parse(&serde_json::json!({"layout":{"pane":{"surfaces":[]}}})).is_err());
         assert!(parse(&serde_json::json!({"layout":{"pane":{"surfaces":[{"type":"terminal"}]},"direction":"horizontal"}})).is_err());
         assert!(parse(&serde_json::json!({"env":{"BAD=KEY":"value"}})).is_err());
+    }
+
+    /// Preparation resolves each terminal CWD and consumes setup at the first terminal only.
+    #[test]
+    fn prepares_stable_layout_identity_and_one_shot_input() {
+        let root = std::env::temp_dir().join(format!("cmux-layout-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(root.join("left")).unwrap();
+        std::fs::create_dir_all(root.join("right")).unwrap();
+        let workspace = parse(&serde_json::json!({"layout":{"direction":"horizontal","children":[
+            {"pane":{"surfaces":[{"type":"terminal","cwd":"left","command":"left"}]}},
+            {"pane":{"surfaces":[{"type":"terminal","cwd":"right","command":"right","focus":true}]}}
+        ]}})).unwrap();
+        let (tree, active) =
+            prepare_tree(workspace.layout.as_ref().unwrap(), &root, Some("setup")).unwrap();
+        let PreparedLayout::Split { children, .. } = tree else {
+            panic!("split missing")
+        };
+        let (
+            PreparedLayout::Pane { surfaces: left, .. },
+            PreparedLayout::Pane {
+                surfaces: right,
+                active_surface_uuid,
+            },
+        ) = *children
+        else {
+            panic!("panes missing")
+        };
+        let PreparedSurface::Terminal {
+            cwd, initial_input, ..
+        } = &left[0]
+        else {
+            panic!("left terminal missing")
+        };
+        assert_eq!(cwd, &root.join("left").canonicalize().unwrap());
+        assert_eq!(initial_input.as_deref(), Some("setup\nleft"));
+        let PreparedSurface::Terminal { initial_input, .. } = &right[0] else {
+            panic!("right terminal missing")
+        };
+        assert_eq!(initial_input.as_deref(), Some("right"));
+        assert_eq!(active, active_surface_uuid.to_string());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

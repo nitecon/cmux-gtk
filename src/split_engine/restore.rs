@@ -38,6 +38,7 @@ struct RestoreContext<'a> {
 impl RestoreContext<'_> {
     /// Create a restored terminal with shared launch precedence, UUID and context-menu wiring.
     /// Plain terminals resume their last CWD; explicit startup/remote launches retain workspace context.
+    #[allow(clippy::too_many_arguments)] // Explicit per-surface launch data avoids ambient mutable state.
     fn terminal(
         &self,
         pane_id: u64,
@@ -45,6 +46,8 @@ impl RestoreContext<'_> {
         saved_cwd: &str,
         resume: Option<&crate::resume::ResumeBinding>,
         scrollback: Option<&std::sync::Arc<str>>,
+        environment: Option<&std::collections::BTreeMap<String, String>>,
+        initial_input: Option<&str>,
     ) -> PaneSurface {
         let saved_directory = (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd));
         let workspace_directory = self.working_directory.map(std::path::Path::to_path_buf);
@@ -54,12 +57,19 @@ impl RestoreContext<'_> {
             saved_directory.or(workspace_directory)
         };
         let launch = self.remote_launch.cloned().unwrap_or_else(|| {
+            let mut launch_environment = self.launch_environment.clone();
+            launch_environment.extend(
+                environment
+                    .into_iter()
+                    .flatten()
+                    .map(|(key, value)| (key.clone(), value.clone())),
+            );
             crate::ghostty::surface::SurfaceIoMode::Configured {
-                initial_input: None,
+                initial_input: initial_input.map(str::to_owned),
                 command: resume
                     .and_then(|binding| self.resume_policy.launch_command(binding))
                     .or_else(|| self.launch_command.map(str::to_owned)),
-                environment: self.launch_environment.clone(),
+                environment: launch_environment,
             }
         });
         let (gl_area, _) = crate::ghostty::surface::create_surface(
@@ -160,7 +170,7 @@ impl SplitEngine {
                 *next_pane_id += 1;
                 Some(create_pane(
                     pane_id,
-                    context.terminal(pane_id, *surface_uuid, cwd, None, None),
+                    context.terminal(pane_id, *surface_uuid, cwd, None, None, None, None),
                 ))
             }
             SplitNodeData::Pane {
@@ -175,6 +185,8 @@ impl SplitEngine {
                         cwd,
                         resume,
                         scrollback,
+                        environment,
+                        initial_input,
                         ..
                     } => context.terminal(
                         pane_id,
@@ -182,6 +194,8 @@ impl SplitEngine {
                         cwd,
                         resume.as_ref(),
                         scrollback.as_ref(),
+                        Some(environment),
+                        initial_input.as_deref(),
                     ),
                     PaneSurfaceData::Browser { surface_uuid, url } => {
                         let mut widgets = crate::browser::create_preview_pane(pane_id);
@@ -193,9 +207,9 @@ impl SplitEngine {
                         }
                     }
                 });
-                let initial = restored
-                    .next()
-                    .unwrap_or_else(|| context.terminal(pane_id, Uuid::new_v4(), "", None, None));
+                let initial = restored.next().unwrap_or_else(|| {
+                    context.terminal(pane_id, Uuid::new_v4(), "", None, None, None, None)
+                });
                 let node = create_pane(pane_id, initial);
                 if let SplitNode::Leaf {
                     notebook,

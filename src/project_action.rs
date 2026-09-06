@@ -1,13 +1,13 @@
 //! Typed action intent; parsing validates data and never launches commands.
 #[path = "project_layout.rs"]
-mod project_layout;
+pub(crate) mod project_layout;
 #[allow(unused_imports)] // The standalone CLI resolves config but does not read session files.
 pub(crate) use project_layout::environment as parse_environment;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Shared project and restored workspace nesting limit.
-pub const MAX_LAYOUT_DEPTH: usize = 32;
+/// Shared Linux project/restore nesting limit; deeper nested GtkPaned trees block responsiveness.
+pub const MAX_LAYOUT_DEPTH: usize = 16;
 
 /// Terminal command targets use upstream names and default to a fresh sibling tab.
 #[derive(Debug, Default, Deserialize, Serialize, PartialEq)]

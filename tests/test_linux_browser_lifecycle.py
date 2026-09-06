@@ -184,6 +184,25 @@ def main():
                 app.cli("close-workspace", project)
                 app.wait_for(lambda: all(not pid.exists() for pid in owned), "project browser daemon exit")
                 assert all(pid.exists() for pid in before_daemons)
+                (root / "cmux.json").write_text(json.dumps({"actions": {"fixture.layout": {
+                    "type": "workspace", "workspace": {"name": "Browser layout", "layout": {
+                        "pane": {"surfaces": [{"type": "browser", "url": "https://layout.example/path", "focus": True}]}
+                    }}}}}))
+                layout_source = json.loads(app.cli("new-workspace", "--cwd", str(root), "--json"))["uuid"]
+                reviewed_layout = json.loads(app.cli("project-actions", "--workspace", layout_source, "--json"))
+                before_daemons = set(browser_dir.glob("*.pid"))
+                layout_workspace = json.loads(app.cli("project-run", "fixture.layout", "--workspace", layout_source,
+                    "--fingerprint", reviewed_layout["config"]["actions"]["fixture.layout"]["fingerprint"], "--json"))
+                assert layout_workspace["status"] == "submitted"
+                assert {row["uuid"] for row in app.surfaces() if row["active"]} == {layout_workspace["surface_id"]}
+                app.wait_for(lambda: len(set(browser_dir.glob("*.pid")) - before_daemons) == 1,
+                             "custom-layout browser daemon")
+                app.wait_for(lambda: json.loads((browser_dir / "last-navigation.json").read_text())["url"] == "https://layout.example/path",
+                             "custom-layout browser navigation")
+                layout_daemon = set(browser_dir.glob("*.pid")) - before_daemons
+                app.cli("close-workspace", layout_workspace["workspace_id"])
+                app.wait_for(lambda: all(not path.exists() for path in layout_daemon), "custom-layout browser cleanup")
+                app.cli("close-workspace", layout_source)
                 app.cli("select-workspace", target)
                 app.cli("select-workspace", source)
                 with pending_open(app, browser_dir) as pending:

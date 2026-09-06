@@ -143,6 +143,14 @@ pub fn restore_browser_tabs(state: &Rc<RefCell<AppState>>) {
         .iter()
         .flat_map(|engine| engine.browser_tabs())
         .collect();
+    wire_restored_browser_tabs(state, tabs);
+}
+
+/// Register one newly installed layout's browser tabs without rescanning or rewiring older surfaces.
+pub(crate) fn wire_restored_browser_tabs(
+    state: &Rc<RefCell<AppState>>,
+    tabs: Vec<super::PreviewPaneWidgets>,
+) {
     for widgets in tabs {
         let uuid = widgets.uuid;
         {

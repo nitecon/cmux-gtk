@@ -160,6 +160,46 @@ impl AppState {
         )
     }
 
+    /// Install a worker-prepared project pane tree without constructing a placeholder terminal.
+    #[allow(clippy::too_many_arguments)] // The explicit inputs form the complete launch contract.
+    pub(crate) fn create_workspace_layout(
+        &mut self,
+        name: String,
+        directory: PathBuf,
+        environment: std::collections::BTreeMap<String, String>,
+        color: Option<String>,
+        layout: crate::split_engine::SplitNodeData,
+        active_surface: &str,
+    ) -> Option<u64> {
+        let id = self.next_id;
+        let display_number = self.next_display_number;
+        let engine = crate::split_engine::SplitEngine::from_data_with_command(
+            self.ghostty_app,
+            &layout,
+            Some(active_surface),
+            Some(directory.clone()),
+            None,
+            None,
+            &self.resume_policy,
+            environment,
+        )?;
+        self.next_id += 1;
+        self.next_display_number += 1;
+        let mut workspace = Workspace::new_bound(id, display_number, name, directory);
+        workspace.color = color.filter(|value| crate::workspace::valid_workspace_color(value));
+        let row = self.build_sidebar_row(&workspace);
+        self.sidebar_list.append(&row);
+        let page_name = format!("workspace-{id}");
+        self.stack
+            .add_named(&engine.root_widget(), Some(&page_name));
+        workspace.stack_page_name = page_name;
+        self.workspaces.push(workspace);
+        self.split_engines.push(engine);
+        self.switch_to_index(self.workspaces.len() - 1);
+        self.trigger_session_save();
+        Some(id)
+    }
+
     /// Validate the launch directory and readable script before creating a local GTK workspace.
     pub fn create_script_workspace(
         &mut self,

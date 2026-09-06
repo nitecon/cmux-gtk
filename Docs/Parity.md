@@ -419,7 +419,11 @@ The multi-restart fixture now checks explicit environment retention through an u
 
 ### Shared project and session layout depth
 
-Aligned restore depth with project validation at32 levels, removing the prior16-level restore mismatch. Actions startup coverage checks17 nested splits retain18 panes/surfaces and workspace identity. Clippy and Python syntax pass; runtime pending. Full project layout application remains open.
+Project validation and session restoration share a 16-level Linux cap. The inspected upstream source has no explicit layout-depth limit, but Actions run34062084578 showed that a 17-deep GtkPaned tree could open the socket while leaving the GTK main thread unable to answer readiness within ten seconds. Startup coverage therefore exercises the accepted boundary with16 nested splits and17 retained panes/surfaces. Full project layout application is covered below.
+
+### Custom project workspace layouts
+
+Inline workspace and named workspaceCommand actions now create their validated pane trees directly, without allocating a placeholder terminal. Horizontal and vertical splits retain bounded ratios; panes retain terminal and browser tabs plus stable identities and the requested focused surface. Worker preparation canonicalizes every terminal directory before GTK mutation. Workspace setup is combined with the first terminal command once, while later terminals receive only their own command. Workspace and surface environments merge at native launch and persist through session snapshots under the same bounded validator. Restored-style browser tabs use the shared lazy startup and cancellation ownership. Project surfaces remain an explicit Linux error until a native renderer exists. Actions fixtures exercise mixed terminal topology, focus, commands, setup/environment, browser navigation and daemon cleanup; runtime verification is pending.
 
 ### Restore topology preflight
 

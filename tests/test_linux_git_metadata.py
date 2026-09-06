@@ -153,6 +153,34 @@ def main():
                 app.cli("send-key", "--id", surface, "\r")
                 app.wait_for(lambda: output.exists() and output.read_text() == "literal $HOME", "configured workspace environment")
                 app.cli("close-workspace", created["workspace_id"])
+            left = repo / "layout-left"
+            right = repo / "layout-right"
+            left.mkdir()
+            right.mkdir()
+            layout = {
+                "direction": "horizontal", "split": 0.35, "children": [
+                    {"pane": {"surfaces": [{"type": "terminal", "cwd": "layout-left",
+                        "env": {"SIDE": "left"}, "command": "printf '%s' \"$SIDE\" > command.out"}]}},
+                    {"pane": {"surfaces": [{"type": "terminal", "cwd": "layout-right",
+                        "env": {"SIDE": "right"}, "command": "printf '%s' \"$SIDE\" > command.out",
+                        "focus": True}]}}
+                ]}
+            setup = "printf '%s' \"$PROJECT_VALUE\" > setup.out"
+            config_file.write_text(json.dumps({"actions": {"fixture.layout": {"type": "workspace",
+                "workspace": {"name": "Configured layout", "env": {"PROJECT_VALUE": "setup-value"},
+                              "setup": setup, "layout": layout}}}}))
+            reviewed = json.loads(app.cli("project-actions", "--workspace", target["workspace_uuid"], "--json"))
+            created = json.loads(app.cli("project-run", "fixture.layout", "--workspace", target["workspace_uuid"],
+                "--fingerprint", reviewed["config"]["actions"]["fixture.layout"]["fingerprint"], "--json"))
+            record = json.loads(app.cli("current-workspace", "--json"))
+            assert record["uuid"] == created["workspace_id"] and record["pane_count"] == 2 and record["surface_count"] == 2
+            assert next(row["uuid"] for row in app.surfaces() if row["active"]) == created["surface_id"]
+            app.wait_for(lambda: (left / "setup.out").exists() and (left / "command.out").exists()
+                         and (right / "command.out").exists(), "custom layout commands")
+            assert (left / "setup.out").read_text() == "setup-value"
+            assert (left / "command.out").read_text() == "left"
+            assert (right / "command.out").read_text() == "right"
+            app.cli("close-workspace", created["workspace_id"])
             app.cli("select-workspace", next(row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == active))
             uri = "file://" + socket.gethostname() + str(root)
             app.cli("send-text", "--id", target["uuid"], "cd " + shlex.quote(str(root)) + "; printf '\\033]7;%s\\007' " + shlex.quote(uri))

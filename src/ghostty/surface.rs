@@ -350,6 +350,10 @@ pub fn create_surface(
             );
         }
     }
+    if let SurfaceIoMode::Configured { environment, .. } = &io_mode {
+        // SAFETY: this private key owns its map and session snapshots only clone it on GTK.
+        unsafe { gl_area.set_data("cmux-launch-environment", environment.clone()) };
+    }
     let retired = Rc::new(std::cell::Cell::new(false));
     unsafe {
         gl_area.set_data("cmux-surface-retired", retired.clone());

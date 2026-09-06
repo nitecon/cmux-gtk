@@ -14,6 +14,69 @@ struct WorkspaceLaunch {
     environment: std::collections::BTreeMap<String, String>,
     color: Option<String>,
     setup: Option<String>,
+    layout: Option<(
+        crate::project_config::project_action::project_layout::PreparedLayout,
+        String,
+    )>,
+}
+
+/// Adapt the platform-neutral validated plan to the session tree consumed by GTK construction.
+fn pane_tree(
+    layout: crate::project_config::project_action::project_layout::PreparedLayout,
+) -> crate::split_engine::SplitNodeData {
+    use crate::project_config::project_action::project_layout::{
+        Direction, PreparedLayout, PreparedSurface,
+    };
+    match layout {
+        PreparedLayout::Pane {
+            active_surface_uuid,
+            surfaces,
+        } => crate::split_engine::SplitNodeData::Pane {
+            active_surface_uuid: Some(active_surface_uuid),
+            surfaces: surfaces
+                .into_iter()
+                .map(|surface| match surface {
+                    PreparedSurface::Terminal {
+                        uuid,
+                        cwd,
+                        environment,
+                        initial_input,
+                    } => crate::split_engine::PaneSurfaceData::Terminal {
+                        surface_uuid: uuid,
+                        shell: String::new(),
+                        cwd: cwd.to_string_lossy().into_owned(),
+                        environment,
+                        initial_input,
+                        resume: None,
+                        scrollback: None,
+                    },
+                    PreparedSurface::Browser { uuid, url } => {
+                        crate::split_engine::PaneSurfaceData::Browser {
+                            surface_uuid: uuid,
+                            url: crate::browser_address::normalize(&url),
+                        }
+                    }
+                })
+                .collect(),
+        },
+        PreparedLayout::Split {
+            direction,
+            split,
+            children,
+        } => {
+            let (start, end) = *children;
+            crate::split_engine::SplitNodeData::Split {
+                orientation: match direction {
+                    Direction::Horizontal => "horizontal",
+                    Direction::Vertical => "vertical",
+                }
+                .into(),
+                ratio: split,
+                start: Box::new(pane_tree(start)),
+                end: Box::new(pane_tree(end)),
+            }
+        }
+    }
 }
 
 /// Resolve inline or named workspace intent and validate all supported fields before GTK mutation.
@@ -49,9 +112,6 @@ fn prepare_workspace(
         }
         return Ok(None);
     };
-    if workspace.layout.is_some() {
-        return Err("project workspace layout execution is not implemented yet".into());
-    }
     if workspace
         .color
         .as_deref()
@@ -73,12 +133,24 @@ fn prepare_workspace(
         workspace.name.as_deref().unwrap_or_default(),
         &directory,
     )?;
+    let layout = workspace
+        .layout
+        .as_ref()
+        .map(|layout| {
+            crate::project_config::project_action::project_layout::prepare_tree(
+                layout,
+                &directory,
+                workspace.setup.as_deref(),
+            )
+        })
+        .transpose()?;
     Ok(Some(WorkspaceLaunch {
         name,
         directory,
         environment: workspace.env.clone(),
         color: workspace.color.clone(),
         setup: workspace.setup.clone(),
+        layout,
     }))
 }
 
@@ -243,12 +315,22 @@ pub fn run(
         }
         let mut result_workspace_id = workspace_id;
         let mut wire_row = false;
+        let mut browser_tabs = Vec::new();
         let surface=match intent {
             Intent::Workspace { .. } | Intent::WorkspaceCommand { .. } => {
                 let Some(launch) = workspace_launch else {let _=response.send(err(req_id,"config_error","workspace launch unavailable"));return;};
-                let created_id = state.create_workspace_configured(launch.name, launch.directory, launch.environment, launch.setup);
+                let has_layout = launch.layout.is_some();
+                let created_id = if let Some((layout, active)) = launch.layout {
+                    state.create_workspace_layout(launch.name, launch.directory, launch.environment, launch.color.clone(), pane_tree(layout), &active)
+                } else {
+                    Some(state.create_workspace_configured(launch.name, launch.directory, launch.environment, launch.setup))
+                };
+                let Some(created_id) = created_id else {let _=response.send(err(req_id,"launch_failed","project workspace layout could not be created"));return;};
                 let created = state.active_index;
-                if let Some(color) = launch.color { state.set_workspace_color(created_id, Some(color)); }
+                if !has_layout {
+                    if let Some(color) = launch.color { state.set_workspace_color(created_id, Some(color)); }
+                }
+                browser_tabs = state.split_engines[created].browser_tabs();
                 result_workspace_id = state.workspaces[created].uuid;
                 wire_row = true;
                 state.split_engines[created].active_pane_uuid().and_then(|id| uuid::Uuid::parse_str(&id).ok())
@@ -298,6 +380,7 @@ pub fn run(
             let app = state.gtk_app.clone();
             drop(state);
             crate::sidebar::wire_latest_row(&list, owner.clone(), &app);
+            crate::browser::ui::wire_restored_browser_tabs(&owner, browser_tabs);
         }
         crate::diagnostics::record("project.actions.run",json!({"trace_id":trace_id,"workspace_id":result_workspace_id,"source_workspace_id":workspace_id,"surface_id":surface,"duration_us":started.elapsed().as_micros() as u64,"outcome":"submitted"}));
         let _=response.send(ok(req_id,json!({"workspace_id":result_workspace_id,"source_workspace_id":workspace_id,"surface_id":surface,"status":"submitted"})));
