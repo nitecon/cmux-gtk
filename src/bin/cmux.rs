@@ -3,6 +3,8 @@
 //! This binary is independent of GTK4 — it communicates with the running
 //! cmux-app instance via Unix socket JSON-RPC.
 
+#[path = "../browser_timeout.rs"]
+mod browser_timeout;
 #[path = "../cli/mod.rs"]
 mod cli;
 #[path = "../task.rs"]

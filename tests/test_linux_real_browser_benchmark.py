@@ -49,7 +49,7 @@ def measure(root, report):
             app.wait_for(lambda: bool(app.children()), "initial terminal")
             terminal = selected_surface(app)
             tick = time.perf_counter_ns()
-            opened = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/"))
+            opened = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/", timeout=35))
             assert opened["success"] is True
             surface = opened["surface_ref"]
             report["open_us"] = (time.perf_counter_ns() - tick) / 1000
@@ -72,6 +72,22 @@ def measure(root, report):
             report["browser_user_agent"] = browser("eval", "navigator.userAgent")["result"]
             assert isinstance(report["browser_user_agent"], str) and len(report["browser_user_agent"]) <= 512
             assert browser("wait", "--url-contains", "127.0.0.1", "--timeout-ms", "1000")["waited"] == "function"
+            browser("eval", "window.cmuxWaitReady=false; setTimeout(()=>{window.cmuxWaitReady=true},6000); true")
+            waiting = subprocess.Popen(["target/release/cmux", "--socket", str(app.socket_path),
+                                        "browser", "wait", surface, "--function", "window.cmuxWaitReady === true",
+                                        "--timeout-ms", "12000"], env=app.environment,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                assert json.loads(app.cli("ping", "--json"))["pong"]
+                output, error = waiting.communicate(timeout=25)
+                assert waiting.returncode == 0, error
+                assert json.loads(output)["success"] is True
+            finally:
+                if waiting.poll() is None:
+                    waiting.kill()
+                    waiting.wait(timeout=5)
+                waiting.stdout.close()
+                waiting.stderr.close()
             for iteration in range(15):
                 if iteration == 5:
                     report["before"] = resources()

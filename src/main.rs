@@ -5,6 +5,7 @@ use std::ffi::CString;
 mod app_state;
 mod bounded_json;
 mod browser;
+mod browser_timeout;
 mod config;
 mod diagnostics;
 mod ghostty;

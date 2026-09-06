@@ -20,6 +20,8 @@ content:
       description: Preserve object response envelopes for existing callers, allowing absent success for legacy peers. Reject explicit success false, non-boolean success and non-object responses so backend errors cannot become successful outer cmux replies. Do not expose backend error payloads in transport errors.
     - name: Real browser evidence
       description: CI installs agent-browser 0.31.1 independently with Node 24 and Chromium support, then uses the optimized app against a fixture-owned HTTP page. Require actual DOM mutations, snapshots, URL waiting, non-focus behavior, assigned GTK preview textures and CLI failure for a rejected evaluation. Record tool version, browser user agent, raw timing and app resources. This does not add deferred session resume or additional agent feature families.
+    - name: Wait and startup deadlines
+      description: Shared browser_timeout.wait_budgets grants explicit browser waits their requested duration plus five seconds at daemon transport and another five at the CLI response boundary. Convert milliseconds before adding margins to avoid u64 overflow. Other daemon exchanges keep five seconds. CLI browser open allows thirty seconds for cold startup and its sequential bounded stages; caller cancellation still tears down owned work.
     - name: Navigation
       description: History and explicit URL entry share one admission slot, ordered commands and address refresh within one fifteen-second sequence deadline. Expiration cancels the current CLI child, releases admission and records browser.navigation.timeout with trace identity and budget. Overlap rejects rather than retaining an unbounded queue. Widget destruction and manager shutdown cancel owned navigation. Mapped-tab navigation has a separate latest-destination worker sharing the same admission slot.
     - name: Mapped tab selection
@@ -47,5 +49,5 @@ content:
     - Failed public CLI subprocesses use shared direct-child cleanup with no grace and a five-second reap budget. Preserve the original command error and record browser.cli.cleanup_failed if reaping fails. kill_on_drop remains enabled; OS-stuck children may outlive the userspace wait.
     - Synchronous ensure_daemon, run_cli and send_command paths are removed. Stream metadata now runs off GTK; result application and filesystem cancellation limitations still need lifecycle and responsiveness validation; browser-daemon restart and navigation/input interaction are not fully verified.
     - Do not hold AppState borrows while waiting for worker results or retain closed widgets through callbacks.
-    - Transport framing bounds asynchronous socket responses to four MiB with a five-second deadline and sixteen active exchanges.
+    - Transport framing bounds asynchronous socket responses to four MiB with a five-second default deadline (explicit waits include their requested duration and margin) and sixteen active exchanges.
     - Runtime verification belongs to GitHub Actions; do not run tests locally.

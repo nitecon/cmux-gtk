@@ -35,11 +35,13 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         })?
     };
 
-    // Use longer timeout for browser wait commands
+    // Keep the CLI alive through the daemon operation and both response boundaries.
     let timeout = match &cli.command {
         Commands::Browser(BrowserCommand::Wait { timeout_ms, .. }) => {
-            Duration::from_millis(timeout_ms + 5000)
+            let (_, client) = crate::browser_timeout::wait_budgets(*timeout_ms);
+            client
         }
+        Commands::Browser(BrowserCommand::Open { .. }) => Duration::from_secs(30),
         _ => Duration::from_secs(5),
     };
 

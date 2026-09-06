@@ -19,7 +19,7 @@ pub(crate) fn snapshot() -> Value {
     })
 }
 
-/// Exchange asynchronously with an overall five-second deadline and at most sixteen active requests.
+/// Exchange with a five-second default, or an explicit wait timeout plus response margin; admit at most sixteen requests.
 /// Reject excess work immediately rather than retaining an unbounded queue of browser operations.
 pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value, String> {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
@@ -39,9 +39,18 @@ pub(super) async fn request_async(path: &Path, request: &Value) -> Result<Value,
             .await?;
         parse_response(&response)
     };
-    tokio::time::timeout(Duration::from_secs(5), exchange)
+    let timeout = if request.get("action").and_then(Value::as_str) == Some("wait") {
+        request
+            .get("timeout")
+            .and_then(Value::as_u64)
+            .map(|milliseconds| crate::browser_timeout::wait_budgets(milliseconds).0)
+            .unwrap_or(Duration::from_secs(5))
+    } else {
+        Duration::from_secs(5)
+    };
+    tokio::time::timeout(timeout, exchange)
         .await
-        .map_err(|_| "Browser command exceeded five-second deadline".to_string())?
+        .map_err(|_| "Browser command deadline exceeded".to_string())?
         .map_err(|error| format!("Browser daemon exchange failed: {error}"))
 }
 
@@ -151,6 +160,38 @@ mod tests {
         server.await.unwrap();
     }
 
+    /// A configured wait can complete after the ordinary command deadline on a real connection.
+    #[tokio::test]
+    async fn explicit_wait_outlives_default_transport_deadline() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+        let path = std::env::temp_dir().join(format!("cmux-wait-{}.sock", uuid::Uuid::new_v4()));
+        let listener = cmux_platform::local_socket::Listener::bind(&path).unwrap();
+        let payload = serde_json::json!({"action": "wait", "timeout": 12_000});
+        let server = async {
+            let (peer, _) = listener.accept().await.unwrap();
+            let mut reader = tokio::io::BufReader::new(peer);
+            let mut line = String::new();
+            reader.read_line(&mut line).await.unwrap();
+            assert_eq!(
+                serde_json::from_str::<Value>(&line).unwrap()["timeout"],
+                12_000
+            );
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            reader
+                .get_mut()
+                .write_all(b"{\"success\":true}\n")
+                .await
+                .unwrap();
+        };
+        let (result, ()) = tokio::time::timeout(Duration::from_secs(15), async {
+            tokio::join!(request_async(&path, &payload), server)
+        })
+        .await
+        .unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(result.unwrap()["success"], true);
+    }
+
     /// A connected peer that never answers must return a socket timeout instead of blocking indefinitely.
     #[tokio::test]
     async fn silent_peer_times_out() {
@@ -164,7 +205,7 @@ mod tests {
             drop(peer);
         };
         let (result, ()) = tokio::join!(request, server);
-        assert!(result.unwrap_err().contains("five-second deadline"));
+        assert!(result.unwrap_err().contains("deadline exceeded"));
         std::fs::remove_file(path).unwrap();
     }
 

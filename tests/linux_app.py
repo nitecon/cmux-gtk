@@ -16,12 +16,12 @@ class Application:
     environment: dict
     socket_path: Path
 
-    def cli(self, *arguments):
-        """Run the production CLI with a fifteen-second subprocess deadline and captured stdout."""
+    def cli(self, *arguments, timeout=15):
+        """Run the production CLI with captured stdout and a caller deadline (fifteen seconds by default)."""
         binary_dir = Path(self.environment.get("CMUX_BIN_DIR", "target/debug"))
         return subprocess.check_output(
             [str(binary_dir / "cmux"), "--socket", str(self.socket_path), *arguments],
-            env=self.environment, text=True, timeout=15,
+            env=self.environment, text=True, timeout=timeout,
         )
 
     def surfaces(self):
