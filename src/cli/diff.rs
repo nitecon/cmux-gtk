@@ -50,6 +50,7 @@ pub(super) struct PreparedDocument {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ViewerConfig<'a> {
     title: &'a str,
     source: &'a str,
