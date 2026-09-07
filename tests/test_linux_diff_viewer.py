@@ -17,6 +17,12 @@ def pane_for(panes, surface):
     return next(row["id"] for row in panes["panes"] if surface in row["surface_ids"])
 
 
+def focused_surface(app):
+    """Return the selected surface in the focused pane."""
+    panes = json.loads(app.cli("list-panes", "--json"))["panes"]
+    return next(row for row in panes if row["focused"])["active_surface_uuid"]
+
+
 def main():
     """Verify file and Git inputs without running browser code in this mock-backed stage."""
     with tempfile.TemporaryDirectory(prefix="cmux-diff-") as directory:
@@ -58,7 +64,7 @@ def main():
             assert "\\u003c/script\\u003e\\u003cscript\\u003ewindow.cmuxInjected" in html
             panes = json.loads(app.cli("list-panes", "--json"))
             assert pane_for(panes, terminal) != pane_for(panes, opened["uuid"]), panes
-            assert next(row for row in panes["panes"] if row["focused"])["active_surface_uuid"] == terminal
+            app.wait_for(lambda: focused_surface(app) == terminal, "preserved terminal focus")
             assert len(panes["panes"]) == len(before["panes"]) + 1
             navigation = json.loads((browser_dir / "last-navigation.json").read_text())
             assert navigation["url"] == opened["url"], navigation
@@ -87,8 +93,10 @@ def main():
             git_html = Path(git_view["path"]).read_text()
             assert "after" in git_html and comment["id"] in git_html
             assert "Please verify \\u003cthe changed value\\u003e." in git_html
-            panes = json.loads(app.cli("list-panes", "--json"))
-            assert next(row for row in panes["panes"] if row["focused"])["active_surface_uuid"] == git_view["uuid"]
+            app.wait_for(
+                lambda: focused_surface(app) == git_view["uuid"],
+                "focused diff browser",
+            )
 
             consumed = json.loads(app.cli(
                 "comments", "consume", comment["id"], "--repo", str(repository), "--json",
