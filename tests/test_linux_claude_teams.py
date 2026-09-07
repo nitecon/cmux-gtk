@@ -36,6 +36,12 @@ def main():
         environment = {"PATH": str(fake_bin) + ":" + __import__("os").environ["PATH"], "SHELL": "/bin/bash"}
         with running_app(root, environment) as app:
             source = next(row["uuid"] for row in app.surfaces() if row["active"])
+            app.wait_for(
+                lambda: bool(json.loads(app.cli(
+                    "read-text", "--id", source, "--json",
+                ))["text"].strip()),
+                "source shell readiness",
+            )
             binary = Path(app.environment.get("CMUX_BIN_DIR", "target/debug")).resolve() / "cmux"
             app.cli("send-text", "--id", source, shlex.quote(str(binary)) + " claude-teams --model sonnet")
             app.cli("send-key", "--id", source, "\r")
