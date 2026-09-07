@@ -144,6 +144,9 @@ jobs:
       - name: Test diff preparation, placement and restore lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diff_viewer.py
 
+      - name: Test Linux project inspection, placement and restore lifecycle
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_project_view.py
+
       - name: Run unit tests
         timeout-minutes: 10
         run: cargo test --workspace
@@ -342,6 +345,10 @@ jobs:
       - name: Test real browser diff surface DOM
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_diff_viewer.py
+
+      - name: Test real browser project surface DOM
+        timeout-minutes: 5
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_project_view.py
 
       - name: Verify remote browser resources through isolated SSH namespaces
         timeout-minutes: 5

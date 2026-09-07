@@ -184,6 +184,23 @@ esac
     ;;
 esac
 ;;
+(project)
+_arguments "${_arguments_options[@]}" : \
+'--workspace=[Destination workspace UUID; defaults to the caller or selected workspace]:WORKSPACE:_default' \
+'--surface=[Place the inspector immediately to the right of this surface UUID]:SURFACE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--focus[Focus the new inspector after it opens]' \
+'(--focus)--no-focus[Preserve the currently focused surface (the default)]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::path -- Project directory or manifest path:_files' \
+&& ret=0
+;;
 (claude-teams)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -4893,6 +4910,10 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(project)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (claude-teams)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -6043,6 +6064,7 @@ _cmux_commands() {
     local commands; commands=(
 'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
 'comments:Manage durable diff-review comments keyed by Git repository' \
+'project:Open a bounded manifest-aware Linux project inspector' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -6587,6 +6609,7 @@ _cmux__help_commands() {
     local commands; commands=(
 'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
 'comments:Manage durable diff-review comments keyed by Git repository' \
+'project:Open a bounded manifest-aware Linux project inspector' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -7774,6 +7797,11 @@ _cmux__help__ports_commands() {
 _cmux__help__prev-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help prev-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__help__project_commands] )) ||
+_cmux__help__project_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help project commands' commands "$@"
 }
 (( $+functions[_cmux__help__project-actions_commands] )) ||
 _cmux__help__project-actions_commands() {
@@ -10298,6 +10326,11 @@ _cmux__ports_commands() {
 _cmux__prev-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux prev-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__project_commands] )) ||
+_cmux__project_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux project commands' commands "$@"
 }
 (( $+functions[_cmux__project-actions_commands] )) ||
 _cmux__project-actions_commands() {

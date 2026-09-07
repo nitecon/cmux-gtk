@@ -1,0 +1,15 @@
+app: cmux-gtk
+title: Manifest-aware Linux project inspector
+space: cmux-gtk
+slug: project-inspector
+summary: A bounded Files, Targets, Settings and Actions project surface for Linux repositories.
+kind: agent_context
+source_format: agent_context
+source_ref: src/cli/project.rs
+labels: [linux, gtk, project, manifests, browser, cli]
+content:
+  command: cmux project PATH opens a private project document through the existing browser surface API. PATH defaults to the current directory and may identify a regular manifest or directory. --workspace selects routing, --surface or CMUX_SURFACE_ID selects the caller pane, and --focus selects the new right-hand inspector; default opening preserves current focus.
+  adaptation: Upstream's project surface parses Xcode projects and exposes Files, Targets, Build Settings and Schemes. Linux exposes Files, Targets, Settings and Actions. Supported manifest discovery covers Cargo.toml, go.mod, package.json, pyproject.toml, CMakeLists.txt, Makefile and cmux.json. Targets include packages, binaries, scripts, modules and conservative build targets. Actions show the same resolved configuration used by the reviewed project command palette.
+  bounds: Discovery skips symlinks, VCS metadata, dependency outputs and common caches. It follows at most twelve directory levels and rejects a scan above 20000 examined or 5000 visible entries, 128 manifests, one MiB per manifest, four MiB aggregate manifest content or three seconds. It never invokes a build tool or project script. TOML and JSON use typed parsers; Go, Make and CMake extraction is conservative and read-only.
+  viewer: The generated page is self-contained, filters file paths and exposes separate target, settings and action DOM sections to browser automation. Embedded JSON escapes script delimiters and visible values use textContent. Owner-only HTML is atomically replaced and retained at most 32 files or 128 MiB. The stable browser surface retains standard eval, snapshot, screenshot, navigation, routing and session restoration behavior.
+  observability: CLI errors identify discovery, manifest, encoding, storage or browser-composition stages without logging file content. JSON output reports the project root and file, manifest and target counts alongside stable surface, pane, path and URL identity.

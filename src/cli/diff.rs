@@ -42,6 +42,13 @@ pub(super) struct PreparedDiff {
     layout: DiffLayout,
 }
 
+pub(super) struct PreparedDocument {
+    pub path: PathBuf,
+    pub url: String,
+    pub title: String,
+    pub metadata: serde_json::Map<String, Value>,
+}
+
 #[derive(Serialize)]
 struct ViewerConfig<'a> {
     title: &'a str,
@@ -596,6 +603,38 @@ pub(super) fn open(
     focus: bool,
     json_output: bool,
 ) -> Result<(), CliError> {
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("source".into(), Value::String(prepared.source));
+    metadata.insert(
+        "layout".into(),
+        serde_json::to_value(prepared.layout)
+            .map_err(|error| CliError::Output(error.to_string()))?,
+    );
+    open_document(
+        client,
+        PreparedDocument {
+            path: prepared.path,
+            url: prepared.url,
+            title: prepared.title,
+            metadata,
+        },
+        workspace,
+        surface,
+        focus,
+        json_output,
+        "diff",
+    )
+}
+
+pub(super) fn open_document(
+    client: &mut SocketClient,
+    prepared: PreparedDocument,
+    workspace: Option<&str>,
+    surface: Option<&str>,
+    focus: bool,
+    json_output: bool,
+    subject: &str,
+) -> Result<(), CliError> {
     let caller_surface = surface
         .map(str::to_owned)
         .or_else(|| std::env::var("CMUX_SURFACE_ID").ok());
@@ -608,7 +647,9 @@ pub(super) fn open(
         .as_deref()
         .and_then(|surface| pane_for_surface(&panes_before, surface));
     if caller_surface.is_some() && target_pane.is_none() {
-        return Err(CliError::Command("diff target surface not found".into()));
+        return Err(CliError::Command(format!(
+            "{subject} target surface not found"
+        )));
     }
     let opened = client.call(
         "browser.open",
@@ -647,16 +688,20 @@ pub(super) fn open(
             client.call("surface.focus", json!({"id":previous}))?;
         }
     }
-    let result = json!({
-        "uuid": uuid,
-        "surface_ref": opened.get("surface_ref"),
-        "pane": split.get("pane"),
-        "path": prepared.path,
-        "url": prepared.url,
-        "title": prepared.title,
-        "source": prepared.source,
-        "layout": prepared.layout,
-    });
+    let mut result = prepared.metadata;
+    result.insert("uuid".into(), Value::String(uuid.clone()));
+    result.insert(
+        "surface_ref".into(),
+        opened.get("surface_ref").cloned().unwrap_or(Value::Null),
+    );
+    result.insert(
+        "pane".into(),
+        split.get("pane").cloned().unwrap_or(Value::Null),
+    );
+    result.insert("path".into(), json!(prepared.path));
+    result.insert("url".into(), Value::String(prepared.url));
+    result.insert("title".into(), Value::String(prepared.title));
+    let result = Value::Object(result);
     if json_output {
         println!(
             "{}",

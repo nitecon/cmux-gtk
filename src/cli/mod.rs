@@ -11,6 +11,7 @@ mod comments;
 use cmux_platform::discovery;
 pub mod format;
 mod hooks;
+mod project;
 #[path = "../project_config.rs"]
 mod project_config;
 #[path = "../resume.rs"]
@@ -197,6 +198,10 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         })?),
         _ => None,
     };
+    let prepared_project = match &cli.command {
+        Commands::Project { path, .. } => Some(project::prepare(path)?),
+        _ => None,
+    };
 
     // Resolve socket path: --socket flag > discovery > error
     let socket_path = if let Some(ref path) = cli.socket {
@@ -214,6 +219,7 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             client
         }
         Commands::Browser(BrowserCommand::Open { .. }) => Duration::from_secs(30),
+        Commands::Project { .. } => Duration::from_secs(30),
         Commands::ProjectActions { .. } => Duration::from_secs(7),
         Commands::ProjectRun { .. } => Duration::from_secs(30),
         _ => Duration::from_secs(5),
@@ -238,6 +244,27 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             surface.as_deref(),
             *focus && !*no_focus,
             cli.json,
+        );
+    }
+    if let (
+        Some(prepared),
+        Commands::Project {
+            workspace,
+            surface,
+            focus,
+            no_focus,
+            ..
+        },
+    ) = (prepared_project, &cli.command)
+    {
+        return diff::open_document(
+            &mut client,
+            prepared.document,
+            workspace.as_deref(),
+            surface.as_deref(),
+            *focus && !*no_focus,
+            cli.json,
+            "project",
         );
     }
     if let Commands::Hooks {
@@ -523,6 +550,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
         Commands::Diff { .. } => unreachable!("diff is prepared before socket dispatch"),
+        Commands::Project { .. } => unreachable!("project is prepared before socket dispatch"),
         Commands::Comments { .. } => unreachable!("comments run without socket dispatch"),
         Commands::ClaudeTeams { .. } | Commands::TmuxCompat { .. } => {
             unreachable!("team launch commands are handled before socket discovery")

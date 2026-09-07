@@ -139,6 +139,24 @@ pub enum Commands {
         #[command(subcommand)]
         command: CommentCommands,
     },
+    /// Open a bounded manifest-aware Linux project inspector
+    Project {
+        /// Project directory or manifest path
+        #[arg(default_value = ".")]
+        path: std::path::PathBuf,
+        /// Destination workspace UUID; defaults to the caller or selected workspace
+        #[arg(long)]
+        workspace: Option<String>,
+        /// Place the inspector immediately to the right of this surface UUID
+        #[arg(long)]
+        surface: Option<String>,
+        /// Focus the new inspector after it opens
+        #[arg(long)]
+        focus: bool,
+        /// Preserve the currently focused surface (the default)
+        #[arg(long, conflicts_with = "focus")]
+        no_focus: bool,
+    },
     /// Launch Claude Code teams with teammate panes translated into native cmux splits
     ClaudeTeams {
         /// Arguments forwarded verbatim to Claude Code

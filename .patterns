@@ -25,6 +25,7 @@
   - src/cli/diff.rs
   - crates/cmux-platform/src/filesystem.rs
   - src/cli/comments.rs
+  - src/cli/project.rs
 019df63f-151e-7a11-aa4c-be114fa39c76:
   - src/browser/ui.rs
   - src/browser.rs
@@ -42,6 +43,7 @@
   - src/updater.rs
   - src/cli/diff.rs
   - src/cli/comments.rs
+  - src/cli/project.rs
 019df63f-96c8-7410-b63d-ecbaec31c5d4:
   - crates/cmux-platform/src/local_socket.rs
   - src/line_reader.rs

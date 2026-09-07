@@ -195,6 +195,7 @@ cmux diff --last-turn          # inspect changes since this agent's latest promp
 cmux comments add --file src/main.rs --line 42 --message "Handle this error"
 cmux comments list             # list pending comments for the current Git repository
 cmux comments consume --all    # mark pending comments delivered to an agent
+cmux project .                 # open a manifest-aware project inspector
 
 # System
 cmux identify                  # instance info (version, platform, pid)
