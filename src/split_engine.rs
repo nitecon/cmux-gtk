@@ -15,6 +15,13 @@ pub struct PaneInfo {
     pub selected_surface: Option<Uuid>,
 }
 
+/// Realized GTK bounds used for pointer automation and layout triage.
+pub struct PaneGeometry {
+    pub id: u64,
+    pub bounds: Option<[f32; 4]>,
+    pub surface_bounds: Vec<(Uuid, [f32; 4])>,
+}
+
 /// Direction for pane focus navigation (Ctrl+Shift+arrows per D-10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusDirection {
@@ -1586,6 +1593,13 @@ impl SplitEngine {
         panes
     }
 
+    /// Return pane and tab-label bounds relative to one top-level GTK widget.
+    pub fn pane_geometry(&self, ancestor: &gtk4::Widget) -> Vec<PaneGeometry> {
+        let mut panes = Vec::new();
+        collect_pane_geometry(&self.root, ancestor, &mut panes);
+        panes
+    }
+
     /// Read or replace a terminal's resume metadata without selection or native process changes.
     /// A checkpoint mismatch leaves the binding intact, preventing stale hook cleanup.
     pub fn resume_action(
@@ -1964,6 +1978,43 @@ fn collect_pane_snapshots(node: &SplitNode, panes: &mut Vec<PaneInfo>) {
         SplitNode::Split { start, end, .. } => {
             collect_pane_snapshots(start, panes);
             collect_pane_snapshots(end, panes);
+        }
+    }
+}
+
+/// Copy only realized coordinates; missing bounds remain explicit instead of fabricated.
+fn collect_pane_geometry(node: &SplitNode, ancestor: &gtk4::Widget, panes: &mut Vec<PaneGeometry>) {
+    match node {
+        SplitNode::Leaf {
+            pane_id,
+            notebook,
+            surfaces,
+            ..
+        } => {
+            let bounds = notebook
+                .compute_bounds(ancestor)
+                .map(|bounds| [bounds.x(), bounds.y(), bounds.width(), bounds.height()]);
+            let surface_bounds = surfaces
+                .borrow()
+                .iter()
+                .filter_map(|surface| {
+                    let label = notebook.tab_label(&surface.widget())?;
+                    let bounds = label.compute_bounds(ancestor)?;
+                    Some((
+                        surface.uuid(),
+                        [bounds.x(), bounds.y(), bounds.width(), bounds.height()],
+                    ))
+                })
+                .collect();
+            panes.push(PaneGeometry {
+                id: *pane_id,
+                bounds,
+                surface_bounds,
+            });
+        }
+        SplitNode::Split { start, end, .. } => {
+            collect_pane_geometry(start, ancestor, panes);
+            collect_pane_geometry(end, ancestor, panes);
         }
     }
 }

@@ -24,7 +24,7 @@ content:
       description: Require a workspace UUID and a nonnegative integer position fitting the native index range. Invalid positions return invalid_params before GTK admission; unknown UUIDs return not_found. Valid positions beyond the final row clamp to the end. Reordering preserves selected workspace identity; the same position is a successful no-op.
     - method: pane.list
       transport: Unix JSON socket
-      description: One record per split pane across workspaces. id is a session-local pane:N reference. surface_ids preserves sibling order; active_surface_uuid is the selected tab. uuid remains the selected surface UUID for legacy clients. active and focused mark the focused pane of the active workspace.
+      description: One record per split pane across workspaces. id is a session-local pane:N reference. surface_ids preserves sibling order; active_surface_uuid is the selected tab. uuid remains the selected surface UUID for legacy clients. active and focused mark the focused pane of the active workspace. Realized panes also expose bounds and per-surface tab-label bounds relative to the top-level GTK window; hidden or unrealized geometry is null/empty. These coordinates support agent pointer automation and layout triage and are observational only.
     - method: pane.focus
       transport: Unix JSON socket
       description: Accept id as pane:N or a legacy surface UUID in the active workspace. Focus the containing pane without changing its selected tab. Missing targets return not_found.

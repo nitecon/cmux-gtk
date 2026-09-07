@@ -51,6 +51,44 @@ def saved_workspace_for(root, surface):
     return next((row["uuid"] for row in session["workspaces"] if contains(row["layout"])), None)
 
 
+def drag_surface_to_bottom_split(app, pane_ref, surface):
+    """Perform a physical X11 pointer drag from the realized tab label to its pane edge."""
+    geometry = None
+
+    def realized():
+        nonlocal geometry
+        record = next(row for row in panes(app) if row["id"] == pane_ref)
+        tab = next(
+            (row for row in record["surface_bounds"] if row["surface_id"] == surface),
+            None,
+        )
+        if not record["bounds"] or not tab:
+            return False
+        geometry = (record["bounds"], tab["bounds"])
+        return all(value > 0 for value in [*record["bounds"][2:], *tab["bounds"][2:]])
+
+    app.wait_for(realized, "realized pane and tab drag geometry")
+    window = subprocess.check_output(
+        ["xdotool", "search", "--sync", "--onlyvisible", "--pid", str(app.process.pid)],
+        text=True, timeout=10,
+    ).split()[-1]
+    pane_bounds, tab_bounds = geometry
+    start_x = round(tab_bounds[0] + tab_bounds[2] / 2)
+    start_y = round(tab_bounds[1] + tab_bounds[3] / 2)
+    target_x = round(pane_bounds[0] + pane_bounds[2] / 2)
+    target_y = round(pane_bounds[1] + pane_bounds[3] - 10)
+    subprocess.run(
+        [
+            "xdotool", "windowfocus", "--sync", window,
+            "mousemove", "--sync", "--window", window, str(start_x), str(start_y),
+            "mousedown", "1", "sleep", "0.3",
+            "mousemove", "--sync", "--window", window, str(target_x), str(target_y),
+            "sleep", "0.5", "mouseup", "1",
+        ],
+        check=True, timeout=10,
+    )
+
+
 with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
     root = Path(directory)
     browser_dir = root / "browser"
@@ -72,6 +110,18 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         original = panes(app)
         assert len(original) == 1 and original[0]["surface_ids"] == [browser, terminal], original
         original_pane = original[0]["id"]
+
+        drag_surface_to_bottom_split(app, original_pane, browser)
+        app.wait_for(
+            lambda: len(panes(app)) == 2 and pane_for(panes(app), browser)["id"] != original_pane,
+            "physical tab edge drop",
+        )
+        app.cli("move-surface", browser, "--pane", original_pane, "--position", "0")
+        app.wait_for(
+            lambda: len(panes(app)) == 1
+            and panes(app)[0]["surface_ids"] == [browser, terminal],
+            "pointer fixture topology reset",
+        )
 
         app.cli("reorder-surface", terminal, "0")
         reordered = panes(app)

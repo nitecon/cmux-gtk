@@ -1382,8 +1382,18 @@ fn handle_socket_command_traced(
         SocketCommand::PaneList { req_id, resp_tx } => {
             let s = state.borrow();
             let mut panes = Vec::new();
+            let ancestor = s
+                .stack
+                .root()
+                .and_then(|root| root.downcast::<gtk4::ApplicationWindow>().ok())
+                .map(|window| window.upcast::<gtk4::Widget>());
             for (ws_idx, (ws, engine)) in s.workspaces.iter().zip(&s.split_engines).enumerate() {
+                let geometry = ancestor
+                    .as_ref()
+                    .map(|ancestor| engine.pane_geometry(ancestor))
+                    .unwrap_or_default();
                 for pane in engine.pane_info() {
+                    let realized = geometry.iter().find(|item| item.id == pane.id);
                     panes.push(json!({
                         "id": format!("pane:{}", pane.id),
                         "uuid": pane.selected_surface,
@@ -1392,6 +1402,11 @@ fn handle_socket_command_traced(
                         "active_surface_uuid": pane.selected_surface,
                         "focused": ws_idx == s.active_index && pane.id == engine.active_pane_id,
                         "active": ws_idx == s.active_index && pane.id == engine.active_pane_id,
+                        "bounds": realized.and_then(|item| item.bounds),
+                        "surface_bounds": realized.map(|item| item.surface_bounds.iter().map(|(id, bounds)| json!({
+                            "surface_id": id,
+                            "bounds": bounds,
+                        })).collect::<Vec<_>>()).unwrap_or_default(),
                     }));
                 }
             }
