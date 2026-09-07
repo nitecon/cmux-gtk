@@ -86,6 +86,9 @@ await new Promise(resolve => setTimeout(resolve, 750));
                     check=True, timeout=10,
                 )
 
+            def notifications():
+                return json.loads(app.cli("notifications", "list", "--json"))["notifications"]
+
             expected_notifications = 0
             for provider in ("omp", "campfire"):
                 invoke(provider, "session_start")
@@ -105,14 +108,20 @@ await new Promise(resolve => setTimeout(resolve, 750));
                 ]
                 invoke(provider, "agent_end")
                 expected_notifications += 1
-                rows = json.loads(app.cli("notifications", "list", "--json"))["notifications"]
-                assert len(rows) == expected_notifications
+                app.wait_for(
+                    lambda: len(notifications()) == expected_notifications,
+                    f"{provider} completion notification",
+                )
+                rows = notifications()
                 assert rows[-1]["surface_id"] == target
                 assert rows[-1]["body"] == f"{provider} response ready"
 
             invoke("campfire", "observer")
-            rows = json.loads(app.cli("notifications", "list", "--json"))["notifications"]
-            assert len(rows) == expected_notifications + 1
+            app.wait_for(
+                lambda: len(notifications()) == expected_notifications + 1,
+                "Campfire observer notification",
+            )
+            rows = notifications()
             assert rows[-1]["surface_id"] == target
             assert "join.requested" in rows[-1]["body"] and "Ada" in rows[-1]["body"]
     print("OMP and Campfire extensions routed resume, prompt and attention lifecycle state")
