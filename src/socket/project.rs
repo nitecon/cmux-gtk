@@ -100,6 +100,7 @@ struct WorkspaceResult {
 }
 
 /// Apply upstream name collision behavior while keeping workspace construction centralized.
+/// The caller must validate confirmation before applying a `Confirm` restart policy.
 fn apply_workspace_launch(
     state: &mut crate::app_state::AppState,
     launch: WorkspaceLaunch,
@@ -151,7 +152,7 @@ fn apply_workspace_launch(
         browser_tabs: state.split_engines[created].browser_tabs(),
         new_row: true,
     };
-    if launch.restart == Restart::Recreate {
+    if matches!(launch.restart, Restart::Recreate | Restart::Confirm) {
         if let Some(existing) = existing {
             state.close_workspace(existing);
         }
