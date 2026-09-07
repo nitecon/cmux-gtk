@@ -17,6 +17,11 @@ def pane_for(records, surface):
     return next(record for record in records if surface in record["surface_ids"])
 
 
+def topology(records):
+    """Return stable pane ownership without transient GTK focus or geometry fields."""
+    return [(record["id"], record["surface_ids"]) for record in records]
+
+
 def wait_for_browser(app, surface):
     """Wait for a restored or rerouted browser daemon to accept commands."""
     binary = Path(app.environment.get("CMUX_BIN_DIR", "target/debug")) / "cmux"
@@ -84,14 +89,14 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         destination = next(record for record in after_split if record["id"] != original_pane)
         destination_pane = destination["id"]
 
-        before_invalid = panes(app)
+        before_invalid = topology(panes(app))
         invalid = subprocess.run(
             [str(Path(app.environment.get("CMUX_BIN_DIR", "target/debug")) / "cmux"),
              "--socket", str(app.socket_path), "move-surface", browser,
              "--pane", "pane:999999999"],
             env=app.environment, capture_output=True, text=True, timeout=15,
         )
-        assert invalid.returncode != 0 and panes(app) == before_invalid
+        assert invalid.returncode != 0 and topology(panes(app)) == before_invalid
 
         app.cli("move-surface", browser, "--pane", destination_pane, "--position", "0")
         moved = panes(app)
