@@ -69,6 +69,12 @@ content:
         - The generated dependency-free ESM registers session.start, agent.start and agent.end, prefers the event thread identity over context and root identities, and dispatches through an inherited exact surface with a five-second child deadline. agent.start records the last-turn Git baseline.
         - Start stores amp threads continue SESSION_ID. Completion creates an exact-surface inbox entry and retains the binding because Amp provides no terminal session-end callback.
 
+    - name: OMP and Campfire native lifecycle extensions
+      steps:
+        - cmux hooks setup omp resolves PI_CODING_AGENT_DIR first, otherwise PI_CONFIG_DIR or HOME/.omp, and installs extensions/cmux-omp-session.ts under the resulting agent root. cmux hooks setup campfire resolves CAMPFIRE_CODING_AGENT_DIR or HOME/.campfire/agent and installs extensions/cmux-campfire-session.ts. Both refuse symlinks and files without their cmux ownership marker and replace owned modules atomically.
+        - Both extensions bind PROVIDER --session SESSION_ID, record before_agent_start as a last-turn baseline and publish exact-surface completion attention. OMP pins the first session identity, ignores other in-process identities and adopts explicit session_switch/session_branch transitions.
+        - Campfire dispatches only when CAMPFIRE_SESSION_ROLE is host, preventing join capability URLs from becoming persistent resume commands. It accepts only join.requested, permission.asked and relay.error observer summaries, retains no invite or prompt content, and rate-limits delivery to eight events per second.
+
     - name: Rovo Dev YAML lifecycle hooks
       steps:
         - cmux hooks setup rovodev, with rovo as an alias, merges owned on_tool_permission, on_complete and on_error commands into HOME/.rovodev/config.yml eventHooks.events while preserving unrelated YAML and handlers. The bounded result is atomically synced; symlinks and unreadable files fail closed.

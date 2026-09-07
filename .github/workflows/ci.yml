@@ -189,6 +189,9 @@ jobs:
       - name: Test installed Pi lifecycle extension
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_pi_hooks.py
 
+      - name: Test installed OMP and Campfire lifecycle extensions
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_omp_campfire_hooks.py
+
       - name: Test installed Amp lifecycle plugin
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_amp_hooks.py
 

@@ -141,6 +141,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
                 | args::HookCommands::Opencode { .. }
                 | args::HookCommands::Cursor { .. }
                 | args::HookCommands::Pi { .. }
+                | args::HookCommands::Omp { .. }
+                | args::HookCommands::Campfire { .. }
                 | args::HookCommands::Amp { .. }
                 | args::HookCommands::Rovodev { .. }
         }
@@ -256,6 +258,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             args::HookCommands::Opencode { event } => Some(("opencode", *event)),
             args::HookCommands::Cursor { event } => Some(("cursor", *event)),
             args::HookCommands::Pi { event } => Some(("pi", *event)),
+            args::HookCommands::Omp { event } => Some(("omp", *event)),
+            args::HookCommands::Campfire { event } => Some(("campfire", *event)),
             args::HookCommands::Amp { event } => Some(("amp", *event)),
             _ => None,
         };

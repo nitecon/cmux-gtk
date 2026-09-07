@@ -27,7 +27,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **SSH remote workspaces** — cmuxd-remote deployment with bidirectional PTY proxy and reconnect
 - **Ghostty compatible** — Reads your existing `~/.config/ghostty/config` for themes, fonts, and colors
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
-- **Agent lifecycle integration** — Native resume and notification hooks for all 13 upstream-advertised providers: Claude, Codex, Grok, OpenCode, Pi, Amp, Cursor, Gemini, Rovo Dev, Copilot, CodeBuddy, Factory, and Qoder
+- **Agent lifecycle integration** — Native resume and notification hooks for Claude, Codex, Grok, OpenCode, Pi, OMP, Campfire, Amp, Cursor, Gemini, Rovo Dev, Copilot, CodeBuddy, Factory, and Qoder
 - **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
 - **Agent-accessible diff surfaces** — `cmux diff` opens patch, unstaged, staged, or branch changes in a searchable right-hand browser pane with unified and split layouts
 
@@ -199,8 +199,8 @@ cmux ping                      # check connectivity
 cmux raw <method> --params '{}' # send arbitrary JSON-RPC
 ```
 
-Native lifecycle integrations cover Claude Code, Codex, Grok, OpenCode, Pi, Amp, Cursor,
-Gemini CLI, Rovo Dev, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
+Native lifecycle integrations cover Claude Code, Codex, Grok, OpenCode, Pi, OMP, Campfire,
+Amp, Cursor, Gemini CLI, Rovo Dev, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
 unrelated provider configuration and binds resume and notification events to the
 originating terminal surface. Providers with prompt lifecycle events also record a
 bounded Git tree baseline, so `diff --last-turn` includes tracked and untracked work

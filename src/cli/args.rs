@@ -601,6 +601,16 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive an OMP extension lifecycle payload on stdin
+    Omp {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a Campfire extension lifecycle payload on stdin
+    Campfire {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
     /// Receive an Amp plugin lifecycle payload on stdin
     Amp {
         #[command(subcommand)]

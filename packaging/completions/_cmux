@@ -1499,6 +1499,254 @@ esac
     ;;
 esac
 ;;
+(omp)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__omp_commands" \
+"*::: :->omp" \
+&& ret=0
+
+    case $state in
+    (omp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-omp-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__omp__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-omp-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(campfire)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__campfire_commands" \
+"*::: :->campfire" \
+&& ret=0
+
+    case $state in
+    (campfire)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-campfire-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__campfire__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-campfire-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (amp)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -2082,6 +2330,78 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-pi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(omp)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__omp_commands" \
+"*::: :->omp" \
+&& ret=0
+
+    case $state in
+    (omp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-omp-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(campfire)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__campfire_commands" \
+"*::: :->campfire" \
+&& ret=0
+
+    case $state in
+    (campfire)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-campfire-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -4203,6 +4523,78 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(omp)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__omp_commands" \
+"*::: :->omp" \
+&& ret=0
+
+    case $state in
+    (omp)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-omp-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(campfire)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__campfire_commands" \
+"*::: :->campfire" \
+&& ret=0
+
+    case $state in
+    (campfire)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-campfire-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (amp)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__help__hooks__amp_commands" \
@@ -5523,6 +5915,8 @@ _cmux__help__hooks_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'omp:Receive an OMP extension lifecycle payload on stdin' \
+'campfire:Receive a Campfire extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
 'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
     )
@@ -5563,6 +5957,42 @@ _cmux__help__hooks__amp__session-start_commands() {
 _cmux__help__hooks__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire_commands] )) ||
+_cmux__help__hooks__campfire_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks campfire commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire__notification_commands] )) ||
+_cmux__help__hooks__campfire__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks campfire notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire__prompt-submit_commands] )) ||
+_cmux__help__hooks__campfire__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks campfire prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire__session-end_commands] )) ||
+_cmux__help__hooks__campfire__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks campfire session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire__session-start_commands] )) ||
+_cmux__help__hooks__campfire__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks campfire session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__campfire__stop_commands] )) ||
+_cmux__help__hooks__campfire__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks campfire stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__claude_commands] )) ||
 _cmux__help__hooks__claude_commands() {
@@ -5845,6 +6275,42 @@ _cmux__help__hooks__grok__session-start_commands() {
 _cmux__help__hooks__grok__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks grok stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp_commands] )) ||
+_cmux__help__hooks__omp_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks omp commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp__notification_commands] )) ||
+_cmux__help__hooks__omp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks omp notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp__prompt-submit_commands] )) ||
+_cmux__help__hooks__omp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks omp prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp__session-end_commands] )) ||
+_cmux__help__hooks__omp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks omp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp__session-start_commands] )) ||
+_cmux__help__hooks__omp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks omp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__omp__stop_commands] )) ||
+_cmux__help__hooks__omp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks omp stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__opencode_commands] )) ||
 _cmux__help__hooks__opencode_commands() {
@@ -6285,6 +6751,8 @@ _cmux__hooks_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'omp:Receive an OMP extension lifecycle payload on stdin' \
+'campfire:Receive a Campfire extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
 'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -6369,6 +6837,85 @@ _cmux__hooks__amp__session-start_commands() {
 _cmux__hooks__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire_commands] )) ||
+_cmux__hooks__campfire_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks campfire commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help_commands] )) ||
+_cmux__hooks__campfire__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks campfire help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__help_commands] )) ||
+_cmux__hooks__campfire__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__notification_commands] )) ||
+_cmux__hooks__campfire__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__prompt-submit_commands] )) ||
+_cmux__hooks__campfire__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__session-end_commands] )) ||
+_cmux__hooks__campfire__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__session-start_commands] )) ||
+_cmux__hooks__campfire__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__help__stop_commands] )) ||
+_cmux__hooks__campfire__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__notification_commands] )) ||
+_cmux__hooks__campfire__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__prompt-submit_commands] )) ||
+_cmux__hooks__campfire__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__session-end_commands] )) ||
+_cmux__hooks__campfire__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__session-start_commands] )) ||
+_cmux__hooks__campfire__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__campfire__stop_commands] )) ||
+_cmux__hooks__campfire__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks campfire stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__claude_commands] )) ||
 _cmux__hooks__claude_commands() {
@@ -7005,6 +7552,8 @@ _cmux__hooks__help_commands() {
 'opencode:Receive an OpenCode plugin lifecycle payload on stdin' \
 'cursor:Receive a Cursor Agent lifecycle hook payload on stdin' \
 'pi:Receive a Pi coding agent extension lifecycle payload on stdin' \
+'omp:Receive an OMP extension lifecycle payload on stdin' \
+'campfire:Receive a Campfire extension lifecycle payload on stdin' \
 'amp:Receive an Amp plugin lifecycle payload on stdin' \
 'rovodev:Receive a Rovo Dev YAML hook payload on stdin' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -7046,6 +7595,42 @@ _cmux__hooks__help__amp__session-start_commands() {
 _cmux__hooks__help__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire_commands] )) ||
+_cmux__hooks__help__campfire_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help campfire commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire__notification_commands] )) ||
+_cmux__hooks__help__campfire__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help campfire notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire__prompt-submit_commands] )) ||
+_cmux__hooks__help__campfire__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help campfire prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire__session-end_commands] )) ||
+_cmux__hooks__help__campfire__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help campfire session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire__session-start_commands] )) ||
+_cmux__hooks__help__campfire__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help campfire session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__campfire__stop_commands] )) ||
+_cmux__hooks__help__campfire__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help campfire stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__claude_commands] )) ||
 _cmux__hooks__help__claude_commands() {
@@ -7334,6 +7919,42 @@ _cmux__hooks__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help help commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__omp_commands] )) ||
+_cmux__hooks__help__omp_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help omp commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__omp__notification_commands] )) ||
+_cmux__hooks__help__omp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help omp notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__omp__prompt-submit_commands] )) ||
+_cmux__hooks__help__omp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help omp prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__omp__session-end_commands] )) ||
+_cmux__hooks__help__omp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help omp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__omp__session-start_commands] )) ||
+_cmux__hooks__help__omp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help omp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__omp__stop_commands] )) ||
+_cmux__hooks__help__omp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help omp stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__opencode_commands] )) ||
 _cmux__hooks__help__opencode_commands() {
     local commands; commands=(
@@ -7464,6 +8085,85 @@ _cmux__hooks__help__rovodev__stop_commands() {
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp_commands] )) ||
+_cmux__hooks__omp_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks omp commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help_commands] )) ||
+_cmux__hooks__omp__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks omp help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__help_commands] )) ||
+_cmux__hooks__omp__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__notification_commands] )) ||
+_cmux__hooks__omp__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__prompt-submit_commands] )) ||
+_cmux__hooks__omp__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__session-end_commands] )) ||
+_cmux__hooks__omp__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__session-start_commands] )) ||
+_cmux__hooks__omp__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__help__stop_commands] )) ||
+_cmux__hooks__omp__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__notification_commands] )) ||
+_cmux__hooks__omp__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__prompt-submit_commands] )) ||
+_cmux__hooks__omp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__session-end_commands] )) ||
+_cmux__hooks__omp__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__session-start_commands] )) ||
+_cmux__hooks__omp__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__omp__stop_commands] )) ||
+_cmux__hooks__omp__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks omp stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__opencode_commands] )) ||
 _cmux__hooks__opencode_commands() {

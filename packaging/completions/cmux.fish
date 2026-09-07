@@ -153,27 +153,29 @@ complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l json -d 'O
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand project-actions" -s h -l help -d 'Print help'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -l color -d 'Color mode: always, never, auto' -r
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -l json -d 'Output raw JSON responses'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -s v -l verbose -d 'Verbose output (connection info to stderr)'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -s h -l help -d 'Print help'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "codex" -d 'Receive a Codex lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "grok" -d 'Receive a Grok lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "gemini" -d 'Receive a Gemini lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "copilot" -d 'Receive a GitHub Copilot lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "codebuddy" -d 'Receive a CodeBuddy lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "factory" -d 'Receive a Factory Droid lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "qoder" -d 'Receive a Qoder lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "opencode" -d 'Receive an OpenCode plugin lifecycle payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "cursor" -d 'Receive a Cursor Agent lifecycle hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "pi" -d 'Receive a Pi coding agent extension lifecycle payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "amp" -d 'Receive an Amp plugin lifecycle payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "rovodev" -d 'Receive a Rovo Dev YAML hook payload on stdin'
-complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi amp rovodev help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -l json -d 'Output raw JSON responses'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -s v -l verbose -d 'Verbose output (connection info to stderr)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -s h -l help -d 'Print help'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "setup" -d 'Install supported hooks while preserving unrelated agent configuration'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "claude" -d 'Receive a Claude Code hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "codex" -d 'Receive a Codex lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "grok" -d 'Receive a Grok lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "gemini" -d 'Receive a Gemini lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "copilot" -d 'Receive a GitHub Copilot lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "codebuddy" -d 'Receive a CodeBuddy lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "factory" -d 'Receive a Factory Droid lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "qoder" -d 'Receive a Qoder lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "opencode" -d 'Receive an OpenCode plugin lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "cursor" -d 'Receive a Cursor Agent lifecycle hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "pi" -d 'Receive a Pi coding agent extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "omp" -d 'Receive an OMP extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "campfire" -d 'Receive a Campfire extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "amp" -d 'Receive an Amp plugin lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "rovodev" -d 'Receive a Rovo Dev YAML hook payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and not __fish_seen_subcommand_from setup claude codex grok gemini copilot codebuddy factory qoder opencode cursor pi omp campfire amp rovodev help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l color -d 'Color mode: always, never, auto' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from setup" -l json -d 'Output raw JSON responses'
@@ -311,6 +313,30 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "notification"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -l json -d 'Output raw JSON responses'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -s v -l verbose -d 'Verbose output (connection info to stderr)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -s h -l help -d 'Print help'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "prompt-submit"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "session-end"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "stop"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "notification"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from omp" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -l color -d 'Color mode: always, never, auto' -r
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -l json -d 'Output raw JSON responses'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -l no-json -d 'Suppress JSON output for browser commands (browser defaults to JSON)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -s v -l verbose -d 'Verbose output (connection info to stderr)'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -s h -l help -d 'Print help'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "prompt-submit"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "session-end"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "stop"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "notification"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from campfire" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -l color -d 'Color mode: always, never, auto' -r
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -l json -d 'Output raw JSON responses'
@@ -344,6 +370,8 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "opencode" -d 'Receive an OpenCode plugin lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "cursor" -d 'Receive a Cursor Agent lifecycle hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "pi" -d 'Receive a Pi coding agent extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "omp" -d 'Receive an OMP extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "campfire" -d 'Receive a Campfire extension lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "amp" -d 'Receive an Amp plugin lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "rovodev" -d 'Receive a Rovo Dev YAML hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
@@ -1138,6 +1166,8 @@ complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcomma
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "opencode" -d 'Receive an OpenCode plugin lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "cursor" -d 'Receive a Cursor Agent lifecycle hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "pi" -d 'Receive a Pi coding agent extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "omp" -d 'Receive an OMP extension lifecycle payload on stdin'
+complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "campfire" -d 'Receive a Campfire extension lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "amp" -d 'Receive an Amp plugin lifecycle payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from hooks" -f -a "rovodev" -d 'Receive a Rovo Dev YAML hook payload on stdin'
 complete -c cmux -n "__fish_cmux_using_subcommand help; and __fish_seen_subcommand_from surface" -f -a "resume" -d 'Register or inspect a saved resume command (does not execute it)'
