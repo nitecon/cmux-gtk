@@ -224,10 +224,7 @@ fn submit_command(client: &mut SocketClient, id: &str, command: &str) -> Result<
         "surface.send_text",
         serde_json::json!({"id":id,"text":command}),
     )?;
-    client.call(
-        "surface.send_key",
-        serde_json::json!({"id":id,"key":"\r"}),
-    )?;
+    client.call("surface.send_key", serde_json::json!({"id":id,"key":"\r"}))?;
     Ok(())
 }
 
