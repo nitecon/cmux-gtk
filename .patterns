@@ -15,12 +15,14 @@
   - crates/cmux-platform/src/discovery.rs
 019df63f-9652-77d3-ad3c-fc585f4b1858:
   - Docs/Observability.md
+  - src/cli/diff.rs
 019df63f-3d1d-7a23-930b-3538dcaff23a:
   - src/browser/pixels.rs
 019df63f-14af-76e3-9bdf-a2641131368e:
   - src/socket/dispatch.rs
   - src/browser/cli.rs
   - src/cli/mod.rs
+  - src/cli/diff.rs
 019df63f-151e-7a11-aa4c-be114fa39c76:
   - src/browser/ui.rs
   - src/browser.rs
@@ -31,10 +33,12 @@
   - src/ssh/outbound.rs
   - src/ssh/metrics.rs
   - src/notification.rs
+  - src/cli/diff.rs
 019df63f-c5cd-7b93-bde1-507cb33d958c:
   - src/session.rs
   - crates/cmux-platform/src/filesystem.rs
   - src/updater.rs
+  - src/cli/diff.rs
 019df63f-96c8-7410-b63d-ecbaec31c5d4:
   - crates/cmux-platform/src/local_socket.rs
   - src/line_reader.rs

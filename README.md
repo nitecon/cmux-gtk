@@ -29,6 +29,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
 - **Agent lifecycle integration** — Native resume and notification hooks for all 13 upstream-advertised providers: Claude, Codex, Grok, OpenCode, Pi, Amp, Cursor, Gemini, Rovo Dev, Copilot, CodeBuddy, Factory, and Qoder
 - **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
+- **Agent-accessible diff surfaces** — `cmux diff` opens patch, unstaged, staged, or branch changes in a searchable right-hand browser pane with unified and split layouts
 
 ## Workspace workflows
 
@@ -153,6 +154,20 @@ survives cmux session restoration. Omitting it creates the existing isolated eph
 
 Browser commands default to JSON output (agents are the primary consumers). Use `--no-json` for human-readable output.
 
+Diff surfaces use the same browser automation boundary, so an agent can inspect and operate the
+viewer with `cmux browser`. Generated pages are self-contained, owner-only files under the cmux data
+directory. Patch input is limited to 32 MiB, Git collection has a 30-second deadline, and retained
+viewer files are pruned to 64 files or 256 MiB. Opening preserves terminal focus unless `--focus` is
+given.
+
+```bash
+cmux diff change.patch
+git diff | cmux diff - --layout split
+cmux diff --unstaged --cwd ~/src/project
+cmux diff --staged --focus
+cmux diff --branch --base origin/main
+```
+
 ## CLI Reference
 
 ```bash
@@ -172,14 +187,19 @@ cmux hooks setup codex         # install only Codex lifecycle hooks
 cmux claude-teams              # launch Claude teams in native cmux splits
 cmux claude-teams --model sonnet  # forward ordinary Claude arguments
 
+# Diff review
+cmux diff change.patch         # open a patch in a right-hand browser pane
+cmux diff --unstaged           # inspect current working-tree changes
+cmux diff --branch --base main # compare HEAD with a branch merge-base
+
 # System
 cmux identify                  # instance info (version, platform, pid)
 cmux ping                      # check connectivity
 cmux raw <method> --params '{}' # send arbitrary JSON-RPC
 ```
 
-Native lifecycle integrations currently cover Claude Code, Codex, Grok,
-OpenCode, Gemini CLI, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
+Native lifecycle integrations cover Claude Code, Codex, Grok, OpenCode, Pi, Amp, Cursor,
+Gemini CLI, Rovo Dev, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
 unrelated provider configuration and binds resume and notification events to the
 originating terminal surface.
 

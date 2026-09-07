@@ -34,7 +34,34 @@ _cmux() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-command-$line[1]:"
         case $line[1] in
-            (claude-teams)
+            (diff)
+_arguments "${_arguments_options[@]}" : \
+'--source=[Git source when no patch file is supplied]:SOURCE:(unstaged staged branch last-turn)' \
+'--workspace=[Destination workspace UUID; defaults to the caller or selected workspace]:WORKSPACE:_default' \
+'--surface=[Place the viewer immediately to the right of this surface UUID]:SURFACE:_default' \
+'--cwd=[Repository or child path used by Git sources]:CWD:_files' \
+'--base=[Explicit base ref for a branch comparison]:BASE:_default' \
+'--title=[]:TITLE:_default' \
+'--layout=[]:LAYOUT:(unified split)' \
+'--font-size=[]:FONT_SIZE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'(--source --staged --branch --last-turn)--unstaged[]' \
+'(--source --unstaged --branch --last-turn)--staged[]' \
+'(--source --unstaged --staged --last-turn)--branch[]' \
+'(--source --unstaged --staged --branch)--last-turn[]' \
+'--focus[Focus the new viewer after it opens]' \
+'(--focus)--no-focus[Preserve the currently focused surface (the default)]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'::input -- Unified patch file, or '\''-'\'' to read standard input:_default' \
+&& ret=0
+;;
+(claude-teams)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -3507,7 +3534,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-help-command-$line[1]:"
         case $line[1] in
-            (claude-teams)
+            (diff)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(claude-teams)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -4391,6 +4422,7 @@ esac
 (( $+functions[_cmux_commands] )) ||
 _cmux_commands() {
     local commands; commands=(
+'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -4838,6 +4870,11 @@ _cmux__diagnostics_commands() {
     local commands; commands=()
     _describe -t commands 'cmux diagnostics commands' commands "$@"
 }
+(( $+functions[_cmux__diff_commands] )) ||
+_cmux__diff_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux diff commands' commands "$@"
+}
 (( $+functions[_cmux__drag-surface-to-split_commands] )) ||
 _cmux__drag-surface-to-split_commands() {
     local commands; commands=()
@@ -4861,6 +4898,7 @@ _cmux__health_commands() {
 (( $+functions[_cmux__help_commands] )) ||
 _cmux__help_commands() {
     local commands; commands=(
+'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -5150,6 +5188,11 @@ _cmux__help__delete-workspace-group_commands() {
 _cmux__help__diagnostics_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help diagnostics commands' commands "$@"
+}
+(( $+functions[_cmux__help__diff_commands] )) ||
+_cmux__help__diff_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help diff commands' commands "$@"
 }
 (( $+functions[_cmux__help__drag-surface-to-split_commands] )) ||
 _cmux__help__drag-surface-to-split_commands() {

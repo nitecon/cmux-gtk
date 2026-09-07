@@ -24,6 +24,7 @@ mod updater;
 pub use socket_client::CliError;
 
 mod args;
+mod diff;
 pub use args::{BrowserCommand, Cli, Commands};
 use std::io::Write;
 use std::time::Duration;
@@ -153,6 +154,36 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         return Ok(());
     }
 
+    let prepared_diff = match &cli.command {
+        Commands::Diff {
+            input,
+            source,
+            unstaged,
+            staged,
+            branch,
+            last_turn,
+            cwd,
+            base,
+            title,
+            layout,
+            font_size,
+            ..
+        } => Some(diff::prepare(diff::PrepareRequest {
+            input: input.as_deref(),
+            source: *source,
+            unstaged: *unstaged,
+            staged: *staged,
+            branch: *branch,
+            last_turn: *last_turn,
+            cwd: cwd.as_deref(),
+            base: base.as_deref(),
+            title: title.as_deref(),
+            layout: *layout,
+            font_size: *font_size,
+        })?),
+        _ => None,
+    };
+
     // Resolve socket path: --socket flag > discovery > error
     let socket_path = if let Some(ref path) = cli.socket {
         path.clone()
@@ -175,6 +206,26 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     };
 
     let mut client = socket_client::SocketClient::connect(&socket_path, timeout)?;
+    if let (
+        Some(prepared),
+        Commands::Diff {
+            workspace,
+            surface,
+            focus,
+            no_focus,
+            ..
+        },
+    ) = (prepared_diff, &cli.command)
+    {
+        return diff::open(
+            &mut client,
+            prepared,
+            workspace.as_deref(),
+            surface.as_deref(),
+            *focus && !*no_focus,
+            cli.json,
+        );
+    }
     if let Commands::Hooks {
         command: args::HookCommands::Claude { event },
     } = &cli.command
@@ -451,6 +502,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             serde_json::json!({"workspace_id":workspace}),
         ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
+        Commands::Diff { .. } => unreachable!("diff is prepared before socket dispatch"),
         Commands::ClaudeTeams { .. } | Commands::TmuxCompat { .. } => {
             unreachable!("team launch commands are handled before socket discovery")
         }

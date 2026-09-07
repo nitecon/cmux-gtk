@@ -1,6 +1,21 @@
 //! Shared command schema for the CLI, completions and man-page generator.
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub(crate) enum DiffSource {
+    Unstaged,
+    Staged,
+    Branch,
+    LastTurn,
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize, ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum DiffLayout {
+    Unified,
+    Split,
+}
 
 /// Parsed global flags and the selected terminal-multiplexer operation.
 #[derive(Parser)]
@@ -33,6 +48,46 @@ pub struct Cli {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Open a bounded patch or Git comparison in an agent-accessible diff surface
+    Diff {
+        /// Unified patch file, or '-' to read standard input
+        input: Option<String>,
+        /// Git source when no patch file is supplied
+        #[arg(long, value_enum)]
+        source: Option<DiffSource>,
+        #[arg(long, conflicts_with_all = ["source", "staged", "branch", "last_turn", "input"])]
+        unstaged: bool,
+        #[arg(long, conflicts_with_all = ["source", "unstaged", "branch", "last_turn", "input"])]
+        staged: bool,
+        #[arg(long, conflicts_with_all = ["source", "unstaged", "staged", "last_turn", "input"])]
+        branch: bool,
+        #[arg(long, conflicts_with_all = ["source", "unstaged", "staged", "branch", "input"])]
+        last_turn: bool,
+        /// Destination workspace UUID; defaults to the caller or selected workspace
+        #[arg(long)]
+        workspace: Option<String>,
+        /// Place the viewer immediately to the right of this surface UUID
+        #[arg(long)]
+        surface: Option<String>,
+        /// Repository or child path used by Git sources
+        #[arg(long, alias = "repo", alias = "path")]
+        cwd: Option<std::path::PathBuf>,
+        /// Explicit base ref for a branch comparison
+        #[arg(long, alias = "branch-base")]
+        base: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long, value_enum, default_value = "unified")]
+        layout: DiffLayout,
+        #[arg(long)]
+        font_size: Option<f64>,
+        /// Focus the new viewer after it opens
+        #[arg(long)]
+        focus: bool,
+        /// Preserve the currently focused surface (the default)
+        #[arg(long, conflicts_with = "focus")]
+        no_focus: bool,
+    },
     /// Launch Claude Code teams with teammate panes translated into native cmux splits
     ClaudeTeams {
         /// Arguments forwarded verbatim to Claude Code

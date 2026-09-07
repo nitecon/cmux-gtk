@@ -61,6 +61,9 @@ _cmux() {
             cmux,diagnostics)
                 cmd="cmux__diagnostics"
                 ;;
+            cmux,diff)
+                cmd="cmux__diff"
+                ;;
             cmux,drag-surface-to-split)
                 cmd="cmux__drag__surface__to__split"
                 ;;
@@ -411,6 +414,9 @@ _cmux() {
                 ;;
             cmux__help,diagnostics)
                 cmd="cmux__help__diagnostics"
+                ;;
+            cmux__help,diff)
+                cmd="cmux__help__diff"
                 ;;
             cmux__help,drag-surface-to-split)
                 cmd="cmux__help__drag__surface__to__split"
@@ -1562,7 +1568,7 @@ _cmux() {
 
     case "${cmd}" in
         cmux)
-            opts="-v -h -V --socket --json --no-json --verbose --color --help --version claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="-v -h -V --socket --json --no-json --verbose --color --help --version diff claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2869,6 +2875,60 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__diff)
+            opts="-v -h --source --unstaged --staged --branch --last-turn --workspace --surface --cwd --base --title --layout --font-size --focus --no-focus --socket --json --no-json --verbose --color --help [INPUT]"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --source)
+                    COMPREPLY=($(compgen -W "unstaged staged branch last-turn" -- "${cur}"))
+                    return 0
+                    ;;
+                --workspace)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --surface)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --cwd)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --base)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --title)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --layout)
+                    COMPREPLY=($(compgen -W "unified split" -- "${cur}"))
+                    return 0
+                    ;;
+                --font-size)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__drag__surface__to__split)
             opts="-v -h --pane --direction --socket --json --no-json --verbose --color --help <ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -2970,7 +3030,7 @@ _cmux() {
             return 0
             ;;
         cmux__help)
-            opts="claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="diff claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3516,6 +3576,20 @@ _cmux() {
             return 0
             ;;
         cmux__help__diagnostics)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__diff)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

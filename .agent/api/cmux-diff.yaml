@@ -1,0 +1,17 @@
+app: cmux-gtk
+title: Agent-accessible diff surface contract
+space: cmux-gtk
+slug: diff-surfaces
+summary: Bounded Linux diff preparation and composition with the agent browser and stable pane APIs.
+kind: agent_context
+source_format: agent_context
+source_ref: src/cli/diff.rs
+labels: [linux, gtk, diff, browser, cli, lifecycle]
+content:
+  command: cmux diff accepts one regular patch path, '-' or piped stdin, or one Git source selected by --source/--unstaged/--staged/--branch. --cwd chooses repository discovery and --base chooses an explicit branch base. --layout is unified or split; --font-size is finite and in 1..=96. --focus selects the viewer while the default and --no-focus restore the previously focused surface.
+  composition: The CLI prepares a private self-contained file, opens it through browser.open, moves it into the requested caller pane when necessary, then calls surface.drag_to_split with direction right. Failure after browser creation closes that owned browser surface. Explicit --surface and inherited CMUX_SURFACE_ID are stable UUIDs; --workspace and CMUX_WORKSPACE_ID select the browser route.
+  viewer: The page has no external code or network dependency. It parses unified patch sections into a file list, exposes split/unified buttons and text search, and renders no more than 4000 rows per page. All patch text enters the DOM through textContent. JSON embedded in the script replaces HTML/script delimiter characters and JavaScript line separators.
+  storage: Generated HTML lives in the cmux XDG data directory with mode 0600 and is retained for session restore. Creation prunes oldest diff HTML files to at most 64 and a pre-write total of 256 MiB. A generated page can be pruned by later diff creation after it ages out; an already loaded browser keeps its DOM, while a later cmux restart cannot restore a pruned URL.
+  input_bounds: Patch input must be complete UTF-8 and is limited to 32 MiB. File input opens a descriptor nonblocking and rejects non-regular files. Git uses literal argv with --no-ext-diff and --binary, owner-only output files, a 64 KiB stderr cap, output-size polling and a 30-second deadline. No shell evaluates repository paths, base refs, patch text or titles.
+  status: Patch, stdin, unstaged, staged and branch sources are implemented. last-turn is accepted by the schema but returns an explicit missing-baseline error until per-turn Git baseline recording is implemented. Durable review comments and the dedicated project view remain parity gaps.
+  observability: Browser startup, navigation, topology movement and cleanup use their existing correlated bounded diagnostics. CLI preparation failures identify only the stage and configured limit; patch content is never logged.

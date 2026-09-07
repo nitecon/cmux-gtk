@@ -141,6 +141,9 @@ jobs:
       - name: Test asynchronous browser lifecycle and focus
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_browser_lifecycle.py
 
+      - name: Test diff preparation, placement and restore lifecycle
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_diff_viewer.py
+
       - name: Run unit tests
         timeout-minutes: 10
         run: cargo test --workspace
@@ -326,6 +329,10 @@ jobs:
       - name: Benchmark optimized real browser DOM and preview
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_browser_benchmark.py
+
+      - name: Test real browser diff surface DOM
+        timeout-minutes: 5
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_diff_viewer.py
 
       - name: Verify remote browser resources through isolated SSH namespaces
         timeout-minutes: 5
