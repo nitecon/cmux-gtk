@@ -346,7 +346,15 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
                     "surface.reordered",
                     serde_json::json!({"surface_id": surfaces[new_index].uuid(), "position": new_index}),
                 );
-                let _ = notebook.activate_action("win.surface-tabs-changed", None);
+                // `reorder_child` emits this signal synchronously. A socket action can
+                // therefore still hold AppState's mutable RefCell borrow here. Defer
+                // the save notification until that mutation has returned to GTK.
+                let notebook = notebook.downgrade();
+                glib::idle_add_local_once(move || {
+                    if let Some(notebook) = notebook.upgrade() {
+                        let _ = notebook.activate_action("win.surface-tabs-changed", None);
+                    }
+                });
             }
         }
     });
