@@ -2,6 +2,7 @@
 """Exercise persistent group identity, membership and collapse through the production CLI."""
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 
 from linux_app import running_app
@@ -51,6 +52,18 @@ with tempfile.TemporaryDirectory(prefix="cmux-workspace-groups-") as directory:
         except Exception as error:
             assert "workspace not found" in getattr(error, "output", "") or getattr(error, "returncode", 0) != 0
         assert records(app)[2]["group_id"] is None
+
+        # Exercise normal GTK quit; fixture cleanup sends SIGTERM and bypasses session saving.
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid)],
+            text=True, timeout=10,
+        ).split()
+        subprocess.check_call(
+            ["xdotool", "windowfocus", "--sync", windows[-1],
+             "key", "--clearmodifiers", "ctrl+q"], timeout=10,
+        )
+        assert app.process.wait(timeout=15) == 0
+        app.socket_path.unlink(missing_ok=True)
 
     # Graceful quit flushes group metadata through the sole session writer.
     with running_app(root) as app:
