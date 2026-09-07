@@ -13,6 +13,16 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.2.1] - 2026-09-07
+
+### Fixed
+
+- Submit Claude Teams split and respawn commands with a separate Enter key so bracketed paste cannot prevent execution.
+- Close the previous workspace after an explicitly confirmed restart.
+- Keep diff headers outside source line numbering to prevent duplicate review comments.
+- Match diff viewer configuration field names to enable comment creation and font-size settings.
+- Correct CI fixtures for graceful group restoration, diff comment interactions and remote browser surface transfer.
+
 ## [0.1.8] - 2026-09-05
 
 ### Added
