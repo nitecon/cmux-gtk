@@ -3,7 +3,7 @@
 use super::socket_client::{CliError, SocketClient};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const TEAM_GUIDANCE: &str = "You are Claude Code running inside cmux. Agent teams are enabled. When work can run in parallel, spawn NAMED teammates with distinct short role names in one message; each named teammate opens in its own native cmux split.";
 
@@ -199,6 +199,7 @@ fn split_window(client: &mut SocketClient, args: &[String], leader: &str) -> Res
     save_layout_state(&path, &layout)?;
     let body = positional_command(args);
     if !body.is_empty() {
+        wait_for_surface(client, id)?;
         let body = if let Some(cwd) = option_value(args, "-c") {
             format!("cd -- {} && {body}", shell_quote(cwd))
         } else {
@@ -219,6 +220,27 @@ fn split_window(client: &mut SocketClient, args: &[String], leader: &str) -> Res
         client.call("surface.focus", serde_json::json!({"id":leader}))?;
     }
     Ok(())
+}
+
+/// Wait briefly for GTK to realize a newly split terminal before sending its command.
+fn wait_for_surface(client: &mut SocketClient, id: &str) -> Result<(), CliError> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let health = client.call("surface.health", serde_json::json!({"id":id}))?;
+        if health
+            .get("alive")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(CliError::Command(
+                "new teammate terminal did not become ready".into(),
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn install_shim() -> Result<PathBuf, CliError> {
