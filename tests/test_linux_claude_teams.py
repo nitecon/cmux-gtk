@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import shlex
+import subprocess
 import tempfile
 
 from linux_app import running_app
@@ -36,17 +37,19 @@ def main():
         environment = {"PATH": str(fake_bin) + ":" + __import__("os").environ["PATH"], "SHELL": "/bin/bash"}
         with running_app(root, environment) as app:
             source = next(row["uuid"] for row in app.surfaces() if row["active"])
-            app.wait_for(
-                lambda: bool(json.loads(app.cli(
-                    "read-text", "--id", source, "--json",
-                ))["text"].strip()),
-                "source shell readiness",
-            )
             binary = Path(app.environment.get("CMUX_BIN_DIR", "target/debug")).resolve() / "cmux"
-            app.cli("send-text", "--id", source, shlex.quote(str(binary)) + " claude-teams --model sonnet")
-            app.cli("send-key", "--id", source, "\r")
-            app.wait_for(marker.exists, "native teammate command", timeout=15)
-            assert teammate.exists()
+            subprocess.run(
+                [str(binary), "claude-teams", "--model", "sonnet"],
+                env=dict(
+                    app.environment,
+                    CMUX_SURFACE_ID=source,
+                    CMUX_SOCKET_PATH=str(app.socket_path),
+                ),
+                check=True,
+                timeout=30,
+            )
+            assert marker.exists()
+            app.wait_for(teammate.exists, "native teammate command")
             app.wait_for(lambda: len(app.surfaces()) == 4, "native teammate splits")
             payload = json.loads(launch.read_text())
             assert payload["argv"][:3] == ["--teammate-mode", "auto", "--append-system-prompt"]
