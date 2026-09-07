@@ -226,6 +226,29 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
         eventually(lambda: loaded(*surfaces[0]))
         overload_after = forwarding_metrics()
         assert not requests, 'remote browser sent traffic to the local decoy'
+
+        # A browser may safely outlive the remote workspace transport. Close the
+        # workspace's terminal so the browser is its final surface, then transfer
+        # that stable browser identity to the local workspace. The old SSH-owned
+        # browser route must retire while the destination route starts lazily.
+        first_terminal = next(
+            row['uuid'] for row in json.loads(cli('list-surfaces', '--json'))['surfaces']
+            if row['workspace_uuid'] == remote_id and row['uuid'] != first_surface
+        )
+        cli('close-surface', first_terminal)
+        moved = json.loads(cli('move-surface', first_surface, '--workspace', local_id, '--json'))
+        assert moved['workspace_id'] == local_id
+        assert moved['browser_route_restarted'] is True
+        workspaces_after_move = json.loads(cli('list-workspaces', '--json'))['workspaces']
+        assert remote_id not in {row['uuid'] for row in workspaces_after_move}
+
+        def moved_browser_ready():
+            result = json.loads(cli('browser', 'eval', first_surface, '1 + 1'))
+            return result['success'] and result['data']['result'] == 2
+
+        eventually(moved_browser_ready)
+        assert any(row['uuid'] == first_surface and row['workspace_uuid'] == local_id
+                   for row in json.loads(cli('list-surfaces', '--json'))['surfaces'])
         assert json.loads(cli('current-workspace', '--json'))['uuid'] == local_id
         assert json.loads(cli('ping', '--json'))['pong']
         report['remote_browser'] = {'resource_ready_us': (time.perf_counter_ns() - started) / 1000,
@@ -233,7 +256,7 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
                                     'workspace_transport': remote_records,
                                     'reconnect_us': reconnect_us, 'reconnected_transport': reconnected,
                                     'socks_overload': {'before': overload_before, 'after': overload_after},
-                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation', 'remote-only hostname resolution']}
+                                    'checked': ['redirect', 'relative script', 'absolute localhost script', 'absolute loopback fetch', 'WebSocket', 'background workspace', 'same-port workspace isolation', 'first workspace renavigation', 'remote-only hostname resolution', 'final remote browser transfer']}
     finally:
         try:
             cleanup.close()

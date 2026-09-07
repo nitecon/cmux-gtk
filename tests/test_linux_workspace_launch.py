@@ -388,9 +388,6 @@ Subsystem sftp internal-sftp
         assert json.loads(cli("ping", "--json"))["pong"]
         cli("select-workspace", remote_id)
 
-        if remote_browser:
-            from remote_browser_support import verify_remote_browser
-            verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, local_id, report)
         cli("select-workspace", remote_id)
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
@@ -460,6 +457,9 @@ Subsystem sftp internal-sftp
             row["uuid"] for row in json.loads(cli("list-surfaces", "--json"))["surfaces"]
         })
         assert json.loads(cli("ping", "--json"))["pong"]
+        if remote_browser:
+            from remote_browser_support import verify_remote_browser
+            verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, local_id, report)
         completed = True
         print("script and SSH launch contexts survive splits, reorder and restart")
     except BaseException:

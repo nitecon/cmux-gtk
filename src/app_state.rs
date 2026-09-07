@@ -1203,8 +1203,20 @@ impl AppState {
         if !self.split_engines[destination_index].can_insert_surface(destination_pane, position) {
             return Err("destination pane or position invalid");
         }
-        let source_will_empty = self.split_engines[source_index].all_panes().len() == 1;
-        if source_will_empty && self.workspaces[source_index].remote_target.is_some() {
+        let source_surface_count = self.split_engines[source_index]
+            .pane_info()
+            .iter()
+            .map(|pane| pane.surface_ids.len())
+            .sum::<usize>();
+        let source_will_empty = source_surface_count == 1;
+        let source_is_browser = self.split_engines[source_index]
+            .browser_tabs()
+            .iter()
+            .any(|widgets| widgets.uuid == id);
+        if source_will_empty
+            && self.workspaces[source_index].remote_target.is_some()
+            && !source_is_browser
+        {
             return Err("cannot empty a remote workspace while its transport owns the surface");
         }
         let source_workspace = self.workspaces[source_index].uuid;
