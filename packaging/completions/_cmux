@@ -2483,6 +2483,51 @@ _arguments "${_arguments_options[@]}" : \
 ':id -- Surface UUID:_default' \
 && ret=0
 ;;
+(move-surface)
+_arguments "${_arguments_options[@]}" : \
+'--pane=[Destination pane reference (pane\:N)]:PANE:_default' \
+'--position=[Zero-based insertion position; defaults to the end]:POSITION:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--no-focus[Preserve current focus instead of selecting the moved surface]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id -- Surface UUID:_default' \
+&& ret=0
+;;
+(reorder-surface)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+':position:_default' \
+&& ret=0
+;;
+(drag-surface-to-split)
+_arguments "${_arguments_options[@]}" : \
+'--pane=[]:PANE:_default' \
+'--direction=[]:DIRECTION:(left right up down)' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
 (send-text)
 _arguments "${_arguments_options[@]}" : \
 '--id=[Target surface ID (default\: focused)]:ID:_default' \
@@ -4065,6 +4110,18 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(move-surface)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(reorder-surface)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(drag-surface-to-split)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (send-text)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -4369,6 +4426,9 @@ _cmux_commands() {
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
 'close-surface:Close a surface by ID' \
+'move-surface:Move a live surface tab into another pane in the same workspace' \
+'reorder-surface:Reorder a surface tab inside its current pane' \
+'drag-surface-to-split:Move a surface into a newly split pane next to a target pane' \
 'send-text:Send text to a surface' \
 'send-key:Send one literal character to a terminal surface' \
 'read-text:Read current terminal viewport text (up to 256 KiB)' \
@@ -4777,6 +4837,11 @@ _cmux__diagnostics_commands() {
     local commands; commands=()
     _describe -t commands 'cmux diagnostics commands' commands "$@"
 }
+(( $+functions[_cmux__drag-surface-to-split_commands] )) ||
+_cmux__drag-surface-to-split_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux drag-surface-to-split commands' commands "$@"
+}
 (( $+functions[_cmux__focus-pane_commands] )) ||
 _cmux__focus-pane_commands() {
     local commands; commands=()
@@ -4831,6 +4896,9 @@ _cmux__help_commands() {
 'split:Split a surface' \
 'focus-surface:Focus a surface by ID' \
 'close-surface:Close a surface by ID' \
+'move-surface:Move a live surface tab into another pane in the same workspace' \
+'reorder-surface:Reorder a surface tab inside its current pane' \
+'drag-surface-to-split:Move a surface into a newly split pane next to a target pane' \
 'send-text:Send text to a surface' \
 'send-key:Send one literal character to a terminal surface' \
 'read-text:Read current terminal viewport text (up to 256 KiB)' \
@@ -5081,6 +5149,11 @@ _cmux__help__delete-workspace-group_commands() {
 _cmux__help__diagnostics_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help diagnostics commands' commands "$@"
+}
+(( $+functions[_cmux__help__drag-surface-to-split_commands] )) ||
+_cmux__help__drag-surface-to-split_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help drag-surface-to-split commands' commands "$@"
 }
 (( $+functions[_cmux__help__focus-pane_commands] )) ||
 _cmux__help__focus-pane_commands() {
@@ -5569,6 +5642,11 @@ _cmux__help__mosh-tmux_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help mosh-tmux commands' commands "$@"
 }
+(( $+functions[_cmux__help__move-surface_commands] )) ||
+_cmux__help__move-surface_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help move-surface commands' commands "$@"
+}
 (( $+functions[_cmux__help__new-workspace_commands] )) ||
 _cmux__help__new-workspace_commands() {
     local commands; commands=()
@@ -5675,6 +5753,11 @@ _cmux__help__refresh_commands() {
 _cmux__help__rename-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help rename-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__help__reorder-surface_commands] )) ||
+_cmux__help__reorder-surface_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help reorder-surface commands' commands "$@"
 }
 (( $+functions[_cmux__help__reorder-workspace_commands] )) ||
 _cmux__help__reorder-workspace_commands() {
@@ -7116,6 +7199,11 @@ _cmux__mosh-tmux_commands() {
     local commands; commands=()
     _describe -t commands 'cmux mosh-tmux commands' commands "$@"
 }
+(( $+functions[_cmux__move-surface_commands] )) ||
+_cmux__move-surface_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux move-surface commands' commands "$@"
+}
 (( $+functions[_cmux__new-workspace_commands] )) ||
 _cmux__new-workspace_commands() {
     local commands; commands=()
@@ -7271,6 +7359,11 @@ _cmux__refresh_commands() {
 _cmux__rename-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux rename-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__reorder-surface_commands] )) ||
+_cmux__reorder-surface_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux reorder-surface commands' commands "$@"
 }
 (( $+functions[_cmux__reorder-workspace_commands] )) ||
 _cmux__reorder-workspace_commands() {

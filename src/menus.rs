@@ -112,6 +112,15 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // GtkNotebook pointer reordering mutates its local surface model before asking the
+    // application to persist the resulting workspace topology.
+    let action = gio::SimpleAction::new("surface-tabs-changed", None);
+    action.connect_activate({
+        let state = state.clone();
+        move |_, _| state.borrow().trigger_session_save()
+    });
+    window.add_action(&action);
+
     // win.close-pane
     let action = gio::SimpleAction::new("close-pane", None);
     action.connect_activate({

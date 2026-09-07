@@ -49,11 +49,18 @@ def running_app(root, extra_environment=None, extra_arguments=None, startup_time
     Overrides allow fixtures to install a browser mock or select CMUX_BIN_DIR before startup. Failure output
     is capped at 64 KiB; forced shutdown fails an otherwise successful scenario.
     """
-    environment = dict(os.environ, XDG_DATA_HOME=str(root / "data"),
-                       XDG_CONFIG_HOME=str(root / "config"), XDG_STATE_HOME=str(root / "state"),
-                       XDG_RUNTIME_DIR=str(root / "runtime"), GDK_BACKEND="x11",
+    environment = dict(os.environ, GDK_BACKEND="x11", GTK_A11Y="none",
                        LIBGL_ALWAYS_SOFTWARE="1", CMUX_NO_UPDATE="1")
     environment.update(extra_environment or {})
+    # The harness owns these roots. Some integration fixtures pass a complete environment
+    # to preserve provider-specific HOME/PATH values; never let its inherited hosted-runner
+    # XDG variables redirect the app away from the socket and session files this harness owns.
+    environment.update(
+        XDG_DATA_HOME=str(root / "data"),
+        XDG_CONFIG_HOME=str(root / "config"),
+        XDG_STATE_HOME=str(root / "state"),
+        XDG_RUNTIME_DIR=str(root / "runtime"),
+    )
     (root / "runtime").mkdir(mode=0o700, exist_ok=True)
     with (root / "app.log").open("w+b") as log:
         binary_dir = Path(environment.get("CMUX_BIN_DIR", "target/debug"))

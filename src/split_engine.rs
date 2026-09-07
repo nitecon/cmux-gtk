@@ -154,6 +154,13 @@ pub enum CloseSurfaceResult {
     NotFound,
 }
 
+/// Result of transferring a live tab without recreating its terminal or browser process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SurfaceMoveResult {
+    pub pane_id: u64,
+    pub position: usize,
+}
+
 /// Route tab-close controls through the window action that owns safe native teardown.
 fn request_surface_tab_close(widget: &impl IsA<gtk4::Widget>, uuid: Uuid) {
     let _ = widget.activate_action(
@@ -296,6 +303,35 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
                         });
                     }
                 }
+            }
+        }
+    });
+
+    // GtkNotebook owns the visual tab order during pointer drags. Mirror that order in
+    // the application model immediately so socket listings and session snapshots cannot
+    // retain the stale pre-drag order.
+    notebook.connect_page_reordered({
+        let surfaces = std::rc::Rc::downgrade(&surfaces);
+        move |notebook, child, new_index| {
+            let Some(surfaces) = surfaces.upgrade() else {
+                return;
+            };
+            let mut surfaces = surfaces.borrow_mut();
+            let Some(old_index) = surfaces
+                .iter()
+                .position(|surface| surface.widget() == *child)
+            else {
+                return;
+            };
+            let new_index = (new_index as usize).min(surfaces.len().saturating_sub(1));
+            if old_index != new_index {
+                let surface = surfaces.remove(old_index);
+                surfaces.insert(new_index, surface);
+                crate::diagnostics::record(
+                    "surface.reordered",
+                    serde_json::json!({"surface_id": surfaces[new_index].uuid(), "position": new_index}),
+                );
+                let _ = notebook.activate_action("win.surface-tabs-changed", None);
             }
         }
     });
@@ -952,6 +988,17 @@ impl SplitEngine {
         new_leaf: SplitNode,
         orientation: gtk4::Orientation,
     ) -> Option<()> {
+        self.replace_leaf_with_split_position(target_pane_id, new_leaf, orientation, false)
+    }
+
+    /// Insert a prepared pane on either side of an existing leaf.
+    fn replace_leaf_with_split_position(
+        &mut self,
+        target_pane_id: u64,
+        new_leaf: SplitNode,
+        orientation: gtk4::Orientation,
+        before: bool,
+    ) -> Option<()> {
         let orientation_cap = orientation;
         let mut replacer = Some(|old_leaf: SplitNode| {
             let old_widget = old_leaf.widget();
@@ -973,8 +1020,13 @@ impl SplitEngine {
             // Wide handle makes the divider grabable (default is ~5px, hard to click).
             paned.set_wide_handle(true);
 
-            paned.set_start_child(Some(&old_widget));
-            paned.set_end_child(Some(&new_widget));
+            if before {
+                paned.set_start_child(Some(&new_widget));
+                paned.set_end_child(Some(&old_widget));
+            } else {
+                paned.set_start_child(Some(&old_widget));
+                paned.set_end_child(Some(&new_widget));
+            }
 
             // Set 50/50 position after the first layout pass (per D-09 and RESEARCH Pitfall 2).
             // connect_realize fires before GTK allocates sizes, so p.width() is 0 there.
@@ -995,14 +1047,205 @@ impl SplitEngine {
 
             recovery::install(&paned);
 
+            let (start, end) = if before {
+                (Box::new(new_leaf), Box::new(old_leaf))
+            } else {
+                (Box::new(old_leaf), Box::new(new_leaf))
+            };
             SplitNode::Split {
                 orientation: orientation_cap,
                 paned: paned.clone(),
-                start: Box::new(old_leaf),
-                end: Box::new(new_leaf),
+                start,
+                end,
             }
         });
         replace_in_tree(&mut self.root, target_pane_id, &mut replacer)
+    }
+
+    /// Reorder one tab inside its current pane. GTK emits `page-reordered`, which updates
+    /// the model before this method returns.
+    pub fn reorder_surface(
+        &mut self,
+        uuid: Uuid,
+        position: usize,
+    ) -> Result<SurfaceMoveResult, &'static str> {
+        let pane_id = self
+            .find_pane_id_by_uuid(&uuid.to_string())
+            .ok_or("surface not found")?;
+        let (notebook, surfaces) = find_pane_tabs(&self.root, pane_id).ok_or("pane not found")?;
+        let count = surfaces.borrow().len();
+        if position >= count {
+            return Err("surface position out of range");
+        }
+        let widget = surfaces
+            .borrow()
+            .iter()
+            .find(|surface| surface.uuid() == uuid)
+            .map(PaneSurface::widget)
+            .ok_or("surface not found")?;
+        notebook.reorder_child(&widget, Some(position as u32));
+        Ok(SurfaceMoveResult { pane_id, position })
+    }
+
+    /// Move a live tab into another pane in this workspace. The widget and its native
+    /// process keep the same UUID and ownership; an emptied source pane is collapsed.
+    pub fn move_surface(
+        &mut self,
+        uuid: Uuid,
+        destination_pane: u64,
+        position: Option<usize>,
+        focus: bool,
+    ) -> Result<SurfaceMoveResult, &'static str> {
+        let source_pane = self
+            .find_pane_id_by_uuid(&uuid.to_string())
+            .ok_or("surface not found")?;
+        let (_, destination_surfaces) =
+            find_pane_tabs(&self.root, destination_pane).ok_or("destination pane not found")?;
+        let destination_count = destination_surfaces.borrow().len();
+        let position = position.unwrap_or(destination_count);
+
+        if source_pane == destination_pane {
+            let count = destination_count;
+            if count == 0 {
+                return Err("destination pane is empty");
+            }
+            return self.reorder_surface(uuid, position.min(count - 1));
+        }
+        if position > destination_count {
+            return Err("surface position out of range");
+        }
+
+        let (source_notebook, source_surfaces) =
+            find_pane_tabs(&self.root, source_pane).ok_or("source pane not found")?;
+        let source_index = source_surfaces
+            .borrow()
+            .iter()
+            .position(|surface| surface.uuid() == uuid)
+            .ok_or("surface not found")?;
+        let surface = source_surfaces.borrow_mut().remove(source_index);
+        let widget = surface.widget();
+        let page = source_notebook
+            .page_num(&widget)
+            .ok_or("surface widget missing")?;
+        source_notebook.remove_page(Some(page));
+        let source_empty = source_surfaces.borrow().is_empty();
+
+        if source_empty {
+            let sibling = remove_leaf_from_tree(&mut self.root, source_pane)
+                .ok_or("cannot empty the only pane")?;
+            if self.active_pane_id == source_pane {
+                self.active_pane_id = sibling;
+            }
+        }
+
+        let (destination_notebook, destination_surfaces) =
+            find_pane_tabs(&self.root, destination_pane).ok_or("destination pane not found")?;
+        append_pane_surface(&destination_notebook, &destination_surfaces, surface, focus);
+        if position < destination_count {
+            destination_notebook.reorder_child(&widget, Some(position as u32));
+        }
+        if focus {
+            self.active_pane_id = destination_pane;
+        }
+        self.root.update_focus_css(self.active_pane_id);
+        if focus {
+            self.focus_active_surface();
+        }
+        crate::diagnostics::record(
+            "surface.moved",
+            serde_json::json!({
+                "surface_id": uuid,
+                "source_pane": source_pane,
+                "destination_pane": destination_pane,
+                "position": position,
+                "focused": focus,
+            }),
+        );
+        Ok(SurfaceMoveResult {
+            pane_id: destination_pane,
+            position,
+        })
+    }
+
+    /// Turn an existing tab into a new pane next to a target pane without creating a
+    /// placeholder terminal. This is the programmatic boundary used by tab drag-to-split.
+    pub fn drag_surface_to_split(
+        &mut self,
+        uuid: Uuid,
+        target_pane: u64,
+        direction: FocusDirection,
+    ) -> Result<u64, &'static str> {
+        let source_pane = self
+            .find_pane_id_by_uuid(&uuid.to_string())
+            .ok_or("surface not found")?;
+        if self.root.find_node(target_pane).is_none() {
+            return Err("target pane not found");
+        }
+        let (source_notebook, source_surfaces) =
+            find_pane_tabs(&self.root, source_pane).ok_or("source pane not found")?;
+        if source_pane == target_pane && source_surfaces.borrow().len() == 1 {
+            return Err("cannot split a pane's only surface by moving it");
+        }
+        let source_index = source_surfaces
+            .borrow()
+            .iter()
+            .position(|surface| surface.uuid() == uuid)
+            .ok_or("surface not found")?;
+        let surface = source_surfaces.borrow_mut().remove(source_index);
+        let widget = surface.widget();
+        let page = source_notebook
+            .page_num(&widget)
+            .ok_or("surface widget missing")?;
+        source_notebook.remove_page(Some(page));
+        if source_surfaces.borrow().is_empty() {
+            let sibling = remove_leaf_from_tree(&mut self.root, source_pane)
+                .ok_or("cannot empty the only pane")?;
+            if self.active_pane_id == source_pane {
+                self.active_pane_id = sibling;
+            }
+        }
+
+        let orientation = match direction {
+            FocusDirection::Left | FocusDirection::Right => gtk4::Orientation::Horizontal,
+            FocusDirection::Up | FocusDirection::Down => gtk4::Orientation::Vertical,
+        };
+        let before = matches!(direction, FocusDirection::Left | FocusDirection::Up);
+        let stack_slot = if matches!(self.root, SplitNode::Leaf { .. }) {
+            self.root
+                .widget()
+                .parent()
+                .and_then(|parent| parent.downcast::<gtk4::Stack>().ok())
+                .and_then(|stack| {
+                    let name = stack.page(&self.root.widget()).name()?.to_string();
+                    Some((stack, name))
+                })
+        } else {
+            None
+        };
+        let new_pane_id = self.next_pane_id;
+        self.next_pane_id += 1;
+        let new_leaf = create_pane(new_pane_id, surface);
+        self.replace_leaf_with_split_position(target_pane, new_leaf, orientation, before)
+            .ok_or("target pane disappeared")?;
+        if let Some((stack, name)) = stack_slot {
+            let root = self.root.widget();
+            stack.add_named(&root, Some(&name));
+            stack.set_visible_child_name(&name);
+        }
+        self.active_pane_id = new_pane_id;
+        self.root.update_focus_css(new_pane_id);
+        self.focus_active_surface();
+        crate::diagnostics::record(
+            "surface.drag_to_split",
+            serde_json::json!({
+                "surface_id": uuid,
+                "source_pane": source_pane,
+                "target_pane": target_pane,
+                "new_pane": new_pane_id,
+                "direction": format!("{direction:?}").to_ascii_lowercase(),
+            }),
+        );
+        Ok(new_pane_id)
     }
 
     /// Close the active pane (Ctrl+Shift+X per UI-SPEC).

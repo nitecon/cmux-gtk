@@ -132,6 +132,9 @@ jobs:
       - name: Test surface tab close with browser mapping
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_surface_tab_reentrant_close.py
 
+      - name: Test surface move, reorder and drag-to-split lifecycle
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_surface_move.py
+
       - name: Test session load diagnostics and fallback
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_session_loading.py
 

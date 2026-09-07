@@ -235,6 +235,30 @@ pub enum Commands {
         /// Surface UUID
         id: String,
     },
+    /// Move a live surface tab into another pane in the same workspace
+    MoveSurface {
+        /// Surface UUID
+        id: String,
+        /// Destination pane reference (pane:N)
+        #[arg(long)]
+        pane: String,
+        /// Zero-based insertion position; defaults to the end
+        #[arg(long)]
+        position: Option<usize>,
+        /// Preserve current focus instead of selecting the moved surface
+        #[arg(long)]
+        no_focus: bool,
+    },
+    /// Reorder a surface tab inside its current pane
+    ReorderSurface { id: String, position: usize },
+    /// Move a surface into a newly split pane next to a target pane
+    DragSurfaceToSplit {
+        id: String,
+        #[arg(long)]
+        pane: String,
+        #[arg(long, value_parser = ["left", "right", "up", "down"])]
+        direction: String,
+    },
     /// Send text to a surface
     SendText {
         /// Text to send

@@ -223,6 +223,9 @@ pub fn format_mutation(command_name: &str, result: &Value) -> String {
         }
         "surface.split" => format!("Split created: {}", id),
         "surface.close" => format!("Closed surface: {}", id),
+        "surface.move" => format!("Moved surface: {}", id),
+        "surface.reorder" => format!("Reordered surface: {}", id),
+        "surface.drag_to_split" => format!("Split moved surface: {}", id),
         _ => String::new(),
     }
 }
@@ -267,8 +270,14 @@ pub fn format_response(method: &str, result: &Value, json_mode: bool, color: boo
         "debug.layout" => serde_json::to_string_pretty(result).unwrap_or_default(),
 
         // Mutation commands: show success message
-        "workspace.create" | "workspace.close" | "workspace.rename" | "surface.split"
-        | "surface.close" => {
+        "workspace.create"
+        | "workspace.close"
+        | "workspace.rename"
+        | "surface.split"
+        | "surface.close"
+        | "surface.move"
+        | "surface.reorder"
+        | "surface.drag_to_split" => {
             let msg = format_mutation(method, result);
             if msg.is_empty() {
                 format_fallback(result)

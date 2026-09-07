@@ -182,6 +182,27 @@ pub enum SocketCommand {
         id: String,
         resp_tx: RespTx,
     },
+    SurfaceMove {
+        req_id: Value,
+        id: String,
+        pane: String,
+        position: Option<usize>,
+        focus: bool,
+        resp_tx: RespTx,
+    },
+    SurfaceReorder {
+        req_id: Value,
+        id: String,
+        position: usize,
+        resp_tx: RespTx,
+    },
+    SurfaceDragToSplit {
+        req_id: Value,
+        id: String,
+        target_pane: String,
+        direction: crate::split_engine::FocusDirection,
+        resp_tx: RespTx,
+    },
     SurfaceSendText {
         req_id: Value,
         id: Option<String>,

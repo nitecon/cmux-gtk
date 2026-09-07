@@ -361,6 +361,9 @@ fn handle_socket_command_traced(
                 "surface.split",
                 "surface.focus",
                 "surface.close",
+                "surface.move",
+                "surface.reorder",
+                "surface.drag_to_split",
                 "surface.send_text",
                 "surface.send_key",
                 "surface.read_text",
@@ -1046,6 +1049,168 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
                 }
             }
+        }
+
+        SocketCommand::SurfaceMove {
+            req_id,
+            id,
+            pane,
+            position,
+            focus,
+            resp_tx,
+        } => {
+            let Some(uuid) = uuid::Uuid::parse_str(&id).ok() else {
+                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid surface UUID"));
+                return;
+            };
+            let Some(pane_id) = pane
+                .strip_prefix("pane:")
+                .and_then(|value| value.parse::<u64>().ok())
+            else {
+                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid pane reference"));
+                return;
+            };
+            let response = {
+                let mut s = state.borrow_mut();
+                let Some(index) = s
+                    .split_engines
+                    .iter()
+                    .position(|engine| engine.find_pane_id_by_uuid(&id).is_some())
+                else {
+                    let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                    return;
+                };
+                match s.split_engines[index].move_surface(uuid, pane_id, position, focus) {
+                    Ok(result) => {
+                        if focus {
+                            s.switch_to_index(index);
+                        }
+                        s.trigger_session_save();
+                        ok(
+                            req_id,
+                            json!({
+                                "id": id,
+                                "workspace_id": s.workspaces[index].uuid,
+                                "pane": format!("pane:{}", result.pane_id),
+                                "position": result.position,
+                            }),
+                        )
+                    }
+                    Err(message) => err(
+                        req_id,
+                        if message.contains("not found") {
+                            "not_found"
+                        } else {
+                            "invalid_params"
+                        },
+                        message,
+                    ),
+                }
+            };
+            let _ = resp_tx.send(response);
+        }
+
+        SocketCommand::SurfaceReorder {
+            req_id,
+            id,
+            position,
+            resp_tx,
+        } => {
+            let Some(uuid) = uuid::Uuid::parse_str(&id).ok() else {
+                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid surface UUID"));
+                return;
+            };
+            let response = {
+                let mut s = state.borrow_mut();
+                let Some(index) = s
+                    .split_engines
+                    .iter()
+                    .position(|engine| engine.find_pane_id_by_uuid(&id).is_some())
+                else {
+                    let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                    return;
+                };
+                match s.split_engines[index].reorder_surface(uuid, position) {
+                    Ok(result) => {
+                        s.trigger_session_save();
+                        ok(
+                            req_id,
+                            json!({
+                                "id": id,
+                                "workspace_id": s.workspaces[index].uuid,
+                                "pane": format!("pane:{}", result.pane_id),
+                                "position": result.position,
+                            }),
+                        )
+                    }
+                    Err(message) => err(
+                        req_id,
+                        if message.contains("not found") {
+                            "not_found"
+                        } else {
+                            "invalid_params"
+                        },
+                        message,
+                    ),
+                }
+            };
+            let _ = resp_tx.send(response);
+        }
+
+        SocketCommand::SurfaceDragToSplit {
+            req_id,
+            id,
+            target_pane,
+            direction,
+            resp_tx,
+        } => {
+            let Some(uuid) = uuid::Uuid::parse_str(&id).ok() else {
+                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid surface UUID"));
+                return;
+            };
+            let Some(target_pane_id) = target_pane
+                .strip_prefix("pane:")
+                .and_then(|value| value.parse::<u64>().ok())
+            else {
+                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid pane reference"));
+                return;
+            };
+            let response = {
+                let mut s = state.borrow_mut();
+                let Some(index) = s
+                    .split_engines
+                    .iter()
+                    .position(|engine| engine.find_pane_id_by_uuid(&id).is_some())
+                else {
+                    let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
+                    return;
+                };
+                match s.split_engines[index].drag_surface_to_split(uuid, target_pane_id, direction)
+                {
+                    Ok(pane_id) => {
+                        s.switch_to_index(index);
+                        s.trigger_session_save();
+                        ok(
+                            req_id,
+                            json!({
+                                "id": id,
+                                "workspace_id": s.workspaces[index].uuid,
+                                "pane": format!("pane:{pane_id}"),
+                            }),
+                        )
+                    }
+                    Err(message) => err(
+                        req_id,
+                        if message.contains("not found") {
+                            "not_found"
+                        } else {
+                            "invalid_params"
+                        },
+                        message,
+                    ),
+                }
+            };
+            let _ = resp_tx.send(response);
         }
 
         SocketCommand::SurfaceSendText {

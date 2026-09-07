@@ -37,6 +37,15 @@ content:
     - method: surface.close
       transport: Unix JSON socket
       description: Close a UUID in the active workspace. Sibling removal preserves the selected surviving tab or chooses the same slot with end fallback. Empty-pane removal preserves a surviving active pane; closing the active pane selects a surviving sibling. Unknown UUIDs return not_found. The final workspace surface is retained and reports close_failed. This command does not implement cross-workspace targeting.
+    - method: surface.reorder
+      transport: Unix JSON socket
+      description: Reorder a stable surface UUID within its owning pane by zero-based position. GTK pointer tab reordering updates the same model before persistence, preventing visual and restored orders from diverging. Out-of-range positions fail without mutation.
+    - method: surface.move
+      transport: Unix JSON socket
+      description: Move a stable terminal or browser surface to a pane:N destination in the same workspace, optionally choosing its insertion position and focus behavior. The existing GTK widget and native process are reparented without recreating their UUID. An emptied source pane is collapsed. Cross-workspace transfer remains a separate routing operation.
+    - method: surface.drag_to_split
+      transport: Unix JSON socket
+      description: Move an existing tab into a new pane to the left, right, above or below a pane:N target without constructing a placeholder terminal. The moved widget keeps its UUID and process ownership; an emptied source pane is collapsed. Moving the only tab beside its own pane is rejected because it would have no surviving target.
     - method: surface.send_text
       transport: Unix JSON socket
       description: Require a string text field; missing or non-string input returns invalid_params before GTK admission. Explicit empty text remains valid. Paste to optional id or the selected terminal without changing focus. Bracketed paste can keep newlines from submitting shell commands; send a literal carriage return through surface.send_key to submit separately. Missing native terminals return not_found; NUL bytes return invalid_params.
@@ -67,6 +76,7 @@ content:
     - Optional target IDs for split, terminal input/read/health/refresh and pane focus accept only strings or null; omitted/null retain the documented default behavior. Other types return invalid_params before GTK admission and never fall back to the active terminal.
     - GTK command dispatch has a fixed 64-command waiting queue. Full queues reject before mutation with overloaded; a closed handler reports internal_error. Rejections carry the request trace identity in rpc.queue.rejected diagnostics.
     - Pane references are valid only in the current application lifetime, not persisted identities.
+    - Surface move validation resolves the source and destination before removing a widget. Same-workspace moves retain terminal and browser managers. Cross-workspace moves require explicit remote browser route and terminal launch-context rebinding and are not accepted by these endpoints yet.
     - Release model and registry locks before GTK callbacks or native input and render calls.
     - Read buffers are freed through RAII and worst-case JSON escaping fits the four-MiB response limit.
     - Validate runtime behavior in GitHub Actions; do not run tests locally.

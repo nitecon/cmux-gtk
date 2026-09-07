@@ -592,6 +592,26 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         }
         Commands::FocusSurface { id } => ("surface.focus", json!({"id": id})),
         Commands::CloseSurface { id } => ("surface.close", json!({"id": id})),
+        Commands::MoveSurface {
+            id,
+            pane,
+            position,
+            no_focus,
+        } => (
+            "surface.move",
+            json!({"id": id, "pane": pane, "position": position, "focus": !no_focus}),
+        ),
+        Commands::ReorderSurface { id, position } => {
+            ("surface.reorder", json!({"id": id, "position": position}))
+        }
+        Commands::DragSurfaceToSplit {
+            id,
+            pane,
+            direction,
+        } => (
+            "surface.drag_to_split",
+            json!({"id": id, "pane": pane, "direction": direction}),
+        ),
         Commands::SendText { text, id } => {
             let mut p = serde_json::Map::new();
             p.insert("text".into(), json!(text));

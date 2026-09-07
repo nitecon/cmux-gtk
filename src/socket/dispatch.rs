@@ -609,6 +609,88 @@ async fn dispatch_request(
                 .to_string(),
             resp_tx,
         },
+        "surface.move" => {
+            let Some(id) = params.get("id").and_then(serde_json::Value::as_str) else {
+                return err(req_id, "invalid_params", "id must be a surface UUID");
+            };
+            let Some(pane) = params.get("pane").and_then(serde_json::Value::as_str) else {
+                return err(req_id, "invalid_params", "pane must be a pane reference");
+            };
+            let position = match params.get("position") {
+                None => None,
+                Some(value) => match value.as_u64().and_then(|value| usize::try_from(value).ok()) {
+                    Some(value) => Some(value),
+                    None => {
+                        return err(
+                            req_id,
+                            "invalid_params",
+                            "position must be a non-negative integer",
+                        )
+                    }
+                },
+            };
+            commands::SocketCommand::SurfaceMove {
+                req_id: req_id.clone(),
+                id: id.to_owned(),
+                pane: pane.to_owned(),
+                position,
+                focus: params
+                    .get("focus")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true),
+                resp_tx,
+            }
+        }
+        "surface.reorder" => {
+            let Some(id) = params.get("id").and_then(serde_json::Value::as_str) else {
+                return err(req_id, "invalid_params", "id must be a surface UUID");
+            };
+            let Some(position) = params
+                .get("position")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+            else {
+                return err(
+                    req_id,
+                    "invalid_params",
+                    "position must be a non-negative integer",
+                );
+            };
+            commands::SocketCommand::SurfaceReorder {
+                req_id: req_id.clone(),
+                id: id.to_owned(),
+                position,
+                resp_tx,
+            }
+        }
+        "surface.drag_to_split" => {
+            let Some(id) = params.get("id").and_then(serde_json::Value::as_str) else {
+                return err(req_id, "invalid_params", "id must be a surface UUID");
+            };
+            let Some(target_pane) = params.get("pane").and_then(serde_json::Value::as_str) else {
+                return err(req_id, "invalid_params", "pane must be a pane reference");
+            };
+            let direction = match params.get("direction").and_then(serde_json::Value::as_str) {
+                Some("left") => crate::split_engine::FocusDirection::Left,
+                Some("right") => crate::split_engine::FocusDirection::Right,
+                Some("up") => crate::split_engine::FocusDirection::Up,
+                Some("down") => crate::split_engine::FocusDirection::Down,
+                _ => {
+                    return err(
+                        req_id,
+                        "invalid_params",
+                        "direction must be left, right, up, or down",
+                    )
+                }
+            };
+            commands::SocketCommand::SurfaceDragToSplit {
+                req_id: req_id.clone(),
+                id: id.to_owned(),
+                target_pane: target_pane.to_owned(),
+                direction,
+                resp_tx,
+            }
+        }
         "surface.send_text" | "surface.send_key" | "debug.type" => {
             let field = if method == "surface.send_key" {
                 "key"
