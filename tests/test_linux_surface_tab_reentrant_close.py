@@ -40,9 +40,19 @@ with tempfile.TemporaryDirectory(prefix="cmux-tab-close-") as directory:
             # A hidden saved browser initializes for an agent command without selecting it.
             before = {surface["uuid"] for surface in app.surfaces() if surface["active"]}
             assert before == {terminal_id}, before
-            app.wait_for(lambda: recorded(f"browser tab wiring complete uuid={browser_id}"), "browser wiring")
-            assert json.loads(app.cli("browser", "eval", browser_id, "document.title"))["success"] is True
+
+            def browser_ready():
+                result = subprocess.run(
+                    ["target/debug/cmux", "--socket", str(app.socket_path), "browser", "eval",
+                     browser_id, "document.title"],
+                    env=app.environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=2, check=False,
+                )
+                return result.returncode == 0
+
+            app.wait_for(browser_ready, "browser command readiness")
             assert {surface["uuid"] for surface in app.surfaces() if surface["active"]} == before
+            app.wait_for(lambda: recorded(f"browser tab wiring complete uuid={browser_id}"), "browser wiring")
             panes = json.loads(app.cli("list-panes", "--json"))["panes"]
             assert len(panes) == 1, panes
             pane_id = panes[0]["id"]
