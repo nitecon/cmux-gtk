@@ -97,6 +97,36 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             // Antigravity reports SessionEnd at a turn boundary.
             end_event: None,
         },
+        "hermes-agent" => JsonProvider {
+            name: "hermes-agent",
+            display: "Hermes Agent",
+            binary: "hermes",
+            directory: ".hermes",
+            directory_env: Some("HERMES_HOME"),
+            environment: &["HERMES_HOME"],
+            file: "config.yaml",
+            resume_prefix: &["--resume"],
+            start_event: "on_session_start",
+            prompt_event: Some("pre_llm_call"),
+            stop_event: "post_llm_call",
+            notification_event: Some("pre_approval_request"),
+            end_event: Some("on_session_finalize"),
+        },
+        "kimi" => JsonProvider {
+            name: "kimi",
+            display: "Kimi Code",
+            binary: "kimi",
+            directory: ".kimi-code",
+            directory_env: Some("KIMI_CODE_HOME"),
+            environment: &["KIMI_CODE_HOME", "KIMI_SHARE_DIR"],
+            file: "config.toml",
+            resume_prefix: &["--resume"],
+            start_event: "SessionStart",
+            prompt_event: Some("UserPromptSubmit"),
+            stop_event: "Stop",
+            notification_event: Some("Notification"),
+            end_event: Some("SessionEnd"),
+        },
         "copilot" => JsonProvider {
             name: "copilot",
             display: "Copilot",
@@ -323,6 +353,8 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
         Some("campfire") => setup_pi_style_extension("campfire", true),
         Some("amp") => setup_amp(true),
         Some("rovodev" | "rovo") => setup_rovodev(true),
+        Some("hermes-agent" | "hermes") => setup_hermes(true),
+        Some("kimi") => setup_kimi(true),
         Some(name) if json_provider(name).is_some() => setup_json_provider(name, true),
         Some(other) => Err(CliError::Command(format!(
             "unsupported hook provider: {other}"
@@ -349,6 +381,8 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
             setup_pi_style_extension("campfire", false)?;
             setup_amp(false)?;
             setup_rovodev(false)?;
+            setup_hermes(false)?;
+            setup_kimi(false)?;
             Ok(())
         }
     }
@@ -1194,6 +1228,310 @@ fn setup_amp(explicit: bool) -> Result<(), CliError> {
     Ok(())
 }
 
+const HERMES_BEGIN: &str = "# cmux hooks hermes-agent begin";
+const HERMES_END: &str = "# cmux hooks hermes-agent end";
+const KIMI_BEGIN: &str = "# cmux-kimi-hooks-7c3a9f12-4e8b-4d2a-9f15-6b8c0d1e2a3f begin";
+const KIMI_END: &str = "# cmux-kimi-hooks-7c3a9f12-4e8b-4d2a-9f15-6b8c0d1e2a3f end";
+
+fn setup_hermes(explicit: bool) -> Result<(), CliError> {
+    let provider = json_provider("hermes-agent").expect("static provider");
+    if cmux_platform::paths::find_command_on_path(provider.binary).is_none() {
+        if explicit {
+            return Err(CliError::Command(
+                "install Hermes Agent before installing its hooks".into(),
+            ));
+        }
+        println!("Skipped Hermes Agent: executable not found on PATH");
+        return Ok(());
+    }
+    let directory = std::env::var_os("HERMES_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".hermes")))
+        .ok_or_else(|| CliError::Command("cannot resolve Hermes configuration directory".into()))?;
+    cmux_platform::filesystem::create_private_directory(&directory)
+        .map_err(|error| CliError::Command(format!("create Hermes directory: {error}")))?;
+    let path = directory.join("config.yaml");
+    if path.is_symlink() {
+        return Err(CliError::Command(
+            "Hermes configuration is a symlink".into(),
+        ));
+    }
+    let existing = match cmux_platform::filesystem::read_text_bounded(&path, 1024 * 1024) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(CliError::Command(format!("read Hermes config: {error}"))),
+    };
+    let binary = std::env::current_exe().map_err(|error| CliError::Command(error.to_string()))?;
+    let events = hermes_events(&binary);
+    let merged = merge_hermes_hooks(&existing, &events)?;
+    save_bounded_hook_file(&path, merged.as_bytes(), "Hermes config")?;
+    merge_hermes_allowlist(&directory.join("shell-hooks-allowlist.json"), &events)?;
+    println!(
+        "Installed Hermes Agent lifecycle hooks in {}",
+        path.display()
+    );
+    Ok(())
+}
+
+fn hermes_events(binary: &Path) -> Vec<(&'static str, String)> {
+    [
+        ("on_session_start", "session-start"),
+        ("pre_llm_call", "prompt-submit"),
+        ("post_llm_call", "stop"),
+        ("pre_approval_request", "notification"),
+        ("on_session_finalize", "session-end"),
+    ]
+    .into_iter()
+    .map(|(event, command)| {
+        let dispatch = format!(
+            "{} hooks hermes-agent {command}",
+            shell_argument(&binary.to_string_lossy())
+        );
+        (event, format!("sh -c {}", shell_argument(&dispatch)))
+    })
+    .collect()
+}
+
+fn merge_hermes_hooks(
+    existing: &str,
+    events: &[(&'static str, String)],
+) -> Result<String, CliError> {
+    let normalized = existing.replace("\r\n", "\n").replace('\r', "\n");
+    let mut lines: Vec<String> = normalized.lines().map(ToOwned::to_owned).collect();
+    remove_marker_blocks(&mut lines, HERMES_BEGIN, HERMES_END)?;
+    let hooks = lines
+        .iter()
+        .position(|line| !line.starts_with([' ', '\t']) && line.trim_start().starts_with("hooks:"));
+    if let Some(hooks) = hooks {
+        let suffix = lines[hooks]
+            .trim_start()
+            .strip_prefix("hooks:")
+            .unwrap_or("")
+            .trim();
+        if !suffix.is_empty() && !suffix.starts_with("[]") && !suffix.starts_with("{}") {
+            return Err(CliError::Command(
+                "Hermes hooks must be a YAML mapping".into(),
+            ));
+        }
+        if !suffix.is_empty() {
+            lines[hooks] = "hooks:".into();
+        }
+        let hooks_end = ((hooks + 1)..lines.len())
+            .find(|index| {
+                !lines[*index].trim().is_empty() && !lines[*index].starts_with([' ', '\t'])
+            })
+            .unwrap_or(lines.len());
+        let mut missing = Vec::new();
+        let mut existing_events = Vec::new();
+        for (event, command) in events {
+            let found = ((hooks + 1)..hooks_end).find(|index| {
+                lines[*index].starts_with("  ")
+                    && !lines[*index].starts_with("    ")
+                    && lines[*index].trim_start().starts_with(&format!("{event}:"))
+            });
+            if let Some(index) = found {
+                existing_events.push((index, *event, command));
+            } else {
+                missing.push((*event, command));
+            }
+        }
+        for (index, _, command) in existing_events.into_iter().rev() {
+            let suffix = lines[index]
+                .split_once(':')
+                .map(|(_, value)| value.trim())
+                .unwrap_or("");
+            if !suffix.is_empty() && !suffix.starts_with("[]") && !suffix.starts_with("{}") {
+                return Err(CliError::Command(
+                    "Hermes event hooks must be YAML lists".into(),
+                ));
+            }
+            lines[index] = format!(
+                "  {}:",
+                lines[index]
+                    .trim()
+                    .trim_end_matches(':')
+                    .split(':')
+                    .next()
+                    .unwrap_or("")
+            );
+            lines.splice(
+                index + 1..index + 1,
+                [
+                    format!("    {HERMES_BEGIN}"),
+                    format!("    - command: {}", yaml_double_quoted(command)),
+                    "      timeout: 5".into(),
+                    format!("    {HERMES_END}"),
+                ],
+            );
+        }
+        if !missing.is_empty() {
+            let mut block = vec![format!("  {HERMES_BEGIN}")];
+            for (event, command) in missing {
+                block.push(format!("  {event}:"));
+                block.push(format!("    - command: {}", yaml_double_quoted(command)));
+                block.push("      timeout: 5".into());
+            }
+            block.push(format!("  {HERMES_END}"));
+            lines.splice(hooks + 1..hooks + 1, block);
+        }
+    } else {
+        if lines.last().is_some_and(|line| !line.trim().is_empty()) {
+            lines.push(String::new());
+        }
+        lines.push(HERMES_BEGIN.into());
+        lines.push("hooks:".into());
+        for (event, command) in events {
+            lines.push(format!("  {event}:"));
+            lines.push(format!("    - command: {}", yaml_double_quoted(command)));
+            lines.push("      timeout: 5".into());
+        }
+        lines.push(HERMES_END.into());
+    }
+    Ok(lines.join("\n") + "\n")
+}
+
+fn remove_marker_blocks(lines: &mut Vec<String>, begin: &str, end: &str) -> Result<(), CliError> {
+    let mut cursor = 0;
+    while cursor < lines.len() {
+        if lines[cursor].trim() != begin {
+            cursor += 1;
+            continue;
+        }
+        let relative = lines[cursor + 1..]
+            .iter()
+            .position(|line| line.trim() == end)
+            .ok_or_else(|| CliError::Command(format!("unterminated cmux hook block: {begin}")))?;
+        lines.drain(cursor..=cursor + 1 + relative);
+    }
+    Ok(())
+}
+
+fn merge_hermes_allowlist(path: &Path, events: &[(&str, String)]) -> Result<(), CliError> {
+    if path.is_symlink() {
+        return Err(CliError::Command("Hermes allowlist is a symlink".into()));
+    }
+    let mut value = match cmux_platform::filesystem::read_text_bounded(path, 1024 * 1024) {
+        Ok(text) => serde_json::from_str::<Value>(&text)
+            .map_err(|_| CliError::Command("Hermes allowlist contains invalid JSON".into()))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(error) => return Err(CliError::Command(format!("read Hermes allowlist: {error}"))),
+    };
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("Hermes allowlist must be an object".into()))?;
+    let approvals = object
+        .entry("approvals")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or_else(|| CliError::Command("Hermes approvals must be an array".into()))?;
+    approvals.retain(|entry| {
+        !entry
+            .get("command")
+            .and_then(Value::as_str)
+            .is_some_and(|command| command.contains(" hooks hermes-agent "))
+    });
+    approvals.extend(events.iter().map(|(event, command)| {
+        json!({"event": event, "command": command, "approved_at": "1970-01-01T00:00:00Z"})
+    }));
+    let encoded =
+        serde_json::to_vec_pretty(&value).map_err(|error| CliError::Command(error.to_string()))?;
+    save_bounded_hook_file(path, &encoded, "Hermes allowlist")
+}
+
+fn setup_kimi(explicit: bool) -> Result<(), CliError> {
+    let provider = json_provider("kimi").expect("static provider");
+    if cmux_platform::paths::find_command_on_path(provider.binary).is_none() {
+        if explicit {
+            return Err(CliError::Command(
+                "install Kimi before installing its hooks".into(),
+            ));
+        }
+        println!("Skipped Kimi Code: executable not found on PATH");
+        return Ok(());
+    }
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| CliError::Command("cannot resolve home directory".into()))?;
+    let directory = std::env::var_os("KIMI_CODE_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("KIMI_SHARE_DIR")
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        })
+        .unwrap_or_else(|| home.join(".kimi-code"));
+    cmux_platform::filesystem::create_private_directory(&directory)
+        .map_err(|error| CliError::Command(format!("create Kimi directory: {error}")))?;
+    let path = directory.join("config.toml");
+    if path.is_symlink() {
+        return Err(CliError::Command("Kimi configuration is a symlink".into()));
+    }
+    let existing = match cmux_platform::filesystem::read_text_bounded(&path, 1024 * 1024) {
+        Ok(value) => value,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(CliError::Command(format!("read Kimi config: {error}"))),
+    };
+    let binary = std::env::current_exe().map_err(|error| CliError::Command(error.to_string()))?;
+    let merged = merge_kimi_hooks(&existing, &binary)?;
+    save_bounded_hook_file(&path, merged.as_bytes(), "Kimi config")?;
+    println!("Installed Kimi Code lifecycle hooks in {}", path.display());
+    Ok(())
+}
+
+fn merge_kimi_hooks(existing: &str, binary: &Path) -> Result<String, CliError> {
+    let normalized = existing.replace("\r\n", "\n").replace('\r', "\n");
+    let mut lines: Vec<String> = normalized.lines().map(ToOwned::to_owned).collect();
+    remove_marker_blocks(&mut lines, KIMI_BEGIN, KIMI_END)?;
+    while lines.last().is_some_and(|line| line.is_empty()) {
+        lines.pop();
+    }
+    if !lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines.push(KIMI_BEGIN.into());
+    for (event, command) in [
+        ("SessionStart", "session-start"),
+        ("UserPromptSubmit", "prompt-submit"),
+        ("Notification", "notification"),
+        ("Stop", "stop"),
+        ("SessionEnd", "session-end"),
+    ] {
+        let dispatch = format!(
+            "{} hooks kimi {command}",
+            shell_argument(&binary.to_string_lossy())
+        );
+        lines.extend([
+            "[[hooks]]".into(),
+            format!("event = \"{}\"", toml_string(event)),
+            format!("command = \"{}\"", toml_string(&dispatch)),
+            "timeout = 10".into(),
+            String::new(),
+        ]);
+    }
+    lines.push(KIMI_END.into());
+    Ok(lines.join("\n") + "\n")
+}
+
+fn toml_string(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+fn save_bounded_hook_file(path: &Path, bytes: &[u8], label: &str) -> Result<(), CliError> {
+    if bytes.len() > 1024 * 1024 {
+        return Err(CliError::Command(format!("{label} exceeds one MiB")));
+    }
+    cmux_platform::filesystem::atomic_write(path, bytes)
+        .and_then(|_| cmux_platform::filesystem::sync_file_and_parent(path))
+        .map_err(|error| CliError::Command(format!("save {label}: {error}")))
+}
+
 const ROVO_BEGIN: &str = "# cmux hooks rovodev begin";
 const ROVO_END: &str = "# cmux hooks rovodev end";
 
@@ -1754,6 +2092,8 @@ fn read_hook_payload_optional(
             "sessionId",
             "conversation_id",
             "conversationId",
+            "session_key",
+            "sessionKey",
         ],
     )
     .or_else(|| payload.get("session")?.get("id")?.as_str())
@@ -1774,7 +2114,7 @@ fn read_hook_payload_optional(
 /// Read one known scalar from the top-level payload or a documented provider envelope.
 fn hook_string<'a>(payload: &'a Value, keys: &[&str]) -> Option<&'a str> {
     let objects = std::iter::once(payload).chain(
-        ["notification", "data", "session", "context"]
+        ["notification", "data", "session", "context", "extra"]
             .iter()
             .filter_map(|key| payload.get(*key)),
     );

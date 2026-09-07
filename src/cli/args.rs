@@ -576,6 +576,16 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive a Hermes Agent YAML hook payload on stdin
+    HermesAgent {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive a Kimi Code TOML hook payload on stdin
+    Kimi {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
     /// Receive a GitHub Copilot lifecycle hook payload on stdin
     Copilot {
         #[command(subcommand)]

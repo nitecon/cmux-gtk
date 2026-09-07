@@ -136,6 +136,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
                 | args::HookCommands::Gemini { .. }
                 | args::HookCommands::Kiro { .. }
                 | args::HookCommands::Antigravity { .. }
+                | args::HookCommands::HermesAgent { .. }
+                | args::HookCommands::Kimi { .. }
                 | args::HookCommands::Copilot { .. }
                 | args::HookCommands::Codebuddy { .. }
                 | args::HookCommands::Factory { .. }
@@ -255,6 +257,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
             args::HookCommands::Gemini { event } => Some(("gemini", *event)),
             args::HookCommands::Kiro { event } => Some(("kiro", *event)),
             args::HookCommands::Antigravity { event } => Some(("antigravity", *event)),
+            args::HookCommands::HermesAgent { event } => Some(("hermes-agent", *event)),
+            args::HookCommands::Kimi { event } => Some(("kimi", *event)),
             args::HookCommands::Copilot { event } => Some(("copilot", *event)),
             args::HookCommands::Codebuddy { event } => Some(("codebuddy", *event)),
             args::HookCommands::Factory { event } => Some(("factory", *event)),
@@ -662,10 +666,21 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             workspace,
             position,
             no_focus,
-        } => (
-            "surface.move",
-            json!({"id": id, "workspace": workspace, "pane": pane, "position": position, "focus": !no_focus}),
-        ),
+        } => {
+            let mut params = serde_json::Map::new();
+            params.insert("id".into(), json!(id));
+            params.insert("focus".into(), json!(!no_focus));
+            if let Some(workspace) = workspace {
+                params.insert("workspace".into(), json!(workspace));
+            }
+            if let Some(pane) = pane {
+                params.insert("pane".into(), json!(pane));
+            }
+            if let Some(position) = position {
+                params.insert("position".into(), json!(position));
+            }
+            ("surface.move", Value::Object(params))
+        }
         Commands::ReorderSurface { id, position } => {
             ("surface.reorder", json!({"id": id, "position": position}))
         }
@@ -873,5 +888,24 @@ mod tests {
         assert_eq!(method, "workspace.create");
         assert_eq!(params["name"], "Project Alpha");
         assert_eq!(params["working_directory"], "/tmp/project-alpha");
+    }
+
+    /// Optional move selectors must be absent rather than JSON null so backend defaults apply.
+    #[test]
+    fn move_surface_omits_unspecified_destination_fields() {
+        let cli = Cli::try_parse_from([
+            "cmux",
+            "move-surface",
+            "20000000-0000-4000-8000-000000000002",
+            "--workspace",
+            "30000000-0000-4000-8000-000000000003",
+            "--no-focus",
+        ])
+        .expect("surface move arguments should parse");
+        let (method, params) = command_to_rpc(&cli.command);
+        assert_eq!(method, "surface.move");
+        assert!(params.get("pane").is_none());
+        assert!(params.get("position").is_none());
+        assert_eq!(params["focus"], false);
     }
 }

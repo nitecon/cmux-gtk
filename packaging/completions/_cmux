@@ -879,6 +879,254 @@ esac
     ;;
 esac
 ;;
+(hermes-agent)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__hermes-agent_commands" \
+"*::: :->hermes-agent" \
+&& ret=0
+
+    case $state in
+    (hermes-agent)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-hermes-agent-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__hermes-agent__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-hermes-agent-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(kimi)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__kimi_commands" \
+"*::: :->kimi" \
+&& ret=0
+
+    case $state in
+    (kimi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-kimi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__kimi__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-kimi-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (copilot)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -2398,6 +2646,78 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-antigravity-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(hermes-agent)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__hermes-agent_commands" \
+"*::: :->hermes-agent" \
+&& ret=0
+
+    case $state in
+    (hermes-agent)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-hermes-agent-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(kimi)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__kimi_commands" \
+"*::: :->kimi" \
+&& ret=0
+
+    case $state in
+    (kimi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-kimi-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -4663,6 +4983,78 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(hermes-agent)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__hermes-agent_commands" \
+"*::: :->hermes-agent" \
+&& ret=0
+
+    case $state in
+    (hermes-agent)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-hermes-agent-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(kimi)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__kimi_commands" \
+"*::: :->kimi" \
+&& ret=0
+
+    case $state in
+    (kimi)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-kimi-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (copilot)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__help__hooks__copilot_commands" \
@@ -6302,6 +6694,8 @@ _cmux__help__hooks_commands() {
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
 'kiro:Receive a Kiro CLI agent hook payload on stdin' \
 'antigravity:Receive an Antigravity hook payload on stdin' \
+'hermes-agent:Receive a Hermes Agent YAML hook payload on stdin' \
+'kimi:Receive a Kimi Code TOML hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -6705,6 +7099,78 @@ _cmux__help__hooks__grok__session-start_commands() {
 _cmux__help__hooks__grok__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks grok stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent_commands] )) ||
+_cmux__help__hooks__hermes-agent_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks hermes-agent commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent__notification_commands] )) ||
+_cmux__help__hooks__hermes-agent__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks hermes-agent notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent__prompt-submit_commands] )) ||
+_cmux__help__hooks__hermes-agent__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks hermes-agent prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent__session-end_commands] )) ||
+_cmux__help__hooks__hermes-agent__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks hermes-agent session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent__session-start_commands] )) ||
+_cmux__help__hooks__hermes-agent__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks hermes-agent session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__hermes-agent__stop_commands] )) ||
+_cmux__help__hooks__hermes-agent__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks hermes-agent stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi_commands] )) ||
+_cmux__help__hooks__kimi_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks kimi commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi__notification_commands] )) ||
+_cmux__help__hooks__kimi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kimi notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi__prompt-submit_commands] )) ||
+_cmux__help__hooks__kimi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kimi prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi__session-end_commands] )) ||
+_cmux__help__hooks__kimi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kimi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi__session-start_commands] )) ||
+_cmux__help__hooks__kimi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kimi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kimi__stop_commands] )) ||
+_cmux__help__hooks__kimi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kimi stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__kiro_commands] )) ||
 _cmux__help__hooks__kiro_commands() {
@@ -7212,6 +7678,8 @@ _cmux__hooks_commands() {
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
 'kiro:Receive a Kiro CLI agent hook payload on stdin' \
 'antigravity:Receive an Antigravity hook payload on stdin' \
+'hermes-agent:Receive a Hermes Agent YAML hook payload on stdin' \
+'kimi:Receive a Kimi Code TOML hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -8094,6 +8562,8 @@ _cmux__hooks__help_commands() {
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
 'kiro:Receive a Kiro CLI agent hook payload on stdin' \
 'antigravity:Receive an Antigravity hook payload on stdin' \
+'hermes-agent:Receive a Hermes Agent YAML hook payload on stdin' \
+'kimi:Receive a Kimi Code TOML hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -8504,6 +8974,78 @@ _cmux__hooks__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help help commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__hermes-agent_commands] )) ||
+_cmux__hooks__help__hermes-agent_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help hermes-agent commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__hermes-agent__notification_commands] )) ||
+_cmux__hooks__help__hermes-agent__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help hermes-agent notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__hermes-agent__prompt-submit_commands] )) ||
+_cmux__hooks__help__hermes-agent__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help hermes-agent prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__hermes-agent__session-end_commands] )) ||
+_cmux__hooks__help__hermes-agent__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help hermes-agent session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__hermes-agent__session-start_commands] )) ||
+_cmux__hooks__help__hermes-agent__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help hermes-agent session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__hermes-agent__stop_commands] )) ||
+_cmux__hooks__help__hermes-agent__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help hermes-agent stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi_commands] )) ||
+_cmux__hooks__help__kimi_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help kimi commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi__notification_commands] )) ||
+_cmux__hooks__help__kimi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kimi notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi__prompt-submit_commands] )) ||
+_cmux__hooks__help__kimi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kimi prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi__session-end_commands] )) ||
+_cmux__hooks__help__kimi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kimi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi__session-start_commands] )) ||
+_cmux__hooks__help__kimi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kimi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kimi__stop_commands] )) ||
+_cmux__hooks__help__kimi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kimi stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__kiro_commands] )) ||
 _cmux__hooks__help__kiro_commands() {
     local commands; commands=(
@@ -8706,6 +9248,164 @@ _cmux__hooks__help__rovodev__stop_commands() {
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent_commands] )) ||
+_cmux__hooks__hermes-agent_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks hermes-agent commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help_commands] )) ||
+_cmux__hooks__hermes-agent__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks hermes-agent help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__help_commands] )) ||
+_cmux__hooks__hermes-agent__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__notification_commands] )) ||
+_cmux__hooks__hermes-agent__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__prompt-submit_commands] )) ||
+_cmux__hooks__hermes-agent__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__session-end_commands] )) ||
+_cmux__hooks__hermes-agent__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__session-start_commands] )) ||
+_cmux__hooks__hermes-agent__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__help__stop_commands] )) ||
+_cmux__hooks__hermes-agent__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__notification_commands] )) ||
+_cmux__hooks__hermes-agent__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__prompt-submit_commands] )) ||
+_cmux__hooks__hermes-agent__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__session-end_commands] )) ||
+_cmux__hooks__hermes-agent__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__session-start_commands] )) ||
+_cmux__hooks__hermes-agent__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__hermes-agent__stop_commands] )) ||
+_cmux__hooks__hermes-agent__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks hermes-agent stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi_commands] )) ||
+_cmux__hooks__kimi_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks kimi commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help_commands] )) ||
+_cmux__hooks__kimi__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks kimi help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__help_commands] )) ||
+_cmux__hooks__kimi__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__notification_commands] )) ||
+_cmux__hooks__kimi__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__prompt-submit_commands] )) ||
+_cmux__hooks__kimi__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__session-end_commands] )) ||
+_cmux__hooks__kimi__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__session-start_commands] )) ||
+_cmux__hooks__kimi__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__help__stop_commands] )) ||
+_cmux__hooks__kimi__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__notification_commands] )) ||
+_cmux__hooks__kimi__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__prompt-submit_commands] )) ||
+_cmux__hooks__kimi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__session-end_commands] )) ||
+_cmux__hooks__kimi__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__session-start_commands] )) ||
+_cmux__hooks__kimi__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kimi__stop_commands] )) ||
+_cmux__hooks__kimi__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kimi stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__kiro_commands] )) ||
 _cmux__hooks__kiro_commands() {

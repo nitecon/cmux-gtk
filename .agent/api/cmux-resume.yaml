@@ -81,6 +81,12 @@ content:
         - Kiro agentSpawn binds kiro-cli chat --resume-id SESSION_ID, userPromptSubmit records the last-turn baseline and stop publishes exact-surface attention. The custom agent must be selected by Kiro for its hooks to run.
         - cmux hooks setup antigravity preserves all top-level groups in HOME/.gemini/config/hooks.json and replaces only the owned cmux group with direct typed command entries and ten-second timeouts. SessionStart binds agy --conversation SESSION_ID, PreInvocation records the baseline, and Stop or Notification publishes attention. Turn-boundary end events do not clear the binding.
 
+    - name: Hermes Agent and Kimi lifecycle hooks
+      steps:
+        - cmux hooks setup hermes-agent resolves HERMES_HOME or HOME/.hermes, merges marker-owned list entries into config.yaml's native hooks mapping and atomically updates shell-hooks-allowlist.json with exact event/command approvals. Existing YAML events, commands, JSON fields and unrelated approvals survive. Symlinks, oversized input, malformed JSON and unterminated ownership markers fail before replacement.
+        - Hermes on_session_start binds hermes --resume SESSION_ID, pre_llm_call records the baseline, post_llm_call and pre_approval_request publish attention, and on_session_finalize conditionally clears the checkpoint. extra.session_key is a supported fixed identity envelope; turn-level on_session_end is not destructive.
+        - cmux hooks setup kimi resolves KIMI_CODE_HOME, KIMI_SHARE_DIR or HOME/.kimi-code and maintains one marker-owned set of native TOML [[hooks]] tables. SessionStart binds kimi --resume SESSION_ID, UserPromptSubmit records the baseline, Notification and Stop publish attention, and SessionEnd conditionally clears the checkpoint. User TOML outside the owned block survives byte-for-byte apart from normalized line endings.
+
     - name: Rovo Dev YAML lifecycle hooks
       steps:
         - cmux hooks setup rovodev, with rovo as an alias, merges owned on_tool_permission, on_complete and on_error commands into HOME/.rovodev/config.yml eventHooks.events while preserving unrelated YAML and handlers. The bounded result is atomically synced; symlinks and unreadable files fail closed.
