@@ -111,6 +111,37 @@ impl ResumePolicy {
         ))
     }
 
+    /// Build one approved command for a newly opened remote interactive shell.
+    /// The subshell keeps directory and environment changes out of the surrounding session.
+    pub fn remote_shell_input(&self, binding: &ResumeBinding) -> Option<Vec<u8>> {
+        if !self.allows(binding) {
+            return None;
+        }
+        let mut command = String::from("(");
+        if let Some(directory) = binding.cwd.as_deref().filter(|value| !value.is_empty()) {
+            command.push_str("cd ");
+            command.push_str(&crate::workspace::shell_quote(directory));
+            command.push_str(" && ");
+        }
+        command.push_str("env");
+        for (key, value) in &binding.environment {
+            command.push(' ');
+            command.push_str(key);
+            command.push('=');
+            command.push_str(&crate::workspace::shell_quote(value));
+        }
+        command.push_str(" /bin/sh -lc ");
+        command.push_str(&crate::workspace::shell_quote(&binding.command));
+        command.push_str(")\r");
+        if command.len() > 128 * 1024 {
+            return None;
+        }
+        crate::diagnostics::event(format_args!(
+            "resume.launch stage=schedule location=remote_ssh approval=signed"
+        ));
+        Some(command.into_bytes())
+    }
+
     /// Discard excess or invalid records from disk before any launch decisions.
     pub fn validated(mut self) -> Self {
         self.approvals.truncate(MAX_APPROVALS);
@@ -301,5 +332,23 @@ mod tests {
         let mut invalid = binding;
         invalid.cwd = None;
         assert!(policy.approve(&invalid).is_err());
+    }
+
+    #[test]
+    fn approved_remote_input_quotes_directory_environment_and_command() {
+        SIGNING_KEY.get_or_init(|| Some([73; 32]));
+        let binding: ResumeBinding = serde_json::from_value(serde_json::json!({
+            "command": "agent --resume 'a b'", "cwd": "/srv/a b",
+            "environment": {"PROJECT": "x'y"}
+        }))
+        .unwrap();
+        let mut policy = ResumePolicy::default();
+        policy.approve(&binding).unwrap();
+        let input = String::from_utf8(policy.remote_shell_input(&binding).unwrap()).unwrap();
+        assert!(input.starts_with("(cd '/srv/a b' && env PROJECT='x'\\''y' /bin/sh -lc "));
+        assert!(input.ends_with(")\r"));
+        let mut rejected = binding;
+        rejected.command = "other".into();
+        assert!(policy.remote_shell_input(&rejected).is_none());
     }
 }

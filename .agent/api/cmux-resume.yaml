@@ -2,7 +2,7 @@ app: cmux-gtk
 title: Terminal resume binding metadata
 space: cmux-gtk
 slug: terminal-resume
-summary: Bounded per-terminal manual resume metadata and checkpoint-conditional cleanup; manual and signed exact/prefix local execution supported; provider trust and controls remain in progress.
+summary: Bounded per-terminal resume metadata, checkpoint-conditional cleanup, and signed exact/prefix automatic execution for local and direct-SSH restored terminals.
 kind: agent_context
 source_format: agent_context
 source_ref: src/resume.rs
@@ -14,7 +14,7 @@ content:
       steps:
         - CLI surface resume set accepts --surface UUID, --shell COMMAND, --kind, --checkpoint, --cwd and --name. Surface defaults from CMUX_SURFACE_ID, otherwise to the selected surface.
         - Socket surface.resume.set accepts surface_id (or id), command, name, kind, cwd, checkpoint_id and environment string map. Exact UUID targeting searches all workspaces without selecting them. Browser and stale targets fail.
-        - surface.resume.show returns surface_id, workspace_id, resume_binding and computed auto_resume (true only for a signed local approval). A missing binding is null. Metadata registration never launches a process. execution_location identifies local versus remote_ssh bindings.
+        - surface.resume.show returns surface_id, workspace_id, resume_binding and computed auto_resume. Signed approvals can authorize local and direct-SSH restored terminals; Mosh reports a distinct remote_mosh execution location and remains nonautomatic. A missing binding is null. Metadata registration never launches a process.
         - Bindings allow at most 16384 bytes per value, 65536 total bytes and 64 environment entries. NUL bytes and non-shell-variable environment names fail before GTK admission. Null environment maps mean no overrides. Secret-like keys and CMUX routing overrides are dropped before storage and again before restore/launch.
     - name: Clear without deleting a newer checkpoint
       steps:
@@ -24,7 +24,8 @@ content:
       steps:
         - Bindings live in their terminal entry in the pane layout; normal snapshot/save and final quit drain persist them. New sibling/split terminals start without a binding.
         - Manual cmux restore replaces the calling CLI with /bin/sh -c and the saved cwd/environment. It requires a matching CMUX_SURFACE_ID, an actual terminal stdin and local execution_location; optional --checkpoint must match. It does not inject input into a foreground program. Binding writes cannot grant automatic approval; explicit auto_resume=true requests remain not_supported. Untrusted source strings do not confer automatic launch authority.
-        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Broader provider hooks, automatic agent controls, remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
+        - Approved direct-SSH restoration renders one quoted subshell with the exact directory and sanitized environment, retains it only in the remote surface context, and queues it exactly once after the first proxy stream identity opens. It never executes during approval or replays after reconnect. Scheduling and delivery diagnostics contain location, stage and outcome without command content.
+        - Shared RPC diagnostics correlate set/show/clear without logging commands or environment. Mosh remote execution and detailed launch lifecycle metrics remain part of the active parity goal.
 
     - name: Claude native session hooks
       steps:
@@ -97,5 +98,6 @@ content:
       steps:
         - Preferences (Ctrl+,) reviews the selected local terminal command, absolute cwd and environment overrides. Approve exact command signs these inputs; stale selection or changed binding requires reopening the panel. Revoke all removes authority while preserving manual metadata.
         - HMAC-SHA256 approval records are persisted by the session writer, separate from the owner-only configuration resume-approval.key. Unavailable, malformed or unsafe key files disable approvals. Persisted records are validated before startup decisions.
-        - Approved local bindings override the workspace startup command during restoration. cmux restore --automatic requires the current backend approval as well as matching terminal identity and TTY; it executes the returned binding through the manual execution path. The wrapper returns to an interactive shell after completion or failure. Remote bindings cannot use this path.
+        - Approved local bindings override the workspace startup command during restoration. cmux restore --automatic requires the current backend approval as well as matching terminal identity and TTY; it executes the returned binding through the manual execution path. The wrapper returns to an interactive shell after completion or failure.
+        - Approved direct-SSH bindings are injected into the newly opened remote shell only after its stream is registered. The command runs in a subshell and returns to the surrounding interactive shell. Mosh restores its transport without executing the binding locally; a dedicated remote Mosh wrapper remains required.
         - The editable prefix field can authorize complete initial literal command arguments with exact cwd/environment. Prefix matching rejects shell expansion and control syntax, and signatures cover the prefix and mode. Existing exact signatures remain valid. Trusted provider automatic approvals, a full saved-approval editor, agent toggles and expanded lifecycle metrics remain open. CI tests UI approval and revocation through real GTK keyboard input rather than a test-only socket bypass.

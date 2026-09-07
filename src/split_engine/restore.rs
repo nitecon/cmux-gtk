@@ -33,6 +33,7 @@ struct RestoreContext<'a> {
     launch_command: Option<&'a str>,
     launch_environment: &'a std::collections::BTreeMap<String, String>,
     remote_launch: Option<&'a crate::ghostty::surface::SurfaceIoMode>,
+    remote_workspace: bool,
 }
 
 impl RestoreContext<'_> {
@@ -56,7 +57,15 @@ impl RestoreContext<'_> {
         } else {
             saved_directory.or(workspace_directory)
         };
-        let launch = self.remote_launch.cloned().unwrap_or_else(|| {
+        let launch = if let Some(mut remote) = self.remote_launch.cloned() {
+            if let crate::ghostty::surface::SurfaceIoMode::Remote { initial_input, .. } =
+                &mut remote
+            {
+                *initial_input =
+                    resume.and_then(|binding| self.resume_policy.remote_shell_input(binding));
+            }
+            remote
+        } else {
             let mut launch_environment = self.launch_environment.clone();
             launch_environment.extend(
                 environment
@@ -66,12 +75,16 @@ impl RestoreContext<'_> {
             );
             crate::ghostty::surface::SurfaceIoMode::Configured {
                 initial_input: initial_input.map(str::to_owned),
-                command: resume
-                    .and_then(|binding| self.resume_policy.launch_command(binding))
-                    .or_else(|| self.launch_command.map(str::to_owned)),
+                command: if self.remote_workspace {
+                    self.launch_command.map(str::to_owned)
+                } else {
+                    resume
+                        .and_then(|binding| self.resume_policy.launch_command(binding))
+                        .or_else(|| self.launch_command.map(str::to_owned))
+                },
                 environment: launch_environment,
             }
-        });
+        };
         let (gl_area, _) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             None,
@@ -106,6 +119,7 @@ impl SplitEngine {
         working_directory: Option<std::path::PathBuf>,
         launch_command: Option<String>,
         remote_launch: Option<crate::ghostty::surface::SurfaceIoMode>,
+        remote_workspace: bool,
         resume_policy: &crate::resume_policy::ResumePolicy,
         launch_environment: std::collections::BTreeMap<String, String>,
     ) -> Option<Self> {
@@ -125,6 +139,7 @@ impl SplitEngine {
             launch_command: launch_command.as_deref(),
             launch_environment: &launch_environment,
             remote_launch: remote_launch.as_ref(),
+            remote_workspace,
         };
         let root = Self::node_from_data(&context, data, &mut next_pane_id, 0)?;
         // Find active pane by saved UUID, or fall back to first leaf

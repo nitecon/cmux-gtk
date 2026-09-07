@@ -142,6 +142,38 @@ Subsystem sftp internal-sftp
         )
         assert app.wait(timeout=15) == 0, "normal GTK quit failed"
 
+    def approve_current_resume_binding(surface):
+        """Approve the fixture's sole binding through the production GTK review panel."""
+        windows = subprocess.check_output(
+            ["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)], text=True, timeout=10,
+        ).split()
+        subprocess.check_call(
+            ["xdotool", "windowfocus", "--sync", windows[-1], "key", "--clearmodifiers", "ctrl+comma"],
+            timeout=10,
+        )
+
+        def preferences_window():
+            result = subprocess.run(
+                ["xdotool", "search", "--all", "--onlyvisible", "--pid", str(app.pid),
+                 "--name", "^Preferences$"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return result.stdout.split()[-1] if result.returncode == 0 and result.stdout.split() else None
+
+        eventually(preferences_window)
+        dialog = preferences_window()
+        subprocess.check_call(
+            ["xdotool", "windowfocus", "--sync", dialog, "key", "--clearmodifiers", "alt+a"],
+            timeout=10,
+        )
+        eventually(lambda: json.loads(cli(
+            "surface", "resume", "show", "--surface", surface, "--json",
+        ))["auto_resume"])
+        subprocess.check_call(
+            ["xdotool", "windowfocus", "--sync", dialog, "key", "--clearmodifiers", "Escape"],
+            timeout=10,
+        )
+
     def session():
         """Read the current persisted session for workspace and launch-state assertions."""
         return json.loads(session_path.read_text())
@@ -359,7 +391,7 @@ Subsystem sftp internal-sftp
         if remote_browser:
             from remote_browser_support import verify_remote_browser
             verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, local_id, report)
-            cli("select-workspace", remote_id)
+        cli("select-workspace", remote_id)
         cli("split", "--direction", "horizontal")
         remote_write("split-result")
         eventually(remote_setup_traced)
@@ -367,6 +399,23 @@ Subsystem sftp internal-sftp
         remote_write("second-workspace-result")
         cli("select-workspace", remote_id)
         remote_write("first-workspace-still-live")
+        remote_surface = next(
+            row["uuid"] for row in json.loads(cli("list-surfaces", "--json"))["surfaces"]
+            if row["workspace_uuid"] == remote_id
+        )
+        resume_marker = root / "remote/approved-resume"
+        resume_params = {
+            "surface_id": remote_surface,
+            "command": "printf '%s' \"$RESUME_VALUE\" > " + shlex.quote(str(resume_marker)),
+            "cwd": str(root / "remote"),
+            "environment": {"RESUME_VALUE": "remote restored"},
+        }
+        cli("raw", "surface.resume.set", "--params", json.dumps(resume_params))
+        approve_current_resume_binding(remote_surface)
+        eventually(lambda: json.loads(cli(
+            "surface", "resume", "show", "--surface", remote_surface, "--json",
+        ))["auto_resume"])
+        assert not resume_marker.exists(), "approval executed before remote restart"
         cli("reorder-workspace", remote_id, "0")
         eventually(lambda: session()["workspaces"][0]["uuid"] == remote_id)
         saved = session()
@@ -380,6 +429,7 @@ Subsystem sftp internal-sftp
         assert any(event["pid"] == app.pid and event["event"] == "ssh.connection.complete"
                    and event["fields"]["outcome"] == "cancelled" for event in stopped_events)
         start()
+        eventually(lambda: resume_marker.exists() and resume_marker.read_text() == "remote restored")
         remote_write("restored-result")
         surfaces = json.loads(cli("list-surfaces", "--json"))["surfaces"]
         assert len([s for s in surfaces if s["workspace_uuid"] == remote_id]) == 2, surfaces

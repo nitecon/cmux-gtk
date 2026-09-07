@@ -183,6 +183,7 @@ impl AppState {
             Some(directory.clone()),
             None,
             None,
+            false,
             &self.resume_policy,
             environment,
         )?;
@@ -355,6 +356,7 @@ impl AppState {
                 || crate::ghostty::surface::SurfaceIoMode::Remote {
                     bridge: bridge.clone(),
                     ssh_tx: self.ssh_event_tx.clone().unwrap(),
+                    initial_input: None,
                 },
             )
         });
@@ -385,6 +387,7 @@ impl AppState {
             ws.working_directory.clone(),
             launch_command,
             remote_launch,
+            ws.remote_target.is_some(),
             &self.resume_policy,
             ws.launch_environment.clone(),
         )?;
@@ -507,6 +510,7 @@ impl AppState {
                     .ssh_event_tx
                     .clone()
                     .expect("SSH event channel initialized"),
+                initial_input: None,
             }
         };
         let (gl_area, _) = crate::ghostty::surface::create_surface(

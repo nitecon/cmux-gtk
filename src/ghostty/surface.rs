@@ -17,6 +17,7 @@ pub enum SurfaceIoMode {
     Remote {
         bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
         ssh_tx: crate::ssh::SshEventTx,
+        initial_input: Option<Vec<u8>>,
     },
     Manual {
         bridge: std::sync::Arc<crate::ssh::bridge::SshBridge>,
@@ -325,8 +326,12 @@ pub fn create_surface(
         gl_area.set_data("cmux-surface-cell", surface_cell.clone());
     }
     let mut io_mode = match io_mode {
-        SurfaceIoMode::Remote { bridge, ssh_tx } => {
-            let io_write_ctx = bridge.create_context(ssh_tx);
+        SurfaceIoMode::Remote {
+            bridge,
+            ssh_tx,
+            initial_input,
+        } => {
+            let io_write_ctx = bridge.create_context_with_initial(ssh_tx, initial_input);
             SurfaceIoMode::Manual {
                 bridge,
                 io_write_ctx,

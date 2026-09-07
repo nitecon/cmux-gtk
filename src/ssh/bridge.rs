@@ -89,7 +89,12 @@ impl SshBridge {
     }
 
     /// Create a distinct remote surface identity and register its lifetime with this bridge.
-    pub fn create_context(&self, ssh_tx: crate::ssh::SshEventTx) -> Arc<IoWriteContext> {
+    /// Register a remote surface with one bounded command delivered only after its first stream opens.
+    pub fn create_context_with_initial(
+        &self,
+        ssh_tx: crate::ssh::SshEventTx,
+        initial_input: Option<Vec<u8>>,
+    ) -> Arc<IoWriteContext> {
         static NEXT_REMOTE_ID: AtomicU64 = AtomicU64::new(1 << 40);
         let id = NEXT_REMOTE_ID.fetch_add(1, Ordering::Relaxed);
         let ctx = Arc::new(IoWriteContext {
@@ -98,6 +103,9 @@ impl SshBridge {
             surface_ptr: std::sync::atomic::AtomicUsize::new(0),
             size: Mutex::new((80, 24)),
             stream_id: Mutex::new(None),
+            pending_initial_input: Mutex::new(
+                initial_input.filter(|value| value.len() <= 128 * 1024),
+            ),
             eof_received: AtomicBool::new(false),
             ssh_tx,
         });
@@ -235,6 +243,8 @@ pub struct IoWriteContext {
     pub size: Mutex<(u16, u16)>,
     /// Set after proxy.open returns the stream_id.
     pub stream_id: Mutex<Option<String>>,
+    /// Approved restore input consumed exactly once after the first proxy stream opens.
+    pending_initial_input: Mutex<Option<Vec<u8>>>,
     /// Set when remote shell exits -- next keypress triggers pane close.
     pub eof_received: AtomicBool,
     /// Channel to send close requests to the GTK main loop.
@@ -272,6 +282,17 @@ pub unsafe extern "C" fn ssh_io_write_cb(
 }
 
 impl IoWriteContext {
+    /// Publish a new stream and deliver its pending approved restore command exactly once.
+    pub fn stream_opened(&self, stream_id: String) {
+        *self.stream_id.lock().unwrap() = Some(stream_id.clone());
+        if let Some(input) = self.pending_initial_input.lock().unwrap().take() {
+            self.write_tx.lock().unwrap().input(&stream_id, &input);
+            crate::diagnostics::event(format_args!(
+                "resume.launch stage=deliver location=remote_ssh outcome=queued"
+            ));
+        }
+    }
+
     /// Clamp terminal dimensions, coalesce unchanged sizes and enqueue a remote resize when connected.
     pub fn resize(&self, columns: u16, rows: u16) {
         let size = (columns.max(1), rows.max(1));
@@ -300,8 +321,8 @@ mod lifecycle_tests {
     fn remote_contexts_keep_separate_streams_and_use_reconnected_sender() {
         let bridge = SshBridge::new();
         let (events, _) = mpsc::channel(16);
-        let first = bridge.create_context(events.clone());
-        let second = bridge.create_context(events);
+        let first = bridge.create_context_with_initial(events.clone(), None);
+        let second = bridge.create_context_with_initial(events, None);
         assert_ne!(first.pane_id, second.pane_id);
         bridge.register_pane(first.pane_id, "first-stream".into());
         bridge.register_pane(second.pane_id, "second-stream".into());
@@ -336,5 +357,27 @@ mod lifecycle_tests {
             .lock()
             .unwrap()
             .contains_key(&second.pane_id));
+    }
+
+    /// An approved restore payload waits for stream identity and is never replayed twice.
+    #[test]
+    fn pending_remote_input_is_delivered_once_after_stream_open() {
+        let bridge = SshBridge::new();
+        let (events, _) = mpsc::channel(4);
+        let payload = b"agent --resume safe\r".to_vec();
+        let context = bridge.create_context_with_initial(events, Some(payload.clone()));
+        let (mut receiver, _failure) = bridge.take_or_recreate_write_rx();
+        assert!(receiver.try_recv().is_err());
+        context.stream_opened("restored-stream".into());
+        let write = receiver.try_recv().unwrap();
+        assert_eq!(write.stream_id, "restored-stream");
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(write.data_base64)
+                .unwrap(),
+            payload
+        );
+        context.stream_opened("replacement-stream".into());
+        assert!(receiver.try_recv().is_err());
     }
 }
