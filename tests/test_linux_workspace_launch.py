@@ -398,7 +398,7 @@ Subsystem sftp internal-sftp
         remote_write("first-workspace-still-live")
         remote_surface = next(
             row["uuid"] for row in json.loads(cli("list-surfaces", "--json"))["surfaces"]
-            if row["workspace_uuid"] == remote_id
+            if row["workspace_uuid"] == remote_id and row["active"]
         )
         resume_marker = root / "remote/approved-resume"
         resume_params = {

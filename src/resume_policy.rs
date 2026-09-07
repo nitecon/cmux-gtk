@@ -356,7 +356,7 @@ mod tests {
         let mut policy = ResumePolicy::default();
         policy.approve(&binding).unwrap();
         let input = String::from_utf8(policy.remote_shell_input(&binding).unwrap()).unwrap();
-        assert!(input.starts_with("(cd '/srv/a b' && env PROJECT='x'\\''y' /bin/sh -lc "));
+        assert!(input.starts_with("(cd '/srv/a b' && env PROJECT='x'\"'\"'y' /bin/sh -lc "));
         assert!(input.ends_with(")\r"));
         let mut rejected = binding;
         rejected.command = "other".into();
