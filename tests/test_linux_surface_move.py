@@ -36,6 +36,21 @@ def wait_for_browser(app, surface):
     app.wait_for(ready, f"browser {surface} command readiness")
 
 
+def saved_workspace_for(root, surface):
+    """Return the durable workspace containing a surface, or None during a pending save."""
+    try:
+        session = json.loads((root / "data/cmux/session.json").read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+    def contains(node):
+        if "surfaces" in node:
+            return any(row.get("surface_uuid") == surface for row in node["surfaces"])
+        return contains(node.get("start", {})) or contains(node.get("end", {}))
+
+    return next((row["uuid"] for row in session["workspaces"] if contains(row["layout"])), None)
+
+
 with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
     root = Path(directory)
     browser_dir = root / "browser"
@@ -149,6 +164,11 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         assert solo_workspace not in {row["uuid"] for row in workspaces}, workspaces
         assert pane_for(panes(app), solo_surface)["workspace_uuid"] == destination_workspace
         app.cli("send-text", "printf surface-transfer-alive", "--id", solo_surface)
+        app.wait_for(
+            lambda: saved_workspace_for(root, browser) == destination_workspace
+            and saved_workspace_for(root, solo_surface) == destination_workspace,
+            "cross-workspace surface session snapshot",
+        )
 
     with running_app(root, environment) as app:
         workspaces = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
