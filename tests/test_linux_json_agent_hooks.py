@@ -25,6 +25,7 @@ def main():
             "factory": ("droid", home / ".factory" / "settings.json", "SessionStart", "Stop", "SessionEnd", ["--resume"]),
             "qoder": ("qodercli", root / "qoder" / "settings.json", "SessionStart", "Stop", "SessionEnd", ["--resume"]),
         }
+        prompt_events = {"grok": "UserPromptSubmit", "gemini": "BeforeAgent"}
         for binary, *_ in providers.values():
             path = binary_dir / binary
             path.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOOK_ARGV_OUT\"\n")
@@ -77,6 +78,8 @@ def main():
                     assert result.returncode == 0, (name, command_name, result.stderr)
 
                 event(start_name, "session-start")
+                if name in prompt_events:
+                    event(prompt_events[name], "prompt-submit")
                 binding = json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"]
                 assert binding["kind"] == name and binding["checkpoint_id"] == native_id
                 argv_output = root / (name + "-argv")

@@ -59,6 +59,7 @@ await new Promise(resolve => setTimeout(resolve, 500));
                                check=True, timeout=10)
 
             invoke("session_start")
+            invoke("before_agent_start")
             binding = json.loads(app.cli("surface", "resume", "show", "--surface", target,
                                          "--json"))["resume_binding"]
             assert binding["kind"] == "pi" and binding["checkpoint_id"] == "pi-native-session"

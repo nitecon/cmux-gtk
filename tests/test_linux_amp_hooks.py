@@ -55,6 +55,7 @@ await new Promise(resolve => setTimeout(resolve, 500));
                                check=True, timeout=10)
 
             invoke("session.start")
+            invoke("agent.start")
             binding = json.loads(app.cli("surface", "resume", "show", "--surface", target,
                                          "--json"))["resume_binding"]
             assert binding["kind"] == "amp" and binding["checkpoint_id"] == "amp-native-thread"

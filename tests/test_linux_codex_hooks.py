@@ -50,6 +50,7 @@ def main():
                 assert result.returncode == 0, result.stderr
 
             event("SessionStart")
+            event("UserPromptSubmit")
             binding = json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"]
             assert binding["kind"] == "codex" and binding["checkpoint_id"] == native_id
             assert binding["environment"]["CODEX_HOME"] == str(config)

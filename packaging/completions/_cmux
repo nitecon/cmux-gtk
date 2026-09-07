@@ -39,6 +39,7 @@ _arguments "${_arguments_options[@]}" : \
 '--source=[Git source when no patch file is supplied]:SOURCE:(unstaged staged branch last-turn)' \
 '--workspace=[Destination workspace UUID; defaults to the caller or selected workspace]:WORKSPACE:_default' \
 '--surface=[Place the viewer immediately to the right of this surface UUID]:SURFACE:_default' \
+'--session=[Select a provider session-specific last-turn baseline]:SESSION:_default' \
 '--cwd=[Repository or child path used by Git sources]:CWD:_files' \
 '--base=[Explicit base ref for a branch comparison]:BASE:_default' \
 '--title=[]:TITLE:_default' \
@@ -182,6 +183,18 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -231,6 +244,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-claude-help-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -290,6 +307,18 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -327,6 +356,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-codex-help-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -371,6 +404,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-grok-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -434,6 +479,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -479,6 +528,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-gemini-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -542,6 +603,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -587,6 +652,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-copilot-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -650,6 +727,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -695,6 +776,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-codebuddy-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -758,6 +851,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -803,6 +900,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-factory-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -866,6 +975,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -911,6 +1024,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-qoder-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -974,6 +1099,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1019,6 +1148,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-opencode-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -1082,6 +1223,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1127,6 +1272,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-cursor-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -1190,6 +1347,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1235,6 +1396,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-pi-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -1298,6 +1471,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1343,6 +1520,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-amp-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \
@@ -1403,6 +1592,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-amp-help-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1538,6 +1731,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1570,6 +1767,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1595,6 +1796,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-help-grok-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1630,6 +1835,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1659,6 +1868,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-help-copilot-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1694,6 +1907,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1723,6 +1940,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-help-factory-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1758,6 +1979,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1787,6 +2012,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-help-opencode-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1822,6 +2051,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1854,6 +2087,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -1883,6 +2120,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-hooks-help-amp-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3586,6 +3827,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3618,6 +3863,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3643,6 +3892,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-help-hooks-grok-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3678,6 +3931,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3707,6 +3964,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-help-hooks-copilot-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3742,6 +4003,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3771,6 +4036,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-help-hooks-factory-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3806,6 +4075,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3835,6 +4108,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-help-hooks-opencode-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -3870,6 +4147,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3902,6 +4183,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (session-end)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3931,6 +4216,10 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cmux-help-hooks-amp-command-$line[1]:"
         case $line[1] in
             (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -5243,6 +5532,7 @@ _cmux__help__hooks_commands() {
 _cmux__help__hooks__amp_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5253,6 +5543,11 @@ _cmux__help__hooks__amp_commands() {
 _cmux__help__hooks__amp__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks amp notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__amp__prompt-submit_commands] )) ||
+_cmux__help__hooks__amp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks amp prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__amp__session-end_commands] )) ||
 _cmux__help__hooks__amp__session-end_commands() {
@@ -5273,6 +5568,7 @@ _cmux__help__hooks__amp__stop_commands() {
 _cmux__help__hooks__claude_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5283,6 +5579,11 @@ _cmux__help__hooks__claude_commands() {
 _cmux__help__hooks__claude__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks claude notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__claude__prompt-submit_commands] )) ||
+_cmux__help__hooks__claude__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks claude prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__claude__session-end_commands] )) ||
 _cmux__help__hooks__claude__session-end_commands() {
@@ -5303,6 +5604,7 @@ _cmux__help__hooks__claude__stop_commands() {
 _cmux__help__hooks__codebuddy_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5313,6 +5615,11 @@ _cmux__help__hooks__codebuddy_commands() {
 _cmux__help__hooks__codebuddy__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks codebuddy notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codebuddy__prompt-submit_commands] )) ||
+_cmux__help__hooks__codebuddy__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codebuddy prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__codebuddy__session-end_commands] )) ||
 _cmux__help__hooks__codebuddy__session-end_commands() {
@@ -5333,10 +5640,16 @@ _cmux__help__hooks__codebuddy__stop_commands() {
 _cmux__help__hooks__codex_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
     )
     _describe -t commands 'cmux help hooks codex commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__codex__prompt-submit_commands] )) ||
+_cmux__help__hooks__codex__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks codex prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__codex__session-end_commands] )) ||
 _cmux__help__hooks__codex__session-end_commands() {
@@ -5357,6 +5670,7 @@ _cmux__help__hooks__codex__stop_commands() {
 _cmux__help__hooks__copilot_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5367,6 +5681,11 @@ _cmux__help__hooks__copilot_commands() {
 _cmux__help__hooks__copilot__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks copilot notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__copilot__prompt-submit_commands] )) ||
+_cmux__help__hooks__copilot__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks copilot prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__copilot__session-end_commands] )) ||
 _cmux__help__hooks__copilot__session-end_commands() {
@@ -5387,6 +5706,7 @@ _cmux__help__hooks__copilot__stop_commands() {
 _cmux__help__hooks__cursor_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5397,6 +5717,11 @@ _cmux__help__hooks__cursor_commands() {
 _cmux__help__hooks__cursor__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks cursor notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__cursor__prompt-submit_commands] )) ||
+_cmux__help__hooks__cursor__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks cursor prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__cursor__session-end_commands] )) ||
 _cmux__help__hooks__cursor__session-end_commands() {
@@ -5417,6 +5742,7 @@ _cmux__help__hooks__cursor__stop_commands() {
 _cmux__help__hooks__factory_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5427,6 +5753,11 @@ _cmux__help__hooks__factory_commands() {
 _cmux__help__hooks__factory__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks factory notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__factory__prompt-submit_commands] )) ||
+_cmux__help__hooks__factory__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks factory prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__factory__session-end_commands] )) ||
 _cmux__help__hooks__factory__session-end_commands() {
@@ -5447,6 +5778,7 @@ _cmux__help__hooks__factory__stop_commands() {
 _cmux__help__hooks__gemini_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5457,6 +5789,11 @@ _cmux__help__hooks__gemini_commands() {
 _cmux__help__hooks__gemini__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks gemini notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__gemini__prompt-submit_commands] )) ||
+_cmux__help__hooks__gemini__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks gemini prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__gemini__session-end_commands] )) ||
 _cmux__help__hooks__gemini__session-end_commands() {
@@ -5477,6 +5814,7 @@ _cmux__help__hooks__gemini__stop_commands() {
 _cmux__help__hooks__grok_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5487,6 +5825,11 @@ _cmux__help__hooks__grok_commands() {
 _cmux__help__hooks__grok__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__grok__prompt-submit_commands] )) ||
+_cmux__help__hooks__grok__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks grok prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__grok__session-end_commands] )) ||
 _cmux__help__hooks__grok__session-end_commands() {
@@ -5507,6 +5850,7 @@ _cmux__help__hooks__grok__stop_commands() {
 _cmux__help__hooks__opencode_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5517,6 +5861,11 @@ _cmux__help__hooks__opencode_commands() {
 _cmux__help__hooks__opencode__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks opencode notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__opencode__prompt-submit_commands] )) ||
+_cmux__help__hooks__opencode__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks opencode prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__opencode__session-end_commands] )) ||
 _cmux__help__hooks__opencode__session-end_commands() {
@@ -5537,6 +5886,7 @@ _cmux__help__hooks__opencode__stop_commands() {
 _cmux__help__hooks__pi_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5547,6 +5897,11 @@ _cmux__help__hooks__pi_commands() {
 _cmux__help__hooks__pi__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks pi notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__pi__prompt-submit_commands] )) ||
+_cmux__help__hooks__pi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks pi prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__pi__session-end_commands] )) ||
 _cmux__help__hooks__pi__session-end_commands() {
@@ -5567,6 +5922,7 @@ _cmux__help__hooks__pi__stop_commands() {
 _cmux__help__hooks__qoder_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5577,6 +5933,11 @@ _cmux__help__hooks__qoder_commands() {
 _cmux__help__hooks__qoder__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__qoder__prompt-submit_commands] )) ||
+_cmux__help__hooks__qoder__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks qoder prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__qoder__session-end_commands] )) ||
 _cmux__help__hooks__qoder__session-end_commands() {
@@ -5934,6 +6295,7 @@ _cmux__hooks_commands() {
 _cmux__hooks__amp_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5945,6 +6307,7 @@ _cmux__hooks__amp_commands() {
 _cmux__hooks__amp__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -5961,6 +6324,11 @@ _cmux__hooks__amp__help__help_commands() {
 _cmux__hooks__amp__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks amp help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__amp__help__prompt-submit_commands] )) ||
+_cmux__hooks__amp__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__amp__help__session-end_commands] )) ||
 _cmux__hooks__amp__help__session-end_commands() {
@@ -5982,6 +6350,11 @@ _cmux__hooks__amp__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks amp notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__amp__prompt-submit_commands] )) ||
+_cmux__hooks__amp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks amp prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__amp__session-end_commands] )) ||
 _cmux__hooks__amp__session-end_commands() {
     local commands; commands=()
@@ -6001,6 +6374,7 @@ _cmux__hooks__amp__stop_commands() {
 _cmux__hooks__claude_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6012,6 +6386,7 @@ _cmux__hooks__claude_commands() {
 _cmux__hooks__claude__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6028,6 +6403,11 @@ _cmux__hooks__claude__help__help_commands() {
 _cmux__hooks__claude__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks claude help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__claude__help__prompt-submit_commands] )) ||
+_cmux__hooks__claude__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__claude__help__session-end_commands] )) ||
 _cmux__hooks__claude__help__session-end_commands() {
@@ -6049,6 +6429,11 @@ _cmux__hooks__claude__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks claude notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__claude__prompt-submit_commands] )) ||
+_cmux__hooks__claude__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks claude prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__claude__session-end_commands] )) ||
 _cmux__hooks__claude__session-end_commands() {
     local commands; commands=()
@@ -6068,6 +6453,7 @@ _cmux__hooks__claude__stop_commands() {
 _cmux__hooks__codebuddy_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6079,6 +6465,7 @@ _cmux__hooks__codebuddy_commands() {
 _cmux__hooks__codebuddy__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6095,6 +6482,11 @@ _cmux__hooks__codebuddy__help__help_commands() {
 _cmux__hooks__codebuddy__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks codebuddy help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codebuddy__help__prompt-submit_commands] )) ||
+_cmux__hooks__codebuddy__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__codebuddy__help__session-end_commands] )) ||
 _cmux__hooks__codebuddy__help__session-end_commands() {
@@ -6116,6 +6508,11 @@ _cmux__hooks__codebuddy__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks codebuddy notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__codebuddy__prompt-submit_commands] )) ||
+_cmux__hooks__codebuddy__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codebuddy prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__codebuddy__session-end_commands] )) ||
 _cmux__hooks__codebuddy__session-end_commands() {
     local commands; commands=()
@@ -6135,6 +6532,7 @@ _cmux__hooks__codebuddy__stop_commands() {
 _cmux__hooks__codex_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -6145,6 +6543,7 @@ _cmux__hooks__codex_commands() {
 _cmux__hooks__codex__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'help:Print this message or the help of the given subcommand(s)' \
@@ -6155,6 +6554,11 @@ _cmux__hooks__codex__help_commands() {
 _cmux__hooks__codex__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks codex help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__help__prompt-submit_commands] )) ||
+_cmux__hooks__codex__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__codex__help__session-end_commands] )) ||
 _cmux__hooks__codex__help__session-end_commands() {
@@ -6170,6 +6574,11 @@ _cmux__hooks__codex__help__session-start_commands() {
 _cmux__hooks__codex__help__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks codex help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__codex__prompt-submit_commands] )) ||
+_cmux__hooks__codex__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks codex prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__codex__session-end_commands] )) ||
 _cmux__hooks__codex__session-end_commands() {
@@ -6190,6 +6599,7 @@ _cmux__hooks__codex__stop_commands() {
 _cmux__hooks__copilot_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6201,6 +6611,7 @@ _cmux__hooks__copilot_commands() {
 _cmux__hooks__copilot__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6217,6 +6628,11 @@ _cmux__hooks__copilot__help__help_commands() {
 _cmux__hooks__copilot__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks copilot help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__copilot__help__prompt-submit_commands] )) ||
+_cmux__hooks__copilot__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__copilot__help__session-end_commands] )) ||
 _cmux__hooks__copilot__help__session-end_commands() {
@@ -6238,6 +6654,11 @@ _cmux__hooks__copilot__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks copilot notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__copilot__prompt-submit_commands] )) ||
+_cmux__hooks__copilot__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks copilot prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__copilot__session-end_commands] )) ||
 _cmux__hooks__copilot__session-end_commands() {
     local commands; commands=()
@@ -6257,6 +6678,7 @@ _cmux__hooks__copilot__stop_commands() {
 _cmux__hooks__cursor_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6268,6 +6690,7 @@ _cmux__hooks__cursor_commands() {
 _cmux__hooks__cursor__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6284,6 +6707,11 @@ _cmux__hooks__cursor__help__help_commands() {
 _cmux__hooks__cursor__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks cursor help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__cursor__help__prompt-submit_commands] )) ||
+_cmux__hooks__cursor__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__cursor__help__session-end_commands] )) ||
 _cmux__hooks__cursor__help__session-end_commands() {
@@ -6305,6 +6733,11 @@ _cmux__hooks__cursor__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks cursor notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__cursor__prompt-submit_commands] )) ||
+_cmux__hooks__cursor__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks cursor prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__cursor__session-end_commands] )) ||
 _cmux__hooks__cursor__session-end_commands() {
     local commands; commands=()
@@ -6324,6 +6757,7 @@ _cmux__hooks__cursor__stop_commands() {
 _cmux__hooks__factory_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6335,6 +6769,7 @@ _cmux__hooks__factory_commands() {
 _cmux__hooks__factory__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6351,6 +6786,11 @@ _cmux__hooks__factory__help__help_commands() {
 _cmux__hooks__factory__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks factory help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__factory__help__prompt-submit_commands] )) ||
+_cmux__hooks__factory__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__factory__help__session-end_commands] )) ||
 _cmux__hooks__factory__help__session-end_commands() {
@@ -6372,6 +6812,11 @@ _cmux__hooks__factory__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks factory notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__factory__prompt-submit_commands] )) ||
+_cmux__hooks__factory__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks factory prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__factory__session-end_commands] )) ||
 _cmux__hooks__factory__session-end_commands() {
     local commands; commands=()
@@ -6391,6 +6836,7 @@ _cmux__hooks__factory__stop_commands() {
 _cmux__hooks__gemini_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6402,6 +6848,7 @@ _cmux__hooks__gemini_commands() {
 _cmux__hooks__gemini__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6418,6 +6865,11 @@ _cmux__hooks__gemini__help__help_commands() {
 _cmux__hooks__gemini__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks gemini help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__gemini__help__prompt-submit_commands] )) ||
+_cmux__hooks__gemini__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__gemini__help__session-end_commands] )) ||
 _cmux__hooks__gemini__help__session-end_commands() {
@@ -6439,6 +6891,11 @@ _cmux__hooks__gemini__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks gemini notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__gemini__prompt-submit_commands] )) ||
+_cmux__hooks__gemini__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks gemini prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__gemini__session-end_commands] )) ||
 _cmux__hooks__gemini__session-end_commands() {
     local commands; commands=()
@@ -6458,6 +6915,7 @@ _cmux__hooks__gemini__stop_commands() {
 _cmux__hooks__grok_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6469,6 +6927,7 @@ _cmux__hooks__grok_commands() {
 _cmux__hooks__grok__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6485,6 +6944,11 @@ _cmux__hooks__grok__help__help_commands() {
 _cmux__hooks__grok__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks grok help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__help__prompt-submit_commands] )) ||
+_cmux__hooks__grok__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__grok__help__session-end_commands] )) ||
 _cmux__hooks__grok__help__session-end_commands() {
@@ -6505,6 +6969,11 @@ _cmux__hooks__grok__help__stop_commands() {
 _cmux__hooks__grok__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__grok__prompt-submit_commands] )) ||
+_cmux__hooks__grok__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks grok prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__grok__session-end_commands] )) ||
 _cmux__hooks__grok__session-end_commands() {
@@ -6546,6 +7015,7 @@ _cmux__hooks__help_commands() {
 _cmux__hooks__help__amp_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6556,6 +7026,11 @@ _cmux__hooks__help__amp_commands() {
 _cmux__hooks__help__amp__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help amp notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__amp__prompt-submit_commands] )) ||
+_cmux__hooks__help__amp__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help amp prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__amp__session-end_commands] )) ||
 _cmux__hooks__help__amp__session-end_commands() {
@@ -6576,6 +7051,7 @@ _cmux__hooks__help__amp__stop_commands() {
 _cmux__hooks__help__claude_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6586,6 +7062,11 @@ _cmux__hooks__help__claude_commands() {
 _cmux__hooks__help__claude__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help claude notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__claude__prompt-submit_commands] )) ||
+_cmux__hooks__help__claude__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help claude prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__claude__session-end_commands] )) ||
 _cmux__hooks__help__claude__session-end_commands() {
@@ -6606,6 +7087,7 @@ _cmux__hooks__help__claude__stop_commands() {
 _cmux__hooks__help__codebuddy_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6616,6 +7098,11 @@ _cmux__hooks__help__codebuddy_commands() {
 _cmux__hooks__help__codebuddy__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help codebuddy notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codebuddy__prompt-submit_commands] )) ||
+_cmux__hooks__help__codebuddy__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codebuddy prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__codebuddy__session-end_commands] )) ||
 _cmux__hooks__help__codebuddy__session-end_commands() {
@@ -6636,10 +7123,16 @@ _cmux__hooks__help__codebuddy__stop_commands() {
 _cmux__hooks__help__codex_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
     )
     _describe -t commands 'cmux hooks help codex commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__codex__prompt-submit_commands] )) ||
+_cmux__hooks__help__codex__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help codex prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__codex__session-end_commands] )) ||
 _cmux__hooks__help__codex__session-end_commands() {
@@ -6660,6 +7153,7 @@ _cmux__hooks__help__codex__stop_commands() {
 _cmux__hooks__help__copilot_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6670,6 +7164,11 @@ _cmux__hooks__help__copilot_commands() {
 _cmux__hooks__help__copilot__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help copilot notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__copilot__prompt-submit_commands] )) ||
+_cmux__hooks__help__copilot__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help copilot prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__copilot__session-end_commands] )) ||
 _cmux__hooks__help__copilot__session-end_commands() {
@@ -6690,6 +7189,7 @@ _cmux__hooks__help__copilot__stop_commands() {
 _cmux__hooks__help__cursor_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6700,6 +7200,11 @@ _cmux__hooks__help__cursor_commands() {
 _cmux__hooks__help__cursor__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help cursor notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__cursor__prompt-submit_commands] )) ||
+_cmux__hooks__help__cursor__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help cursor prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__cursor__session-end_commands] )) ||
 _cmux__hooks__help__cursor__session-end_commands() {
@@ -6720,6 +7225,7 @@ _cmux__hooks__help__cursor__stop_commands() {
 _cmux__hooks__help__factory_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6730,6 +7236,11 @@ _cmux__hooks__help__factory_commands() {
 _cmux__hooks__help__factory__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help factory notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__factory__prompt-submit_commands] )) ||
+_cmux__hooks__help__factory__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help factory prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__factory__session-end_commands] )) ||
 _cmux__hooks__help__factory__session-end_commands() {
@@ -6750,6 +7261,7 @@ _cmux__hooks__help__factory__stop_commands() {
 _cmux__hooks__help__gemini_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6760,6 +7272,11 @@ _cmux__hooks__help__gemini_commands() {
 _cmux__hooks__help__gemini__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help gemini notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__gemini__prompt-submit_commands] )) ||
+_cmux__hooks__help__gemini__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help gemini prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__gemini__session-end_commands] )) ||
 _cmux__hooks__help__gemini__session-end_commands() {
@@ -6780,6 +7297,7 @@ _cmux__hooks__help__gemini__stop_commands() {
 _cmux__hooks__help__grok_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6790,6 +7308,11 @@ _cmux__hooks__help__grok_commands() {
 _cmux__hooks__help__grok__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help grok notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__grok__prompt-submit_commands] )) ||
+_cmux__hooks__help__grok__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help grok prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__grok__session-end_commands] )) ||
 _cmux__hooks__help__grok__session-end_commands() {
@@ -6815,6 +7338,7 @@ _cmux__hooks__help__help_commands() {
 _cmux__hooks__help__opencode_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6825,6 +7349,11 @@ _cmux__hooks__help__opencode_commands() {
 _cmux__hooks__help__opencode__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help opencode notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__opencode__prompt-submit_commands] )) ||
+_cmux__hooks__help__opencode__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help opencode prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__opencode__session-end_commands] )) ||
 _cmux__hooks__help__opencode__session-end_commands() {
@@ -6845,6 +7374,7 @@ _cmux__hooks__help__opencode__stop_commands() {
 _cmux__hooks__help__pi_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6855,6 +7385,11 @@ _cmux__hooks__help__pi_commands() {
 _cmux__hooks__help__pi__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help pi notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__pi__prompt-submit_commands] )) ||
+_cmux__hooks__help__pi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help pi prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__pi__session-end_commands] )) ||
 _cmux__hooks__help__pi__session-end_commands() {
@@ -6875,6 +7410,7 @@ _cmux__hooks__help__pi__stop_commands() {
 _cmux__hooks__help__qoder_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6885,6 +7421,11 @@ _cmux__hooks__help__qoder_commands() {
 _cmux__hooks__help__qoder__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__qoder__prompt-submit_commands] )) ||
+_cmux__hooks__help__qoder__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help qoder prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__qoder__session-end_commands] )) ||
 _cmux__hooks__help__qoder__session-end_commands() {
@@ -6928,6 +7469,7 @@ _cmux__hooks__help__setup_commands() {
 _cmux__hooks__opencode_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6939,6 +7481,7 @@ _cmux__hooks__opencode_commands() {
 _cmux__hooks__opencode__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -6955,6 +7498,11 @@ _cmux__hooks__opencode__help__help_commands() {
 _cmux__hooks__opencode__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks opencode help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__opencode__help__prompt-submit_commands] )) ||
+_cmux__hooks__opencode__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__opencode__help__session-end_commands] )) ||
 _cmux__hooks__opencode__help__session-end_commands() {
@@ -6976,6 +7524,11 @@ _cmux__hooks__opencode__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks opencode notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__opencode__prompt-submit_commands] )) ||
+_cmux__hooks__opencode__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks opencode prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__opencode__session-end_commands] )) ||
 _cmux__hooks__opencode__session-end_commands() {
     local commands; commands=()
@@ -6995,6 +7548,7 @@ _cmux__hooks__opencode__stop_commands() {
 _cmux__hooks__pi_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -7006,6 +7560,7 @@ _cmux__hooks__pi_commands() {
 _cmux__hooks__pi__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -7022,6 +7577,11 @@ _cmux__hooks__pi__help__help_commands() {
 _cmux__hooks__pi__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks pi help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__pi__help__prompt-submit_commands] )) ||
+_cmux__hooks__pi__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__pi__help__session-end_commands] )) ||
 _cmux__hooks__pi__help__session-end_commands() {
@@ -7043,6 +7603,11 @@ _cmux__hooks__pi__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks pi notification commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__pi__prompt-submit_commands] )) ||
+_cmux__hooks__pi__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks pi prompt-submit commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__pi__session-end_commands] )) ||
 _cmux__hooks__pi__session-end_commands() {
     local commands; commands=()
@@ -7062,6 +7627,7 @@ _cmux__hooks__pi__stop_commands() {
 _cmux__hooks__qoder_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -7073,6 +7639,7 @@ _cmux__hooks__qoder_commands() {
 _cmux__hooks__qoder__help_commands() {
     local commands; commands=(
 'session-start:' \
+'prompt-submit:' \
 'session-end:' \
 'stop:' \
 'notification:' \
@@ -7089,6 +7656,11 @@ _cmux__hooks__qoder__help__help_commands() {
 _cmux__hooks__qoder__help__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks qoder help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__help__prompt-submit_commands] )) ||
+_cmux__hooks__qoder__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder help prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__qoder__help__session-end_commands] )) ||
 _cmux__hooks__qoder__help__session-end_commands() {
@@ -7109,6 +7681,11 @@ _cmux__hooks__qoder__help__stop_commands() {
 _cmux__hooks__qoder__notification_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks qoder notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__qoder__prompt-submit_commands] )) ||
+_cmux__hooks__qoder__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks qoder prompt-submit commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__qoder__session-end_commands] )) ||
 _cmux__hooks__qoder__session-end_commands() {

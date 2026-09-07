@@ -81,6 +81,50 @@ def main():
             panes = json.loads(app.cli("list-panes", "--json"))
             assert next(row for row in panes["panes"] if row["focused"])["active_surface_uuid"] == git_view["uuid"]
 
+            hook_payload = json.dumps({
+                "hook_event_name": "UserPromptSubmit",
+                "session_id": "diff-session",
+                "cwd": str(repository),
+            })
+            hook = subprocess.run(
+                ["target/debug/cmux", "--socket", str(app.socket_path),
+                 "hooks", "claude", "prompt-submit"],
+                env=dict(app.environment, CMUX_SURFACE_ID=terminal), input=hook_payload,
+                capture_output=True, text=True, timeout=10,
+            )
+            assert hook.returncode == 0, hook.stderr
+            turn_one = repository / "turn-one.txt"
+            turn_one.write_text("created in first turn\n")
+            first_turn = json.loads(app.cli(
+                "diff", "--last-turn", "--cwd", str(repository),
+                "--surface", terminal, "--session", "diff-session", "--json", timeout=35,
+            ))
+            first_html = Path(first_turn["path"]).read_text()
+            assert "created in first turn" in first_html, first_html
+
+            hook = subprocess.run(
+                ["target/debug/cmux", "--socket", str(app.socket_path),
+                 "hooks", "claude", "prompt-submit"],
+                env=dict(app.environment, CMUX_SURFACE_ID=terminal), input=hook_payload,
+                capture_output=True, text=True, timeout=10,
+            )
+            assert hook.returncode == 0, hook.stderr
+            turn_two = repository / "turn-two.txt"
+            turn_two.write_text("created in second turn\n")
+            second_turn = json.loads(app.cli(
+                "diff", "--last-turn", "--cwd", str(repository),
+                "--surface", terminal, "--session", "diff-session", "--json", timeout=35,
+            ))
+            second_html = Path(second_turn["path"]).read_text()
+            assert "created in second turn" in second_html, second_html
+            assert "created in first turn" not in second_html, second_html
+
+            missing = json.loads(app.cli(
+                "diff", "--last-turn", "--cwd", str(repository),
+                "--surface", terminal, "--session", "missing-session", "--json", timeout=35,
+            ))
+            assert "created in second turn" not in Path(missing["path"]).read_text()
+
             fifo = root / "blocked.patch"
             os.mkfifo(fifo)
             rejected = subprocess.run(
@@ -93,7 +137,11 @@ def main():
             restored_urls = {
                 row["url"] for row in json.loads(restored.cli("browser", "list"))["surfaces"]
             }
-            assert opened["url"] in restored_urls and git_view["url"] in restored_urls, restored_urls
+            expected_urls = {
+                opened["url"], git_view["url"], first_turn["url"],
+                second_turn["url"], missing["url"],
+            }
+            assert expected_urls <= restored_urls, restored_urls
     print("diff surfaces preserve bounded input, placement, focus and restart identity")
 
 

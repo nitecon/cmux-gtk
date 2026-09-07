@@ -69,6 +69,9 @@ pub enum Commands {
         /// Place the viewer immediately to the right of this surface UUID
         #[arg(long)]
         surface: Option<String>,
+        /// Select a provider session-specific last-turn baseline
+        #[arg(long, alias = "agent-session")]
+        session: Option<String>,
         /// Repository or child path used by Git sources
         #[arg(long, alias = "repo", alias = "path")]
         cwd: Option<std::path::PathBuf>,
@@ -614,6 +617,7 @@ pub enum HookCommands {
 #[derive(Clone, Copy, Subcommand)]
 pub enum ClaudeHookEvent {
     SessionStart,
+    PromptSubmit,
     SessionEnd,
     Stop,
     Notification,
@@ -622,6 +626,7 @@ pub enum ClaudeHookEvent {
 #[derive(Clone, Copy, Subcommand)]
 pub enum CodexHookEvent {
     SessionStart,
+    PromptSubmit,
     SessionEnd,
     Stop,
 }
@@ -629,6 +634,7 @@ pub enum CodexHookEvent {
 #[derive(Clone, Copy, Subcommand)]
 pub enum JsonHookEvent {
     SessionStart,
+    PromptSubmit,
     SessionEnd,
     Stop,
     Notification,

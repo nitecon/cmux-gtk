@@ -54,6 +54,7 @@ def main():
                 assert (result.returncode == 0) == valid, result.stderr
 
             event("SessionStart", native_id)
+            event("UserPromptSubmit", native_id)
             binding = json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"]
             assert binding["checkpoint_id"] == native_id and binding["kind"] == "claude"
             assert binding["cwd"] == str(root)

@@ -17,6 +17,25 @@ def pane_for(records, surface):
     return next(record for record in records if surface in record["surface_ids"])
 
 
+def wait_for_browser(app, surface):
+    """Wait for a restored or rerouted browser daemon to accept commands."""
+    binary = Path(app.environment.get("CMUX_BIN_DIR", "target/debug")) / "cmux"
+
+    def ready():
+        try:
+            result = subprocess.run(
+                [str(binary), "--socket", str(app.socket_path), "browser", "eval",
+                 surface, "document.title"],
+                env=app.environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=1, check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return False
+        return result.returncode == 0
+
+    app.wait_for(ready, f"browser {surface} command readiness")
+
+
 with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
     root = Path(directory)
     browser_dir = root / "browser"
@@ -63,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         moved = panes(app)
         assert pane_for(moved, browser)["id"] == destination_pane, moved
         assert pane_for(moved, browser)["surface_ids"][0] == browser, moved
-        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+        wait_for_browser(app, browser)
 
         app.cli(
             "drag-surface-to-split", browser,
@@ -76,7 +95,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         assert browser_pane["surface_ids"] == [browser], split_moved
         assert browser_pane["focused"] is True, split_moved
         assert sum(record["surface_ids"].count(browser) for record in split_moved) == 1
-        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+        wait_for_browser(app, browser)
         app.wait_for(
             lambda: len(json.loads((root / "data/cmux/session.json").read_text())["workspaces"][0]["layout"].get("start", {})) > 0,
             "moved split session snapshot",
@@ -87,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         assert len(restored) == 3, restored
         assert pane_for(restored, browser)["surface_ids"] == [browser], restored
         assert sum(record["surface_ids"].count(browser) for record in restored) == 1
-        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+        wait_for_browser(app, browser)
 
         original_workspace = next(
             row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == browser
@@ -115,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         notifications = json.loads(app.cli("notifications", "list", "--json"))["notifications"]
         moved_notice = next(row for row in notifications if row["surface_id"] == browser)
         assert moved_notice["workspace_id"] == destination_workspace, moved_notice
-        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+        wait_for_browser(app, browser)
 
         # Moving the only surface out of a local workspace removes that empty workspace
         # without destroying the transferred PTY.
@@ -137,6 +156,6 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         restored = panes(app)
         assert pane_for(restored, browser)["workspace_uuid"] == destination_workspace
         assert pane_for(restored, solo_surface)["workspace_uuid"] == destination_workspace
-        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+        wait_for_browser(app, browser)
 
     print("surface reorder, pane move and drag-to-split preserved identity across restart")

@@ -4,6 +4,8 @@ use super::socket_client::{CliError, SocketClient};
 use super::{args::DiffLayout, args::DiffSource, browser_address};
 use serde::Serialize;
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::io::{IsTerminal, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
@@ -13,6 +15,8 @@ use std::time::{Duration, Instant};
 const MAX_PATCH_BYTES: usize = 32 * 1024 * 1024;
 const MAX_VIEWERS: usize = 64;
 const MAX_VIEWER_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_BASELINE_PATHS: usize = 10_000;
+const MAX_BASELINE_CHANGED_BYTES: u64 = 256 * 1024 * 1024;
 
 pub(super) struct PrepareRequest<'a> {
     pub input: Option<&'a str>,
@@ -23,6 +27,8 @@ pub(super) struct PrepareRequest<'a> {
     pub last_turn: bool,
     pub cwd: Option<&'a Path>,
     pub base: Option<&'a str>,
+    pub surface: Option<&'a str>,
+    pub session: Option<&'a str>,
     pub title: Option<&'a str>,
     pub layout: DiffLayout,
     pub font_size: Option<f64>,
@@ -55,9 +61,13 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedDiff, CliEr
         ));
     }
     let source = selected_source(&request)?;
+    let ambient_surface = std::env::var("CMUX_SURFACE_ID").ok();
+    let surface = request.surface.or(ambient_surface.as_deref());
     let (patch, source_label, default_title) = match source {
         None => read_patch_input(request.input)?,
-        Some(source) => read_git_source(source, request.cwd, request.base)?,
+        Some(source) => {
+            read_git_source(source, request.cwd, request.base, surface, request.session)?
+        }
     };
     if patch.trim().is_empty() && source.is_none() {
         return Err(CliError::Command("diff input is empty".into()));
@@ -167,15 +177,46 @@ fn read_git_source(
     source: DiffSource,
     cwd: Option<&Path>,
     base: Option<&str>,
+    surface: Option<&str>,
+    session: Option<&str>,
 ) -> Result<(String, String, String), CliError> {
-    if matches!(source, DiffSource::LastTurn) {
-        return Err(CliError::Command(
-            "diff --last-turn has no recorded baseline for this surface yet".into(),
-        ));
-    }
     let cwd = cwd.unwrap_or_else(|| Path::new("."));
     let root = git_text(cwd, &["rev-parse", "--show-toplevel"], 64 * 1024)?;
     let root = PathBuf::from(root.trim());
+    if matches!(source, DiffSource::LastTurn) {
+        let surface = surface.ok_or_else(|| {
+            CliError::Command("cmux diff --last-turn requires --surface or CMUX_SURFACE_ID".into())
+        })?;
+        let reference = baseline_ref(surface, session)?;
+        let baseline = match git_text(&root, &["rev-parse", "--verify", &reference], 64 * 1024) {
+            Ok(value) => value.trim().to_owned(),
+            Err(_) => {
+                return Ok((
+                    String::new(),
+                    format!("git last-turn {surface}"),
+                    "Last turn changes".into(),
+                ))
+            }
+        };
+        let current = snapshot_tree(&root, Instant::now() + Duration::from_secs(30))?;
+        let patch = git_text(
+            &root,
+            &[
+                "diff",
+                "--no-ext-diff",
+                "--binary",
+                &baseline,
+                &current,
+                "--",
+            ],
+            MAX_PATCH_BYTES,
+        )?;
+        return Ok((
+            patch,
+            format!("git last-turn {surface}"),
+            "Last turn changes".into(),
+        ));
+    }
     let (tail, label, title): (Vec<String>, String, &str) = match source {
         DiffSource::Unstaged => (vec!["--".into()], "git unstaged".into(), "Unstaged changes"),
         DiffSource::Staged => (
@@ -231,6 +272,16 @@ fn default_branch_base(root: &Path) -> Result<String, CliError> {
 }
 
 fn git_text(cwd: &Path, args: &[&str], limit: usize) -> Result<String, CliError> {
+    git_text_with(cwd, args, limit, &[], Duration::from_secs(30))
+}
+
+fn git_text_with(
+    cwd: &Path,
+    args: &[&str],
+    limit: usize,
+    environment: &[(&str, &str)],
+    deadline: Duration,
+) -> Result<String, CliError> {
     let directory = cmux_platform::paths::state_dir().join("diff-work");
     cmux_platform::filesystem::create_private_directory(&directory)
         .map_err(|error| CliError::Command(format!("create diff work directory: {error}")))?;
@@ -266,6 +317,7 @@ fn git_text(cwd: &Path, args: &[&str], limit: usize) -> Result<String, CliError>
         .arg(cwd)
         .args(args)
         .env("GIT_OPTIONAL_LOCKS", "0")
+        .envs(environment.iter().copied())
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))
@@ -293,12 +345,14 @@ fn git_text(cwd: &Path, args: &[&str], limit: usize) -> Result<String, CliError>
                 limit / 1024 / 1024
             )));
         }
-        if started.elapsed() >= Duration::from_secs(30) {
+        if started.elapsed() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(CliError::Command(
-                "git diff exceeded its 30 second deadline".into(),
-            ));
+            return Err(CliError::Command(format!(
+                "git {} exceeded its {} second deadline",
+                args.first().copied().unwrap_or("command"),
+                deadline.as_secs()
+            )));
         }
         std::thread::sleep(Duration::from_millis(10));
     };
@@ -315,6 +369,163 @@ fn git_text(cwd: &Path, args: &[&str], limit: usize) -> Result<String, CliError>
         .map_err(|error| CliError::Command(format!("read Git output: {error}")))?;
     drop(cleanup);
     Ok(output)
+}
+
+/// Record the repository state at an accepted agent prompt boundary.
+pub(super) fn record_baseline(cwd: &Path, surface: &str, session: &str) -> Result<(), CliError> {
+    let deadline = Instant::now() + Duration::from_secs(4);
+    let root = git_text_with(
+        cwd,
+        &["rev-parse", "--show-toplevel"],
+        64 * 1024,
+        &[],
+        remaining(deadline)?,
+    )?;
+    let root = PathBuf::from(root.trim());
+    let tree = snapshot_tree(&root, deadline)?;
+    for reference in [
+        baseline_ref(surface, None)?,
+        baseline_ref(surface, Some(session))?,
+    ] {
+        git_text_with(
+            &root,
+            &["update-ref", &reference, &tree],
+            64 * 1024,
+            &[],
+            remaining(deadline)?,
+        )?;
+    }
+    Ok(())
+}
+
+fn baseline_ref(surface: &str, session: Option<&str>) -> Result<String, CliError> {
+    let surface = uuid::Uuid::parse_str(surface)
+        .map_err(|_| CliError::Command("last-turn surface must be a UUID".into()))?;
+    let suffix = match session.filter(|value| !value.trim().is_empty()) {
+        Some(session) => {
+            let digest = Sha256::digest(session.as_bytes());
+            let hash = digest[..12]
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            format!("session-{hash}")
+        }
+        None => "latest".into(),
+    };
+    Ok(format!("refs/cmux/last-turn/{surface}/{suffix}"))
+}
+
+fn snapshot_tree(root: &Path, deadline: Instant) -> Result<String, CliError> {
+    validate_snapshot_size(root, deadline)?;
+    let directory = cmux_platform::paths::state_dir().join("diff-work");
+    cmux_platform::filesystem::create_private_directory(&directory)
+        .map_err(|error| CliError::Command(format!("create diff work directory: {error}")))?;
+    let index = directory.join(format!("{}.index", uuid::Uuid::new_v4()));
+    let index_text = index.to_string_lossy().into_owned();
+    let cleanup = TemporaryIndex(index);
+    let environment = [("GIT_INDEX_FILE", index_text.as_str())];
+    let read_tree = if git_text_with(
+        root,
+        &["rev-parse", "--verify", "HEAD"],
+        64 * 1024,
+        &[],
+        remaining(deadline)?,
+    )
+    .is_ok()
+    {
+        ["read-tree", "HEAD"]
+    } else {
+        ["read-tree", "--empty"]
+    };
+    git_text_with(
+        root,
+        &read_tree,
+        64 * 1024,
+        &environment,
+        remaining(deadline)?,
+    )?;
+    git_text_with(
+        root,
+        &["add", "-A", "--", "."],
+        64 * 1024,
+        &environment,
+        remaining(deadline)?,
+    )?;
+    let tree = git_text_with(
+        root,
+        &["write-tree"],
+        64 * 1024,
+        &environment,
+        remaining(deadline)?,
+    )?;
+    drop(cleanup);
+    Ok(tree.trim().to_owned())
+}
+
+fn validate_snapshot_size(root: &Path, deadline: Instant) -> Result<(), CliError> {
+    let commands: [&[&str]; 3] = [
+        &["diff", "--name-only", "-z", "--"],
+        &["diff", "--cached", "--name-only", "-z", "--"],
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    ];
+    let mut paths = BTreeSet::new();
+    for args in commands {
+        let names = git_text_with(root, args, 4 * 1024 * 1024, &[], remaining(deadline)?)?;
+        paths.extend(
+            names
+                .split('\0')
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned),
+        );
+        if paths.len() > MAX_BASELINE_PATHS {
+            return Err(CliError::Command(format!(
+                "last-turn baseline exceeds {MAX_BASELINE_PATHS} changed paths"
+            )));
+        }
+    }
+    let mut bytes = 0_u64;
+    for relative in paths {
+        let path = Path::new(&relative);
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|part| matches!(part, std::path::Component::ParentDir))
+        {
+            return Err(CliError::Command(
+                "Git returned an invalid changed path".into(),
+            ));
+        }
+        match std::fs::symlink_metadata(root.join(path)) {
+            Ok(metadata) if metadata.is_file() => bytes = bytes.saturating_add(metadata.len()),
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(CliError::Command(format!("inspect changed path: {error}"))),
+        }
+        if bytes > MAX_BASELINE_CHANGED_BYTES {
+            return Err(CliError::Command(
+                "last-turn changed files exceed 256 MiB".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn remaining(deadline: Instant) -> Result<Duration, CliError> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|remaining| !remaining.is_zero())
+        .ok_or_else(|| CliError::Command("last-turn baseline exceeded its deadline".into()))
+}
+
+struct TemporaryIndex(PathBuf);
+
+impl Drop for TemporaryIndex {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+        let mut lock = self.0.as_os_str().to_owned();
+        lock.push(".lock");
+        let _ = std::fs::remove_file(PathBuf::from(lock));
+    }
 }
 
 struct TemporaryGitOutput {

@@ -105,6 +105,7 @@ branch\t''
 last-turn\t''"
 complete -c cmux -n "__fish_cmux_using_subcommand diff" -l workspace -d 'Destination workspace UUID; defaults to the caller or selected workspace' -r
 complete -c cmux -n "__fish_cmux_using_subcommand diff" -l surface -d 'Place the viewer immediately to the right of this surface UUID' -r
+complete -c cmux -n "__fish_cmux_using_subcommand diff" -l session -d 'Select a provider session-specific last-turn baseline' -r
 complete -c cmux -n "__fish_cmux_using_subcommand diff" -l cwd -d 'Repository or child path used by Git sources' -r -F
 complete -c cmux -n "__fish_cmux_using_subcommand diff" -l base -d 'Explicit base ref for a branch comparison' -r
 complete -c cmux -n "__fish_cmux_using_subcommand diff" -l title -r
@@ -186,6 +187,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from claude" -f -a "notification"
@@ -197,6 +199,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codex" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
@@ -207,6 +210,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from grok" -f -a "notification"
@@ -218,6 +222,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from gemini" -f -a "notification"
@@ -229,6 +234,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from copilot" -f -a "notification"
@@ -240,6 +246,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from codebuddy" -f -a "notification"
@@ -251,6 +258,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from factory" -f -a "notification"
@@ -262,6 +270,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from qoder" -f -a "notification"
@@ -273,6 +282,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from opencode" -f -a "notification"
@@ -284,6 +294,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from cursor" -f -a "notification"
@@ -295,6 +306,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from pi" -f -a "notification"
@@ -306,6 +318,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcomm
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -f -a "session-start"
+complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -f -a "prompt-submit"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -f -a "session-end"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -f -a "stop"
 complete -c cmux -n "__fish_cmux_using_subcommand hooks; and __fish_seen_subcommand_from amp" -f -a "notification"

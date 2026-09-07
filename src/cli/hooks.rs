@@ -20,6 +20,7 @@ struct JsonProvider {
     file: &'static str,
     resume_prefix: &'static [&'static str],
     start_event: &'static str,
+    prompt_event: Option<&'static str>,
     stop_event: &'static str,
     notification_event: Option<&'static str>,
     end_event: Option<&'static str>,
@@ -44,6 +45,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "cmux-session.json",
             resume_prefix: &["-r"],
             start_event: "SessionStart",
+            prompt_event: Some("UserPromptSubmit"),
             stop_event: "Stop",
             notification_event: Some("Notification"),
             // Grok emits SessionEnd at a turn boundary, so it must not clear durable identity.
@@ -59,6 +61,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "settings.json",
             resume_prefix: &["--resume"],
             start_event: "SessionStart",
+            prompt_event: Some("BeforeAgent"),
             stop_event: "AfterAgent",
             notification_event: None,
             end_event: Some("SessionEnd"),
@@ -73,6 +76,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "config.json",
             resume_prefix: &["--resume"],
             start_event: "SessionStart",
+            prompt_event: None,
             stop_event: "Stop",
             notification_event: Some("Notification"),
             end_event: Some("SessionEnd"),
@@ -87,6 +91,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "settings.json",
             resume_prefix: &["--resume"],
             start_event: "SessionStart",
+            prompt_event: None,
             stop_event: "Stop",
             notification_event: Some("Notification"),
             end_event: Some("SessionEnd"),
@@ -101,6 +106,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "settings.json",
             resume_prefix: &["--resume"],
             start_event: "SessionStart",
+            prompt_event: None,
             stop_event: "Stop",
             notification_event: Some("Notification"),
             end_event: Some("SessionEnd"),
@@ -115,6 +121,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "settings.json",
             resume_prefix: &["--resume"],
             start_event: "SessionStart",
+            prompt_event: None,
             stop_event: "Stop",
             notification_event: None,
             end_event: Some("SessionEnd"),
@@ -129,6 +136,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "plugins/cmux-session.js",
             resume_prefix: &["--session"],
             start_event: "SessionStart",
+            prompt_event: None,
             stop_event: "Stop",
             notification_event: None,
             end_event: Some("SessionEnd"),
@@ -143,6 +151,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "hooks.json",
             resume_prefix: &["--resume"],
             start_event: "beforeSubmitPrompt",
+            prompt_event: Some("beforeSubmitPrompt"),
             stop_event: "stop",
             notification_event: None,
             end_event: None,
@@ -157,6 +166,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "extensions/cmux-session.ts",
             resume_prefix: &["--session"],
             start_event: "SessionStart",
+            prompt_event: Some("UserPromptSubmit"),
             stop_event: "Stop",
             notification_event: None,
             end_event: Some("SessionEnd"),
@@ -171,6 +181,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "plugins/cmux-session.ts",
             resume_prefix: &["threads", "continue"],
             start_event: "SessionStart",
+            prompt_event: Some("UserPromptSubmit"),
             stop_event: "Stop",
             notification_event: None,
             end_event: None,
@@ -185,6 +196,7 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             file: "config.yml",
             resume_prefix: &["rovodev", "run", "--restore"],
             start_event: "on_tool_permission",
+            prompt_event: Some("on_tool_permission"),
             stop_event: "on_complete",
             notification_event: None,
             end_event: None,
@@ -210,6 +222,7 @@ fn merge_claude_hooks(settings: &mut Value, binary: &Path) -> Result<(), CliErro
         .ok_or_else(|| CliError::Command("agent hooks must be an object".into()))?;
     for (event, command) in [
         ("SessionStart", "session-start"),
+        ("UserPromptSubmit", "prompt-submit"),
         ("SessionEnd", "session-end"),
         ("Stop", "stop"),
         ("Notification", "notification"),
@@ -378,6 +391,7 @@ fn merge_codex_hooks(settings: &mut Value, binary: &Path) -> Result<(), CliError
         .ok_or_else(|| CliError::Command("Codex hooks.hooks must be an object".into()))?;
     for (event, command) in [
         ("SessionStart", "session-start"),
+        ("UserPromptSubmit", "prompt-submit"),
         ("SessionEnd", "session-end"),
         ("Stop", "stop"),
     ] {
@@ -493,6 +507,9 @@ fn merge_json_provider_hooks(
         (provider.start_event, "session-start"),
         (provider.stop_event, "stop"),
     ];
+    if let Some(event) = provider.prompt_event {
+        events.push((event, "prompt-submit"));
+    }
     if let Some(event) = provider.notification_event {
         events.push((event, "notification"));
     }
@@ -678,7 +695,7 @@ fn setup_cursor(explicit: bool) -> Result<(), CliError> {
         .as_object_mut()
         .ok_or_else(|| CliError::Command("Cursor hooks.hooks must be an object".into()))?;
     for (event, command) in [
-        (provider.start_event, "session-start"),
+        (provider.start_event, "prompt-submit"),
         (provider.stop_event, "stop"),
     ] {
         let entries = hooks
@@ -743,6 +760,7 @@ function send(subcommand, hookEventName, event, context) {
 
 export default function cmuxPiSessionExtension(pi) {
   pi.on("session_start", (event, context) => send("session-start", "SessionStart", event, context));
+  pi.on("before_agent_start", (event, context) => send("prompt-submit", "UserPromptSubmit", event, context));
   pi.on("agent_end", (event, context) => send("stop", "Stop", event, context));
   pi.on("session_shutdown", (event, context) => send("session-end", "SessionEnd", event, context));
 }
@@ -830,6 +848,7 @@ export default function cmuxAmpSessionPlugin(amp) {
     } catch (_) {}
   }
   amp.on("session.start", (event, context) => send("session-start", "SessionStart", event, context));
+  amp.on("agent.start", (event, context) => send("prompt-submit", "UserPromptSubmit", event, context));
   amp.on("agent.end", (event, context) => send("stop", "Stop", event, context));
 }
 "#;
@@ -1013,6 +1032,7 @@ fn setup_rovodev(explicit: bool) -> Result<(), CliError> {
 pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result<(), CliError> {
     let expected = match event {
         ClaudeHookEvent::SessionStart => "SessionStart",
+        ClaudeHookEvent::PromptSubmit => "UserPromptSubmit",
         ClaudeHookEvent::SessionEnd => "SessionEnd",
         ClaudeHookEvent::Stop => "Stop",
         ClaudeHookEvent::Notification => "Notification",
@@ -1032,7 +1052,9 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
                     environment: &["CLAUDE_CONFIG_DIR", "CLAUDE_SECURESTORAGE_CONFIG_DIR"],
                 },
             )?;
+            record_turn_baseline(&payload, &surface, &id);
         }
+        ClaudeHookEvent::PromptSubmit => record_turn_baseline(&payload, &surface, &id),
         ClaudeHookEvent::SessionEnd => clear_agent_resume(client, &surface, &id)?,
         ClaudeHookEvent::Stop | ClaudeHookEvent::Notification => {
             let (title_key, title_default, body_key, body_default) =
@@ -1068,6 +1090,7 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
 pub fn codex_event(client: &mut SocketClient, event: CodexHookEvent) -> Result<(), CliError> {
     let expected = match event {
         CodexHookEvent::SessionStart => "SessionStart",
+        CodexHookEvent::PromptSubmit => "UserPromptSubmit",
         CodexHookEvent::SessionEnd => "SessionEnd",
         CodexHookEvent::Stop => "Stop",
     };
@@ -1086,7 +1109,9 @@ pub fn codex_event(client: &mut SocketClient, event: CodexHookEvent) -> Result<(
                     environment: &["CODEX_HOME"],
                 },
             )?;
+            record_turn_baseline(&payload, &surface, &id);
         }
+        CodexHookEvent::PromptSubmit => record_turn_baseline(&payload, &surface, &id),
         CodexHookEvent::SessionEnd => clear_agent_resume(client, &surface, &id)?,
         CodexHookEvent::Stop => {
             let title = notification_text(&payload, "title", "Codex response ready", 512)?;
@@ -1111,6 +1136,9 @@ pub fn json_provider_event(
         .ok_or_else(|| CliError::Command(format!("unsupported hook provider: {provider_name}")))?;
     let expected = match event {
         JsonHookEvent::SessionStart => provider.start_event,
+        JsonHookEvent::PromptSubmit => provider
+            .prompt_event
+            .ok_or_else(|| CliError::Command("provider has no prompt-submit hook".into()))?,
         JsonHookEvent::SessionEnd => provider.end_event.ok_or_else(|| {
             CliError::Command("provider has no destructive session-end hook".into())
         })?,
@@ -1121,18 +1149,40 @@ pub fn json_provider_event(
     };
     let (payload, id, surface) = read_hook_payload(expected)?;
     match event {
-        JsonHookEvent::SessionStart => set_agent_resume(
-            client,
-            &payload,
-            &surface,
-            &id,
-            ResumeCommand {
-                kind: provider.name,
-                executable: provider.binary,
-                prefix: provider.resume_prefix,
-                environment: provider.environment,
-            },
-        )?,
+        JsonHookEvent::SessionStart => {
+            set_agent_resume(
+                client,
+                &payload,
+                &surface,
+                &id,
+                ResumeCommand {
+                    kind: provider.name,
+                    executable: provider.binary,
+                    prefix: provider.resume_prefix,
+                    environment: provider.environment,
+                },
+            )?;
+            if provider.name != "opencode" {
+                record_turn_baseline(&payload, &surface, &id);
+            }
+        }
+        JsonHookEvent::PromptSubmit => {
+            if provider.name == "cursor" {
+                set_agent_resume(
+                    client,
+                    &payload,
+                    &surface,
+                    &id,
+                    ResumeCommand {
+                        kind: provider.name,
+                        executable: provider.binary,
+                        prefix: provider.resume_prefix,
+                        environment: provider.environment,
+                    },
+                )?;
+            }
+            record_turn_baseline(&payload, &surface, &id);
+        }
         JsonHookEvent::SessionEnd => clear_agent_resume(client, &surface, &id)?,
         JsonHookEvent::Stop | JsonHookEvent::Notification => {
             let attention = matches!(event, JsonHookEvent::Notification);
@@ -1350,6 +1400,9 @@ pub fn rovodev_event(client: &mut SocketClient, event: RovoHookEvent) -> Result<
             environment: &["CMUX_ROVODEV_SESSIONS_DIR"],
         },
     )?;
+    if matches!(event, RovoHookEvent::PromptSubmit) {
+        record_turn_baseline(&payload, &surface, &id);
+    }
     if matches!(event, RovoHookEvent::Stop) {
         let body = hook_string(&payload, &["message", "summary", "error"])
             .unwrap_or("Rovo Dev has finished responding.");
@@ -1437,6 +1490,17 @@ fn hook_string<'a>(payload: &'a Value, keys: &[&str]) -> Option<&'a str> {
         }
     }
     None
+}
+
+/// Best-effort Git snapshot for the next `cmux diff --last-turn`; hook delivery remains usable
+/// outside repositories and when a repository exceeds the baseline resource budget.
+fn record_turn_baseline(payload: &Value, surface: &str, session: &str) {
+    let Some(cwd) = hook_string(payload, &["cwd", "working_directory", "workingDirectory"])
+        .filter(|cwd| Path::new(cwd).is_absolute())
+    else {
+        return;
+    };
+    let _ = super::diff::record_baseline(Path::new(cwd), surface, session);
 }
 
 fn set_agent_resume(

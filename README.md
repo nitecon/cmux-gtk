@@ -191,6 +191,7 @@ cmux claude-teams --model sonnet  # forward ordinary Claude arguments
 cmux diff change.patch         # open a patch in a right-hand browser pane
 cmux diff --unstaged           # inspect current working-tree changes
 cmux diff --branch --base main # compare HEAD with a branch merge-base
+cmux diff --last-turn          # inspect changes since this agent's latest prompt
 
 # System
 cmux identify                  # instance info (version, platform, pid)
@@ -201,7 +202,9 @@ cmux raw <method> --params '{}' # send arbitrary JSON-RPC
 Native lifecycle integrations cover Claude Code, Codex, Grok, OpenCode, Pi, Amp, Cursor,
 Gemini CLI, Rovo Dev, GitHub Copilot, CodeBuddy, Factory Droid, and Qoder. Setup preserves
 unrelated provider configuration and binds resume and notification events to the
-originating terminal surface.
+originating terminal surface. Providers with prompt lifecycle events also record a
+bounded Git tree baseline, so `diff --last-turn` includes tracked and untracked work
+without modifying the repository index.
 
 ### Socket Path
 
