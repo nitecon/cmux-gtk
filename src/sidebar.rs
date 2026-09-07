@@ -851,9 +851,9 @@ mod lifecycle_tests {
                 "closed workspace retained by a signal callback"
             );
         }
-        for id in 1..=20 {
+        for _ in 1..=20 {
             state.borrow_mut().browser_manager = Some(crate::browser::BrowserManager::new());
-            let widgets = crate::browser::create_preview_pane(id);
+            let widgets = crate::browser::create_preview_pane();
             let weak = widgets.container.downgrade();
             crate::browser::ui::wire_browser_tab(&state, widgets, uuid::Uuid::new_v4());
             // Deferred viewport work is finite, but must be allowed to release its clone.

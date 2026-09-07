@@ -1024,7 +1024,7 @@ impl SplitEngine {
         profile: Option<String>,
     ) -> Option<crate::browser::PreviewPaneWidgets> {
         let active_id = self.active_pane_id;
-        let mut widgets = crate::browser::create_preview_pane(active_id);
+        let mut widgets = crate::browser::create_preview_pane();
         widgets.profile = profile;
 
         // Phase 9: Attach right-click context menu to browser preview (D-09)

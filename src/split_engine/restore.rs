@@ -229,7 +229,7 @@ impl SplitEngine {
                         url,
                         profile,
                     } => {
-                        let mut widgets = crate::browser::create_preview_pane(pane_id);
+                        let mut widgets = crate::browser::create_preview_pane();
                         widgets.uuid = *surface_uuid;
                         widgets.url_entry.set_text(url);
                         widgets.profile = profile

@@ -694,7 +694,6 @@ pub struct PreviewPaneWidgets {
     pub reload_btn: gtk4::Button,
     pub go_btn: gtk4::Button,
     pub devtools_btn: gtk4::ToggleButton,
-    pub pane_id: u64,
     pub uuid: Uuid,
     /// Explicit agent-browser profile selector; `None` keeps an isolated ephemeral context.
     pub profile: Option<String>,
@@ -702,7 +701,7 @@ pub struct PreviewPaneWidgets {
 
 /// Create a browser preview pane widget (nav bar + Picture + status overlay).
 /// Returns PreviewPaneWidgets so callers can connect button signals.
-pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
+pub fn create_preview_pane() -> PreviewPaneWidgets {
     let uuid = Uuid::new_v4();
     let picture = gtk4::Picture::new();
     picture.add_css_class("browser-preview");
@@ -777,7 +776,6 @@ pub fn create_preview_pane(next_pane_id: u64) -> PreviewPaneWidgets {
         reload_btn,
         go_btn,
         devtools_btn,
-        pane_id: next_pane_id,
         uuid,
         profile: None,
     }

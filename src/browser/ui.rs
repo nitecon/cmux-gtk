@@ -343,7 +343,6 @@ pub(crate) fn wire_browser_tab(
     trace: uuid::Uuid,
 ) {
     let surface_uuid = widgets.uuid;
-    let pane_id = widgets.pane_id;
     let picture = widgets.picture.clone();
     let url_entry = widgets.url_entry.clone();
     let picture_ref = picture.clone();
@@ -387,11 +386,22 @@ pub(crate) fn wire_browser_tab(
     {
         let focus_controller = gtk4::EventControllerFocus::new();
         let entry_for_focus = url_entry.downgrade();
+        let state_for_focus = Rc::downgrade(state);
         focus_controller.connect_enter(move |_| {
-            let Some(entry_for_focus) = entry_for_focus.upgrade() else {
+            let (Some(entry_for_focus), Some(state_for_focus)) =
+                (entry_for_focus.upgrade(), state_for_focus.upgrade())
+            else {
                 return;
             };
-            let _ = entry_for_focus.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
+            let pane_id = state_for_focus
+                .borrow()
+                .split_engines
+                .iter()
+                .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()));
+            if let Some(pane_id) = pane_id {
+                let _ =
+                    entry_for_focus.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
+            }
         });
         url_entry.add_controller(focus_controller);
 
@@ -481,8 +491,15 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_click) = state_for_click.upgrade() else {
                 return;
             };
-            let _ =
-                picture_for_click.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
+            let pane_id = state_for_click
+                .borrow()
+                .split_engines
+                .iter()
+                .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()));
+            if let Some(pane_id) = pane_id {
+                let _ = picture_for_click
+                    .activate_action("win.focus-pane", Some(&pane_id.to_variant()));
+            }
             // Keep browser-page keystrokes scoped to the picture. In particular,
             // this must not steal typing from the sibling URL GtkEntry.
             picture_for_click.grab_focus();
