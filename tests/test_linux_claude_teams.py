@@ -16,12 +16,15 @@ def main():
         fake_bin = root / "bin"
         fake_bin.mkdir()
         teammate = root / "teammate-ran"
+        respawned = root / "respawn-ran"
+        inputrc = root / "inputrc"
+        inputrc.write_text("set enable-bracketed-paste on\n")
         marker = root / "teams-complete"
         launch = root / "launch.json"
         claude = fake_bin / "claude"
         claude.write_text(
             "#!/usr/bin/env python3\n"
-            "import json,os,subprocess,sys\n"
+            "import json,os,subprocess,sys,time\n"
             f"json.dump({{'argv':sys.argv[1:],'teams':os.environ.get('CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'),'tmux':os.environ.get('TMUX'),'pane':os.environ.get('TMUX_PANE'),'program':os.environ.get('TERM_PROGRAM')}},open({str(launch)!r},'w'))\n"
             "created=[]\n"
             "for index in range(3):\n"
@@ -31,10 +34,15 @@ def main():
             "assert len(set(created)) == 3\n"
             "panes=subprocess.check_output(['tmux','list-panes','-t',os.environ['TMUX_PANE'],'-F','#{pane_id}'],text=True).splitlines()\n"
             "assert len(panes) == 4\n"
+            "deadline=time.monotonic()+10\n"
+            f"while not os.path.exists({str(teammate)!r}):\n"
+            " assert time.monotonic()<deadline, 'split command was not submitted'\n"
+            " time.sleep(0.02)\n"
+            f"subprocess.run(['tmux','respawn-pane','-t',created[-1],{('printf respawn > ' + shlex.quote(str(respawned)))!r}],check=True)\n"
             f"open({str(marker)!r},'w').write('ok')\n"
         )
         claude.chmod(0o700)
-        environment = {"PATH": str(fake_bin) + ":" + __import__("os").environ["PATH"], "SHELL": "/bin/bash"}
+        environment = {"PATH": str(fake_bin) + ":" + __import__("os").environ["PATH"], "SHELL": "/bin/bash", "INPUTRC": str(inputrc)}
         with running_app(root, environment) as app:
             source = next(row["uuid"] for row in app.surfaces() if row["active"])
             binary = Path(app.environment.get("CMUX_BIN_DIR", "target/debug")).resolve() / "cmux"
@@ -50,6 +58,7 @@ def main():
             )
             assert marker.exists()
             app.wait_for(teammate.exists, "native teammate command")
+            app.wait_for(respawned.exists, "native teammate respawn command")
             app.wait_for(lambda: len(app.surfaces()) == 4, "native teammate splits")
             payload = json.loads(launch.read_text())
             assert payload["argv"][:3] == ["--teammate-mode", "auto", "--append-system-prompt"]

@@ -153,10 +153,7 @@ pub(super) fn tmux_compat(args: &[String], explicit_socket: Option<&str>) -> Res
                     "surface.send_key",
                     serde_json::json!({"id":target,"key":"\u{3}"}),
                 )?;
-                client.call(
-                    "surface.send_text",
-                    serde_json::json!({"id":target,"text":format!("{command}\r")}),
-                )?;
+                submit_command(&mut client, target, &command)?;
             }
         }
         "kill-pane" | "killp" => {
@@ -172,6 +169,7 @@ pub(super) fn tmux_compat(args: &[String], explicit_socket: Option<&str>) -> Res
     Ok(())
 }
 
+/// Create a native teammate split and submit its optional command after shell startup.
 fn split_window(client: &mut SocketClient, args: &[String], leader: &str) -> Result<(), CliError> {
     let path = layout_state_path()?;
     let mut layout = load_layout_state(&path);
@@ -205,10 +203,7 @@ fn split_window(client: &mut SocketClient, args: &[String], leader: &str) -> Res
         } else {
             body
         };
-        client.call(
-            "surface.send_text",
-            serde_json::json!({"id":id,"text":format!("{body}\r")}),
-        )?;
+        submit_command(client, id, &body)?;
     }
     if args.iter().any(|arg| arg == "-P") {
         println!(
@@ -219,6 +214,20 @@ fn split_window(client: &mut SocketClient, args: &[String], leader: &str) -> Res
     if args.iter().any(|arg| arg == "-d") {
         client.call("surface.focus", serde_json::json!({"id":leader}))?;
     }
+    Ok(())
+}
+
+/// Paste a command, then type Enter separately so bracketed paste cannot suppress submission.
+/// Propagate either RPC failure without submitting after a failed paste.
+fn submit_command(client: &mut SocketClient, id: &str, command: &str) -> Result<(), CliError> {
+    client.call(
+        "surface.send_text",
+        serde_json::json!({"id":id,"text":command}),
+    )?;
+    client.call(
+        "surface.send_key",
+        serde_json::json!({"id":id,"key":"\r"}),
+    )?;
     Ok(())
 }
 
