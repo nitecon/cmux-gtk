@@ -566,6 +566,16 @@ pub enum HookCommands {
         #[command(subcommand)]
         event: JsonHookEvent,
     },
+    /// Receive a Kiro CLI agent hook payload on stdin
+    Kiro {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
+    /// Receive an Antigravity hook payload on stdin
+    Antigravity {
+        #[command(subcommand)]
+        event: JsonHookEvent,
+    },
     /// Receive a GitHub Copilot lifecycle hook payload on stdin
     Copilot {
         #[command(subcommand)]

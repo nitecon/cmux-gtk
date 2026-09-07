@@ -631,6 +631,254 @@ esac
     ;;
 esac
 ;;
+(kiro)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__kiro_commands" \
+"*::: :->kiro" \
+&& ret=0
+
+    case $state in
+    (kiro)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-kiro-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__kiro__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-kiro-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(antigravity)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__hooks__antigravity_commands" \
+"*::: :->antigravity" \
+&& ret=0
+
+    case $state in
+    (antigravity)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-antigravity-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__antigravity__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-antigravity-help-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (copilot)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -2078,6 +2326,78 @@ _arguments "${_arguments_options[@]}" : \
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cmux-hooks-help-gemini-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(kiro)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__kiro_commands" \
+"*::: :->kiro" \
+&& ret=0
+
+    case $state in
+    (kiro)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-kiro-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(antigravity)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__hooks__help__antigravity_commands" \
+"*::: :->antigravity" \
+&& ret=0
+
+    case $state in
+    (antigravity)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-hooks-help-antigravity-command-$line[1]:"
         case $line[1] in
             (session-start)
 _arguments "${_arguments_options[@]}" : \
@@ -4271,6 +4591,78 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
+(kiro)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__kiro_commands" \
+"*::: :->kiro" \
+&& ret=0
+
+    case $state in
+    (kiro)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-kiro-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(antigravity)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__hooks__antigravity_commands" \
+"*::: :->antigravity" \
+&& ret=0
+
+    case $state in
+    (antigravity)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-hooks-antigravity-command-$line[1]:"
+        case $line[1] in
+            (session-start)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(prompt-submit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(session-end)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(stop)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(notification)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (copilot)
 _arguments "${_arguments_options[@]}" : \
 ":: :_cmux__help__hooks__copilot_commands" \
@@ -5908,6 +6300,8 @@ _cmux__help__hooks_commands() {
 'codex:Receive a Codex lifecycle hook payload on stdin' \
 'grok:Receive a Grok lifecycle hook payload on stdin' \
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'kiro:Receive a Kiro CLI agent hook payload on stdin' \
+'antigravity:Receive an Antigravity hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -5957,6 +6351,42 @@ _cmux__help__hooks__amp__session-start_commands() {
 _cmux__help__hooks__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity_commands] )) ||
+_cmux__help__hooks__antigravity_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks antigravity commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity__notification_commands] )) ||
+_cmux__help__hooks__antigravity__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks antigravity notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity__prompt-submit_commands] )) ||
+_cmux__help__hooks__antigravity__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks antigravity prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity__session-end_commands] )) ||
+_cmux__help__hooks__antigravity__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks antigravity session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity__session-start_commands] )) ||
+_cmux__help__hooks__antigravity__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks antigravity session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__antigravity__stop_commands] )) ||
+_cmux__help__hooks__antigravity__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks antigravity stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__campfire_commands] )) ||
 _cmux__help__hooks__campfire_commands() {
@@ -6275,6 +6705,42 @@ _cmux__help__hooks__grok__session-start_commands() {
 _cmux__help__hooks__grok__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help hooks grok stop commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro_commands] )) ||
+_cmux__help__hooks__kiro_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux help hooks kiro commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro__notification_commands] )) ||
+_cmux__help__hooks__kiro__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kiro notification commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro__prompt-submit_commands] )) ||
+_cmux__help__hooks__kiro__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kiro prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro__session-end_commands] )) ||
+_cmux__help__hooks__kiro__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kiro session-end commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro__session-start_commands] )) ||
+_cmux__help__hooks__kiro__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kiro session-start commands' commands "$@"
+}
+(( $+functions[_cmux__help__hooks__kiro__stop_commands] )) ||
+_cmux__help__hooks__kiro__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help hooks kiro stop commands' commands "$@"
 }
 (( $+functions[_cmux__help__hooks__omp_commands] )) ||
 _cmux__help__hooks__omp_commands() {
@@ -6744,6 +7210,8 @@ _cmux__hooks_commands() {
 'codex:Receive a Codex lifecycle hook payload on stdin' \
 'grok:Receive a Grok lifecycle hook payload on stdin' \
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'kiro:Receive a Kiro CLI agent hook payload on stdin' \
+'antigravity:Receive an Antigravity hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -6837,6 +7305,85 @@ _cmux__hooks__amp__session-start_commands() {
 _cmux__hooks__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity_commands] )) ||
+_cmux__hooks__antigravity_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks antigravity commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help_commands] )) ||
+_cmux__hooks__antigravity__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks antigravity help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__help_commands] )) ||
+_cmux__hooks__antigravity__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__notification_commands] )) ||
+_cmux__hooks__antigravity__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__prompt-submit_commands] )) ||
+_cmux__hooks__antigravity__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__session-end_commands] )) ||
+_cmux__hooks__antigravity__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__session-start_commands] )) ||
+_cmux__hooks__antigravity__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__help__stop_commands] )) ||
+_cmux__hooks__antigravity__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__notification_commands] )) ||
+_cmux__hooks__antigravity__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__prompt-submit_commands] )) ||
+_cmux__hooks__antigravity__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__session-end_commands] )) ||
+_cmux__hooks__antigravity__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__session-start_commands] )) ||
+_cmux__hooks__antigravity__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__antigravity__stop_commands] )) ||
+_cmux__hooks__antigravity__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks antigravity stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__campfire_commands] )) ||
 _cmux__hooks__campfire_commands() {
@@ -7545,6 +8092,8 @@ _cmux__hooks__help_commands() {
 'codex:Receive a Codex lifecycle hook payload on stdin' \
 'grok:Receive a Grok lifecycle hook payload on stdin' \
 'gemini:Receive a Gemini lifecycle hook payload on stdin' \
+'kiro:Receive a Kiro CLI agent hook payload on stdin' \
+'antigravity:Receive an Antigravity hook payload on stdin' \
 'copilot:Receive a GitHub Copilot lifecycle hook payload on stdin' \
 'codebuddy:Receive a CodeBuddy lifecycle hook payload on stdin' \
 'factory:Receive a Factory Droid lifecycle hook payload on stdin' \
@@ -7595,6 +8144,42 @@ _cmux__hooks__help__amp__session-start_commands() {
 _cmux__hooks__help__amp__stop_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help amp stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity_commands] )) ||
+_cmux__hooks__help__antigravity_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help antigravity commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity__notification_commands] )) ||
+_cmux__hooks__help__antigravity__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help antigravity notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity__prompt-submit_commands] )) ||
+_cmux__hooks__help__antigravity__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help antigravity prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity__session-end_commands] )) ||
+_cmux__hooks__help__antigravity__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help antigravity session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity__session-start_commands] )) ||
+_cmux__hooks__help__antigravity__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help antigravity session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__antigravity__stop_commands] )) ||
+_cmux__hooks__help__antigravity__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help antigravity stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__help__campfire_commands] )) ||
 _cmux__hooks__help__campfire_commands() {
@@ -7919,6 +8504,42 @@ _cmux__hooks__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help help commands' commands "$@"
 }
+(( $+functions[_cmux__hooks__help__kiro_commands] )) ||
+_cmux__hooks__help__kiro_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+    )
+    _describe -t commands 'cmux hooks help kiro commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kiro__notification_commands] )) ||
+_cmux__hooks__help__kiro__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kiro notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kiro__prompt-submit_commands] )) ||
+_cmux__hooks__help__kiro__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kiro prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kiro__session-end_commands] )) ||
+_cmux__hooks__help__kiro__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kiro session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kiro__session-start_commands] )) ||
+_cmux__hooks__help__kiro__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kiro session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__help__kiro__stop_commands] )) ||
+_cmux__hooks__help__kiro__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks help kiro stop commands' commands "$@"
+}
 (( $+functions[_cmux__hooks__help__omp_commands] )) ||
 _cmux__hooks__help__omp_commands() {
     local commands; commands=(
@@ -8085,6 +8706,85 @@ _cmux__hooks__help__rovodev__stop_commands() {
 _cmux__hooks__help__setup_commands() {
     local commands; commands=()
     _describe -t commands 'cmux hooks help setup commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro_commands] )) ||
+_cmux__hooks__kiro_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks kiro commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help_commands] )) ||
+_cmux__hooks__kiro__help_commands() {
+    local commands; commands=(
+'session-start:' \
+'prompt-submit:' \
+'session-end:' \
+'stop:' \
+'notification:' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux hooks kiro help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__help_commands] )) ||
+_cmux__hooks__kiro__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help help commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__notification_commands] )) ||
+_cmux__hooks__kiro__help__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__prompt-submit_commands] )) ||
+_cmux__hooks__kiro__help__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__session-end_commands] )) ||
+_cmux__hooks__kiro__help__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__session-start_commands] )) ||
+_cmux__hooks__kiro__help__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__help__stop_commands] )) ||
+_cmux__hooks__kiro__help__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro help stop commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__notification_commands] )) ||
+_cmux__hooks__kiro__notification_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro notification commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__prompt-submit_commands] )) ||
+_cmux__hooks__kiro__prompt-submit_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro prompt-submit commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__session-end_commands] )) ||
+_cmux__hooks__kiro__session-end_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro session-end commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__session-start_commands] )) ||
+_cmux__hooks__kiro__session-start_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro session-start commands' commands "$@"
+}
+(( $+functions[_cmux__hooks__kiro__stop_commands] )) ||
+_cmux__hooks__kiro__stop_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux hooks kiro stop commands' commands "$@"
 }
 (( $+functions[_cmux__hooks__omp_commands] )) ||
 _cmux__hooks__omp_commands() {

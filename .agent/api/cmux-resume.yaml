@@ -75,6 +75,12 @@ content:
         - Both extensions bind PROVIDER --session SESSION_ID, record before_agent_start as a last-turn baseline and publish exact-surface completion attention. OMP pins the first session identity, ignores other in-process identities and adopts explicit session_switch/session_branch transitions.
         - Campfire dispatches only when CAMPFIRE_SESSION_ROLE is host, preventing join capability URLs from becoming persistent resume commands. It accepts only join.requested, permission.asked and relay.error observer summaries, retains no invite or prompt content, and rate-limits delivery to eight events per second.
 
+    - name: Kiro and Antigravity lifecycle hooks
+      steps:
+        - cmux hooks setup kiro writes KIRO_HOME/agents/cmux.json or HOME/.kiro/agents/cmux.json using Kiro's direct command and timeout_ms entries. Existing metadata and explicit tools survive; fresh configuration receives a name, description and full-tool default required for an operational custom agent.
+        - Kiro agentSpawn binds kiro-cli chat --resume-id SESSION_ID, userPromptSubmit records the last-turn baseline and stop publishes exact-surface attention. The custom agent must be selected by Kiro for its hooks to run.
+        - cmux hooks setup antigravity preserves all top-level groups in HOME/.gemini/config/hooks.json and replaces only the owned cmux group with direct typed command entries and ten-second timeouts. SessionStart binds agy --conversation SESSION_ID, PreInvocation records the baseline, and Stop or Notification publishes attention. Turn-boundary end events do not clear the binding.
+
     - name: Rovo Dev YAML lifecycle hooks
       steps:
         - cmux hooks setup rovodev, with rovo as an alias, merges owned on_tool_permission, on_complete and on_error commands into HOME/.rovodev/config.yml eventHooks.events while preserving unrelated YAML and handlers. The bounded result is atomically synced; symlinks and unreadable files fail closed.

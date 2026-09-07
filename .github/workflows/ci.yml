@@ -180,6 +180,9 @@ jobs:
       - name: Test nested JSON agent hook lifecycles
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_json_agent_hooks.py
 
+      - name: Test Kiro and Antigravity hook lifecycles
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_kiro_antigravity_hooks.py
+
       - name: Test installed OpenCode lifecycle plugin
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_opencode_hooks.py
 

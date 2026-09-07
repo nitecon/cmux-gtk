@@ -66,6 +66,37 @@ fn json_provider(name: &str) -> Option<JsonProvider> {
             notification_event: None,
             end_event: Some("SessionEnd"),
         },
+        "kiro" => JsonProvider {
+            name: "kiro",
+            display: "Kiro",
+            binary: "kiro-cli",
+            directory: ".kiro/agents",
+            directory_env: Some("KIRO_HOME"),
+            environment: &["KIRO_HOME"],
+            file: "cmux.json",
+            resume_prefix: &["chat", "--resume-id"],
+            start_event: "agentSpawn",
+            prompt_event: Some("userPromptSubmit"),
+            stop_event: "stop",
+            notification_event: None,
+            end_event: None,
+        },
+        "antigravity" => JsonProvider {
+            name: "antigravity",
+            display: "Antigravity",
+            binary: "agy",
+            directory: ".gemini/config",
+            directory_env: None,
+            environment: &[],
+            file: "hooks.json",
+            resume_prefix: &["--conversation"],
+            start_event: "SessionStart",
+            prompt_event: Some("PreInvocation"),
+            stop_event: "Stop",
+            notification_event: Some("Notification"),
+            // Antigravity reports SessionEnd at a turn boundary.
+            end_event: None,
+        },
         "copilot" => JsonProvider {
             name: "copilot",
             display: "Copilot",
@@ -299,7 +330,16 @@ pub fn setup(agent: Option<&str>) -> Result<(), CliError> {
         None => {
             setup_claude(false)?;
             setup_codex(false)?;
-            for provider in ["grok", "gemini", "copilot", "codebuddy", "factory", "qoder"] {
+            for provider in [
+                "grok",
+                "gemini",
+                "kiro",
+                "antigravity",
+                "copilot",
+                "codebuddy",
+                "factory",
+                "qoder",
+            ] {
                 setup_json_provider(provider, false)?;
             }
             setup_opencode(false)?;
@@ -476,6 +516,9 @@ fn setup_json_provider(name: &str, explicit: bool) -> Result<(), CliError> {
     if provider.name == "grok" && std::env::var_os("GROK_HOME").is_some() {
         directory.push("hooks");
     }
+    if provider.name == "kiro" && std::env::var_os("KIRO_HOME").is_some() {
+        directory.push("agents");
+    }
     cmux_platform::filesystem::create_private_directory(&directory).map_err(|error| {
         CliError::Command(format!(
             "create {} config directory: {error}",
@@ -527,6 +570,12 @@ fn merge_json_provider_hooks(
     binary: &Path,
     provider: &JsonProvider,
 ) -> Result<(), CliError> {
+    if provider.name == "kiro" {
+        return merge_kiro_hooks(settings, binary, provider);
+    }
+    if provider.name == "antigravity" {
+        return merge_antigravity_hooks(settings, binary, provider);
+    }
     let object = settings.as_object_mut().ok_or_else(|| {
         CliError::Command(format!("{} settings must be an object", provider.display))
     })?;
@@ -571,6 +620,88 @@ fn merge_json_provider_hooks(
         });
         entries.push(json!({"hooks": [{"type": "command", "command": format!("{} hooks {} {command}", shell_argument(&binary.to_string_lossy()), provider.name), "timeout": 10}]}));
     }
+    Ok(())
+}
+
+fn merge_kiro_hooks(
+    settings: &mut Value,
+    binary: &Path,
+    provider: &JsonProvider,
+) -> Result<(), CliError> {
+    let object = settings
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("Kiro agent configuration must be an object".into()))?;
+    let hooks = object
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or_else(|| CliError::Command("Kiro hooks must be an object".into()))?;
+    let marker = " hooks kiro ";
+    for (event, command) in [
+        (provider.start_event, "session-start"),
+        (
+            provider.prompt_event.expect("Kiro prompt event"),
+            "prompt-submit",
+        ),
+        (provider.stop_event, "stop"),
+    ] {
+        let entries = hooks
+            .entry(event)
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .ok_or_else(|| CliError::Command(format!("Kiro {event} hooks must be an array")))?;
+        entries.retain(|entry| {
+            !entry
+                .get("command")
+                .and_then(Value::as_str)
+                .is_some_and(|command| command.contains(marker))
+        });
+        entries.push(json!({
+            "command": format!("{} hooks kiro {command}", shell_argument(&binary.to_string_lossy())),
+            "timeout_ms": 5000,
+        }));
+    }
+    object.entry("name").or_insert_with(|| json!("cmux"));
+    object
+        .entry("description")
+        .or_insert_with(|| json!("cmux notification and lifecycle hooks for Kiro CLI."));
+    object.entry("tools").or_insert_with(|| json!(["*"]));
+    Ok(())
+}
+
+fn merge_antigravity_hooks(
+    settings: &mut Value,
+    binary: &Path,
+    provider: &JsonProvider,
+) -> Result<(), CliError> {
+    let object = settings.as_object_mut().ok_or_else(|| {
+        CliError::Command("Antigravity hook configuration must be an object".into())
+    })?;
+    let mut group = serde_json::Map::new();
+    for (event, command) in [
+        (provider.start_event, "session-start"),
+        (
+            provider.prompt_event.expect("Antigravity prompt event"),
+            "prompt-submit",
+        ),
+        (provider.stop_event, "stop"),
+        (
+            provider
+                .notification_event
+                .expect("Antigravity notification event"),
+            "notification",
+        ),
+    ] {
+        group.insert(
+            event.into(),
+            json!([{
+                "type": "command",
+                "command": format!("{} hooks antigravity {command}", shell_argument(&binary.to_string_lossy())),
+                "timeout": 10,
+            }]),
+        );
+    }
+    object.insert("cmux".into(), Value::Object(group));
     Ok(())
 }
 

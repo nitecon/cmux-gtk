@@ -134,6 +134,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
                 | args::HookCommands::Codex { .. }
                 | args::HookCommands::Grok { .. }
                 | args::HookCommands::Gemini { .. }
+                | args::HookCommands::Kiro { .. }
+                | args::HookCommands::Antigravity { .. }
                 | args::HookCommands::Copilot { .. }
                 | args::HookCommands::Codebuddy { .. }
                 | args::HookCommands::Factory { .. }
@@ -251,6 +253,8 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
         let provider_event = match command {
             args::HookCommands::Grok { event } => Some(("grok", *event)),
             args::HookCommands::Gemini { event } => Some(("gemini", *event)),
+            args::HookCommands::Kiro { event } => Some(("kiro", *event)),
+            args::HookCommands::Antigravity { event } => Some(("antigravity", *event)),
             args::HookCommands::Copilot { event } => Some(("copilot", *event)),
             args::HookCommands::Codebuddy { event } => Some(("codebuddy", *event)),
             args::HookCommands::Factory { event } => Some(("factory", *event)),
