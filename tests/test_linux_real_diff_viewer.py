@@ -66,6 +66,22 @@ def main():
                 "id": comment["id"], "message": "Check this value", "label": "new 1",
             }], state
             assert "after marker" in state["text"] and "another marker" not in state["text"], state
+            command("click", "#viewer .split-side.add")
+            command("fill", "#comment-message", "Created inside the diff viewer")
+            command("click", "#comment-form button[type=submit]")
+
+            def in_view_comment_saved():
+                listed = json.loads(app.cli(
+                    "comments", "list", "--repo", str(repository), "--json",
+                ))["comments"]
+                return any(row["message"] == "Created inside the diff viewer" for row in listed)
+
+            app.wait_for(in_view_comment_saved, "in-view diff comment persistence")
+            command(
+                "wait", "--function",
+                "[...document.querySelectorAll('.review-comment')].some(x => x.textContent.includes('Created inside the diff viewer'))",
+                "--timeout-ms", "5000",
+            )
             command("click", "#unified")
             command("wait", "--function", "document.querySelectorAll('#viewer .line').length > 0", "--timeout-ms", "1000")
             unified = command("eval", "({unified:document.querySelectorAll('#viewer .line').length, split:document.querySelectorAll('#viewer .split-line').length})")["result"]

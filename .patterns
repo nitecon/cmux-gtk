@@ -47,6 +47,7 @@
   - src/cli/comments.rs
   - src/cli/project.rs
   - src/ssh/bridge.rs
+  - src/review_comments.rs
 019df63f-96c8-7410-b63d-ecbaec31c5d4:
   - crates/cmux-platform/src/local_socket.rs
   - src/line_reader.rs

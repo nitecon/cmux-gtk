@@ -181,13 +181,35 @@ def main():
             )
             assert rejected.returncode == 1 and "expected a regular file" in rejected.stderr, rejected.stderr
 
-        with running_app(root, environment) as restored:
-            restored_urls = {
-                row["url"] for row in json.loads(restored.cli("browser", "list"))["surfaces"]
-            }
             expected_urls = {
                 opened["url"], git_view["url"], first_turn["url"],
                 second_turn["url"], missing["url"],
+            }
+
+            def saved_browser_urls():
+                try:
+                    saved = json.loads((root / "data/cmux/session.json").read_text())
+                except (FileNotFoundError, json.JSONDecodeError):
+                    return set()
+
+                def browser_urls(node):
+                    if "surfaces" in node:
+                        return {
+                            row["url"] for row in node["surfaces"]
+                            if row.get("type") == "Browser"
+                        }
+                    return browser_urls(node.get("start", {})) | browser_urls(node.get("end", {}))
+
+                return set().union(*(browser_urls(row["layout"]) for row in saved["workspaces"]))
+
+            app.wait_for(
+                lambda: expected_urls <= saved_browser_urls(),
+                "all diff surfaces in durable session snapshot",
+            )
+
+        with running_app(root, environment) as restored:
+            restored_urls = {
+                row["url"] for row in json.loads(restored.cli("browser", "list"))["surfaces"]
             }
             assert expected_urls <= restored_urls, restored_urls
     print("diff surfaces preserve bounded input, placement, focus and restart identity")

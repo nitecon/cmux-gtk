@@ -7,6 +7,8 @@
 mod browser_timeout;
 #[path = "../cli/mod.rs"]
 mod cli;
+#[path = "../review_comments.rs"]
+mod review_comments;
 #[path = "../task.rs"]
 #[allow(dead_code)]
 mod task;

@@ -28,6 +28,11 @@ mod resume;
 mod resume_command;
 mod resume_policy;
 mod resume_review;
+#[allow(
+    dead_code,
+    reason = "the GUI uses only insertion; the CLI binary owns query mutations"
+)]
+mod review_comments;
 mod scrollback;
 mod selection;
 mod session;

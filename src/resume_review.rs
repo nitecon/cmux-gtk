@@ -3,17 +3,9 @@ use crate::app_state::AppStateRef;
 use crate::resume::{ResumeAction, ResumeBinding};
 use gtk4::prelude::*;
 
-/// Snapshot the active local terminal's identity and binding without changing focus.
+/// Snapshot the active terminal's identity and binding without changing focus.
 fn selected(state: &AppStateRef) -> Option<(String, ResumeBinding)> {
     let state = state.borrow();
-    if state
-        .workspaces
-        .get(state.active_index)?
-        .remote_target
-        .is_some()
-    {
-        return None;
-    }
     let engine = state.split_engines.get(state.active_index)?;
     let id = engine.active_pane_uuid()?;
     Some((
@@ -48,7 +40,7 @@ pub fn append(content: &gtk4::Box, state: &AppStateRef) {
                 )
             })
             .unwrap_or_else(|| {
-                "Select a local terminal with a resume binding to review its command.".into()
+                "Select a terminal with a resume binding to review its command.".into()
             }),
     );
     let scroll = gtk4::ScrolledWindow::builder()
