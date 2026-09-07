@@ -66,7 +66,8 @@ def main():
                 "id": comment["id"], "message": "Check this value", "label": "new 1",
             }], state
             assert "after marker" in state["text"] and "another marker" not in state["text"], state
-            command("click", "#viewer .split-side.add")
+            command("click", "#viewer .split-side.add:nth-child(2)")
+            command("wait", "--selector", "#comment-dialog[open]", "--timeout-ms", "5000")
             command("fill", "#comment-message", "Created inside the diff viewer")
             command("click", "#comment-form button[type=submit]")
 
@@ -80,6 +81,10 @@ def main():
             command(
                 "wait", "--function",
                 "[...document.querySelectorAll('.review-comment')].some(x => x.textContent.includes('Created inside the diff viewer'))",
+                "--timeout-ms", "5000",
+            )
+            command(
+                "wait", "--function", "!document.getElementById('comment-dialog').open",
                 "--timeout-ms", "5000",
             )
             command("click", "#unified")
