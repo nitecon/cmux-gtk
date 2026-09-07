@@ -121,6 +121,137 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // Native tab drag destination. Payload is internal and contains only a stable UUID,
+    // session-local pane id and a fixed direction selected by the pane drop target.
+    let action = gio::SimpleAction::new("surface-drop", Some(&String::static_variant_type()));
+    action.connect_activate({
+        let state = state.clone();
+        move |_, parameter| {
+            let Some(payload) = parameter.and_then(|value| value.str()) else {
+                return;
+            };
+            let mut fields = payload.split('|');
+            let (Some(surface), Some(pane), Some(direction), Some(position), None) = (
+                fields.next(),
+                fields.next(),
+                fields.next(),
+                fields.next(),
+                fields.next(),
+            ) else {
+                return;
+            };
+            let (Ok(surface), Ok(pane)) = (uuid::Uuid::parse_str(surface), pane.parse::<u64>())
+            else {
+                return;
+            };
+            let mut state = state.borrow_mut();
+            let Some(source_index) = state
+                .split_engines
+                .iter()
+                .position(|engine| engine.find_pane_id_by_uuid(&surface.to_string()).is_some())
+            else {
+                return;
+            };
+            let Some(destination_index) = state
+                .split_engines
+                .iter()
+                .position(|engine| engine.contains_pane(pane))
+            else {
+                return;
+            };
+            let destination_workspace = state.workspaces[destination_index].uuid;
+            let result = if direction == "center" {
+                let Ok(position) = position.parse::<usize>() else {
+                    return;
+                };
+                state
+                    .move_surface_between_workspaces(
+                        surface,
+                        destination_workspace,
+                        Some(pane),
+                        Some(position),
+                        true,
+                    )
+                    .map(|_| ())
+            } else {
+                if source_index != destination_index
+                    && state
+                        .move_surface_between_workspaces(
+                            surface,
+                            destination_workspace,
+                            Some(pane),
+                            None,
+                            false,
+                        )
+                        .is_err()
+                {
+                    return;
+                }
+                let Some(index) = state
+                    .workspaces
+                    .iter()
+                    .position(|workspace| workspace.uuid == destination_workspace)
+                else {
+                    return;
+                };
+                let direction = match direction {
+                    "left" => crate::split_engine::FocusDirection::Left,
+                    "right" => crate::split_engine::FocusDirection::Right,
+                    "up" => crate::split_engine::FocusDirection::Up,
+                    "down" => crate::split_engine::FocusDirection::Down,
+                    _ => return,
+                };
+                state.split_engines[index]
+                    .drag_surface_to_split(surface, pane, direction)
+                    .map(|_| {
+                        state.switch_to_index(index);
+                        state.trigger_session_save();
+                    })
+            };
+            if let Err(message) = result {
+                crate::diagnostics::record(
+                    "surface.drop_rejected",
+                    serde_json::json!({"reason": message}),
+                );
+            }
+        }
+    });
+    window.add_action(&action);
+
+    // Sidebar workspace rows accept the same tab drag currency and resolve the target's
+    // focused pane at drop time.
+    let action = gio::SimpleAction::new(
+        "surface-workspace-drop",
+        Some(&String::static_variant_type()),
+    );
+    action.connect_activate({
+        let state = state.clone();
+        move |_, parameter| {
+            let Some(payload) = parameter.and_then(|value| value.str()) else {
+                return;
+            };
+            let Some((surface, workspace)) = payload.split_once('|') else {
+                return;
+            };
+            let (Ok(surface), Ok(workspace)) = (
+                uuid::Uuid::parse_str(surface),
+                uuid::Uuid::parse_str(workspace),
+            ) else {
+                return;
+            };
+            if let Err(message) = state
+                .borrow_mut()
+                .move_surface_between_workspaces(surface, workspace, None, None, true)
+            {
+                crate::diagnostics::record(
+                    "surface.workspace_drop_rejected",
+                    serde_json::json!({"reason": message}),
+                );
+            }
+        }
+    });
+    window.add_action(&action);
+
     // win.close-pane
     let action = gio::SimpleAction::new("close-pane", None);
     action.connect_activate({

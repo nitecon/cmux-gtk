@@ -440,6 +440,22 @@ impl AppState {
         row.set_child(Some(&crate::sidebar::workspace_row_content(workspace)));
         crate::sidebar::style_workspace_row(&row, workspace);
         crate::sidebar::bind_workspace_row(&row, workspace.id);
+        let workspace_uuid = workspace.uuid;
+        let drop_target = gtk4::DropTarget::new(String::static_type(), gtk4::gdk::DragAction::MOVE);
+        drop_target.connect_drop(move |target, value, _, _| {
+            let Ok(surface) = value.get::<String>() else {
+                return false;
+            };
+            let Some(row) = target.widget().and_downcast::<gtk4::ListBoxRow>() else {
+                return false;
+            };
+            row.activate_action(
+                "win.surface-workspace-drop",
+                Some(&format!("{surface}|{workspace_uuid}").to_variant()),
+            )
+            .is_ok()
+        });
+        row.add_controller(drop_target);
         row
     }
 
@@ -1118,6 +1134,116 @@ impl AppState {
         if let Some(browser) = self.browser_sessions.remove(&id) {
             self.retire_browser_session(browser);
         }
+    }
+
+    /// Retire a live browser daemon when a surface crosses into a different network route.
+    /// Keep its stable surface/short-ref identity; the next command lazily starts the daemon
+    /// against the destination workspace using the retained URL and profile.
+    fn rebind_browser_route(&mut self, id: uuid::Uuid, workspace: uuid::Uuid) -> bool {
+        let route_changed = self
+            .browser_sessions
+            .get(&id)
+            .is_some_and(|browser| !browser.route_matches_workspace(self, workspace));
+        if route_changed {
+            if let Some(browser) = self.browser_sessions.remove(&id) {
+                self.retire_browser_session(browser);
+            }
+            crate::diagnostics::record(
+                "browser.route_rebound",
+                serde_json::json!({"surface_id": id, "workspace_id": workspace}),
+            );
+        }
+        route_changed
+    }
+
+    /// Move a stable surface between workspace engines on GTK. Local emptied workspaces are
+    /// removed; an emptied remote workspace is rejected because its SSH bridge currently owns
+    /// the live terminal transport and cannot be retired underneath the moved widget.
+    pub(crate) fn move_surface_between_workspaces(
+        &mut self,
+        id: uuid::Uuid,
+        destination_workspace: uuid::Uuid,
+        destination_pane: Option<u64>,
+        position: Option<usize>,
+        focus: bool,
+    ) -> Result<(crate::split_engine::SurfaceMoveResult, bool), &'static str> {
+        let id_text = id.to_string();
+        let source_index = self
+            .split_engines
+            .iter()
+            .position(|engine| engine.find_pane_id_by_uuid(&id_text).is_some())
+            .ok_or("surface not found")?;
+        let destination_index = self
+            .workspaces
+            .iter()
+            .position(|workspace| workspace.uuid == destination_workspace)
+            .ok_or("destination workspace not found")?;
+        let destination_pane =
+            destination_pane.unwrap_or(self.split_engines[destination_index].active_pane_id);
+        if source_index == destination_index {
+            let result = self.split_engines[source_index].move_surface(
+                id,
+                destination_pane,
+                position,
+                focus,
+            )?;
+            if focus {
+                self.switch_to_index(source_index);
+            }
+            self.trigger_session_save();
+            return Ok((result, false));
+        }
+        if !self.split_engines[destination_index].can_insert_surface(destination_pane, position) {
+            return Err("destination pane or position invalid");
+        }
+        let source_will_empty = self.split_engines[source_index].all_panes().len() == 1;
+        if source_will_empty && self.workspaces[source_index].remote_target.is_some() {
+            return Err("cannot empty a remote workspace while its transport owns the surface");
+        }
+        let source_workspace = self.workspaces[source_index].uuid;
+        let detached = self.split_engines[source_index].detach_surface(id)?;
+        let source_pane = detached.source_pane;
+        let source_position = detached.position;
+
+        if self.split_engines[source_index].is_empty() && !self.close_workspace(source_index) {
+            return Err("could not remove empty source workspace");
+        }
+        let destination_index = self
+            .workspaces
+            .iter()
+            .position(|workspace| workspace.uuid == destination_workspace)
+            .expect("validated destination workspace survives source removal");
+        let result = self.split_engines[destination_index].insert_detached_surface(
+            detached,
+            destination_pane,
+            position,
+            focus,
+        );
+        for record in &mut self.inbox.records {
+            if record.surface_id == Some(id) {
+                record.workspace_id = destination_workspace;
+            }
+        }
+        let route_restarted = self.rebind_browser_route(id, destination_workspace);
+        if focus {
+            self.switch_to_index(destination_index);
+        }
+        self.trigger_session_save();
+        crate::diagnostics::record(
+            "surface.workspace_moved",
+            serde_json::json!({
+                "surface_id": id,
+                "source_workspace": source_workspace,
+                "destination_workspace": destination_workspace,
+                "source_pane": source_pane,
+                "source_position": source_position,
+                "destination_pane": result.pane_id,
+                "destination_position": result.position,
+                "focused": focus,
+                "browser_route_restarted": route_restarted,
+            }),
+        );
+        Ok((result, route_restarted))
     }
 
     /// Cancel only an unfinished restored manager, retaining the existing surface reference for retries.

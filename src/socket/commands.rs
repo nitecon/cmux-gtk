@@ -185,7 +185,8 @@ pub enum SocketCommand {
     SurfaceMove {
         req_id: Value,
         id: String,
-        pane: String,
+        workspace: Option<String>,
+        pane: Option<String>,
         position: Option<usize>,
         focus: bool,
         resp_tx: RespTx,

@@ -613,8 +613,15 @@ async fn dispatch_request(
             let Some(id) = params.get("id").and_then(serde_json::Value::as_str) else {
                 return err(req_id, "invalid_params", "id must be a surface UUID");
             };
-            let Some(pane) = params.get("pane").and_then(serde_json::Value::as_str) else {
-                return err(req_id, "invalid_params", "pane must be a pane reference");
+            let pane = match params.get("pane") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(serde_json::Value::String(value)) => Some(value.to_owned()),
+                Some(_) => return err(req_id, "invalid_params", "pane must be a pane reference"),
+            };
+            let workspace = match params.get("workspace") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(serde_json::Value::String(value)) => Some(value.to_owned()),
+                Some(_) => return err(req_id, "invalid_params", "workspace must be a UUID"),
             };
             let position = match params.get("position") {
                 None => None,
@@ -632,7 +639,8 @@ async fn dispatch_request(
             commands::SocketCommand::SurfaceMove {
                 req_id: req_id.clone(),
                 id: id.to_owned(),
-                pane: pane.to_owned(),
+                workspace,
+                pane,
                 position,
                 focus: params
                     .get("focus")

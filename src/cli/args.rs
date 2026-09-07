@@ -241,7 +241,10 @@ pub enum Commands {
         id: String,
         /// Destination pane reference (pane:N)
         #[arg(long)]
-        pane: String,
+        pane: Option<String>,
+        /// Destination workspace UUID; defaults to the pane owner or source workspace
+        #[arg(long)]
+        workspace: Option<String>,
         /// Zero-based insertion position; defaults to the end
         #[arg(long)]
         position: Option<usize>,

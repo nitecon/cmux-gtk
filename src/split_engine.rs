@@ -161,6 +161,13 @@ pub struct SurfaceMoveResult {
     pub position: usize,
 }
 
+/// A live GTK surface temporarily detached from one engine during a cross-workspace move.
+pub(crate) struct DetachedSurface {
+    surface: PaneSurface,
+    pub source_pane: u64,
+    pub position: usize,
+}
+
 /// Route tab-close controls through the window action that owns safe native teardown.
 fn request_surface_tab_close(widget: &impl IsA<gtk4::Widget>, uuid: Uuid) {
     let _ = widget.activate_action(
@@ -217,6 +224,14 @@ fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
         }
     });
     tab.add_controller(gesture);
+    let drag = gtk4::DragSource::new();
+    drag.set_actions(gtk4::gdk::DragAction::MOVE);
+    drag.connect_prepare(move |_, _, _| {
+        Some(gtk4::gdk::ContentProvider::for_value(
+            &uuid.to_string().to_value(),
+        ))
+    });
+    tab.add_controller(drag);
     tab
 }
 
@@ -335,6 +350,63 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
             }
         }
     });
+
+    // Accept stable surface IDs over the pane body. The nearest outer quarter creates a
+    // directional split; the center transfers the tab into this pane. The action resolves
+    // current ownership at drop time, so no widget/model borrow crosses the callback.
+    let drop_target = gtk4::DropTarget::new(String::static_type(), gtk4::gdk::DragAction::MOVE);
+    drop_target.connect_drop({
+        let surfaces = std::rc::Rc::downgrade(&surfaces);
+        move |target, value, x, y| {
+            let Ok(uuid) = value.get::<String>() else {
+                return false;
+            };
+            let Some(notebook) = target.widget().and_downcast::<gtk4::Notebook>() else {
+                return false;
+            };
+            let width = f64::from(notebook.width().max(1));
+            let height = f64::from(notebook.height().max(1));
+            let candidates = [
+                (x / width, "left"),
+                ((width - x) / width, "right"),
+                (y / height, "up"),
+                ((height - y) / height, "down"),
+            ];
+            let direction = candidates
+                .into_iter()
+                .min_by(|(left, _), (right, _)| left.total_cmp(right))
+                .filter(|(distance, _)| *distance <= 0.25)
+                .map(|(_, direction)| direction)
+                .unwrap_or("center");
+            let position = if direction == "center" {
+                let Some(surfaces) = surfaces.upgrade() else {
+                    return false;
+                };
+                let surfaces = surfaces.borrow();
+                let mut position = surfaces.len();
+                for (index, surface) in surfaces.iter().enumerate() {
+                    let Some(label) = notebook.tab_label(&surface.widget()) else {
+                        continue;
+                    };
+                    let Some(bounds) = label.compute_bounds(&notebook) else {
+                        continue;
+                    };
+                    if x < f64::from(bounds.x() + bounds.width() / 2.0) {
+                        position = index;
+                        break;
+                    }
+                }
+                position.min(surfaces.len().saturating_sub(1)).to_string()
+            } else {
+                String::new()
+            };
+            let payload = format!("{uuid}|{pane_id}|{direction}|{position}");
+            notebook
+                .activate_action("win.surface-drop", Some(&payload.to_variant()))
+                .is_ok()
+        }
+    });
+    notebook.add_controller(drop_target);
 
     SplitNode::Leaf {
         pane_id,
@@ -1102,15 +1174,25 @@ impl SplitEngine {
         let (_, destination_surfaces) =
             find_pane_tabs(&self.root, destination_pane).ok_or("destination pane not found")?;
         let destination_count = destination_surfaces.borrow().len();
-        let position = position.unwrap_or(destination_count);
-
         if source_pane == destination_pane {
             let count = destination_count;
             if count == 0 {
                 return Err("destination pane is empty");
             }
-            return self.reorder_surface(uuid, position.min(count - 1));
+            let Some(position) = position else {
+                let current = destination_surfaces
+                    .borrow()
+                    .iter()
+                    .position(|surface| surface.uuid() == uuid)
+                    .ok_or("surface not found")?;
+                return Ok(SurfaceMoveResult {
+                    pane_id: destination_pane,
+                    position: current,
+                });
+            };
+            return self.reorder_surface(uuid, position);
         }
+        let position = position.unwrap_or(destination_count);
         if position > destination_count {
             return Err("surface position out of range");
         }
@@ -1165,6 +1247,82 @@ impl SplitEngine {
             pane_id: destination_pane,
             position,
         })
+    }
+
+    /// Validate a cross-workspace destination before detaching the source widget.
+    pub(crate) fn can_insert_surface(&self, pane_id: u64, position: Option<usize>) -> bool {
+        find_pane_tabs(&self.root, pane_id).is_some_and(|(_, surfaces)| {
+            position.is_none_or(|position| position <= surfaces.borrow().len())
+        })
+    }
+
+    pub(crate) fn contains_pane(&self, pane_id: u64) -> bool {
+        self.root.find_node(pane_id).is_some()
+    }
+
+    /// Whether this engine currently owns no surface. This transient state is allowed only
+    /// while AppState removes an emptied source workspace in the same GTK mutation.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.all_panes().is_empty()
+    }
+
+    /// Detach one stable surface without destroying its terminal or browser owner.
+    pub(crate) fn detach_surface(&mut self, uuid: Uuid) -> Result<DetachedSurface, &'static str> {
+        let source_pane = self
+            .find_pane_id_by_uuid(&uuid.to_string())
+            .ok_or("surface not found")?;
+        let (notebook, surfaces) =
+            find_pane_tabs(&self.root, source_pane).ok_or("source pane not found")?;
+        let position = surfaces
+            .borrow()
+            .iter()
+            .position(|surface| surface.uuid() == uuid)
+            .ok_or("surface not found")?;
+        let surface = surfaces.borrow_mut().remove(position);
+        let page = notebook
+            .page_num(&surface.widget())
+            .ok_or("surface widget missing")?;
+        notebook.remove_page(Some(page));
+        if surfaces.borrow().is_empty() && !matches!(self.root, SplitNode::Leaf { .. }) {
+            let sibling = remove_leaf_from_tree(&mut self.root, source_pane)
+                .ok_or("source pane collapse failed")?;
+            if self.active_pane_id == source_pane {
+                self.active_pane_id = sibling;
+            }
+        }
+        self.root.update_focus_css(self.active_pane_id);
+        Ok(DetachedSurface {
+            surface,
+            source_pane,
+            position,
+        })
+    }
+
+    /// Attach a previously validated detached surface to this workspace.
+    pub(crate) fn insert_detached_surface(
+        &mut self,
+        detached: DetachedSurface,
+        pane_id: u64,
+        position: Option<usize>,
+        focus: bool,
+    ) -> SurfaceMoveResult {
+        let (notebook, surfaces) = find_pane_tabs(&self.root, pane_id)
+            .expect("cross-workspace destination validated before detach");
+        let count = surfaces.borrow().len();
+        let position = position.unwrap_or(count).min(count);
+        let widget = detached.surface.widget();
+        append_pane_surface(&notebook, &surfaces, detached.surface, focus);
+        if position < count {
+            notebook.reorder_child(&widget, Some(position as u32));
+        }
+        if focus {
+            self.active_pane_id = pane_id;
+        }
+        self.root.update_focus_css(self.active_pane_id);
+        if focus {
+            self.focus_active_surface();
+        }
+        SurfaceMoveResult { pane_id, position }
     }
 
     /// Turn an existing tab into a new pane next to a target pane without creating a

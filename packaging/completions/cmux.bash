@@ -8984,13 +8984,17 @@ _cmux() {
             return 0
             ;;
         cmux__move__surface)
-            opts="-v -h --pane --position --no-focus --socket --json --no-json --verbose --color --help <ID>"
+            opts="-v -h --pane --workspace --position --no-focus --socket --json --no-json --verbose --color --help <ID>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --pane)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --workspace)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

@@ -536,6 +536,7 @@ complete -c cmux -n "__fish_cmux_using_subcommand close-surface" -l no-json -d '
 complete -c cmux -n "__fish_cmux_using_subcommand close-surface" -s v -l verbose -d 'Verbose output (connection info to stderr)'
 complete -c cmux -n "__fish_cmux_using_subcommand close-surface" -s h -l help -d 'Print help'
 complete -c cmux -n "__fish_cmux_using_subcommand move-surface" -l pane -d 'Destination pane reference (pane:N)' -r
+complete -c cmux -n "__fish_cmux_using_subcommand move-surface" -l workspace -d 'Destination workspace UUID; defaults to the pane owner or source workspace' -r
 complete -c cmux -n "__fish_cmux_using_subcommand move-surface" -l position -d 'Zero-based insertion position; defaults to the end' -r
 complete -c cmux -n "__fish_cmux_using_subcommand move-surface" -l socket -d 'Path to the cmux socket (overrides discovery)' -r
 complete -c cmux -n "__fish_cmux_using_subcommand move-surface" -l color -d 'Color mode: always, never, auto' -r

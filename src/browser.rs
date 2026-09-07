@@ -150,6 +150,30 @@ impl BrowserManager {
         Ok(manager)
     }
 
+    /// Compare the manager's effective network route with a workspace without starting I/O.
+    pub(crate) fn route_matches_workspace(
+        &self,
+        state: &crate::app_state::AppState,
+        id: Uuid,
+    ) -> bool {
+        let Some(workspace) = state
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.uuid == id)
+        else {
+            return false;
+        };
+        let expected = workspace
+            .remote_target
+            .as_ref()
+            .and_then(|_| state.workspace_bridges.get(&workspace.id));
+        match (self.remote_bridge.as_ref(), expected) {
+            (None, None) => true,
+            (Some(current), Some(expected)) => std::sync::Arc::ptr_eq(current, expected),
+            _ => false,
+        }
+    }
+
     /// Mirrors agent-browser/cli/src/connection.rs socket dir discovery.
     fn agent_browser_socket_dir() -> PathBuf {
         if let Ok(dir) = std::env::var("AGENT_BROWSER_SOCKET_DIR") {

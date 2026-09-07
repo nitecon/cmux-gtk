@@ -89,4 +89,54 @@ with tempfile.TemporaryDirectory(prefix="cmux-surface-move-") as directory:
         assert sum(record["surface_ids"].count(browser) for record in restored) == 1
         assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
 
+        original_workspace = next(
+            row["workspace_uuid"] for row in app.surfaces() if row["uuid"] == browser
+        )
+        destination_workspace = json.loads(app.cli("new-workspace", "--json"))["uuid"]
+        destination_pane = next(
+            record["id"] for record in panes(app)
+            if record["workspace_uuid"] == destination_workspace
+        )
+        app.cli("select-workspace", original_workspace)
+        app.cli(
+            "notify", "--workspace", original_workspace,
+            "--surface", browser, "--body", "moves with browser",
+        )
+        move_result = json.loads(app.cli(
+            "move-surface", browser,
+            "--workspace", destination_workspace,
+            "--no-focus", "--json",
+        ))
+        assert move_result["workspace_id"] == destination_workspace
+        assert move_result["pane"] == destination_pane
+        assert move_result["browser_route_restarted"] is False
+        assert json.loads(app.cli("current-workspace", "--json"))["uuid"] == original_workspace
+        assert pane_for(panes(app), browser)["workspace_uuid"] == destination_workspace
+        notifications = json.loads(app.cli("notifications", "list", "--json"))["notifications"]
+        moved_notice = next(row for row in notifications if row["surface_id"] == browser)
+        assert moved_notice["workspace_id"] == destination_workspace, moved_notice
+        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+
+        # Moving the only surface out of a local workspace removes that empty workspace
+        # without destroying the transferred PTY.
+        solo_workspace = json.loads(app.cli("new-workspace", "--json"))["uuid"]
+        solo_surface = next(
+            row["uuid"] for row in app.surfaces()
+            if row["workspace_uuid"] == solo_workspace
+        )
+        app.cli("select-workspace", destination_workspace)
+        app.cli("move-surface", solo_surface, "--workspace", destination_workspace, "--no-focus")
+        workspaces = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
+        assert solo_workspace not in {row["uuid"] for row in workspaces}, workspaces
+        assert pane_for(panes(app), solo_surface)["workspace_uuid"] == destination_workspace
+        app.cli("send-text", "printf surface-transfer-alive", "--id", solo_surface)
+
+    with running_app(root, environment) as app:
+        workspaces = json.loads(app.cli("list-workspaces", "--json"))["workspaces"]
+        assert solo_workspace not in {row["uuid"] for row in workspaces}, workspaces
+        restored = panes(app)
+        assert pane_for(restored, browser)["workspace_uuid"] == destination_workspace
+        assert pane_for(restored, solo_surface)["workspace_uuid"] == destination_workspace
+        assert json.loads(app.cli("browser", "eval", browser, "document.title"))["success"] is True
+
     print("surface reorder, pane move and drag-to-split preserved identity across restart")

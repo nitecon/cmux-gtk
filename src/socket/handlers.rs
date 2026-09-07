@@ -1054,6 +1054,7 @@ fn handle_socket_command_traced(
         SocketCommand::SurfaceMove {
             req_id,
             id,
+            workspace,
             pane,
             position,
             focus,
@@ -1063,16 +1064,23 @@ fn handle_socket_command_traced(
                 let _ = resp_tx.send(err(req_id, "invalid_params", "invalid surface UUID"));
                 return;
             };
-            let Some(pane_id) = pane
-                .strip_prefix("pane:")
-                .and_then(|value| value.parse::<u64>().ok())
-            else {
-                let _ = resp_tx.send(err(req_id, "invalid_params", "invalid pane reference"));
-                return;
+            let pane_id = match pane.as_deref() {
+                None => None,
+                Some(reference) => {
+                    let Some(id) = reference
+                        .strip_prefix("pane:")
+                        .and_then(|value| value.parse::<u64>().ok())
+                    else {
+                        let _ =
+                            resp_tx.send(err(req_id, "invalid_params", "invalid pane reference"));
+                        return;
+                    };
+                    Some(id)
+                }
             };
             let response = {
                 let mut s = state.borrow_mut();
-                let Some(index) = s
+                let Some(source_index) = s
                     .split_engines
                     .iter()
                     .position(|engine| engine.find_pane_id_by_uuid(&id).is_some())
@@ -1080,22 +1088,44 @@ fn handle_socket_command_traced(
                     let _ = resp_tx.send(err(req_id, "not_found", "surface not found"));
                     return;
                 };
-                match s.split_engines[index].move_surface(uuid, pane_id, position, focus) {
-                    Ok(result) => {
-                        if focus {
-                            s.switch_to_index(index);
+                let destination_workspace = match workspace.as_deref() {
+                    Some(value) => match uuid::Uuid::parse_str(value) {
+                        Ok(value) => value,
+                        Err(_) => {
+                            let _ = resp_tx.send(err(
+                                req_id,
+                                "invalid_params",
+                                "invalid workspace UUID",
+                            ));
+                            return;
                         }
-                        s.trigger_session_save();
-                        ok(
-                            req_id,
-                            json!({
-                                "id": id,
-                                "workspace_id": s.workspaces[index].uuid,
-                                "pane": format!("pane:{}", result.pane_id),
-                                "position": result.position,
-                            }),
-                        )
-                    }
+                    },
+                    None => pane_id
+                        .and_then(|pane_id| {
+                            s.split_engines
+                                .iter()
+                                .position(|engine| engine.contains_pane(pane_id))
+                        })
+                        .and_then(|index| s.workspaces.get(index).map(|workspace| workspace.uuid))
+                        .unwrap_or(s.workspaces[source_index].uuid),
+                };
+                match s.move_surface_between_workspaces(
+                    uuid,
+                    destination_workspace,
+                    pane_id,
+                    position,
+                    focus,
+                ) {
+                    Ok((result, route_restarted)) => ok(
+                        req_id,
+                        json!({
+                            "id": id,
+                            "workspace_id": destination_workspace,
+                            "pane": format!("pane:{}", result.pane_id),
+                            "position": result.position,
+                            "browser_route_restarted": route_restarted,
+                        }),
+                    ),
                     Err(message) => err(
                         req_id,
                         if message.contains("not found") {

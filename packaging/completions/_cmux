@@ -2486,6 +2486,7 @@ _arguments "${_arguments_options[@]}" : \
 (move-surface)
 _arguments "${_arguments_options[@]}" : \
 '--pane=[Destination pane reference (pane\:N)]:PANE:_default' \
+'--workspace=[Destination workspace UUID; defaults to the pane owner or source workspace]:WORKSPACE:_default' \
 '--position=[Zero-based insertion position; defaults to the end]:POSITION:_default' \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
 '--color=[Color mode\: always, never, auto]:COLOR:_default' \

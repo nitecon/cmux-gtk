@@ -595,11 +595,12 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         Commands::MoveSurface {
             id,
             pane,
+            workspace,
             position,
             no_focus,
         } => (
             "surface.move",
-            json!({"id": id, "pane": pane, "position": position, "focus": !no_focus}),
+            json!({"id": id, "workspace": workspace, "pane": pane, "position": position, "focus": !no_focus}),
         ),
         Commands::ReorderSurface { id, position } => {
             ("surface.reorder", json!({"id": id, "position": position}))
