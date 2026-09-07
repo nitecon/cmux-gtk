@@ -192,6 +192,9 @@ cmux diff change.patch         # open a patch in a right-hand browser pane
 cmux diff --unstaged           # inspect current working-tree changes
 cmux diff --branch --base main # compare HEAD with a branch merge-base
 cmux diff --last-turn          # inspect changes since this agent's latest prompt
+cmux comments add --file src/main.rs --line 42 --message "Handle this error"
+cmux comments list             # list pending comments for the current Git repository
+cmux comments consume --all    # mark pending comments delivered to an agent
 
 # System
 cmux identify                  # instance info (version, platform, pid)

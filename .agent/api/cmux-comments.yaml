@@ -1,0 +1,15 @@
+app: cmux-gtk
+title: Durable diff review comments
+space: cmux-gtk
+slug: diff-review-comments
+summary: Repository-scoped review comments for agents and the self-contained cmux diff viewer.
+kind: agent_context
+source_format: agent_context
+source_ref: src/cli/comments.rs
+labels: [linux, gtk, diff, comments, cli, storage]
+content:
+  commands: cmux comments list/add/delete/consume operate without a running GTK process. --repo selects a Git worktree and otherwise discovery starts at the current directory. List returns pending comments by default and --all includes consumed history. Consume accepts UUIDs or --all; delete permanently removes one UUID.
+  anchors: Add requires a bounded repository-relative file path, old or new side, a positive start line, an optional ending line, optional captured line text and a nonempty message. Entries expose stable UUIDs, an agent-ready submissionText and creation/update/consumption timestamps. Git-backed cmux diff pages snapshot pending entries and render each comment at its ending line in split and unified layouts.
+  storage: Stores are keyed by the SHA-256 digest of the canonical Git root and live in the private cmux XDG data directory. Each read or mutation takes an owner-only advisory lock. Mutations use atomic replacement followed by file and parent fsync. A repository retains at most 512 entries and one MiB; adding at the count cap evicts the oldest consumed entry or fails when every entry is pending. Best-effort pruning retains at most 128 repository JSON files or 64 MiB.
+  security: Paths reject absolute and parent traversal components. Files are owner-only, symlinks are rejected for lock acquisition, JSON identity is checked against the canonical root, and messages or line contents are never logged. Viewer embedding escapes script delimiters and inserts visible text with textContent.
+  lifecycle: Generated diff pages contain a point-in-time copy so later consumption or deletion does not mutate an already-open page. Regenerate the Git diff to see the current pending set. Consumers should mark delivered UUIDs consumed, retaining history for triage, and delete only when durable removal is intended.

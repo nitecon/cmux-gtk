@@ -46,6 +46,9 @@ _cmux() {
             cmux,close-workspace)
                 cmd="cmux__close__workspace"
                 ;;
+            cmux,comments)
+                cmd="cmux__comments"
+                ;;
             cmux,create-workspace-group)
                 cmd="cmux__create__workspace__group"
                 ;;
@@ -370,6 +373,36 @@ _cmux() {
             cmux__browser__help,wait)
                 cmd="cmux__browser__help__wait"
                 ;;
+            cmux__comments,add)
+                cmd="cmux__comments__add"
+                ;;
+            cmux__comments,consume)
+                cmd="cmux__comments__consume"
+                ;;
+            cmux__comments,delete)
+                cmd="cmux__comments__delete"
+                ;;
+            cmux__comments,help)
+                cmd="cmux__comments__help"
+                ;;
+            cmux__comments,list)
+                cmd="cmux__comments__list"
+                ;;
+            cmux__comments__help,add)
+                cmd="cmux__comments__help__add"
+                ;;
+            cmux__comments__help,consume)
+                cmd="cmux__comments__help__consume"
+                ;;
+            cmux__comments__help,delete)
+                cmd="cmux__comments__help__delete"
+                ;;
+            cmux__comments__help,help)
+                cmd="cmux__comments__help__help"
+                ;;
+            cmux__comments__help,list)
+                cmd="cmux__comments__help__list"
+                ;;
             cmux__help,assign-workspace-group)
                 cmd="cmux__help__assign__workspace__group"
                 ;;
@@ -399,6 +432,9 @@ _cmux() {
                 ;;
             cmux__help,close-workspace)
                 cmd="cmux__help__close__workspace"
+                ;;
+            cmux__help,comments)
+                cmd="cmux__help__comments"
                 ;;
             cmux__help,create-workspace-group)
                 cmd="cmux__help__create__workspace__group"
@@ -645,6 +681,18 @@ _cmux() {
                 ;;
             cmux__help__browser,wait)
                 cmd="cmux__help__browser__wait"
+                ;;
+            cmux__help__comments,add)
+                cmd="cmux__help__comments__add"
+                ;;
+            cmux__help__comments,consume)
+                cmd="cmux__help__comments__consume"
+                ;;
+            cmux__help__comments,delete)
+                cmd="cmux__help__comments__delete"
+                ;;
+            cmux__help__comments,list)
+                cmd="cmux__help__comments__list"
                 ;;
             cmux__help__hooks,amp)
                 cmd="cmux__help__hooks__amp"
@@ -2162,7 +2210,7 @@ _cmux() {
 
     case "${cmd}" in
         cmux)
-            opts="-v -h -V --socket --json --no-json --verbose --color --help --version diff claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="-v -h -V --socket --json --no-json --verbose --color --help --version diff comments claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3359,6 +3407,240 @@ _cmux() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cmux__comments)
+            opts="-v -h --socket --json --no-json --verbose --color --help list add delete consume help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__add)
+            opts="-v -h --repo --file --side --line --end-line --line-text --message --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --repo)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --side)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --line)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --end-line)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --line-text)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --message)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__consume)
+            opts="-v -h --repo --all --socket --json --no-json --verbose --color --help [IDS]..."
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --repo)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__delete)
+            opts="-v -h --repo --socket --json --no-json --verbose --color --help <ID>"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --repo)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help)
+            opts="list add delete consume help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help__add)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help__consume)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help__delete)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__help__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__comments__list)
+            opts="-v -h --repo --all --socket --json --no-json --verbose --color --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --repo)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --socket)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --color)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cmux__create__workspace__group)
             opts="-v -h --color --socket --json --no-json --verbose --help <NAME>"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -3628,7 +3910,7 @@ _cmux() {
             return 0
             ;;
         cmux__help)
-            opts="diff claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
+            opts="diff comments claude-teams tmux-compat-internal project-run project-actions hooks restore surface update ping identify capabilities diagnostics list-workspaces current-workspace raw new-workspace ssh mosh mosh-tmux select-workspace close-workspace rename-workspace next-workspace prev-workspace last-workspace reorder-workspace reorder-workspaces list-workspace-groups create-workspace-group update-workspace-group assign-workspace-group delete-workspace-group list-surfaces split focus-surface close-surface move-surface reorder-surface drag-surface-to-split send-text send-key read-text read-scrollback health refresh list-panes focus-pane last-pane list-windows current-window layout type set-status report-meta-block clear-meta-block list-meta-blocks clear-status ports list-status set-progress clear-progress notify notifications list-notifications clear-notification browser help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -4106,6 +4388,76 @@ _cmux() {
         cmux__help__close__workspace)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__comments)
+            opts="list add delete consume"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__comments__add)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__comments__consume)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__comments__delete)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cmux__help__comments__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi

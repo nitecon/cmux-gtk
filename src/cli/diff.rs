@@ -1,7 +1,7 @@
 //! Bounded diff preparation and composition over the public browser/surface APIs.
 
 use super::socket_client::{CliError, SocketClient};
-use super::{args::DiffLayout, args::DiffSource, browser_address};
+use super::{args::DiffLayout, args::DiffSource, browser_address, comments};
 use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -49,6 +49,8 @@ struct ViewerConfig<'a> {
     patch: &'a str,
     layout: DiffLayout,
     font_size: f64,
+    repo_root: Option<&'a str>,
+    comments: &'a [comments::Comment],
 }
 
 pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedDiff, CliError> {
@@ -61,6 +63,19 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedDiff, CliEr
         ));
     }
     let source = selected_source(&request)?;
+    let repository = if source.is_some() {
+        Some(repository_root(
+            request.cwd.unwrap_or_else(|| Path::new(".")),
+        )?)
+    } else {
+        None
+    };
+    let review_comments = repository
+        .as_deref()
+        .map(comments::for_viewer)
+        .transpose()?
+        .unwrap_or_default();
+    let repository_label = repository.as_ref().map(|path| path.to_string_lossy());
     let ambient_surface = std::env::var("CMUX_SURFACE_ID").ok();
     let surface = request.surface.or(ambient_surface.as_deref());
     let (patch, source_label, default_title) = match source {
@@ -88,6 +103,8 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedDiff, CliEr
         patch: &patch,
         layout: request.layout,
         font_size: request.font_size.unwrap_or(13.0),
+        repo_root: repository_label.as_deref(),
+        comments: &review_comments,
     };
     let mut config = serde_json::to_string(&config)
         .map_err(|error| CliError::Command(format!("encode diff viewer: {error}")))?;
@@ -180,9 +197,7 @@ fn read_git_source(
     surface: Option<&str>,
     session: Option<&str>,
 ) -> Result<(String, String, String), CliError> {
-    let cwd = cwd.unwrap_or_else(|| Path::new("."));
-    let root = git_text(cwd, &["rev-parse", "--show-toplevel"], 64 * 1024)?;
-    let root = PathBuf::from(root.trim());
+    let root = repository_root(cwd.unwrap_or_else(|| Path::new(".")))?;
     if matches!(source, DiffSource::LastTurn) {
         let surface = surface.ok_or_else(|| {
             CliError::Command("cmux diff --last-turn requires --surface or CMUX_SURFACE_ID".into())
@@ -247,6 +262,13 @@ fn read_git_source(
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let patch = git_text(&root, &refs, MAX_PATCH_BYTES)?;
     Ok((patch, label, title.into()))
+}
+
+pub(super) fn repository_root(cwd: &Path) -> Result<PathBuf, CliError> {
+    let root = git_text(cwd, &["rev-parse", "--show-toplevel"], 64 * 1024)?;
+    let root = PathBuf::from(root.trim());
+    std::fs::canonicalize(&root)
+        .map_err(|error| CliError::Command(format!("canonicalize Git repository: {error}")))
 }
 
 fn default_branch_base(root: &Path) -> Result<String, CliError> {
@@ -675,12 +697,13 @@ fn focused_surface(payload: &Value) -> Option<String> {
 const VIEWER_HTML: &str = r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>cmux diff</title><style>
-:root{color-scheme:light dark;--bg:#101216;--panel:#171a20;--fg:#d7dae0;--muted:#89909b;--border:#303640;--add:#143d2a;--del:#4b2027;--accent:#78a9ff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px ui-monospace,SFMono-Regular,Consolas,monospace}header{height:46px;display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);z-index:3}button,input{font:inherit;color:inherit;background:#222731;border:1px solid var(--border);border-radius:5px;padding:5px 8px}button{cursor:pointer}button.active{border-color:var(--accent)}#source{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}#body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 46px)}nav{overflow:auto;border-right:1px solid var(--border);padding:8px}nav button{display:block;width:100%;text-align:left;border:0;background:transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file{overflow:auto}.file-title{padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0}.line{display:grid;grid-template-columns:54px 54px minmax(0,1fr);min-height:20px;border-bottom:1px solid #ffffff08}.line.add{background:var(--add)}.line.del{background:var(--del)}.line.hunk{color:#9ab7e8;background:#182437}.no{color:var(--muted);text-align:right;padding:2px 7px;border-right:1px solid var(--border);user-select:none}.code{white-space:pre-wrap;overflow-wrap:anywhere;padding:2px 8px}.split-line{display:grid;grid-template-columns:1fr 1fr}.split-side{display:grid;grid-template-columns:54px minmax(0,1fr);min-width:0;border-bottom:1px solid #ffffff08}.split-side.add{background:var(--add)}.split-side.del{background:var(--del)}#empty,#pagebar{padding:30px;color:var(--muted);text-align:center}mark{background:#8d6b12;color:inherit}@media(max-width:760px){#body{grid-template-columns:1fr}nav{display:none}}
-</style></head><body><header><strong id="title"></strong><span id="source"></span><button id="unified">Unified</button><button id="split">Split</button><input id="find" type="search" placeholder="Find"><button id="copy">Copy patch</button></header><div id="body"><nav id="files"></nav><main class="file"><div class="file-title" id="file-title"></div><div id="viewer"></div><div id="pagebar"></div></main></div>
+:root{color-scheme:light dark;--bg:#101216;--panel:#171a20;--fg:#d7dae0;--muted:#89909b;--border:#303640;--add:#143d2a;--del:#4b2027;--accent:#78a9ff;--comment:#312813}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px ui-monospace,SFMono-Regular,Consolas,monospace}header{height:46px;display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);z-index:3}button,input{font:inherit;color:inherit;background:#222731;border:1px solid var(--border);border-radius:5px;padding:5px 8px}button{cursor:pointer}button.active{border-color:var(--accent)}#source{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}#comment-count{color:#e9c46a;white-space:nowrap}#body{display:grid;grid-template-columns:260px minmax(0,1fr);height:calc(100vh - 46px)}nav{overflow:auto;border-right:1px solid var(--border);padding:8px}nav button{display:block;width:100%;text-align:left;border:0;background:transparent;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file{overflow:auto}.file-title{padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0}.line{display:grid;grid-template-columns:54px 54px minmax(0,1fr);min-height:20px;border-bottom:1px solid #ffffff08}.line.add{background:var(--add)}.line.del{background:var(--del)}.line.hunk{color:#9ab7e8;background:#182437}.no{color:var(--muted);text-align:right;padding:2px 7px;border-right:1px solid var(--border);user-select:none}.code{white-space:pre-wrap;overflow-wrap:anywhere;padding:2px 8px}.split-line{display:grid;grid-template-columns:1fr 1fr}.split-side{display:grid;grid-template-columns:54px minmax(0,1fr);min-width:0;border-bottom:1px solid #ffffff08}.split-side.add{background:var(--add)}.split-side.del{background:var(--del)}.review-comment{margin:5px 12px 8px 116px;padding:8px 10px;border:1px solid #735f2c;border-radius:6px;background:var(--comment);white-space:pre-wrap}.comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:5px;color:#e9c46a}.comment-meta button{margin-left:auto;padding:2px 6px}.comment-message{overflow-wrap:anywhere}#empty,#pagebar{padding:30px;color:var(--muted);text-align:center}mark{background:#8d6b12;color:inherit}@media(max-width:760px){#body{grid-template-columns:1fr}nav{display:none}.review-comment{margin-left:12px}}
+</style></head><body><header><strong id="title"></strong><span id="source"></span><span id="comment-count"></span><button id="unified">Unified</button><button id="split">Split</button><input id="find" type="search" placeholder="Find"><button id="copy">Copy patch</button></header><div id="body"><nav id="files"></nav><main class="file"><div class="file-title" id="file-title"></div><div id="viewer"></div><div id="pagebar"></div></main></div>
 <script>const C=__CMUX_DIFF_CONFIG__;document.title=C.title;document.getElementById('title').textContent=C.title;document.getElementById('source').textContent=C.source;document.body.style.fontSize=C.font_size+'px';
 const parse=p=>{const out=[];if(!p.trim())return out;let f=null,old=0,neu=0;for(const text of p.split(/\n/)){if(text.startsWith('diff --git ')){f={name:text.replace(/^diff --git a\//,'').replace(/ b\/.*$/,''),lines:[]};out.push(f)}if(!f){f={name:'Patch',lines:[]};out.push(f)}let kind='ctx',o='',n='';const h=text.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);if(h){old=+h[1];neu=+h[2];kind='hunk'}else if(text.startsWith('+')&&!text.startsWith('+++')){kind='add';n=neu++}else if(text.startsWith('-')&&!text.startsWith('---')){kind='del';o=old++}else if(!text.startsWith('\\')){o=old++;n=neu++}f.lines.push({text,kind,o,n})}return out};
-const files=parse(C.patch),list=document.getElementById('files'),view=document.getElementById('viewer'),title=document.getElementById('file-title'),bar=document.getElementById('pagebar');let selected=0,page=0,layout=C.layout,query='';const PAGE=4000;
+const files=parse(C.patch),list=document.getElementById('files'),view=document.getElementById('viewer'),title=document.getElementById('file-title'),bar=document.getElementById('pagebar');let selected=0,page=0,layout=C.layout,query='';const PAGE=4000,commentCount=document.getElementById('comment-count');commentCount.textContent=C.comments.length?`${C.comments.length} pending comment${C.comments.length===1?'':'s'}`:'';commentCount.title=C.repo_root||'';
 const esc=s=>{const x=document.createElement('span');x.textContent=s;if(!query)return x;const q=query.toLowerCase(),v=s.toLowerCase();let at=0,pos;const frag=document.createDocumentFragment();while((pos=v.indexOf(q,at))>=0){frag.append(document.createTextNode(s.slice(at,pos)));const m=document.createElement('mark');m.textContent=s.slice(pos,pos+query.length);frag.append(m);at=pos+query.length}frag.append(document.createTextNode(s.slice(at)));return frag};
 function line(row){const e=document.createElement('div');e.className='line '+row.kind;for(const value of [row.o,row.n]){const n=document.createElement('span');n.className='no';n.textContent=value;e.append(n)}const c=document.createElement('span');c.className='code';c.append(esc(row.text));e.append(c);return e}function side(row,which){const e=document.createElement('div');e.className='split-side '+row.kind;const n=document.createElement('span');n.className='no';n.textContent=which==='old'?row.o:row.n;const c=document.createElement('span');c.className='code';if((which==='old'&&row.kind!=='add')||(which==='new'&&row.kind!=='del'))c.append(esc(row.text));e.append(n,c);return e}
-function render(){view.replaceChildren();bar.replaceChildren();const f=files[selected];title.textContent=f?.name||'No changes';if(!f){const e=document.createElement('div');e.id='empty';e.textContent='No changes to display.';view.append(e);return}const start=page*PAGE,rows=f.lines.slice(start,start+PAGE),frag=document.createDocumentFragment();for(const row of rows){if(layout==='unified')frag.append(line(row));else{const e=document.createElement('div');e.className='split-line';e.append(side(row,'old'),side(row,'new'));frag.append(e)}}view.append(frag);const pages=Math.ceil(f.lines.length/PAGE);if(pages>1){const prev=document.createElement('button');prev.textContent='Previous';prev.disabled=page===0;prev.onclick=()=>{page--;render()};const label=document.createElement('span');label.textContent=` Page ${page+1} of ${pages} `;const next=document.createElement('button');next.textContent='Next';next.disabled=page+1>=pages;next.onclick=()=>{page++;render()};bar.append(prev,label,next)}document.getElementById('unified').classList.toggle('active',layout==='unified');document.getElementById('split').classList.toggle('active',layout==='split')}
+function anchored(file,row){return C.comments.filter(c=>c.filePath===file&&((c.side==='old'&&row.o===c.endLine)||(c.side==='new'&&row.n===c.endLine)))}function commentCard(c){const e=document.createElement('article');e.className='review-comment';e.dataset.commentId=c.id;const meta=document.createElement('div');meta.className='comment-meta';const label=document.createElement('span');label.textContent=`${c.side} ${c.startLine}${c.endLine===c.startLine?'':`–${c.endLine}`}`;const copy=document.createElement('button');copy.textContent='Copy for agent';copy.onclick=async()=>{await navigator.clipboard.writeText(c.submissionText);copy.textContent='Copied'};meta.append(label,copy);const body=document.createElement('div');body.className='comment-message';body.append(esc(c.message));e.append(meta,body);return e}
+function render(){view.replaceChildren();bar.replaceChildren();const f=files[selected];title.textContent=f?.name||'No changes';if(!f){const e=document.createElement('div');e.id='empty';e.textContent='No changes to display.';view.append(e);return}const start=page*PAGE,rows=f.lines.slice(start,start+PAGE),frag=document.createDocumentFragment();for(const row of rows){if(layout==='unified')frag.append(line(row));else{const e=document.createElement('div');e.className='split-line';e.append(side(row,'old'),side(row,'new'));frag.append(e)}for(const comment of anchored(f.name,row))frag.append(commentCard(comment))}view.append(frag);const pages=Math.ceil(f.lines.length/PAGE);if(pages>1){const prev=document.createElement('button');prev.textContent='Previous';prev.disabled=page===0;prev.onclick=()=>{page--;render()};const label=document.createElement('span');label.textContent=` Page ${page+1} of ${pages} `;const next=document.createElement('button');next.textContent='Next';next.disabled=page+1>=pages;next.onclick=()=>{page++;render()};bar.append(prev,label,next)}document.getElementById('unified').classList.toggle('active',layout==='unified');document.getElementById('split').classList.toggle('active',layout==='split')}
 files.forEach((f,i)=>{const b=document.createElement('button');b.textContent=f.name;b.onclick=()=>{selected=i;page=0;render()};list.append(b)});document.getElementById('unified').onclick=()=>{layout='unified';render()};document.getElementById('split').onclick=()=>{layout='split';render()};document.getElementById('find').oninput=e=>{query=e.target.value;render()};document.getElementById('copy').onclick=async()=>{await navigator.clipboard.writeText(C.patch);document.getElementById('copy').textContent='Copied'};render();</script></body></html>"#;

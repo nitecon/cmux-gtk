@@ -4,6 +4,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 
 from browser_process_support import BrowserProcesses
@@ -20,13 +21,19 @@ def main():
         browser = shutil.which("agent-browser")
         if browser is None:
             raise RuntimeError("agent-browser is required for the real diff fixture")
-        patch = root / "real.patch"
-        patch.write_text(
-            "diff --git a/one.txt b/one.txt\n--- a/one.txt\n+++ b/one.txt\n"
-            "@@ -1 +1,2 @@\n-before\n+after marker\n+<script>window.cmuxInjected=true</script>\n"
-            "diff --git a/two.txt b/two.txt\n--- a/two.txt\n+++ b/two.txt\n"
-            "@@ -0,0 +1 @@\n+another marker\n"
+        repository = root / "repository"
+        repository.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "main", repository], check=True)
+        subprocess.run(["git", "-C", repository, "config", "user.name", "cmux fixture"], check=True)
+        subprocess.run(["git", "-C", repository, "config", "user.email", "fixture@example.test"], check=True)
+        (repository / "one.txt").write_text("before\n")
+        (repository / "two.txt").write_text("")
+        subprocess.run(["git", "-C", repository, "add", "."], check=True)
+        subprocess.run(["git", "-C", repository, "commit", "-qm", "base"], check=True)
+        (repository / "one.txt").write_text(
+            "after marker\n<script>window.cmuxInjected=true</script>\n"
         )
+        (repository / "two.txt").write_text("another marker\n")
         processes = BrowserProcesses(browser_dir)
         with running_app(root, {
             "CMUX_BIN_DIR": "target/release",
@@ -35,7 +42,15 @@ def main():
         }) as app:
             app.wait_for(lambda: bool(app.children()), "initial terminal")
             terminal = selected_surface(app)
-            opened = json.loads(app.cli("diff", str(patch), "--layout", "split", "--json", timeout=35))
+            comment = json.loads(app.cli(
+                "comments", "add", "--repo", str(repository), "--file", "one.txt",
+                "--side", "new", "--line", "1", "--line-text", "after marker",
+                "--message", "Check this value", "--json",
+            ))["comment"]
+            opened = json.loads(app.cli(
+                "diff", "--unstaged", "--cwd", str(repository), "--layout", "split", "--json",
+                timeout=35,
+            ))
             surface = opened["surface_ref"]
 
             def command(name, *arguments):
@@ -44,9 +59,12 @@ def main():
                 return result["data"]
 
             command("wait", "--selector", "#viewer .split-line", "--timeout-ms", "5000")
-            state = command("eval", "({files:[...document.querySelectorAll('#files button')].map(x=>x.textContent), split:document.querySelectorAll('.split-line').length, injected:!!window.cmuxInjected, text:document.body.innerText})")["result"]
+            state = command("eval", "({files:[...document.querySelectorAll('#files button')].map(x=>x.textContent), split:document.querySelectorAll('.split-line').length, comments:[...document.querySelectorAll('.review-comment')].map(x=>({id:x.dataset.commentId,message:x.querySelector('.comment-message').textContent,label:x.querySelector('.comment-meta span').textContent})), injected:!!window.cmuxInjected, text:document.body.innerText})")["result"]
             assert state["files"] == ["one.txt", "two.txt"], state
             assert state["split"] > 0 and state["injected"] is False, state
+            assert state["comments"] == [{
+                "id": comment["id"], "message": "Check this value", "label": "new 1",
+            }], state
             assert "after marker" in state["text"] and "another marker" not in state["text"], state
             command("click", "#unified")
             command("wait", "--function", "document.querySelectorAll('#viewer .line').length > 0", "--timeout-ms", "1000")

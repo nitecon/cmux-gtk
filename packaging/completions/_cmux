@@ -62,6 +62,128 @@ _arguments "${_arguments_options[@]}" : \
 '::input -- Unified patch file, or '\''-'\'' to read standard input:_default' \
 && ret=0
 ;;
+(comments)
+_arguments "${_arguments_options[@]}" : \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cmux__comments_commands" \
+"*::: :->comments" \
+&& ret=0
+
+    case $state in
+    (comments)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-comments-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+'--repo=[]:REPO:_files' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--all[Include comments already marked consumed]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+'--repo=[]:REPO:_files' \
+'--file=[]:FILE:_default' \
+'--side=[]:SIDE:_default' \
+'--line=[]:LINE:_default' \
+'--end-line=[]:END_LINE:_default' \
+'--line-text=[]:LINE_TEXT:_default' \
+'--message=[]:MESSAGE:_default' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+'--repo=[]:REPO:_files' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':id:_default' \
+&& ret=0
+;;
+(consume)
+_arguments "${_arguments_options[@]}" : \
+'--repo=[]:REPO:_files' \
+'--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
+'--color=[Color mode\: always, never, auto]:COLOR:_default' \
+'()--all[]' \
+'--json[Output raw JSON responses]' \
+'--no-json[Suppress JSON output for browser commands (browser defaults to JSON)]' \
+'-v[Verbose output (connection info to stderr)]' \
+'--verbose[Verbose output (connection info to stderr)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'*::ids:_default' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__comments__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-comments-help-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(consume)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (claude-teams)
 _arguments "${_arguments_options[@]}" : \
 '--socket=[Path to the cmux socket (overrides discovery)]:SOCKET:_default' \
@@ -4739,6 +4861,38 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(comments)
+_arguments "${_arguments_options[@]}" : \
+":: :_cmux__help__comments_commands" \
+"*::: :->comments" \
+&& ret=0
+
+    case $state in
+    (comments)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cmux-help-comments-command-$line[1]:"
+        case $line[1] in
+            (list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(delete)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(consume)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (claude-teams)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -5888,6 +6042,7 @@ esac
 _cmux_commands() {
     local commands; commands=(
 'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
+'comments:Manage durable diff-review comments keyed by Git repository' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -6310,6 +6465,73 @@ _cmux__close-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux close-workspace commands' commands "$@"
 }
+(( $+functions[_cmux__comments_commands] )) ||
+_cmux__comments_commands() {
+    local commands; commands=(
+'list:List pending review comments for a Git repository' \
+'add:Add a durable line-anchored review comment' \
+'delete:Delete one review comment by UUID' \
+'consume:Mark selected or all pending comments as delivered to an agent' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux comments commands' commands "$@"
+}
+(( $+functions[_cmux__comments__add_commands] )) ||
+_cmux__comments__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments add commands' commands "$@"
+}
+(( $+functions[_cmux__comments__consume_commands] )) ||
+_cmux__comments__consume_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments consume commands' commands "$@"
+}
+(( $+functions[_cmux__comments__delete_commands] )) ||
+_cmux__comments__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments delete commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help_commands] )) ||
+_cmux__comments__help_commands() {
+    local commands; commands=(
+'list:List pending review comments for a Git repository' \
+'add:Add a durable line-anchored review comment' \
+'delete:Delete one review comment by UUID' \
+'consume:Mark selected or all pending comments as delivered to an agent' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cmux comments help commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help__add_commands] )) ||
+_cmux__comments__help__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments help add commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help__consume_commands] )) ||
+_cmux__comments__help__consume_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments help consume commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help__delete_commands] )) ||
+_cmux__comments__help__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments help delete commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help__help_commands] )) ||
+_cmux__comments__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments help help commands' commands "$@"
+}
+(( $+functions[_cmux__comments__help__list_commands] )) ||
+_cmux__comments__help__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments help list commands' commands "$@"
+}
+(( $+functions[_cmux__comments__list_commands] )) ||
+_cmux__comments__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux comments list commands' commands "$@"
+}
 (( $+functions[_cmux__create-workspace-group_commands] )) ||
 _cmux__create-workspace-group_commands() {
     local commands; commands=()
@@ -6364,6 +6586,7 @@ _cmux__health_commands() {
 _cmux__help_commands() {
     local commands; commands=(
 'diff:Open a bounded patch or Git comparison in an agent-accessible diff surface' \
+'comments:Manage durable diff-review comments keyed by Git repository' \
 'claude-teams:Launch Claude Code teams with teammate panes translated into native cmux splits' \
 'tmux-compat-internal:Private tmux compatibility endpoint used only by managed team launchers' \
 'project-run:Execute an explicitly requested project command after checking its inspected fingerprint' \
@@ -6628,6 +6851,36 @@ _cmux__help__close-surface_commands() {
 _cmux__help__close-workspace_commands() {
     local commands; commands=()
     _describe -t commands 'cmux help close-workspace commands' commands "$@"
+}
+(( $+functions[_cmux__help__comments_commands] )) ||
+_cmux__help__comments_commands() {
+    local commands; commands=(
+'list:List pending review comments for a Git repository' \
+'add:Add a durable line-anchored review comment' \
+'delete:Delete one review comment by UUID' \
+'consume:Mark selected or all pending comments as delivered to an agent' \
+    )
+    _describe -t commands 'cmux help comments commands' commands "$@"
+}
+(( $+functions[_cmux__help__comments__add_commands] )) ||
+_cmux__help__comments__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help comments add commands' commands "$@"
+}
+(( $+functions[_cmux__help__comments__consume_commands] )) ||
+_cmux__help__comments__consume_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help comments consume commands' commands "$@"
+}
+(( $+functions[_cmux__help__comments__delete_commands] )) ||
+_cmux__help__comments__delete_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help comments delete commands' commands "$@"
+}
+(( $+functions[_cmux__help__comments__list_commands] )) ||
+_cmux__help__comments__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'cmux help comments list commands' commands "$@"
 }
 (( $+functions[_cmux__help__create-workspace-group_commands] )) ||
 _cmux__help__create-workspace-group_commands() {

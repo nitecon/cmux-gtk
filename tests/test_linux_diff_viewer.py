@@ -73,13 +73,61 @@ def main():
             subprocess.run(["git", "-C", repository, "add", "tracked.txt"], check=True)
             subprocess.run(["git", "-C", repository, "commit", "-qm", "base"], check=True)
             tracked.write_text("after\n")
+            comment = json.loads(app.cli(
+                "comments", "add", "--repo", str(repository), "--file", "tracked.txt",
+                "--side", "new", "--line", "1", "--line-text", "after",
+                "--message", "Please verify <the changed value>.", "--json",
+            ))["comment"]
+            listed = json.loads(app.cli("comments", "list", "--repo", str(repository), "--json"))
+            assert listed["count"] == 1 and listed["comments"][0]["id"] == comment["id"], listed
             git_view = json.loads(
                 app.cli("diff", "--unstaged", "--cwd", str(repository), "--focus", "--json", timeout=35)
             )
             assert git_view["source"] == "git unstaged"
-            assert "after" in Path(git_view["path"]).read_text()
+            git_html = Path(git_view["path"]).read_text()
+            assert "after" in git_html and comment["id"] in git_html
+            assert "Please verify \\u003cthe changed value\\u003e." in git_html
             panes = json.loads(app.cli("list-panes", "--json"))
             assert next(row for row in panes["panes"] if row["focused"])["active_surface_uuid"] == git_view["uuid"]
+
+            consumed = json.loads(app.cli(
+                "comments", "consume", comment["id"], "--repo", str(repository), "--json",
+            ))
+            assert consumed["consumed"] == 1, consumed
+            assert json.loads(app.cli(
+                "comments", "list", "--repo", str(repository), "--json",
+            ))["count"] == 0
+            historical = json.loads(app.cli(
+                "comments", "list", "--repo", str(repository), "--all", "--json",
+            ))
+            assert historical["count"] == 1 and historical["comments"][0]["consumedAt"] is not None
+            assert json.loads(app.cli(
+                "comments", "delete", comment["id"], "--repo", str(repository), "--json",
+            ))["ok"] is True
+            writers = [
+                subprocess.Popen(
+                    [
+                        "target/debug/cmux", "comments", "add", "--repo", str(repository),
+                        "--file", "tracked.txt", "--side", "new", "--line", "1",
+                        "--message", f"parallel comment {index}", "--json",
+                    ],
+                    env=app.environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                for index in range(8)
+            ]
+            for writer in writers:
+                _, stderr = writer.communicate(timeout=10)
+                assert writer.returncode == 0, stderr
+            concurrent = json.loads(app.cli(
+                "comments", "list", "--repo", str(repository), "--json",
+            ))
+            assert concurrent["count"] == 8, concurrent
+            assert json.loads(app.cli(
+                "comments", "consume", "--all", "--repo", str(repository), "--json",
+            ))["consumed"] == 8
 
             hook_payload = json.dumps({
                 "hook_event_name": "UserPromptSubmit",

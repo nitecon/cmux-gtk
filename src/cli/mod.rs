@@ -7,6 +7,7 @@
 mod bounded_json;
 #[path = "../browser_address.rs"]
 mod browser_address;
+mod comments;
 use cmux_platform::discovery;
 pub mod format;
 mod hooks;
@@ -101,6 +102,9 @@ pub fn run(cli: Cli) -> Result<(), CliError> {
     }
     if let Commands::TmuxCompat { args } = &cli.command {
         return teams::tmux_compat(args, cli.socket.as_deref());
+    }
+    if let Commands::Comments { command } = &cli.command {
+        return comments::run(command, cli.json);
     }
     if let Commands::ProjectActions {
         directory,
@@ -519,6 +523,7 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
         ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
         Commands::Diff { .. } => unreachable!("diff is prepared before socket dispatch"),
+        Commands::Comments { .. } => unreachable!("comments run without socket dispatch"),
         Commands::ClaudeTeams { .. } | Commands::TmuxCompat { .. } => {
             unreachable!("team launch commands are handled before socket discovery")
         }

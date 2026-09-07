@@ -17,6 +17,49 @@ pub(crate) enum DiffLayout {
     Split,
 }
 
+#[derive(Subcommand)]
+pub enum CommentCommands {
+    /// List pending review comments for a Git repository
+    List {
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        /// Include comments already marked consumed
+        #[arg(long)]
+        all: bool,
+    },
+    /// Add a durable line-anchored review comment
+    Add {
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        #[arg(long)]
+        file: String,
+        #[arg(long, default_value = "new")]
+        side: String,
+        #[arg(long)]
+        line: u32,
+        #[arg(long)]
+        end_line: Option<u32>,
+        #[arg(long, default_value = "")]
+        line_text: String,
+        #[arg(long)]
+        message: String,
+    },
+    /// Delete one review comment by UUID
+    Delete {
+        id: String,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+    },
+    /// Mark selected or all pending comments as delivered to an agent
+    Consume {
+        ids: Vec<String>,
+        #[arg(long)]
+        repo: Option<std::path::PathBuf>,
+        #[arg(long, conflicts_with = "ids")]
+        all: bool,
+    },
+}
+
 /// Parsed global flags and the selected terminal-multiplexer operation.
 #[derive(Parser)]
 #[command(name = "cmux", version = env!("CMUX_VERSION"), about = "Control cmux terminal multiplexer")]
@@ -90,6 +133,11 @@ pub enum Commands {
         /// Preserve the currently focused surface (the default)
         #[arg(long, conflicts_with = "focus")]
         no_focus: bool,
+    },
+    /// Manage durable diff-review comments keyed by Git repository
+    Comments {
+        #[command(subcommand)]
+        command: CommentCommands,
     },
     /// Launch Claude Code teams with teammate panes translated into native cmux splits
     ClaudeTeams {

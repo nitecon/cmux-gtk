@@ -140,6 +140,36 @@ pub fn sync_file_and_parent(path: &Path) -> io::Result<()> {
     std::fs::File::open(parent)?.sync_all()
 }
 
+/// Run one short storage transaction while holding an owner-only advisory lock.
+///
+/// The descriptor owns the kernel lock for the complete closure. Callers must not recursively
+/// acquire the same path and should avoid slow work while holding it.
+pub fn with_exclusive_lock<T>(
+    path: &Path,
+    transaction: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .mode(0o600)
+        .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW)
+        .open(path)?;
+    restrict_file_to_owner(path)?;
+    use std::os::fd::AsRawFd;
+    // SAFETY: `file` owns a live descriptor until after the transaction and unlock complete.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let result = transaction();
+    // SAFETY: the same live descriptor still owns the advisory lock.
+    let unlock = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
+    if unlock != 0 && result.is_ok() {
+        return Err(io::Error::last_os_error());
+    }
+    result
+}
+
 /// Stream a replacement into a private sibling file and rename only after callback success.
 /// The callback owns flushing any added buffers; errors remove the staging file and retain
 /// the destination. Returns the callback result after replacement. Blocking, without fsync.
