@@ -683,10 +683,10 @@ pub(super) fn open_document(
             return Err(error);
         }
     };
-    if !focus {
-        if let Some(previous) = previous_focus {
-            client.call("surface.focus", json!({"id":previous}))?;
-        }
+    if focus {
+        client.call("surface.focus", json!({"id":uuid}))?;
+    } else if let Some(previous) = previous_focus {
+        client.call("surface.focus", json!({"id":previous}))?;
     }
     let mut result = prepared.metadata;
     result.insert("uuid".into(), Value::String(uuid.clone()));
