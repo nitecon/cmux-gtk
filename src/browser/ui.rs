@@ -393,11 +393,12 @@ pub(crate) fn wire_browser_tab(
             else {
                 return;
             };
-            let pane_id = state_for_focus
-                .borrow()
-                .split_engines
-                .iter()
-                .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()));
+            let pane_id = state_for_focus.try_borrow().ok().and_then(|state| {
+                state
+                    .split_engines
+                    .iter()
+                    .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()))
+            });
             if let Some(pane_id) = pane_id {
                 let _ =
                     entry_for_focus.activate_action("win.focus-pane", Some(&pane_id.to_variant()));
@@ -491,11 +492,12 @@ pub(crate) fn wire_browser_tab(
             let Some(state_for_click) = state_for_click.upgrade() else {
                 return;
             };
-            let pane_id = state_for_click
-                .borrow()
-                .split_engines
-                .iter()
-                .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()));
+            let pane_id = state_for_click.try_borrow().ok().and_then(|state| {
+                state
+                    .split_engines
+                    .iter()
+                    .find_map(|engine| engine.find_pane_id_by_uuid(&surface_uuid.to_string()))
+            });
             if let Some(pane_id) = pane_id {
                 let _ = picture_for_click
                     .activate_action("win.focus-pane", Some(&pane_id.to_variant()));
