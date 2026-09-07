@@ -900,9 +900,7 @@ fn handle_socket_command_traced(
                             req_id,
                             json!({"surface_id": id, "workspace_id": s.workspaces[index].uuid,
                             "resume_binding": binding,
-                            "auto_resume": binding.as_ref().is_some_and(|binding| s.resume_policy.allows(binding))
-                                && (s.workspaces[index].remote_target.is_none()
-                                    || s.workspaces[index].terminal_transport == crate::remote_transport::TerminalTransport::Ssh),
+                            "auto_resume": binding.as_ref().is_some_and(|binding| s.resume_policy.allows(binding)),
                             "execution_location": if s.workspaces[index].remote_target.is_none() {
                                 "local"
                             } else if s.workspaces[index].terminal_transport == crate::remote_transport::TerminalTransport::Ssh {

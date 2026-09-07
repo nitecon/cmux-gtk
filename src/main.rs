@@ -629,6 +629,13 @@ fn build_ui(
                             ctx.eof_received
                                 .store(true, std::sync::atomic::Ordering::Relaxed);
                         }
+                        crate::diagnostics::record(
+                            "remote.terminal.eof",
+                            serde_json::json!({
+                                "remote_context": pane_id,
+                                "policy": "retain_until_next_input",
+                            }),
+                        );
                     }
                     crate::ssh::SshEvent::ClosePaneRequest { pane_id } => {
                         let surface = remote_context(&state, pane_id)

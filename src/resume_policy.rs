@@ -114,6 +114,17 @@ impl ResumePolicy {
     /// Build one approved command for a newly opened remote interactive shell.
     /// The subshell keeps directory and environment changes out of the surrounding session.
     pub fn remote_shell_input(&self, binding: &ResumeBinding) -> Option<Vec<u8>> {
+        let mut command = self.remote_shell_command(binding, "remote_ssh")?;
+        command.push('\r');
+        Some(command.into_bytes())
+    }
+
+    /// Render an approved binding for a transport-owned remote shell command argument.
+    pub fn remote_shell_command(
+        &self,
+        binding: &ResumeBinding,
+        location: &'static str,
+    ) -> Option<String> {
         if !self.allows(binding) {
             return None;
         }
@@ -132,14 +143,14 @@ impl ResumePolicy {
         }
         command.push_str(" /bin/sh -lc ");
         command.push_str(&crate::workspace::shell_quote(&binding.command));
-        command.push_str(")\r");
+        command.push(')');
         if command.len() > 128 * 1024 {
             return None;
         }
         crate::diagnostics::event(format_args!(
-            "resume.launch stage=schedule location=remote_ssh approval=signed"
+            "resume.launch stage=schedule location={location} approval=signed"
         ));
-        Some(command.into_bytes())
+        Some(command)
     }
 
     /// Discard excess or invalid records from disk before any launch decisions.

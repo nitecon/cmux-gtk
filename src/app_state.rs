@@ -183,7 +183,7 @@ impl AppState {
             Some(directory.clone()),
             None,
             None,
-            false,
+            None,
             &self.resume_policy,
             environment,
         )?;
@@ -360,22 +360,25 @@ impl AppState {
                 },
             )
         });
-        let launch_command =
-            if workspace.terminal_transport == crate::remote_transport::TerminalTransport::Mosh {
-                workspace.remote_target.as_deref().map(|target| {
-                    crate::remote_transport::mosh_command(
-                        target,
-                        workspace.remote_directory.as_deref(),
-                        &workspace.terminal_profile,
-                        workspace.terminal_tmux_session.as_deref(),
-                    )
-                    .expect("validated persisted Mosh transport")
-                })
-            } else {
+        let remote_mosh = (workspace.terminal_transport
+            == crate::remote_transport::TerminalTransport::Mosh)
+            .then(|| crate::remote_transport::MoshLaunch {
+                target: workspace
+                    .remote_target
+                    .clone()
+                    .expect("validated Mosh target"),
+                directory: workspace.remote_directory.clone(),
+                profile: workspace.terminal_profile,
+                tmux_session: workspace.terminal_tmux_session.clone(),
+            });
+        let launch_command = remote_mosh
+            .is_none()
+            .then(|| {
                 ws.startup_script
                     .as_deref()
                     .map(crate::workspace::startup_command)
-            };
+            })
+            .flatten();
 
         let row = self.build_sidebar_row(&workspace);
 
@@ -387,7 +390,7 @@ impl AppState {
             ws.working_directory.clone(),
             launch_command,
             remote_launch,
-            ws.remote_target.is_some(),
+            remote_mosh,
             &self.resume_policy,
             ws.launch_environment.clone(),
         )?;

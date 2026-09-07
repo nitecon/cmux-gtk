@@ -438,6 +438,28 @@ Subsystem sftp internal-sftp
         remote_write("second-workspace-restored")
         cli("select-workspace", local_id)
         eventually(lambda: len(launches()) >= 4)
+        cli("select-workspace", remote_id)
+        cli("focus-surface", remote_surface)
+        cli("send-text", "printf CMUX_EOF_READY; exit", "--id", remote_surface)
+        cli("send-key", "\r", "--id", remote_surface)
+
+        def eof_recorded():
+            """Observe the GTK-side EOF policy transition before sending the closing key."""
+            with (root / "events.jsonl").open() as source:
+                events = [json.loads(line) for line in source.read(8 * 1024 * 1024).splitlines()]
+            return any(
+                event["pid"] == app.pid and event["event"] == "remote.terminal.eof"
+                and event["fields"]["policy"] == "retain_until_next_input"
+                for event in events
+            )
+
+        eventually(eof_recorded)
+        assert remote_surface in {row["uuid"] for row in json.loads(cli("list-surfaces", "--json"))["surfaces"]}
+        cli("send-key", "x", "--id", remote_surface)
+        eventually(lambda: remote_surface not in {
+            row["uuid"] for row in json.loads(cli("list-surfaces", "--json"))["surfaces"]
+        })
+        assert json.loads(cli("ping", "--json"))["pong"]
         completed = True
         print("script and SSH launch contexts survive splits, reorder and restart")
     except BaseException:

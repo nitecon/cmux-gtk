@@ -17,6 +17,26 @@ pub enum TerminalProfile {
     Tmux,
 }
 
+#[derive(Clone, Debug)]
+pub struct MoshLaunch {
+    pub target: String,
+    pub directory: Option<String>,
+    pub profile: TerminalProfile,
+    pub tmux_session: Option<String>,
+}
+
+impl MoshLaunch {
+    pub fn command(&self, resume: Option<&str>) -> Result<String, &'static str> {
+        build_mosh_command(
+            &self.target,
+            self.directory.as_deref(),
+            &self.profile,
+            self.tmux_session.as_deref(),
+            resume,
+        )
+    }
+}
+
 pub fn validate_tmux_session(value: &str) -> Result<(), &'static str> {
     if value.is_empty()
         || value.len() > 64
@@ -35,6 +55,16 @@ pub fn mosh_command(
     directory: Option<&str>,
     profile: &TerminalProfile,
     tmux_session: Option<&str>,
+) -> Result<String, &'static str> {
+    build_mosh_command(target, directory, profile, tmux_session, None)
+}
+
+fn build_mosh_command(
+    target: &str,
+    directory: Option<&str>,
+    profile: &TerminalProfile,
+    tmux_session: Option<&str>,
+    resume: Option<&str>,
 ) -> Result<String, &'static str> {
     crate::workspace::validate_ssh_target(target).map_err(|_| "invalid SSH target")?;
     if directory.is_some_and(|value| !value.starts_with('/') || value.contains('\0')) {
@@ -59,7 +89,7 @@ pub fn mosh_command(
         .map(|value| crate::workspace::shell_quote(value))
         .collect::<Vec<_>>()
         .join(" ");
-    let remote = remote_command(directory, profile, tmux_session);
+    let remote = remote_command(directory, profile, tmux_session, resume);
     let mut fallback = format!(
         "exec {ssh_command} -t {}",
         crate::workspace::shell_quote(target)
@@ -108,6 +138,7 @@ fn remote_command(
     directory: Option<&str>,
     profile: &TerminalProfile,
     tmux_session: Option<&str>,
+    resume: Option<&str>,
 ) -> Option<String> {
     let mut parts = Vec::new();
     if let Some(directory) = directory {
@@ -117,14 +148,27 @@ fn remote_command(
         ));
     }
     match profile {
+        TerminalProfile::Shell if resume.is_some() => {
+            parts.push(resume.unwrap().into());
+            parts.push("exec \"${SHELL:-/bin/sh}\" -l".into());
+        }
         TerminalProfile::Shell if directory.is_some() => {
             parts.push("exec \"${SHELL:-/bin/sh}\" -l".into())
         }
         TerminalProfile::Shell => {}
-        TerminalProfile::Tmux => parts.push(format!(
-            "exec tmux new-session -A -s {}",
-            crate::workspace::shell_quote(tmux_session.unwrap_or("main"))
-        )),
+        TerminalProfile::Tmux => {
+            let mut command = format!(
+                "exec tmux new-session -A -s {}",
+                crate::workspace::shell_quote(tmux_session.unwrap_or("main"))
+            );
+            if let Some(resume) = resume {
+                command.push(' ');
+                command.push_str(&crate::workspace::shell_quote(&format!(
+                    "{resume}; exec \"${{SHELL:-/bin/sh}}\" -l"
+                )));
+            }
+            parts.push(command);
+        }
     }
     (!parts.is_empty()).then(|| parts.join("; "))
 }
@@ -156,6 +200,22 @@ mod tests {
         assert!(mosh_command("host; touch /tmp/no", None, &TerminalProfile::Shell, None).is_err());
         assert!(mosh_command("host", Some("tmp"), &TerminalProfile::Shell, None).is_err());
         assert!(mosh_command("host", None, &TerminalProfile::Tmux, Some("bad session")).is_err());
+    }
+
+    #[test]
+    fn restored_mosh_wraps_resume_on_the_remote_host() {
+        let launch = MoshLaunch {
+            target: "dev@example".into(),
+            directory: Some("/srv/team repo".into()),
+            profile: TerminalProfile::Shell,
+            tmux_session: None,
+        };
+        let command = launch.command(Some("(env PROJECT='safe' /bin/sh -lc 'agent --resume id')"));
+        let command = command.unwrap();
+        assert!(command.contains("agent --resume id"));
+        assert!(command.contains("dev@example"));
+        assert!(command.contains("/srv/team repo"));
+        assert!(command.contains("exec \"${SHELL:-/bin/sh}\" -l"));
     }
 
     #[test]
