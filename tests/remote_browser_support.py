@@ -99,8 +99,8 @@ def verify_remote_browser(root, cli, eventually, remote_id, second_remote_id, lo
             cli('select-workspace', local_id)
             opened = json.loads(cli('browser', 'open', url, '--workspace', workspace, timeout=35))
             assert opened['success'] is True
-            surfaces.append((opened['surface_ref'], identity))
-            cleanup.callback(cli, 'browser', 'close', '--surface', opened['surface_ref'])
+            surfaces.append((opened['uuid'], identity))
+            cleanup.callback(cli, 'browser', 'close', '--surface', opened['uuid'])
 
         def loaded(surface, identity):
             """Observe all resource paths and workspace provenance through the browser API."""
