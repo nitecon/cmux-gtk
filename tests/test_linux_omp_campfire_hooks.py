@@ -58,7 +58,14 @@ module.default({ on(name, callback) { handlers.set(name, callback); } });
 const context = { cwd: process.cwd(), sessionManager: {
   getSessionId() { return `${provider}-native-session`; }
 } };
-if (event === 'observer') {
+if (event === 'lifecycle') {
+  for (const name of ['session_start', 'before_agent_start', 'agent_end']) {
+    const callback = handlers.get(name);
+    if (!callback) throw new Error(`missing ${name}`);
+    callback({ message: `${provider} response ready` }, context);
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+} else if (event === 'observer') {
   handlers.get('session_start')?.({}, context);
   for (const listener of bridge.listeners) {
     listener({ type: 'join.requested', displayName: 'Ada', capability: 'shell' });
@@ -91,8 +98,7 @@ await new Promise(resolve => setTimeout(resolve, 750));
 
             expected_notifications = 0
             for provider in ("omp", "campfire"):
-                invoke(provider, "session_start")
-                invoke(provider, "before_agent_start")
+                invoke(provider, "lifecycle")
                 binding = json.loads(app.cli(
                     "surface", "resume", "show", "--surface", target, "--json",
                 ))["resume_binding"]
@@ -106,7 +112,6 @@ await new Promise(resolve => setTimeout(resolve, 750));
                 assert argv_output.read_text().splitlines() == [
                     "--session", f"{provider}-native-session",
                 ]
-                invoke(provider, "agent_end")
                 expected_notifications += 1
                 app.wait_for(
                     lambda: len(notifications()) == expected_notifications,
