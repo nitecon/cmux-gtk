@@ -224,6 +224,14 @@ impl SplitEngine {
                         Some(environment),
                         initial_input.as_deref(),
                     ),
+                    PaneSurfaceData::Files {
+                        surface_uuid,
+                        directory,
+                    } => PaneSurface::Files {
+                        uuid: *surface_uuid,
+                        directory: directory.clone(),
+                        widget: crate::markdown_browser::create(directory.clone()),
+                    },
                     PaneSurfaceData::Browser {
                         surface_uuid,
                         url,

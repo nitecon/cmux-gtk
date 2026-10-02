@@ -163,6 +163,11 @@ jobs:
       - name: Test asynchronous DevTools snapshot delivery and cancellation
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app devtools_snapshot_delivery_and_cancellation -- --ignored --test-threads=1
 
+      - name: Test native Files placement, restore, folder tree and Markdown rendering
+        run: |
+          dbus-run-session -- xvfb-run -a cargo test --bin cmux-app files_surface_layout_and_restore -- --ignored --test-threads=1
+          dbus-run-session -- xvfb-run -a cargo test --bin cmux-app files_viewer_tree_and_rendering -- --ignored --test-threads=1
+
       - name: Test divider recovery mapping and lifetime
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app divider_recovery_mapping_and_lifetime -- --ignored --test-threads=1
       - name: Test window state restoration

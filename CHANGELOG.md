@@ -13,6 +13,14 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- Open Markdown files in a native Files tab in the right-hand column, reusing existing columns and restoring the tab with the workspace.
+- Replace the flat file list with expandable folders and a resizable preview.
+- Preserve Markdown line breaks and code indentation, and render tables as aligned, bordered cells with inline formatting.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added

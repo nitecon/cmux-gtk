@@ -354,15 +354,17 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
-    // win.markdown-files — browse and read the active workspace's Markdown documents.
+    // win.markdown-files — select the native Files surface in the right column.
     let action = gio::SimpleAction::new("markdown-files", None);
     action.connect_activate({
-        let window = window.downgrade();
         let state = state.clone();
         move |_, _| {
-            if let Some(window) = window.upgrade() {
-                crate::markdown_browser::show(&window, &state);
+            let mut state = state.borrow_mut();
+            let directory = state.local_workspace_directory(state.active_index);
+            if let Some(engine) = state.active_split_engine_mut() {
+                engine.show_files(directory);
             }
+            state.trigger_session_save();
         }
     });
     window.add_action(&action);

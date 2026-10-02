@@ -174,24 +174,49 @@ fn markdown_markup(value: &str, links: bool, multiline: bool) -> String {
     render_markup(value, links, multiline, false)
 }
 
-/// Convert a whole Markdown document to readable GTK label markup for the document viewer.
-/// Headings scale by level, paragraphs are separated, lists indent, and only web links are active.
-pub(crate) fn markdown_document_markup(value: &str) -> String {
-    render_markup(value, true, true, true)
-}
-
 /// Shared escaped CommonMark renderer; `document` adds reading layout on top of multiline mode.
 fn render_markup(value: &str, links: bool, multiline: bool, document: bool) -> String {
-    use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-    let mut output = String::new();
-    let mut closing = Vec::new();
-    // Each open list records its next ordered number, or None when unordered.
-    let mut lists: Vec<Option<u64>> = Vec::new();
-    let mut options = Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
-    if document {
-        options |= Options::ENABLE_TABLES;
-    }
-    for event in Parser::new_ext(value, options) {
+    use pulldown_cmark::{Options, Parser};
+    let options = Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
+    render_events(Parser::new_ext(value, options), links, multiline, document)
+}
+
+/// Formatting context retained when native tables or code interrupt a document's prose.
+#[derive(Default)]
+pub(crate) struct MarkupState {
+    tags: Vec<(String, &'static str)>,
+    lists: Vec<Option<u64>>,
+}
+
+/// Render parsed inline/block events as escaped Pango markup; callers may isolate table cells.
+pub(crate) fn render_events<'a>(
+    events: impl IntoIterator<Item = pulldown_cmark::Event<'a>>,
+    links: bool,
+    multiline: bool,
+    document: bool,
+) -> String {
+    render_fragment(
+        events,
+        links,
+        multiline,
+        document,
+        &mut MarkupState::default(),
+    )
+}
+
+/// Render a balanced fragment while preserving surrounding list numbering and quote styling.
+pub(crate) fn render_fragment<'a>(
+    events: impl IntoIterator<Item = pulldown_cmark::Event<'a>>,
+    links: bool,
+    multiline: bool,
+    document: bool,
+    state: &mut MarkupState,
+) -> String {
+    use pulldown_cmark::{Event, HeadingLevel, Tag, TagEnd};
+    let mut output: String = state.tags.iter().map(|(open, _)| open.as_str()).collect();
+    let closing = &mut state.tags;
+    let lists = &mut state.lists;
+    for event in events {
         match event {
             Event::Start(tag) => {
                 let (open, close) = match tag {
@@ -239,10 +264,17 @@ fn render_markup(value: &str, links: bool, multiline: bool, document: bool) -> S
                     _ => (String::new(), ""),
                 };
                 output.push_str(&open);
-                closing.push(close);
+                closing.push((
+                    if open.starts_with('<') {
+                        open
+                    } else {
+                        String::new()
+                    },
+                    close,
+                ));
             }
             Event::End(tag) => {
-                output.push_str(closing.pop().unwrap_or_default());
+                output.push_str(closing.pop().map(|(_, close)| close).unwrap_or_default());
                 if document {
                     match tag {
                         TagEnd::List(_) => {
@@ -285,13 +317,16 @@ fn render_markup(value: &str, links: bool, multiline: bool, document: bool) -> S
             Event::Code(text) => {
                 output.push_str(&format!("<tt>{}</tt>", glib::markup_escape_text(&text)))
             }
-            Event::SoftBreak if document => output.push(' '),
+            Event::SoftBreak if document => output.push('\n'),
             Event::Rule if document => output.push_str("──────────\n\n"),
             Event::SoftBreak | Event::HardBreak | Event::Rule => {
                 output.push(if multiline { '\n' } else { ' ' })
             }
             Event::TaskListMarker(done) => output.push_str(if done { "☑ " } else { "☐ " }),
         }
+    }
+    for (_, close) in closing.iter().rev() {
+        output.push_str(close);
     }
     output.trim_end().to_owned()
 }

@@ -38,7 +38,7 @@ pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBa
     for (icon, tooltip, action) in [
         (
             "folder-documents-symbolic",
-            "Markdown Files",
+            "Files — Markdown preview",
             "win.markdown-files",
         ),
         (

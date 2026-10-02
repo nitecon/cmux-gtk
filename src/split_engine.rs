@@ -31,13 +31,18 @@ pub enum FocusDirection {
     Down,
 }
 
-/// A terminal or browser surface shown as a tab inside one pane.
+/// A terminal, browser or native Files surface shown as a tab inside one pane.
 #[derive(Clone)]
 pub enum PaneSurface {
     Terminal {
         gl_area: gtk4::GLArea,
         uuid: Uuid,
         resume: Option<crate::resume::ResumeBinding>,
+    },
+    Files {
+        widget: gtk4::Widget,
+        directory: Option<std::path::PathBuf>,
+        uuid: Uuid,
     },
     Browser {
         widgets: crate::browser::PreviewPaneWidgets,
@@ -49,7 +54,9 @@ impl PaneSurface {
     /// Return the stable tab identity shared by persistence and socket commands.
     fn uuid(&self) -> Uuid {
         match self {
-            Self::Terminal { uuid, .. } | Self::Browser { uuid, .. } => *uuid,
+            Self::Terminal { uuid, .. } | Self::Browser { uuid, .. } | Self::Files { uuid, .. } => {
+                *uuid
+            }
         }
     }
 
@@ -58,6 +65,7 @@ impl PaneSurface {
         match self {
             Self::Terminal { gl_area, .. } => gl_area.clone().upcast(),
             Self::Browser { widgets, .. } => widgets.container.clone().upcast(),
+            Self::Files { widget, .. } => widget.clone(),
         }
     }
 
@@ -66,6 +74,7 @@ impl PaneSurface {
         match self {
             Self::Terminal { .. } => "Terminal",
             Self::Browser { .. } => "Browser",
+            Self::Files { .. } => "Files",
         }
     }
 
@@ -73,7 +82,7 @@ impl PaneSurface {
     fn terminal_area(&self) -> Option<gtk4::GLArea> {
         match self {
             Self::Terminal { gl_area, .. } => Some(gl_area.clone()),
-            Self::Browser { .. } => None,
+            Self::Browser { .. } | Self::Files { .. } => None,
         }
     }
 
@@ -81,7 +90,7 @@ impl PaneSurface {
     fn url_entry(&self) -> Option<gtk4::Entry> {
         match self {
             Self::Browser { widgets, .. } => Some(widgets.url_entry.clone()),
-            Self::Terminal { .. } => None,
+            Self::Terminal { .. } | Self::Files { .. } => None,
         }
     }
 }
@@ -777,6 +786,15 @@ impl SplitEngine {
             gl_area.grab_focus();
         } else if let Some(entry) = find_url_entry_in_tree(&self.root, self.active_pane_id) {
             entry.grab_focus();
+        } else if let Some((notebook, surfaces)) = find_pane_tabs(&self.root, self.active_pane_id) {
+            if let Some(surface) = notebook
+                .current_page()
+                .and_then(|page| surfaces.borrow().get(page as usize).cloned())
+            {
+                surface
+                    .widget()
+                    .child_focus(gtk4::DirectionType::TabForward);
+            }
         }
     }
 
@@ -1005,6 +1023,81 @@ impl SplitEngine {
         self.active_pane_id = pane_id;
         self.root.update_focus_css(pane_id);
         self.new_terminal_tab()
+    }
+
+    /// Select the workspace's Files tab, or append one to its right-hand column.
+    /// A layout without a horizontal split gets a new right column around the entire tree.
+    /// GTK owns the viewer; it has no terminal process or external browser session.
+    pub fn show_files(&mut self, directory: Option<std::path::PathBuf>) -> Option<Uuid> {
+        let mut panes = Vec::new();
+        collect_leaves_in_order(&self.root, &mut panes);
+        for pane in panes {
+            let (_, surfaces) = find_pane_tabs(&self.root, pane)?;
+            let existing = surfaces.borrow().iter().find_map(|surface| match surface {
+                PaneSurface::Files { uuid, .. } => Some(*uuid),
+                _ => None,
+            });
+            if let Some(uuid) = existing {
+                self.focus_surface(&uuid.to_string());
+                return Some(uuid);
+            }
+        }
+        let uuid = Uuid::new_v4();
+        let surface = PaneSurface::Files {
+            widget: crate::markdown_browser::create(directory.clone()),
+            directory,
+            uuid,
+        };
+        if let Some(pane) = right_column_pane(&self.root) {
+            let (notebook, surfaces) = find_pane_tabs(&self.root, pane)?;
+            append_pane_surface(&notebook, &surfaces, surface, true);
+        } else {
+            let pane = self.next_pane_id;
+            self.next_pane_id += 1;
+            let old_widget = self.root.widget();
+            let stack_slot = old_widget
+                .parent()
+                .and_downcast::<gtk4::Stack>()
+                .and_then(|stack| {
+                    let name = stack.page(&old_widget).name()?.to_string();
+                    Some((stack, name))
+                });
+            remove_widget_from_parent(&old_widget);
+            let old_root = std::mem::replace(&mut self.root, create_pane(pane, surface));
+            let paned = gtk4::Paned::new(gtk4::Orientation::Horizontal);
+            paned.set_wide_handle(true);
+            paned.set_shrink_start_child(true);
+            paned.set_shrink_end_child(true);
+            paned.set_start_child(Some(&old_widget));
+            paned.set_end_child(Some(&self.root.widget()));
+            recovery::install(&paned);
+            let weak = paned.downgrade();
+            glib::idle_add_local_once(move || {
+                if let Some(paned) = weak.upgrade() {
+                    paned.set_position(paned.width() / 2);
+                }
+            });
+            self.root = SplitNode::Split {
+                orientation: gtk4::Orientation::Horizontal,
+                paned,
+                start: Box::new(old_root),
+                end: Box::new(std::mem::replace(
+                    &mut self.root,
+                    SplitNode::Leaf {
+                        pane_id: 0,
+                        notebook: gtk4::Notebook::new(),
+                        surfaces: Default::default(),
+                        has_attention: false,
+                    },
+                )),
+            };
+            if let Some((stack, name)) = stack_slot {
+                stack.add_named(&self.root.widget(), Some(&name));
+                stack.set_visible_child_name(&name);
+            }
+        }
+        self.focus_surface(&uuid.to_string());
+        Some(uuid)
     }
 
     /// Create and select a browser surface tab in the focused pane.
@@ -1852,6 +1945,21 @@ fn first_pane_id(node: &SplitNode) -> u64 {
     }
 }
 
+/// Find the first pane of the outermost right column, independently of terminal focus.
+fn right_column_pane(node: &SplitNode) -> Option<u64> {
+    match node {
+        SplitNode::Split {
+            orientation: gtk4::Orientation::Horizontal,
+            end,
+            ..
+        } => Some(right_column_pane(end).unwrap_or_else(|| first_pane_id(end))),
+        SplitNode::Split { start, end, .. } => {
+            right_column_pane(start).or_else(|| right_column_pane(end))
+        }
+        SplitNode::Leaf { .. } => None,
+    }
+}
+
 /// Find a pane once and clone its notebook/model handles for selected-tab operations.
 fn find_pane_tabs(
     node: &SplitNode,
@@ -2065,6 +2173,10 @@ pub enum SplitNodeData {
 #[allow(clippy::large_enum_variant)] // Terminal snapshots own bounded resume/env/history state.
 #[serde(tag = "type")]
 pub enum PaneSurfaceData {
+    Files {
+        surface_uuid: Uuid,
+        directory: Option<std::path::PathBuf>,
+    },
     Terminal {
         surface_uuid: Uuid,
         shell: String,
@@ -2165,6 +2277,12 @@ impl SplitNode {
                                         .unwrap_or_default()
                                 }),
                         },
+                        PaneSurface::Files {
+                            directory, uuid, ..
+                        } => PaneSurfaceData::Files {
+                            surface_uuid: *uuid,
+                            directory: directory.clone(),
+                        },
                         PaneSurface::Browser { widgets, uuid } => PaneSurfaceData::Browser {
                             surface_uuid: *uuid,
                             url: widgets.url_entry.text().to_string(),
@@ -2215,6 +2333,121 @@ impl SplitNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Files opens in a right column, reuses it, closes normally and restores its native surface.
+    #[test]
+    #[ignore = "requires GTK display; run in GitHub Actions under Xvfb"]
+    fn files_surface_layout_and_restore() {
+        gtk4::init().unwrap();
+        let mut engine = SplitEngine::new(std::ptr::null_mut(), gtk4::GLArea::new(), 1, None);
+        let stack = gtk4::Stack::new();
+        stack.add_named(&engine.root_widget(), Some("workspace"));
+        let files = engine.show_files(None).unwrap();
+        assert_eq!(engine.pane_info().len(), 2);
+        assert_eq!(stack.visible_child(), Some(engine.root_widget()));
+        let right = engine.find_pane_id_by_uuid(&files.to_string()).unwrap();
+        assert_ne!(right, 1);
+        assert_eq!(engine.active_pane_id, right);
+        assert_eq!(engine.show_files(None), Some(files));
+        assert_eq!(engine.pane_info().len(), 2);
+        let (notebook, surfaces) = find_pane_tabs(&engine.root, right).unwrap();
+        assert_eq!(surfaces.borrow()[0].tab_title(), "Files");
+        append_pane_surface(
+            &notebook,
+            &surfaces,
+            PaneSurface::Terminal {
+                gl_area: gtk4::GLArea::new(),
+                uuid: Uuid::new_v4(),
+                resume: None,
+            },
+            false,
+        );
+        assert!(matches!(
+            engine.close_surface_tab(files),
+            CloseSurfaceResult::Closed
+        ));
+        engine.activate_pane(1);
+        let replacement = engine.show_files(None).unwrap();
+        assert_eq!(
+            engine.find_pane_id_by_uuid(&replacement.to_string()),
+            Some(right)
+        );
+        assert_eq!(engine.pane_info().len(), 2);
+        assert_eq!(surfaces.borrow().len(), 2);
+        assert!(matches!(
+            engine.close_surface_tab(replacement),
+            CloseSurfaceResult::Closed
+        ));
+        assert_eq!(surfaces.borrow().len(), 1);
+
+        let data = SplitNodeData::Pane {
+            active_surface_uuid: Some(files),
+            surfaces: vec![PaneSurfaceData::Files {
+                surface_uuid: files,
+                directory: None,
+            }],
+        };
+        let serialized = serde_json::to_string(&data).unwrap();
+        let restored = SplitEngine::from_data_with_command(
+            std::ptr::null_mut(),
+            &serde_json::from_str(&serialized).unwrap(),
+            Some(&files.to_string()),
+            None,
+            None,
+            None,
+            None,
+            &crate::resume_policy::ResumePolicy::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let snapshot = restored.root.to_data();
+        let SplitNodeData::Pane {
+            active_surface_uuid,
+            surfaces,
+        } = snapshot
+        else {
+            panic!("expected pane")
+        };
+        assert_eq!(active_surface_uuid, Some(files));
+        assert!(
+            matches!(&surfaces[0], PaneSurfaceData::Files { surface_uuid, directory: None } if *surface_uuid == files)
+        );
+
+        // A vertical-only layout gets one full-height column around both original panes.
+        let mut vertical = SplitEngine::new(std::ptr::null_mut(), gtk4::GLArea::new(), 1, None);
+        let lower = create_pane(
+            2,
+            PaneSurface::Terminal {
+                gl_area: gtk4::GLArea::new(),
+                uuid: Uuid::new_v4(),
+                resume: None,
+            },
+        );
+        vertical.next_pane_id = 3;
+        vertical
+            .replace_leaf_with_split(1, lower, gtk4::Orientation::Vertical)
+            .unwrap();
+        vertical.show_files(None).unwrap();
+        let SplitNode::Split {
+            orientation,
+            start,
+            end,
+            ..
+        } = &vertical.root
+        else {
+            panic!("expected split")
+        };
+        assert_eq!(*orientation, gtk4::Orientation::Horizontal);
+        assert!(matches!(
+            start.as_ref(),
+            SplitNode::Split {
+                orientation: gtk4::Orientation::Vertical,
+                ..
+            }
+        ));
+        assert!(matches!(end.as_ref(), SplitNode::Leaf { .. }));
+        assert_eq!(vertical.pane_info().len(), 3);
+    }
 
     /// Verify legacy leaf JSON retains the stable surface identity.
     #[test]
