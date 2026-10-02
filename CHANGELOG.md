@@ -13,6 +13,12 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.3.0] - 2026-10-02
+
+### Added
+
+- Header Markdown file browser listing the active workspace's documents with a rendered reader.
+
 ## [0.2.1] - 2026-09-07
 
 ### Fixed
