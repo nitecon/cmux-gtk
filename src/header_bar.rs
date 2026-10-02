@@ -37,6 +37,11 @@ pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBa
     header.pack_end(&menu);
     for (icon, tooltip, action) in [
         (
+            "folder-documents-symbolic",
+            "Markdown Files",
+            "win.markdown-files",
+        ),
+        (
             "sidebar-show-symbolic",
             "Toggle Sidebar (Ctrl+B)",
             "win.toggle-sidebar",

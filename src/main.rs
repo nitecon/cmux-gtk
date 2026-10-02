@@ -16,6 +16,7 @@ mod inbox;
 mod inbox_actions;
 mod inbox_view;
 mod line_reader;
+mod markdown_browser;
 mod menus;
 mod notification;
 mod notification_caller;

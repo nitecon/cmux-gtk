@@ -354,6 +354,19 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // win.markdown-files — browse and read the active workspace's Markdown documents.
+    let action = gio::SimpleAction::new("markdown-files", None);
+    action.connect_activate({
+        let window = window.downgrade();
+        let state = state.clone();
+        move |_, _| {
+            if let Some(window) = window.upgrade() {
+                crate::markdown_browser::show(&window, &state);
+            }
+        }
+    });
+    window.add_action(&action);
+
     // --- View section actions ---
 
     // win.toggle-sidebar

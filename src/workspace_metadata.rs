@@ -171,18 +171,63 @@ pub fn parse(method: &str, params: &serde_json::Value) -> Result<Action, &'stati
 /// Convert bounded CommonMark to GTK label markup without accepting HTML or fetching resources.
 /// Inline mode collapses block boundaries; multiline mode preserves them. Image alt text remains visible.
 fn markdown_markup(value: &str, links: bool, multiline: bool) -> String {
-    use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+    render_markup(value, links, multiline, false)
+}
+
+/// Convert a whole Markdown document to readable GTK label markup for the document viewer.
+/// Headings scale by level, paragraphs are separated, lists indent, and only web links are active.
+pub(crate) fn markdown_document_markup(value: &str) -> String {
+    render_markup(value, true, true, true)
+}
+
+/// Shared escaped CommonMark renderer; `document` adds reading layout on top of multiline mode.
+fn render_markup(value: &str, links: bool, multiline: bool, document: bool) -> String {
+    use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
     let mut output = String::new();
     let mut closing = Vec::new();
-    for event in Parser::new_ext(
-        value,
-        Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS,
-    ) {
+    // Each open list records its next ordered number, or None when unordered.
+    let mut lists: Vec<Option<u64>> = Vec::new();
+    let mut options = Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
+    if document {
+        options |= Options::ENABLE_TABLES;
+    }
+    for event in Parser::new_ext(value, options) {
         match event {
             Event::Start(tag) => {
                 let (open, close) = match tag {
+                    Tag::Heading { level, .. } if document => {
+                        let size = match level {
+                            HeadingLevel::H1 => "xx-large",
+                            HeadingLevel::H2 => "x-large",
+                            HeadingLevel::H3 => "large",
+                            _ => "medium",
+                        };
+                        (format!("<span size='{size}' weight='bold'>"), "</span>")
+                    }
                     Tag::Heading { .. } if multiline => ("<b>".to_owned(), "</b>"),
+                    Tag::List(start) if document => {
+                        lists.push(start);
+                        (String::new(), "")
+                    }
+                    Tag::Item if document => {
+                        let indent = "    ".repeat(lists.len().saturating_sub(1));
+                        let marker = match lists.last_mut() {
+                            Some(Some(number)) => {
+                                *number += 1;
+                                format!("{}. ", *number - 1)
+                            }
+                            _ => "• ".to_owned(),
+                        };
+                        // A nested list starts inside its parent item's text line.
+                        let lead = if output.is_empty() || output.ends_with('\n') {
+                            ""
+                        } else {
+                            "\n"
+                        };
+                        (format!("{lead}{indent}{marker}"), "")
+                    }
                     Tag::Item if multiline => ("• ".to_owned(), ""),
+                    Tag::BlockQuote(_) if document => ("<i>".to_owned(), "</i>"),
                     Tag::Strong => ("<b>".to_owned(), "</b>"),
                     Tag::Emphasis => ("<i>".to_owned(), "</i>"),
                     Tag::Strikethrough => ("<s>".to_owned(), "</s>"),
@@ -198,6 +243,30 @@ fn markdown_markup(value: &str, links: bool, multiline: bool) -> String {
             }
             Event::End(tag) => {
                 output.push_str(closing.pop().unwrap_or_default());
+                if document {
+                    match tag {
+                        TagEnd::List(_) => {
+                            lists.pop();
+                            if lists.is_empty() {
+                                output.push('\n');
+                            }
+                        }
+                        TagEnd::Paragraph if !lists.is_empty() => output.push('\n'),
+                        TagEnd::Paragraph
+                        | TagEnd::Heading(_)
+                        | TagEnd::CodeBlock
+                        | TagEnd::Table
+                        | TagEnd::BlockQuote(_) => output.push_str("\n\n"),
+                        TagEnd::Item | TagEnd::TableHead | TagEnd::TableRow => {
+                            if !output.ends_with('\n') {
+                                output.push('\n');
+                            }
+                        }
+                        TagEnd::TableCell => output.push_str(" │ "),
+                        _ => {}
+                    }
+                    continue;
+                }
                 if matches!(
                     tag,
                     TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item | TagEnd::CodeBlock
@@ -216,6 +285,8 @@ fn markdown_markup(value: &str, links: bool, multiline: bool) -> String {
             Event::Code(text) => {
                 output.push_str(&format!("<tt>{}</tt>", glib::markup_escape_text(&text)))
             }
+            Event::SoftBreak if document => output.push(' '),
+            Event::Rule if document => output.push_str("──────────\n\n"),
             Event::SoftBreak | Event::HardBreak | Event::Rule => {
                 output.push(if multiline { '\n' } else { ' ' })
             }
