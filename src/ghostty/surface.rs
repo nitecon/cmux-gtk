@@ -785,27 +785,42 @@ pub fn create_surface(
     gl_area.add_controller(focus_controller);
 
     // ── Scroll input ─────────────────────────────────────────────────────────────
-    let scroll_controller = gtk4::EventControllerScroll::new(
-        gtk4::EventControllerScrollFlags::BOTH_AXES | gtk4::EventControllerScrollFlags::DISCRETE,
-    );
+    // Like Ghostty's GTK runtime: no DISCRETE flag (it rounds touchpad deltas away),
+    // touchpad detected by its gesture begin/end, and its pixels scaled to device pixels.
+    let scroll_controller =
+        gtk4::EventControllerScroll::new(gtk4::EventControllerScrollFlags::BOTH_AXES);
+    let precision = Rc::new(std::cell::Cell::new(false));
+    scroll_controller.connect_scroll_begin({
+        let precision = precision.clone();
+        move |_| precision.set(true)
+    });
+    scroll_controller.connect_scroll_end({
+        let precision = precision.clone();
+        move |_| precision.set(false)
+    });
     scroll_controller.connect_scroll({
         let cell = surface_cell.clone();
-        move |ctrl, dx, dy| {
+        let area = gl_area.downgrade();
+        move |_ctrl, dx, dy| {
             let surface = match *cell.borrow() {
                 Some(s) => s,
                 None => return gtk4::glib::Propagation::Proceed,
             };
-            // Detect if this is pixel-precise (touchpad) or discrete (mouse wheel)
-            let is_pixel = ctrl
-                .current_event()
-                .and_then(|e| e.downcast::<gtk4::gdk::ScrollEvent>().ok())
-                .map(|se| se.direction() == gtk4::gdk::ScrollDirection::Smooth)
-                .unwrap_or(false);
+            let is_pixel = precision.get();
 
             // ghostty_input_scroll_mods_t is a bitmask:
             // bit 0: scroll_is_pixel (1 if touchpad, 0 if mouse wheel)
             // bit 1: momentum (1 if momentum scrolling)
             let scroll_mods = if is_pixel { 1 } else { 0 };
+            // Touchpad deltas are small logical pixels; Ghostty multiplies them by 10
+            // and by the device scale, since the core counts physical pixels.
+            let factor = if is_pixel {
+                10.0 * area.upgrade().map_or(1, |area| area.scale_factor()) as f64
+            } else {
+                1.0
+            };
+            let factor = if crate::preferences::invert_scroll() { -factor } else { factor };
+            let (dx, dy) = (dx * factor, dy * factor);
 
             unsafe {
                 ffi::ghostty_surface_mouse_scroll(surface, dx, dy, scroll_mods);
