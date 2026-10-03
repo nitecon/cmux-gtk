@@ -571,8 +571,8 @@ pub fn create_surface(
     let key_controller = gtk4::EventControllerKey::new();
     key_controller.connect_key_pressed({
         let cell = surface_cell.clone();
-        move |_ctrl, keyval, keycode, state| {
-            use crate::ghostty::input::map_mods;
+        move |ctrl, keyval, keycode, state| {
+            use crate::ghostty::input::{key_event_details, key_text_char, map_mods};
 
             let surface = match *cell.borrow() {
                 Some(s) => s,
@@ -607,7 +607,8 @@ pub fn create_surface(
 
             // text field: UTF-8 from the keyval (what the key produces with modifiers applied).
             // Must be a C string. Use a stack-allocated buffer to avoid heap allocation.
-            let unicode = keyval.to_unicode();
+            // Control characters are left to Ghostty's encoder (as in its GTK runtime).
+            let unicode = key_text_char(keyval.to_unicode());
             let mut text_buf = [0u8; 8]; // UTF-8: max 4 bytes + null
             let text_ptr = if let Some(ch) = unicode {
                 let mut s = [0u8; 5];
@@ -628,7 +629,12 @@ pub fn create_surface(
             input.mods = map_mods(state);
             input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_PRESS;
             input.text = text_ptr;
-            input.consumed_mods = 0; // Not used in Phase 1
+            // Unshifted key + consumed mods: without them Ghostty's Kitty keyboard
+            // encoder sends Ctrl+C as plain "c" (Claude Code, Neovim, fish...).
+            // map_keycode allocates, like Ghostty's own GTK runtime does here.
+            let (unshifted, consumed) = key_event_details(ctrl, keycode);
+            input.unshifted_codepoint = unshifted;
+            input.consumed_mods = consumed;
 
             unsafe {
                 ffi::ghostty_surface_key(surface, input);
@@ -638,8 +644,8 @@ pub fn create_surface(
     });
     key_controller.connect_key_released({
         let cell = surface_cell.clone();
-        move |_ctrl, _keyval, keycode, state| {
-            use crate::ghostty::input::map_mods;
+        move |ctrl, _keyval, keycode, state| {
+            use crate::ghostty::input::{key_event_details, map_mods};
 
             let surface = match *cell.borrow() {
                 Some(s) => s,
@@ -651,7 +657,10 @@ pub fn create_surface(
             input.mods = map_mods(state);
             input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
             input.text = std::ptr::null();
-            input.consumed_mods = 0; // Not used in Phase 1
+            // Same unshifted key as the press, so Ghostty matches the pair.
+            let (unshifted, consumed) = key_event_details(ctrl, keycode);
+            input.unshifted_codepoint = unshifted;
+            input.consumed_mods = consumed;
             unsafe {
                 ffi::ghostty_surface_key(surface, input);
             }
