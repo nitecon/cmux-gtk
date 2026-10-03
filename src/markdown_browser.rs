@@ -483,7 +483,9 @@ mod tests {
         wait_until(|| !descendants::<gtk4::Expander>(&widget).is_empty());
         let expander = descendants::<gtk4::Expander>(&widget).remove(0);
         assert!(!expander.is_expanded());
-        let button = descendants::<gtk4::Button>(&widget)
+        // GtkExpander retains its collapsed child outside the visible widget hierarchy.
+        let folder = expander.child().expect("folder content");
+        let button = descendants::<gtk4::Button>(&folder)
             .into_iter()
             .find(|button| {
                 button
