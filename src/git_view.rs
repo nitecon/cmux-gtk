@@ -176,7 +176,13 @@ async fn snapshot(directory: &Path, revision: Option<&str>) -> Result<Snapshot, 
         files
     };
     files.sort_by(|a, b| a.path.cmp(&b.path));
-    files.dedup_by(|a, b| a.path == b.path);
+    files.dedup_by(|a, b| {
+        if a.path != b.path {
+            return false;
+        }
+        b.untracked |= a.untracked;
+        true
+    });
     Ok(Snapshot { versions, files })
 }
 
@@ -188,22 +194,7 @@ async fn file_diff(
 ) -> Result<String, String> {
     let root = repository_root(directory).await?;
     let root = root.as_path();
-    let bytes = if file.untracked {
-        git(
-            root,
-            &[
-                "diff",
-                "--no-index",
-                "--no-ext-diff",
-                "--no-textconv",
-                "--",
-                "/dev/null",
-                &file.path,
-            ],
-            true,
-        )
-        .await?
-    } else if let Some(revision) = revision {
+    let bytes = if let Some(revision) = revision {
         let parent = format!("{revision}^1");
         if git(root, &["rev-parse", "--verify", &parent], false)
             .await
@@ -269,8 +260,30 @@ async fn file_diff(
             false,
         )
         .await?;
+        let untracked = if file.untracked {
+            git(
+                root,
+                &[
+                    "diff",
+                    "--no-index",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--",
+                    "/dev/null",
+                    &file.path,
+                ],
+                true,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
         let mut result = Vec::new();
-        for (title, patch) in [("Staged", staged), ("Unstaged", unstaged)] {
+        for (title, patch) in [
+            ("Staged", staged),
+            ("Unstaged", unstaged),
+            ("Untracked", untracked),
+        ] {
             if !patch.is_empty() {
                 result.extend_from_slice(format!("{title}\n\n").as_bytes());
                 result.extend(patch);
@@ -617,6 +630,17 @@ mod tests {
             .await
             .unwrap()
             .contains("+untracked"));
+        repo.run(&["reset", "HEAD", "--", "tracked.txt"]);
+        repo.run(&["rm", "--cached", "tracked.txt"]);
+        let current = snapshot(&root, None).await.unwrap();
+        let recreated = current
+            .files
+            .iter()
+            .find(|file| file.path == "tracked.txt")
+            .unwrap();
+        let diff = file_diff(&root, None, recreated).await.unwrap();
+        assert!(diff.contains("Staged\n") && diff.contains("Untracked\n"));
+        assert!(diff.contains("-initial") && diff.contains("+initial"));
         let outside = Repo::new();
         std::fs::remove_dir_all(outside.0.join(".git")).unwrap();
         assert!(snapshot(&outside.0, None).await.is_err());
