@@ -13,6 +13,20 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.4.0] - 2026-10-02
+
+### Added
+
+- Add a native Git side panel alongside Files, with a version tree of recent commits and selectable per-file diffs.
+- Open Git on Current changes by default, showing staged, unstaged and untracked changes with a one-click return and refresh; restore the Git tab with the session.
+- Add a live preference to invert mouse-wheel and touchpad scrolling.
+
+### Fixed
+
+- Preserve control-key input in applications using the Kitty keyboard protocol, including Claude Code, Neovim and fish.
+- Keep touchpad scrolling smooth and scale precision deltas for the display.
+- Update the Homebrew cask template to use declarative preflight steps and ordered dependency stanzas.
+
 ## [0.3.1] - 2026-10-02
 
 ### Fixed
