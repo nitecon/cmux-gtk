@@ -12,7 +12,6 @@ cask "cmux-gtk" do
     strategy :github_latest
   end
 
-  depends_on :linux
   depends_on arch: :x86_64
   depends_on formula: %w[
     fontconfig
@@ -22,6 +21,7 @@ cask "cmux-gtk" do
     libnotify
     oniguruma
   ]
+  depends_on :linux
 
   command_wrapper "cmux",
                   content: <<~SH
