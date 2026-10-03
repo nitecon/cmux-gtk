@@ -11,6 +11,7 @@ mod config;
 mod diagnostics;
 mod ghostty;
 mod git_metadata;
+mod git_view;
 mod header_bar;
 mod inbox;
 mod inbox_actions;
@@ -159,6 +160,7 @@ fn main() {
     // Tokio runtime for socket I/O (kept alive for app lifetime).
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     let runtime_handle = runtime.handle().clone();
+    let _runtime_context = runtime.enter();
     let browser_shutdown_tasks: browser::ShutdownTasks = Default::default();
     diagnostics::start_sampler(&runtime_handle);
 

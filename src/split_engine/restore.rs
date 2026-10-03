@@ -224,6 +224,14 @@ impl SplitEngine {
                         Some(environment),
                         initial_input.as_deref(),
                     ),
+                    PaneSurfaceData::Git {
+                        surface_uuid,
+                        directory,
+                    } => PaneSurface::Git {
+                        uuid: *surface_uuid,
+                        directory: directory.clone(),
+                        widget: crate::git_view::create(directory.clone()),
+                    },
                     PaneSurfaceData::Files {
                         surface_uuid,
                         directory,

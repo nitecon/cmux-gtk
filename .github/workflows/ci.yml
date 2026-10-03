@@ -168,6 +168,11 @@ jobs:
           dbus-run-session -- xvfb-run -a cargo test --bin cmux-app files_surface_layout_and_restore -- --ignored --test-threads=1
           dbus-run-session -- xvfb-run -a cargo test --bin cmux-app files_viewer_tree_and_rendering -- --ignored --test-threads=1
 
+      - name: Test native Git navigation, per-file diffs and tab restore
+        run: |
+          dbus-run-session -- xvfb-run -a cargo test --bin cmux-app git_view_navigation_and_lifetime -- --ignored --test-threads=1
+          dbus-run-session -- xvfb-run -a cargo test --bin cmux-app git_surface_layout_and_restore -- --ignored --test-threads=1
+
       - name: Test divider recovery mapping and lifetime
         run: dbus-run-session -- xvfb-run -a cargo test --bin cmux-app divider_recovery_mapping_and_lifetime -- --ignored --test-threads=1
       - name: Test window state restoration

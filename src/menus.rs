@@ -369,6 +369,21 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // win.git-view — select the native Git surface in the right column.
+    let action = gio::SimpleAction::new("git-view", None);
+    action.connect_activate({
+        let state = state.clone();
+        move |_, _| {
+            let mut state = state.borrow_mut();
+            let directory = state.local_workspace_directory(state.active_index);
+            if let Some(engine) = state.active_split_engine_mut() {
+                engine.show_git(directory);
+            }
+            state.trigger_session_save();
+        }
+    });
+    window.add_action(&action);
+
     // --- View section actions ---
 
     // win.toggle-sidebar

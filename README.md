@@ -57,6 +57,14 @@ Selecting text automatically makes it available to **middle-click paste** throug
 Linux PRIMARY selection. Ghostty's `copy-on-select` configuration still applies;
 its Linux default is `true`.
 
+**Git** in the header opens a tab in the right-hand pane, alongside Files. It
+starts on **Current — uncommitted changes**, listing staged, unstaged and
+untracked files. Select a file for its colored unified diff, or choose a commit
+in the version tree (the latest 300 commits across local refs). Merge commits
+show changes against their first parent. Click **Current** to return and refresh
+the working changeset. The tab is restored with your session. Git viewing uses
+the local workspace folder; SSH workspaces do not scan local files.
+
 The [six-month upstream review](docs/research/upstream-2026-09.md) records which
 upstream features informed this port and which are candidates for later work.
 

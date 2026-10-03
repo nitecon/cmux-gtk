@@ -37,6 +37,11 @@ pub fn build_header_bar(config: &crate::config::Config) -> Option<gtk4::HeaderBa
     header.pack_end(&menu);
     for (icon, tooltip, action) in [
         (
+            "document-open-recent-symbolic",
+            "Git — history and current changes",
+            "win.git-view",
+        ),
+        (
             "folder-documents-symbolic",
             "Files — Markdown preview",
             "win.markdown-files",

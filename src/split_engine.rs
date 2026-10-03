@@ -39,6 +39,11 @@ pub enum PaneSurface {
         uuid: Uuid,
         resume: Option<crate::resume::ResumeBinding>,
     },
+    Git {
+        widget: gtk4::Widget,
+        directory: Option<std::path::PathBuf>,
+        uuid: Uuid,
+    },
     Files {
         widget: gtk4::Widget,
         directory: Option<std::path::PathBuf>,
@@ -54,9 +59,10 @@ impl PaneSurface {
     /// Return the stable tab identity shared by persistence and socket commands.
     fn uuid(&self) -> Uuid {
         match self {
-            Self::Terminal { uuid, .. } | Self::Browser { uuid, .. } | Self::Files { uuid, .. } => {
-                *uuid
-            }
+            Self::Terminal { uuid, .. }
+            | Self::Browser { uuid, .. }
+            | Self::Files { uuid, .. }
+            | Self::Git { uuid, .. } => *uuid,
         }
     }
 
@@ -65,7 +71,7 @@ impl PaneSurface {
         match self {
             Self::Terminal { gl_area, .. } => gl_area.clone().upcast(),
             Self::Browser { widgets, .. } => widgets.container.clone().upcast(),
-            Self::Files { widget, .. } => widget.clone(),
+            Self::Files { widget, .. } | Self::Git { widget, .. } => widget.clone(),
         }
     }
 
@@ -75,6 +81,7 @@ impl PaneSurface {
             Self::Terminal { .. } => "Terminal",
             Self::Browser { .. } => "Browser",
             Self::Files { .. } => "Files",
+            Self::Git { .. } => "Git",
         }
     }
 
@@ -82,7 +89,7 @@ impl PaneSurface {
     fn terminal_area(&self) -> Option<gtk4::GLArea> {
         match self {
             Self::Terminal { gl_area, .. } => Some(gl_area.clone()),
-            Self::Browser { .. } | Self::Files { .. } => None,
+            Self::Browser { .. } | Self::Files { .. } | Self::Git { .. } => None,
         }
     }
 
@@ -90,7 +97,7 @@ impl PaneSurface {
     fn url_entry(&self) -> Option<gtk4::Entry> {
         match self {
             Self::Browser { widgets, .. } => Some(widgets.url_entry.clone()),
-            Self::Terminal { .. } | Self::Files { .. } => None,
+            Self::Terminal { .. } | Self::Files { .. } | Self::Git { .. } => None,
         }
     }
 }
@@ -1029,12 +1036,26 @@ impl SplitEngine {
     /// A layout without a horizontal split gets a new right column around the entire tree.
     /// GTK owns the viewer; it has no terminal process or external browser session.
     pub fn show_files(&mut self, directory: Option<std::path::PathBuf>) -> Option<Uuid> {
+        self.show_side_view(directory, false)
+    }
+
+    /// Open Git in the shared right column, selecting Current on every explicit open.
+    pub fn show_git(&mut self, directory: Option<std::path::PathBuf>) -> Option<Uuid> {
+        self.show_side_view(directory, true)
+    }
+
+    /// Reuse a native side tab or create its right column without moving terminal surfaces.
+    fn show_side_view(&mut self, directory: Option<std::path::PathBuf>, git: bool) -> Option<Uuid> {
         let mut panes = Vec::new();
         collect_leaves_in_order(&self.root, &mut panes);
         for pane in panes {
             let (_, surfaces) = find_pane_tabs(&self.root, pane)?;
             let existing = surfaces.borrow().iter().find_map(|surface| match surface {
-                PaneSurface::Files { uuid, .. } => Some(*uuid),
+                PaneSurface::Files { uuid, .. } if !git => Some(*uuid),
+                PaneSurface::Git { uuid, widget, .. } if git => {
+                    crate::git_view::select_current(widget);
+                    Some(*uuid)
+                }
                 _ => None,
             });
             if let Some(uuid) = existing {
@@ -1043,10 +1064,18 @@ impl SplitEngine {
             }
         }
         let uuid = Uuid::new_v4();
-        let surface = PaneSurface::Files {
-            widget: crate::markdown_browser::create(directory.clone()),
-            directory,
-            uuid,
+        let surface = if git {
+            PaneSurface::Git {
+                widget: crate::git_view::create(directory.clone()),
+                directory,
+                uuid,
+            }
+        } else {
+            PaneSurface::Files {
+                widget: crate::markdown_browser::create(directory.clone()),
+                directory,
+                uuid,
+            }
         };
         if let Some(pane) = right_column_pane(&self.root) {
             let (notebook, surfaces) = find_pane_tabs(&self.root, pane)?;
@@ -2173,6 +2202,10 @@ pub enum SplitNodeData {
 #[allow(clippy::large_enum_variant)] // Terminal snapshots own bounded resume/env/history state.
 #[serde(tag = "type")]
 pub enum PaneSurfaceData {
+    Git {
+        surface_uuid: Uuid,
+        directory: Option<std::path::PathBuf>,
+    },
     Files {
         surface_uuid: Uuid,
         directory: Option<std::path::PathBuf>,
@@ -2277,6 +2310,12 @@ impl SplitNode {
                                         .unwrap_or_default()
                                 }),
                         },
+                        PaneSurface::Git {
+                            directory, uuid, ..
+                        } => PaneSurfaceData::Git {
+                            surface_uuid: *uuid,
+                            directory: directory.clone(),
+                        },
                         PaneSurface::Files {
                             directory, uuid, ..
                         } => PaneSurfaceData::Files {
@@ -2333,6 +2372,59 @@ impl SplitNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Git shares the right column with Files, reuses its tab, and survives snapshot restoration.
+    #[test]
+    #[ignore = "requires GTK display; run in GitHub Actions under Xvfb"]
+    fn git_surface_layout_and_restore() {
+        gtk4::init().unwrap();
+        let mut engine = SplitEngine::new(std::ptr::null_mut(), gtk4::GLArea::new(), 1, None);
+        let git = engine.show_git(None).unwrap();
+        let right = engine.find_pane_id_by_uuid(&git.to_string()).unwrap();
+        assert_ne!(right, 1);
+        let files = engine.show_files(None).unwrap();
+        assert_eq!(engine.find_pane_id_by_uuid(&files.to_string()), Some(right));
+        assert_eq!(engine.show_git(None), Some(git));
+        assert_eq!(engine.pane_info().len(), 2);
+        let (notebook, surfaces) = find_pane_tabs(&engine.root, right).unwrap();
+        assert_eq!(notebook.current_page(), Some(0));
+        assert_eq!(surfaces.borrow()[0].tab_title(), "Git");
+        let data = SplitNodeData::Pane {
+            active_surface_uuid: Some(git),
+            surfaces: vec![PaneSurfaceData::Git {
+                surface_uuid: git,
+                directory: None,
+            }],
+        };
+        let serialized = serde_json::to_string(&data).unwrap();
+        let restored = SplitEngine::from_data_with_command(
+            std::ptr::null_mut(),
+            &serde_json::from_str(&serialized).unwrap(),
+            Some(&git.to_string()),
+            None,
+            None,
+            None,
+            None,
+            &crate::resume_policy::ResumePolicy::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let SplitNodeData::Pane {
+            active_surface_uuid,
+            surfaces,
+        } = restored.root.to_data()
+        else {
+            panic!("expected pane")
+        };
+        assert_eq!(active_surface_uuid, Some(git));
+        assert!(
+            matches!(&surfaces[0], PaneSurfaceData::Git { surface_uuid, directory: None } if *surface_uuid == git)
+        );
+        assert!(matches!(
+            engine.close_surface_tab(git),
+            CloseSurfaceResult::Closed
+        ));
+    }
 
     /// Files opens in a right column, reuses it, closes normally and restores its native surface.
     #[test]
