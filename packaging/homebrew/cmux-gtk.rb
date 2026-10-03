@@ -46,8 +46,7 @@ cask "cmux-gtk" do
   artifact "share/icons/hicolor/256x256/apps/io.cmux.App.png",
            target: "#{Dir.home}/.local/share/icons/hicolor/256x256/apps/io.cmux.App.png"
 
-  preflight do
-    desktop_file = staged_path/"share/applications/io.cmux.App.desktop"
-    desktop_file.write desktop_file.read.sub(/^Exec=cmux-app$/, "Exec=#{HOMEBREW_PREFIX}/bin/cmux-app")
+  preflight_steps do
+    inreplace "share/applications/io.cmux.App.desktop", /^Exec=cmux-app$/, "Exec={{HOMEBREW_PREFIX}}/bin/cmux-app"
   end
 end
