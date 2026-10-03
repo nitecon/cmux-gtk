@@ -830,6 +830,40 @@ pub fn create_surface(
     });
     gl_area.add_controller(scroll_controller);
 
+    // ── File drop ────────────────────────────────────────────────────────────────
+    // Dropped files are pasted as shell-escaped paths separated by spaces, like
+    // Ghostty's own runtimes. Tab drags carry strings, not files, so they still
+    // reach the pane's notebook drop target.
+    let drop_target = gtk4::DropTarget::new(
+        gtk4::gdk::FileList::static_type(),
+        gtk4::gdk::DragAction::COPY,
+    );
+    drop_target.connect_drop({
+        let cell = surface_cell.clone();
+        move |_target, value, _x, _y| {
+            let Some(surface) = *cell.borrow() else {
+                return false;
+            };
+            let Ok(files) = value.get::<gtk4::gdk::FileList>() else {
+                return false;
+            };
+            let text = files
+                .files()
+                .iter()
+                .filter_map(|file| file.path())
+                .map(|path| super::text::shell_escape(&path.to_string_lossy()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            if text.is_empty() {
+                return false;
+            }
+            // SAFETY: the surface cell holds a live surface on the GTK thread; the
+            // text is copied synchronously and no model borrow is held.
+            unsafe { super::text::send_literal(surface, &text) }.is_ok()
+        }
+    });
+    gl_area.add_controller(drop_target);
+
     (gl_area, surface_cell)
 }
 

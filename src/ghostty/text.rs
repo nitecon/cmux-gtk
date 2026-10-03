@@ -38,6 +38,19 @@ pub(crate) unsafe fn send_literal(
     Ok(())
 }
 
+/// Backslash-escape shell metacharacters in a dropped path, matching Ghostty's
+/// ShellEscapeWriter so agents and shells read it as one literal argument.
+pub(crate) fn shell_escape(path: &str) -> String {
+    let mut escaped = String::with_capacity(path.len());
+    for character in path.chars() {
+        if "\\ ()[]{}<>\"'`!#$&;|*?\t".contains(character) {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
 /// Type one Unicode scalar without bracketed paste; newline becomes carriage return.
 /// Reject NUL before delivery. This does not translate named keys or modifiers.
 ///
@@ -127,4 +140,16 @@ pub(crate) unsafe fn read_scrollback(
         unsafe { std::slice::from_raw_parts(native.text.text.cast::<u8>(), native.text.text_len) };
     let text = std::str::from_utf8(bytes).map_err(|_| "invalid scrollback UTF-8")?;
     crate::scrollback::replay_text(text).ok_or("scrollback exceeds replay limit")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shell_escape;
+
+    #[test]
+    fn shell_escape_keeps_plain_paths_and_escapes_metacharacters() {
+        assert_eq!(shell_escape("/home/a/b.png"), "/home/a/b.png");
+        assert_eq!(shell_escape("/tmp/my file (1).png"), "/tmp/my\\ file\\ \\(1\\).png");
+        assert_eq!(shell_escape("it's$x"), "it\\'s\\$x");
+    }
 }
