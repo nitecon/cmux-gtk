@@ -34,6 +34,11 @@ def main():
             "after marker\n<script>window.cmuxInjected=true</script>\n"
         )
         (repository / "two.txt").write_text("another marker\n")
+        # The diff navigator is intentionally hidden below 760px. Keep each split
+        # wider than that after the native preview applies its asynchronous viewport.
+        window_state = root / "data/cmux/window-state.json"
+        window_state.parent.mkdir(parents=True)
+        window_state.write_text(json.dumps({"width": 1880, "height": 1000}))
         processes = BrowserProcesses(browser_dir)
         with running_app(root, {
             "CMUX_BIN_DIR": "target/release",
@@ -91,6 +96,11 @@ def main():
             command("wait", "--function", "document.querySelectorAll('#viewer .line').length > 0", "--timeout-ms", "1000")
             unified = command("eval", "({unified:document.querySelectorAll('#viewer .line').length, split:document.querySelectorAll('#viewer .split-line').length})")["result"]
             assert unified["unified"] > 0 and unified["split"] == 0, unified
+            command(
+                "wait", "--function",
+                "window.innerWidth > 760 && document.querySelector('#files button:nth-child(2)').getClientRects().length > 0",
+                "--timeout-ms", "5000",
+            )
             command("click", "#files button:nth-child(2)")
             assert "another marker" in command("eval", "document.body.innerText")["result"]
             assert selected_surface(app) == terminal, "default diff open stole terminal focus"
