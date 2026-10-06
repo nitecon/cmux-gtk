@@ -376,10 +376,6 @@ fn handle_socket_command_traced(
                 "surface.send_key",
                 "gateway.status",
                 "gateway.configure",
-                "gateway.bind",
-                "gateway.accept",
-                "gateway.report",
-                "gateway.agent_event",
                 "surface.read_text",
                 "surface.read_scrollback",
                 "surface.resume.set",
@@ -870,6 +866,7 @@ fn handle_socket_command_traced(
                 if let Some(pane_id) = engine.root.find_active_pane_id() {
                     if let Some(surface) = engine.root.find_surface_for_pane(pane_id) {
                         if !surface.is_null() {
+                            crate::ghostty::registry::record_input(surface as usize);
                             let c_text = std::ffi::CString::new(text.clone()).unwrap_or_default();
                             unsafe {
                                 crate::ghostty::ffi::ghostty_surface_text(

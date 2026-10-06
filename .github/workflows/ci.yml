@@ -151,7 +151,7 @@ jobs:
         timeout-minutes: 10
         run: cargo test --workspace
 
-      - name: Test interactive gateway WebSocket delivery and reconnect
+      - name: Test global gateway consent and legacy settings migration
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
 
       - name: Test local listener attribution

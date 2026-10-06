@@ -122,12 +122,7 @@ async fn dispatch_request(
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
-        "gateway.status"
-        | "gateway.configure"
-        | "gateway.bind"
-        | "gateway.accept"
-        | "gateway.report"
-        | "gateway.agent_event" => {
+        "gateway.status" | "gateway.configure" => {
             if params.to_string().len() > 65536 {
                 return err(req_id, "invalid_params", "gateway request exceeds limit");
             }

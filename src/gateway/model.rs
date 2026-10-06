@@ -1,305 +1,256 @@
-//! Bounded gateway configuration, exact session identities and durable delivery state.
+//! Transport-independent lifecycle messages and bounded, credential-free delivery state.
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use std::collections::VecDeque;
 
-pub const MAX_SESSIONS: usize = 64;
+pub const MAX_PENDING: usize = 64;
+pub const MAX_RECEIPTS: usize = 2048;
+pub const START: &str = "<Start Agent Gateway Message Injection>";
+pub const STOP: &str = "</Stop AgentGateway Message injection>";
 
-/// Explicit project association; workspace UUIDs survive application restarts.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Mapping {
-    pub workspace_id: String,
-    pub project_ident: String,
-}
-
-/// Non-secret preferences kept separately from terminal session snapshots.
+/// Global preferences; injection approval is separate from enabling the connection.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub enabled: bool,
     pub url: String,
-    pub mappings: Vec<Mapping>,
+    pub injection_approved: bool,
 }
 
-/// A provider hook-confirmed native agent; readiness never comes from terminal text.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Session {
+/// Gateway project metadata, normalized by the future stream adapter, never inferred from folder names.
+#[derive(Clone, Debug)]
+pub struct Project {
+    pub ident: String,
+    pub upstream_urls: Vec<String>,
+}
+
+/// Canonical task lifecycle; these names define an internal model, not a WebSocket schema.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Created,
+    Commented,
+    Completed,
+}
+
+/// An event from the authenticated stream, including author attribution for comment loop suppression.
+#[derive(Clone, Debug)]
+pub struct Message {
+    pub event_id: String,
+    pub project_ident: String,
+    pub task_id: String,
+    pub kind: Kind,
+    pub text: String,
+    pub author_id: Option<String>,
+    pub source_instance: Option<String>,
+}
+
+impl Message {
+    /// Reject terminal controls, delimiter spoofing and oversized content before queue admission.
+    pub fn validate(&self) -> Result<(), String> {
+        for id in [&self.event_id, &self.project_ident, &self.task_id] {
+            identity(id)?;
+        }
+        for id in [&self.author_id, &self.source_instance]
+            .into_iter()
+            .flatten()
+        {
+            identity(id)?;
+        }
+        if self.text.trim().is_empty()
+            || self.text.len() > 48 * 1024
+            || self
+                .text
+                .chars()
+                .any(|c| c.is_control() && c != '\n' && c != '\t')
+            || self.text.contains(START)
+            || self.text.contains(STOP)
+        {
+            return Err("Invalid gateway message text".into());
+        }
+        if self.kind == Kind::Commented && self.author_id.is_none() {
+            return Err("Task comments require author attribution".into());
+        }
+        Ok(())
+    }
+
+    /// Wrap literal input with the user's visible delimiters; task state remains owned by agent-tools.
+    pub fn terminal_text(&self) -> String {
+        let kind = match self.kind {
+            Kind::Created => "New task",
+            Kind::Commented => "Task commented",
+            Kind::Completed => "Task completed",
+        };
+        format!("{START}\n{kind}: {}\n{}\n{STOP}", self.task_id, self.text)
+    }
+}
+
+/// Unknown, busy and unfinished prompts never authorize input; an observer must positively confirm readiness.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InputState {
+    #[default]
+    Unknown,
+    Busy,
+    Unfinished,
+    EmptyReady,
+}
+
+/// A recent hookless observation, bound to the process and all subsequent terminal input.
+#[derive(Clone, Debug)]
+pub struct Observation {
+    pub process: cmux_platform::process::Identity,
+    pub input_revision: u64,
+    pub input: InputState,
+    pub actor_id: Option<String>,
+    pub observed_at: std::time::Instant,
+}
+
+/// GTK copies only owned metadata; native pointers never cross into a worker.
+#[derive(Clone, Debug)]
+pub struct Terminal {
     pub workspace_id: String,
     pub surface_id: String,
-    pub session_id: String,
-    pub project_ident: String,
-    pub client: String,
-    pub model: Option<String>,
-    pub cwd: String,
-    pub state: String,
+    pub directory: std::path::PathBuf,
+    pub foreground_pid: u64,
+    pub input_revision: u64,
+    pub input_pending: bool,
+    pub observation: Option<Observation>,
+}
+
+/// A verified active Claude/Codex process and upstream repository, independent of resume hooks.
+#[derive(Clone, Debug)]
+pub struct Session {
+    pub terminal: Terminal,
+    pub process: cmux_platform::process::Identity,
+    pub repository: String,
 }
 
 impl Session {
-    /// Compare immutable routing identities, excluding transient readiness.
-    pub fn matches(&self, assignment: &Assignment) -> bool {
-        self.workspace_id == assignment.workspace_id
-            && self.surface_id == assignment.surface_id
-            && self.session_id == assignment.session_id
-            && self.project_ident == assignment.project_ident
+    /// Require a fresh positive observation for this process and unchanged input revision.
+    pub fn ready(&self) -> bool {
+        !self.terminal.input_pending
+            && self.terminal.observation.as_ref().is_some_and(|o| {
+                o.process == self.process
+                    && o.input_revision == self.terminal.input_revision
+                    && o.input == InputState::EmptyReady
+                    && o.observed_at.elapsed() < std::time::Duration::from_secs(1)
+            })
+    }
+
+    /// Pin queued messages to one workspace, surface, process generation and repository.
+    pub fn same_target(&self, other: &Self) -> bool {
+        self.terminal.workspace_id == other.terminal.workspace_id
+            && self.terminal.surface_id == other.terminal.surface_id
+            && self.terminal.directory == other.terminal.directory
+            && self.process == other.process
+            && self.repository == other.repository
     }
 }
 
-/// Validated structured instruction addressed to exactly one registered native session.
+/// Durable at-most-once fence; uncertain input is never automatically replayed after a crash.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Assignment {
-    pub run_id: String,
-    pub task_id: String,
-    pub project_ident: String,
-    pub session_key: String,
-    pub workspace_id: String,
-    pub surface_id: String,
-    pub session_id: String,
-    pub action: String,
-    pub prompt: String,
+pub struct Receipt {
+    pub event_id: String,
+    pub outcome: String,
 }
 
-impl Assignment {
-    /// Reject malformed identities and unsafe terminal control bytes before journal admission.
-    pub fn validate(&self) -> Result<(), String> {
-        for id in [
-            &self.run_id,
-            &self.task_id,
-            &self.session_key,
-            &self.workspace_id,
-            &self.surface_id,
-        ] {
-            uuid::Uuid::parse_str(id).map_err(|_| "Invalid assignment UUID")?;
-        }
-        identity(&self.project_ident)?;
-        identity(&self.session_id)?;
-        if self.action != "execute"
-            || self.prompt.len() > 48 * 1024
-            || self
-                .prompt
-                .chars()
-                .any(|c| c.is_control() && c != '\n' && c != '\t')
-        {
-            return Err("Invalid assignment prompt or action".into());
-        }
-        Ok(())
-    }
-
-    /// Include native reporting instructions without asking the agent to launch another process.
-    pub fn terminal_prompt(&self) -> String {
-        format!("{}\nNew delegated task {} is in your queue. Fetch its current details and claim it with agent-tools before changing code. Report progress/questions with cmux gateway report --run {} --state running (or waiting-input) --message '...'. When work ends, report --state finished (or failed) --message '...' --summary 'Work; validation; blockers; references'. Task completion still requires agent-tools tasks done.\n", self.prompt, self.task_id, self.run_id)
-    }
-}
-
-/// A report stays queued durably until the server records its sequence.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Report {
-    pub sequence: i64,
-    pub state: String,
-    pub message: String,
-    pub summary: Option<String>,
-}
-
-/// One run's acceptance and submission markers fence duplicate or uncertain terminal input.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Run {
-    pub assignment: Assignment,
-    pub session: Session,
-    pub phase: String,
-    pub status: String,
-    #[serde(default)]
-    pub ended: bool,
-    pub last_sequence: i64,
-    pub reports: Vec<Report>,
-}
-
-impl Run {
-    /// Execution completion is authoritative server state, distinct from an agent turn ending.
-    pub fn terminal(&self) -> bool {
-        self.ended || terminal_status(&self.status)
-    }
-
-    /// Allocate a persisted signed-64-bit sequence and bound pending progress before sending.
-    pub fn report(
-        &mut self,
-        state: &str,
-        message: &str,
-        summary: Option<&str>,
-    ) -> Result<(), String> {
-        if !matches!(state, "running" | "waiting_input" | "finished" | "failed") || self.terminal()
-        {
-            return Err("Run cannot accept this report".into());
-        }
-        if self.phase != "submitted" && self.phase != "uncertain" {
-            return Err("Accept and submit the assignment before reporting".into());
-        }
-        if self.reports.len() >= 16 {
-            return Err("Pending gateway report queue is full".into());
-        }
-        self.last_sequence = self
-            .last_sequence
-            .checked_add(1)
-            .ok_or("Report sequence exhausted")?;
-        self.reports.push(Report {
-            sequence: self.last_sequence,
-            state: state.into(),
-            message: bounded(message, 4096),
-            summary: summary.map(|s| bounded(s, 16384)),
-        });
-        Ok(())
-    }
-
-    /// Encode only the first pending report; later reports wait for durable acknowledgment.
-    pub fn pending_report(&self) -> Option<Value> {
-        let report = self.reports.first()?;
-        Some(json!({"type":"report", "run_id":self.assignment.run_id,
-            "session_key":self.assignment.session_key, "sequence":report.sequence,
-            "state":report.state, "message":report.message, "summary":report.summary}))
-    }
-}
-
-/// Credential-free disk state; prompts/reports use private, bounded application storage.
+/// V2 replaces assignments and reports; old configuration loads with injection approval disabled.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Journal {
     pub instance_id: String,
     pub config: Config,
-    pub runs: Vec<Run>,
+    #[serde(default)]
+    pub receipts: VecDeque<Receipt>,
 }
 
 impl Default for Journal {
-    /// Generate a stable identity only when there is no previous application journal.
+    /// Allocate a stable instance ID only when no journal exists.
     fn default() -> Self {
         Self {
             instance_id: uuid::Uuid::new_v4().to_string(),
             config: Config::default(),
-            runs: Vec::new(),
+            receipts: VecDeque::new(),
         }
     }
 }
 
-/// Credential-free UI/socket snapshot; terminal prompt text remains inspectable by the user.
+/// Final GTK outcome; a busy/input race defers without claiming a message was injected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeliveryOutcome {
+    Injected,
+    Deferred,
+}
+
+/// Credential-free preferences/status snapshot, with no event bodies or execution reports.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct View {
     pub connection: String,
     pub config: Config,
-    pub runs: Vec<Run>,
-    pub sessions: Vec<Session>,
+    pub pending: usize,
+    pub receipts: VecDeque<Receipt>,
 }
 
-/// Recognize only finalized execution statuses; needs_attention without finished_at remains active.
-pub fn terminal_status(status: &str) -> bool {
-    matches!(status, "completed" | "failed" | "cancelled" | "interrupted")
-}
-
-/// Validate a human-readable protocol identity without exposing its contents in errors.
+/// Validate bounded nonempty identifiers without exposing their contents in errors.
 pub fn identity(value: &str) -> Result<(), String> {
-    if value.trim().is_empty() || value.len() > 512 || value.chars().any(char::is_control) {
+    if value.trim().is_empty()
+        || value.len() > 512
+        || value.chars().any(char::is_control)
+        || value.contains(START)
+        || value.contains(STOP)
+    {
         return Err("Invalid gateway identity".into());
     }
     Ok(())
 }
 
-/// Truncate on UTF-8 boundaries with a visible suffix inside the requested byte limit.
-pub fn bounded(text: &str, limit: usize) -> String {
-    if text.len() <= limit {
-        return text.to_owned();
-    }
-    let mut end = limit.saturating_sub("…".len());
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}…", &text[..end])
-}
-
-/// Require TLS outside exact loopback hosts and reject URL credentials, query and fragments.
+/// Validate a base address without assuming the pending WebSocket endpoint or subscription protocol.
 pub fn endpoint(value: &str) -> Result<url::Url, String> {
-    let mut url = url::Url::parse(value).map_err(|_| "Invalid gateway URL")?;
+    let url = url::Url::parse(value).map_err(|_| "Invalid gateway URL")?;
     let loopback = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
     if !(matches!(url.scheme(), "https" | "wss")
         || loopback && matches!(url.scheme(), "http" | "ws"))
+        || url.host_str().is_none()
         || !url.username().is_empty()
         || url.password().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
-        || !matches!(url.path(), "/" | "" | "/v1/execution/connect")
+        || !matches!(url.path(), "/" | "")
     {
         return Err("Use a gateway base HTTPS URL (HTTP is allowed only on loopback)".into());
     }
-    let scheme = if matches!(url.scheme(), "https" | "wss") {
-        "wss"
-    } else {
-        "ws"
-    };
-    url.set_scheme(scheme)
-        .map_err(|_| "Invalid gateway URL scheme")?;
-    url.set_path("/v1/execution/connect");
     Ok(url)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Exercise public URL policy and UTF-8 limits rather than implementation details.
-    #[test]
-    fn endpoint_and_text_bounds() {
-        assert!(endpoint("http://example.com").is_err());
-        assert!(endpoint("https://key@example.com").is_err());
-        assert!(endpoint("https://example.com?token=secret").is_err());
-        assert!(endpoint("http://127.0.0.1:8080").is_ok());
-        assert_eq!(
-            endpoint("https://gateway.example").unwrap().path(),
-            "/v1/execution/connect"
-        );
-        assert_eq!(bounded("ééééé", 7), "éé…");
+/// Match SSH/scp and HTTPS Git remotes by host and case-sensitive repository path, preserving custom ports.
+pub fn repository(value: &str) -> Option<String> {
+    if value.len() > 4096 || value.chars().any(char::is_control) {
+        return None;
     }
-
-    /// Native identity and execution completion stay separate from turn/attention status.
-    #[test]
-    fn exact_identity_and_durable_report_limits() {
-        let id = uuid::Uuid::new_v4().to_string();
-        let session = Session {
-            workspace_id: id.clone(),
-            surface_id: id.clone(),
-            session_id: "native".into(),
-            project_ident: "project".into(),
-            client: "codex".into(),
-            model: None,
-            cwd: "/repo".into(),
-            state: "idle".into(),
-        };
-        let assignment = Assignment {
-            run_id: id.clone(),
-            task_id: id.clone(),
-            session_key: id.clone(),
-            workspace_id: id.clone(),
-            surface_id: id,
-            session_id: "native".into(),
-            project_ident: "project".into(),
-            action: "execute".into(),
-            prompt: "Task".into(),
-        };
-        assert!(session.matches(&assignment));
-        let mut stale = assignment.clone();
-        stale.session_id = "other-native".into();
-        assert!(!session.matches(&stale));
-        let mut run = Run {
-            assignment,
-            session,
-            phase: "offered".into(),
-            status: "assigned".into(),
-            ended: false,
-            last_sequence: 0,
-            reports: Vec::new(),
-        };
-        assert!(run.report("running", "Premature", None).is_err());
-        run.phase = "submitted".into();
-        run.status = "needs_attention".into();
-        assert!(!run.terminal());
-        for index in 1..=16 {
-            run.report("waiting_input", "Question", None).unwrap();
-            assert_eq!(run.last_sequence, index);
+    let url = if value.contains("://") {
+        url::Url::parse(value).ok()?
+    } else {
+        let (host, path) = value.split_once(':')?;
+        if host.contains('/') {
+            return None;
         }
-        assert!(run.report("running", "Overflow", None).is_err());
-        assert_eq!(run.last_sequence, 16);
-        run.ended = true;
-        assert!(run.terminal());
+        url::Url::parse(&format!("ssh://{host}/{path}")).ok()?
+    };
+    if !matches!(url.scheme(), "https" | "http" | "ssh" | "git")
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
     }
+    let host = url.host_str()?.to_ascii_lowercase();
+    let path = url.path().trim_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    if path.is_empty() {
+        return None;
+    }
+    let port = url
+        .port()
+        .filter(|p| !(url.scheme() == "ssh" && *p == 22 || url.scheme() == "git" && *p == 9418));
+    Some(match port {
+        Some(port) => format!("{host}:{port}/{path}"),
+        None => format!("{host}/{path}"),
+    })
 }

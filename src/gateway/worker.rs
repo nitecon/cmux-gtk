@@ -1,710 +1,309 @@
-//! One bounded outbound WebSocket owner; GTK never performs network or journal I/O.
-use super::{model::*, storage};
-use futures_util::{SinkExt, StreamExt};
+//! One owned asynchronous gateway service. Wire transport awaits the lifecycle-stream specification.
+use super::{model::*, pipeline::Pipeline, storage};
 use serde_json::{json, Value};
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, watch};
-use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest, protocol::WebSocketConfig, Message,
-};
 
-type Socket =
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
-
-/// User decisions and provider reports share an ordered, bounded queue of 32 operations.
+/// Settings and normalized stream ingress share one serialized owner; no per-project execution operations.
+#[allow(dead_code)] // Projects/Message are connected by the forthcoming authenticated stream adapter.
 pub enum Action {
-    Configure {
-        enabled: bool,
-        url: String,
-        key: Option<String>,
-    },
-    Bind {
-        workspace: String,
-        project: String,
-    },
-    Accept {
-        run: String,
-    },
-    Report {
-        run: String,
-        state: String,
-        message: String,
-        summary: Option<String>,
-    },
-    Lifecycle {
-        surface: String,
-        session: String,
-        event: String,
-        message: String,
-    },
+    Configure { config: Config, key: Option<String> },
+    Projects(Vec<Project>),
+    Message(Message),
 }
 
-/// Results return to the socket/UI caller after durable state is recorded.
+/// A bounded operation with an explicit result; stream acknowledgments will follow this local outcome.
 pub struct Request {
     pub action: Action,
     pub reply: oneshot::Sender<Result<Value, String>>,
 }
 
-/// Only exact, acknowledged assignments may request GTK input; the reply fences submission.
-pub enum Event {
-    Offered(Assignment),
-    Deliver {
-        assignment: Assignment,
-        session: Session,
-        reply: oneshot::Sender<Result<(), String>>,
-    },
+/// GTK performs the final live-target check and reports actual input separately from task completion.
+pub struct Delivery {
+    pub message: Message,
+    pub session: Session,
+    pub reply: oneshot::Sender<Result<DeliveryOutcome, String>>,
 }
 
-/// Own state and credential material exclusively on Tokio, separate from published snapshots.
+/// Owned state; credentials never enter a UI snapshot or terminal event body.
 struct Worker {
     journal: Journal,
+    path: std::path::PathBuf,
     key: String,
-    path: PathBuf,
-    sessions: Vec<Session>,
+    projects: Vec<Project>,
+    pipeline: Pipeline,
     view: watch::Sender<View>,
-    events: mpsc::Sender<Event>,
-    connection: String,
+    deliveries: mpsc::Sender<Delivery>,
+    storage_failed: bool,
 }
 
 impl Worker {
-    /// Publish credential-free metadata without logging prompt or provider output.
+    /// Publish local status honestly while no wire endpoint has been agreed.
     fn publish(&self) {
         self.view.send_replace(View {
-            connection: self.connection.clone(),
+            connection: if self.journal.config.enabled {
+                "Awaiting gateway stream specification"
+            } else {
+                "Disabled"
+            }
+            .into(),
             config: self.journal.config.clone(),
-            runs: self.journal.runs.clone(),
-            sessions: self.registered_sessions(),
+            pending: self.pipeline.pending.len(),
+            receipts: self.journal.receipts.clone(),
         });
     }
 
-    /// Persist on a blocking worker before advancing any externally observable state.
-    async fn save(&self) -> Result<(), String> {
+    /// Persist on a blocking worker; failure stops the owner before terminal delivery.
+    async fn save(&mut self) -> Result<(), String> {
         let path = self.path.clone();
         let journal = self.journal.clone();
-        tokio::task::spawn_blocking(move || storage::save(&path, &journal))
+        let result = tokio::task::spawn_blocking(move || storage::save(&path, &journal))
             .await
-            .map_err(|_| "Gateway storage worker stopped")?
+            .map_err(|_| "Gateway storage worker stopped".to_owned())
+            .and_then(|r| r);
+        self.storage_failed |= result.is_err();
+        result
     }
 
-    /// Build the complete mapped snapshot, retaining ended native identities for unfinished runs.
-    fn registered_sessions(&self) -> Vec<Session> {
-        let mut sessions: Vec<Session> = self
-            .sessions
-            .iter()
-            .filter_map(|session| {
-                let mapping = self
-                    .journal
-                    .config
-                    .mappings
-                    .iter()
-                    .find(|m| m.workspace_id == session.workspace_id)?;
-                let mut session = session.clone();
-                session.project_ident = mapping.project_ident.clone();
-                Some(session)
-            })
-            .collect();
-        for run in self.journal.runs.iter().filter(|r| !r.terminal()) {
-            if !sessions.iter().any(|s| s.matches(&run.assignment)) {
-                let mut ended = run.session.clone();
-                ended.state = "exited".into();
-                sessions.push(ended);
-            }
-        }
-        sessions
-    }
-
-    /// Encode versioned complete registration, refusing oversize snapshots rather than dropping sessions.
-    fn registration(&self) -> Result<Value, String> {
-        let sessions = self.registered_sessions();
-        if sessions.len() > MAX_SESSIONS {
-            return Err("Too many gateway sessions; reduce workspace mappings".into());
-        }
-        Ok(
-            json!({"type":"register", "protocol_version":1, "instance_id":self.journal.instance_id,
-            "sessions":sessions}),
-        )
-    }
-
-    /// Validate local opt-in and exact live identity; human confirmation never authorizes a stale target.
-    fn ready(&self, assignment: &Assignment) -> bool {
-        let expected = self
-            .journal
-            .runs
-            .iter()
-            .find(|r| r.assignment.run_id == assignment.run_id)
-            .map(|r| &r.session);
-        self.journal.config.enabled
-            && self.registered_sessions().iter().any(|s| {
-                s.matches(assignment)
-                    && s.state == "idle"
-                    && expected.is_some_and(|original| {
-                        original.cwd == s.cwd && original.client == s.client
-                    })
-            })
-    }
-
-    /// Apply one durable user/hook operation. Connection loss keeps reports queued, never input replayed.
-    async fn request(
-        &mut self,
-        request: Request,
-        connected: bool,
-    ) -> Result<Option<Value>, String> {
-        let previous = self.journal.clone();
-        let result = self.apply(request.action, connected).await;
-        let result = match result {
-            Ok(outgoing) => match self.save().await {
-                Ok(()) => Ok(outgoing),
-                Err(error) => {
-                    self.journal = previous;
-                    Err(error)
-                }
-            },
-            Err(error) => {
-                self.journal = previous;
-                Err(error)
-            }
-        };
-        self.publish();
-        match result {
-            Ok(outgoing) => {
-                let _ = request.reply.send(Ok(json!({"queued":true})));
-                Ok(outgoing)
-            }
-            Err(error) => {
-                let _ = request.reply.send(Err(error));
-                Ok(None)
-            }
-        }
-    }
-
-    /// Validate configuration, routing and report bounds before changing the journal.
-    async fn apply(&mut self, action: Action, connected: bool) -> Result<Option<Value>, String> {
+    /// Apply settings or normalized events; no invented wire protocol or legacy execution connection.
+    async fn apply(&mut self, action: Action, terminals: &[Terminal]) -> Result<Value, String> {
         match action {
-            Action::Configure { enabled, url, key } => {
-                if enabled || !url.is_empty() {
-                    endpoint(&url)?;
+            Action::Configure { config, key } => {
+                let path = self.path.clone();
+                let mut candidate = self.journal.clone();
+                candidate.config = config;
+                let clear = !candidate.config.enabled
+                    || !candidate.config.injection_approved
+                    || candidate.config.url != self.journal.config.url
+                    || key.is_some();
+                if clear {
+                    for p in &self.pipeline.pending {
+                        candidate.receipts.push_back(Receipt {
+                            event_id: p.message.event_id.clone(),
+                            outcome: "skipped".into(),
+                        });
+                    }
                 }
-                if url != self.journal.config.url && self.journal.runs.iter().any(|r| !r.terminal())
-                {
-                    return Err("Finish or reconcile active runs before changing gateways".into());
-                }
+                let saved = candidate.clone();
+                let next_key = key.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    if let Some(key) = &next_key {
+                        storage::save_key(&path, key)?;
+                    }
+                    storage::save(&path, &saved)
+                })
+                .await
+                .map_err(|_| "Gateway storage worker stopped".to_owned())
+                .and_then(|r| r);
+                self.storage_failed |= result.is_err();
+                result?;
                 if let Some(key) = key {
-                    storage::validate_key(&key)?;
-                    let path = self.path.clone();
-                    let saved_key = key.clone();
-                    tokio::task::spawn_blocking(move || storage::save_key(&path, &saved_key))
-                        .await
-                        .map_err(|_| "Credential worker stopped")??;
                     self.key = key;
                 }
-                self.journal.config.enabled = enabled;
-                self.journal.config.url = url;
+                if clear {
+                    self.pipeline.pending.clear();
+                    self.projects.clear();
+                }
+                self.journal = candidate;
+                self.publish();
+                Ok(json!({"saved":true}))
             }
-            Action::Bind { workspace, project } => {
-                uuid::Uuid::parse_str(&workspace).map_err(|_| "Invalid workspace UUID")?;
-                if !project.is_empty() {
-                    identity(&project)?;
+            Action::Projects(projects) => {
+                if projects.len() > 4096 {
+                    return Err("Too many gateway projects".into());
                 }
-                if self
-                    .journal
-                    .runs
-                    .iter()
-                    .any(|r| !r.terminal() && r.assignment.workspace_id == workspace)
-                {
-                    return Err("Cannot remap a workspace with an unfinished assignment".into());
-                }
-                self.journal
-                    .config
-                    .mappings
-                    .retain(|m| m.workspace_id != workspace);
-                if !project.is_empty() {
-                    if self.journal.config.mappings.len() >= MAX_SESSIONS {
-                        return Err("Gateway mapping limit reached".into());
-                    }
-                    self.journal.config.mappings.push(Mapping {
-                        workspace_id: workspace,
-                        project_ident: project,
-                    });
-                }
-            }
-            Action::Accept { run } => {
-                if !connected {
-                    return Err("Gateway disconnected; reconnect before sending".into());
-                }
-                let index = self
-                    .journal
-                    .runs
-                    .iter()
-                    .position(|r| r.assignment.run_id == run)
-                    .ok_or("Unknown assignment")?;
-                let record = &self.journal.runs[index];
-                if record.phase != "offered" || record.terminal() {
-                    return Err("Assignment already accepted or delivery uncertain; it will not be sent again".into());
-                }
-                if !self.ready(&record.assignment) {
-                    return Err(
-                        "Mapped native agent is busy, exited or changed; wait for its idle hook"
-                            .into(),
-                    );
-                }
-                let record = &mut self.journal.runs[index];
-                record.phase = "accepting".into();
-                return Ok(Some(
-                    json!({"type":"accepted", "run_id":run, "session_key":record.assignment.session_key}),
-                ));
-            }
-            Action::Report {
-                run,
-                state,
-                message,
-                summary,
-            } => {
-                let message = self.redact(&message, 4096);
-                let summary = summary.map(|s| self.redact(&s, 16384));
-                let record = self
-                    .journal
-                    .runs
-                    .iter_mut()
-                    .find(|r| r.assignment.run_id == run)
-                    .ok_or("Unknown assignment")?;
-                record.report(&state, &message, summary.as_deref())?;
-                if connected {
-                    return Ok(record.pending_report());
-                }
-            }
-            Action::Lifecycle {
-                surface,
-                session,
-                event,
-                message,
-            } => {
-                let message = self.redact(&message, 4096);
-                for run in self.journal.runs.iter_mut().filter(|r| {
-                    !r.terminal()
-                        && r.assignment.surface_id == surface
-                        && r.assignment.session_id == session
-                        && r.phase == "submitted"
-                }) {
-                    let (state, text) = match event.as_str() {
-                        "prompt" => ("running", "Agent is responding"),
-                        "attention" => ("waiting_input", "Agent needs input in the terminal"),
-                        "stop" => (
-                            "running",
-                            "Agent turn ended; task outcome has not been reported",
-                        ),
-                        "exit" => (
-                            "failed",
-                            "Native agent session exited before reporting an outcome",
-                        ),
-                        _ => continue,
-                    };
-                    run.report(
-                        state,
-                        if message.is_empty() { text } else { &message },
-                        None,
-                    )?;
-                }
-                if connected {
-                    return Ok(self
-                        .journal
-                        .runs
-                        .iter()
-                        .find(|r| {
-                            r.assignment.surface_id == surface
-                                && r.assignment.session_id == session
-                                && !r.terminal()
-                        })
-                        .and_then(Run::pending_report));
-                }
-            }
-        }
-        Ok(None)
-    }
-
-    /// Remove the shared bearer before retaining any remote/user text.
-    fn redact(&self, text: &str, limit: usize) -> String {
-        bounded(
-            &if self.key.is_empty() {
-                text.to_owned()
-            } else {
-                text.replace(&self.key, "[redacted]")
-            },
-            limit,
-        )
-    }
-
-    /// Reconcile server sequences and terminal state using bounded authenticated REST metadata.
-    async fn reconcile(&mut self, registered: &Value) -> Result<(), String> {
-        if registered["protocol_version"] != 1 {
-            return Err("Unsupported gateway protocol".into());
-        }
-        let sessions = registered["sessions"]
-            .as_array()
-            .ok_or("Invalid registered snapshot")?;
-        let mut projects = std::collections::BTreeSet::new();
-        for session in sessions {
-            if let Some(run) = session["run_id"].as_str() {
-                let record = self
-                    .journal
-                    .runs
-                    .iter()
-                    .find(|r| r.assignment.run_id == run)
-                    .ok_or("Unrecognized active run; manual reconciliation required")?;
-                if session["session_key"] != record.assignment.session_key
-                    || session["surface_id"] != record.assignment.surface_id
-                    || session["session_id"] != record.assignment.session_id
-                {
-                    return Err("Gateway reconnect session identity mismatch".into());
-                }
-                projects.insert(record.assignment.project_ident.clone());
-            }
-        }
-        projects.extend(
-            self.journal
-                .runs
-                .iter()
-                .filter(|r| !r.terminal())
-                .map(|r| r.assignment.project_ident.clone()),
-        );
-        for project in projects {
-            let mut url = endpoint(&self.journal.config.url)?;
-            let scheme = if url.scheme() == "wss" {
-                "https"
-            } else {
-                "http"
-            };
-            url.set_scheme(scheme).map_err(|_| "Invalid REST scheme")?;
-            url.set_path("/v1/projects/");
-            url.path_segments_mut()
-                .map_err(|_| "Invalid REST URL")?
-                .pop_if_empty()
-                .push(&project)
-                .push("execution")
-                .push("runs");
-            let client = reqwest::Client::builder()
-                .timeout(Duration::from_secs(5))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .map_err(|_| "Cannot create reconciliation client")?;
-            let mut response = client
-                .get(url)
-                .bearer_auth(&self.key)
-                .send()
-                .await
-                .map_err(|_| "Gateway reconciliation request failed")?;
-            if !response.status().is_success() {
-                return Err("Gateway reconciliation rejected; delivery paused".into());
-            }
-            let mut bytes = Vec::new();
-            while let Some(chunk) = response
-                .chunk()
-                .await
-                .map_err(|_| "Gateway reconciliation body failed")?
-            {
-                if bytes.len() + chunk.len() > 1024 * 1024 {
-                    return Err("Gateway reconciliation exceeds limit".into());
-                }
-                bytes.extend_from_slice(&chunk);
-            }
-            let records: Vec<Value> =
-                serde_json::from_slice(&bytes).map_err(|_| "Invalid reconciliation metadata")?;
-            for run in self
-                .journal
-                .runs
-                .iter_mut()
-                .filter(|r| !r.terminal() && r.assignment.project_ident == project)
-            {
-                let record = records
-                    .iter()
-                    .find(|r| r["id"] == run.assignment.run_id)
-                    .ok_or("Run absent from gateway history; manual reconciliation required")?;
-                if record["session_key"] != run.assignment.session_key {
-                    return Err("Reconciliation run ownership mismatch".into());
-                }
-                let sequence = record["last_sequence"]
-                    .as_i64()
-                    .filter(|s| *s >= 0)
-                    .ok_or("Invalid server report sequence")?;
-                run.last_sequence = run.last_sequence.max(sequence);
-                run.reports.retain(|r| r.sequence > sequence);
-                run.status = record["status"]
-                    .as_str()
-                    .ok_or("Invalid server run status")?
-                    .into();
-                run.ended = !record["finished_at"].is_null();
-                if matches!(run.phase.as_str(), "accepting" | "submitting") {
-                    run.phase = "uncertain".into();
-                }
-            }
-        }
-        self.save().await
-    }
-
-    /// Admit remote messages; every delivery marker is durable before GTK receives a prompt.
-    async fn receive(&mut self, value: Value, socket: &mut Socket) -> Result<(), String> {
-        match value["type"]
-            .as_str()
-            .ok_or("Invalid gateway message type")?
-        {
-            "registered" => {
-                if self.connection != "Connected" {
-                    self.reconcile(&value).await?;
-                } else if value["protocol_version"] != 1 {
-                    return Err("Unsupported gateway protocol".into());
-                }
-                self.connection = "Connected".into();
-                for run in &self.journal.runs {
-                    if !run.terminal() {
-                        if let Some(report) = run.pending_report() {
-                            send(socket, report).await?;
-                        }
+                let mut ids = std::collections::HashSet::new();
+                for p in &projects {
+                    identity(&p.ident)?;
+                    if !ids.insert(&p.ident)
+                        || p.upstream_urls.len() > 16
+                        || p.upstream_urls.iter().any(|u| repository(u).is_none())
+                    {
+                        return Err("Invalid gateway project metadata".into());
                     }
                 }
+                self.projects = projects;
+                Ok(json!({"updated":true}))
             }
-            "assignment" => {
-                let mut assignment: Assignment =
-                    serde_json::from_value(value).map_err(|_| "Invalid gateway assignment")?;
-                assignment.validate()?;
-                assignment.prompt = self.redact(&assignment.prompt, 48 * 1024);
-                if self
-                    .journal
-                    .runs
-                    .iter()
-                    .any(|r| r.assignment.run_id == assignment.run_id)
-                {
-                    return Ok(());
+            Action::Message(mut message) => {
+                // A bearer value must never be retained in event bodies or sent to an agent.
+                if !self.key.is_empty() {
+                    message.text = message.text.replace(&self.key, "[redacted]");
                 }
-                let session = self
-                    .registered_sessions()
-                    .into_iter()
-                    .find(|s| s.matches(&assignment) && s.state != "exited")
-                    .ok_or("Assignment addressed to an unknown session")?;
-                if self
-                    .journal
-                    .runs
-                    .iter()
-                    .any(|r| !r.terminal() && r.assignment.surface_id == assignment.surface_id)
-                {
-                    return Err("A surface already owns an unfinished assignment".into());
-                }
-                if self.journal.runs.iter().filter(|r| !r.terminal()).count() >= MAX_SESSIONS {
-                    return Err("Too many unfinished assignments".into());
-                }
-                while self.journal.runs.len() >= 128 {
-                    let Some(index) = self.journal.runs.iter().position(Run::terminal) else {
-                        return Err("Assignment journal full".into());
-                    };
-                    self.journal.runs.remove(index);
-                }
-                if self.journal.runs.len() >= 128 {
-                    return Err("Assignment journal full".into());
-                }
-                self.journal.runs.push(Run {
-                    assignment: assignment.clone(),
-                    session,
-                    phase: "offered".into(),
-                    status: "assigned".into(),
-                    ended: false,
-                    last_sequence: 0,
-                    reports: Vec::new(),
-                });
+                let sessions = discover(terminals).await;
+                let outcome =
+                    self.pipeline
+                        .admit(&mut self.journal, &self.projects, &sessions, message)?;
                 self.save().await?;
-                self.events
-                    .send(Event::Offered(assignment))
-                    .await
-                    .map_err(|_| "GTK gateway channel closed")?;
+                self.publish();
+                Ok(json!({"delivery":format!("{outcome:?}").to_lowercase()}))
             }
-            "accepted" => {
-                let id = value["run_id"].as_str().ok_or("Invalid acceptance")?;
-                let status = value["status"]
-                    .as_str()
-                    .ok_or("Invalid acceptance status")?;
-                let index = self
-                    .journal
-                    .runs
-                    .iter()
-                    .position(|r| r.assignment.run_id == id)
-                    .ok_or("Unknown acceptance run")?;
-                self.journal.runs[index].status = status.into();
-                if self.journal.runs[index].terminal() {
-                    self.save().await?;
-                    return Ok(());
-                }
-                // Only the current connection's user-initiated acceptance may deliver. Duplicates are inert.
-                if self.journal.runs[index].phase != "accepting" {
-                    return Ok(());
-                }
-                if status != "running" || !self.ready(&self.journal.runs[index].assignment) {
-                    self.journal.runs[index].phase = "uncertain".into();
-                    self.save().await?;
-                    return Err(
-                        "Agent became busy or gateway requires reconciliation; no prompt sent"
-                            .into(),
-                    );
-                }
-                self.journal.runs[index].phase = "submitting".into();
-                self.save().await?;
-                let assignment = self.journal.runs[index].assignment.clone();
-                let session = self.journal.runs[index].session.clone();
+        }
+    }
+
+    /// Fsync a delivery fence before asking GTK to type; failed final checks retire without retargeting.
+    async fn drain(&mut self, terminals: &[Terminal]) -> Result<(), String> {
+        if self.pipeline.pending.is_empty() {
+            return Ok(());
+        }
+        self.drain_verified(discover(terminals).await).await
+    }
+
+    /// Serialize verified-session delivery, fencing before GTK and allowing one input per readiness observation.
+    async fn drain_verified(&mut self, mut sessions: Vec<Session>) -> Result<(), String> {
+        while let Some((pending, ready)) = self.pipeline.next(&self.projects, &sessions) {
+            self.journal.receipts.push_back(Receipt {
+                event_id: pending.message.event_id.clone(),
+                outcome: if ready { "submitting" } else { "skipped" }.into(),
+            });
+            self.save().await?;
+            if ready {
                 let (reply, result) = oneshot::channel();
-                tokio::time::timeout(
-                    Duration::from_secs(5),
-                    self.events.send(Event::Deliver {
-                        assignment,
-                        session,
-                        reply,
-                    }),
-                )
-                .await
-                .map_err(|_| "GTK gateway delivery queue timed out")?
-                .map_err(|_| "GTK gateway channel closed")?;
-                let delivered = tokio::time::timeout(Duration::from_secs(5), result).await;
-                self.journal.runs[index].phase = if matches!(delivered, Ok(Ok(Ok(())))) {
-                    "submitted"
+                let surface = pending.target.terminal.surface_id.clone();
+                let delivery = Delivery {
+                    message: pending.message.clone(),
+                    session: pending.target.clone(),
+                    reply,
+                };
+                let sent = self.deliveries.send(delivery).await.is_ok();
+                let outcome = if sent {
+                    match result.await {
+                        Ok(Ok(DeliveryOutcome::Injected)) => "injected",
+                        Ok(Ok(DeliveryOutcome::Deferred)) => "deferred",
+                        Ok(Err(_)) => "skipped",
+                        Err(_) => "uncertain",
+                    }
                 } else {
                     "uncertain"
-                }
-                .into();
-                self.save().await?;
-            }
-            "recorded" => {
-                let id = value["run_id"]
-                    .as_str()
-                    .ok_or("Invalid report acknowledgment")?;
-                let sequence = value["sequence"]
-                    .as_i64()
-                    .filter(|s| *s >= 0)
-                    .ok_or("Invalid report acknowledgment sequence")?;
-                let run = self
-                    .journal
-                    .runs
-                    .iter_mut()
-                    .find(|r| r.assignment.run_id == id)
-                    .ok_or("Unknown report run")?;
-                if run.reports.iter().any(|r| {
-                    r.sequence <= sequence && matches!(r.state.as_str(), "finished" | "failed")
-                }) {
-                    run.ended = true;
-                }
-                run.status = value["status"]
-                    .as_str()
-                    .ok_or("Invalid recorded status")?
-                    .into();
-                run.last_sequence = run.last_sequence.max(sequence);
-                run.reports.retain(|r| r.sequence > sequence);
-                let next = if run.terminal() {
-                    None
-                } else {
-                    run.pending_report()
                 };
-                self.save().await?;
-                if let Some(report) = next {
-                    send(socket, report).await?;
+                if outcome == "deferred" {
+                    self.journal.receipts.pop_back();
+                    self.pipeline.pending.push_front(pending);
+                } else {
+                    self.journal.receipts.back_mut().unwrap().outcome = outcome.into();
                 }
+                self.save().await?;
+                // One observed empty prompt permits one submission only.
+                for s in &mut sessions {
+                    if s.terminal.surface_id == surface {
+                        s.terminal.observation = None;
+                    }
+                }
+                crate::diagnostics::record(
+                    "gateway.message.delivery",
+                    json!({"surface_id":surface,"outcome":outcome}),
+                );
             }
-            "heartbeat" => send(socket, json!({"type":"heartbeat"})).await?,
-            "heartbeat_ack" => {}
-            "error" => {
-                return Err(
-                    "Gateway rejected an operation; delivery paused for reconciliation".into(),
-                )
-            }
-            _ => return Err("Unsupported gateway message".into()),
         }
         self.publish();
         Ok(())
     }
+}
 
-    /// Bound upgrade, frames, sends and silence; only one owned connection exists per instance.
-    async fn connect(
-        &mut self,
-        requests: &mut mpsc::Receiver<Request>,
-        snapshots: &mut watch::Receiver<Vec<Session>>,
-    ) -> Result<(), String> {
-        let endpoint = endpoint(&self.journal.config.url)?;
-        if self.key.is_empty() {
-            return Err("Gateway API key is missing; set it in Preferences".into());
+/// Resolve active executable identities off GTK, and match the selected Git upstream with bounded Git I/O.
+async fn discover(terminals: &[Terminal]) -> Vec<Session> {
+    let mut sessions = Vec::new();
+    // Incomplete snapshots could hide a second recipient; fail closed at the admission limit.
+    if terminals.len() > MAX_PENDING {
+        return sessions;
+    }
+    let started = std::time::Instant::now();
+    for terminal in terminals {
+        if started.elapsed() >= Duration::from_secs(5) {
+            return Vec::new();
         }
-        let mut request = endpoint
-            .as_str()
-            .into_client_request()
-            .map_err(|_| "Invalid gateway connection request")?;
-        let mut authorization: tokio_tungstenite::tungstenite::http::HeaderValue =
-            format!("Bearer {}", self.key)
-                .parse()
-                .map_err(|_| "Invalid bearer key")?;
-        authorization.set_sensitive(true);
-        request.headers_mut().insert("Authorization", authorization);
-        let config = WebSocketConfig {
-            max_message_size: Some(65536),
-            max_frame_size: Some(65536),
-            ..Default::default()
+        let pid = terminal.foreground_pid;
+        let process =
+            tokio::task::spawn_blocking(move || cmux_platform::process::agent_identity(pid))
+                .await
+                .ok()
+                .flatten();
+        let Some(process) = process else {
+            continue;
         };
-        let (mut socket, _) = tokio::time::timeout(
-            Duration::from_secs(10),
-            tokio_tungstenite::connect_async_with_config(request, Some(config), false),
-        )
-        .await
-        .map_err(|_| "Gateway connection timed out")?
-        .map_err(|_| "Gateway unavailable or upgrade rejected")?;
-        send(&mut socket, self.registration()?).await?;
-        let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
-        let mut last_received = tokio::time::Instant::now();
-        loop {
-            tokio::select! {
-                frame = socket.next() => {
-                    match frame {
-                        Some(Ok(Message::Text(text))) => {
-                            last_received = tokio::time::Instant::now();
-                            let value = serde_json::from_str(&text).map_err(|_| "Invalid gateway JSON")?;
-                            self.receive(value, &mut socket).await?;
-                        }
-                        Some(Ok(Message::Ping(bytes))) => { socket.send(Message::Pong(bytes)).await.map_err(|_| "Gateway ping failed")?; }
-                        Some(Ok(Message::Pong(_))) => {},
-                        _ => return Err("Gateway disconnected; accepted prompts will not replay".into()),
-                    }
-                }
-                request = requests.recv() => {
-                    let Some(request) = request else { return Ok(()); };
-                    let reconnect = matches!(request.action, Action::Configure{..});
-                    let register = matches!(request.action, Action::Bind{..});
-                    if let Some(value) = self.request(request, self.connection == "Connected").await? { send(&mut socket, value).await?; }
-                    if reconnect { let _ = socket.close(None).await; return Ok(()); }
-                    if register { send(&mut socket, self.registration()?).await?; }
-                }
-                changed = snapshots.changed() => {
-                    if changed.is_err() { return Ok(()); }
-                    self.sessions = snapshots.borrow_and_update().clone();
-                    send(&mut socket, self.registration()?).await?;
-                    self.publish();
-                }
-                _ = heartbeat.tick() => {
-                    if last_received.elapsed() > Duration::from_secs(60) { return Err("Gateway heartbeat expired".into()); }
-                    send(&mut socket, json!({"type":"heartbeat"})).await?;
-                }
-            }
+        let Some(repository) = upstream(terminal).await else {
+            continue;
+        };
+        sessions.push(Session {
+            terminal: terminal.clone(),
+            process,
+            repository,
+        });
+    }
+    sessions
+}
+
+/// Discover the current branch's selected upstream remote, falling back to origin for untracked branches.
+async fn upstream(terminal: &Terminal) -> Option<String> {
+    let branch = git_output(
+        &terminal.directory,
+        &["symbolic-ref", "--quiet", "--short", "HEAD"],
+    )
+    .await;
+    let text = git_output(
+        &terminal.directory,
+        &[
+            "config",
+            "--get-regexp",
+            "^(branch\\..*\\.remote|remote\\..*\\.url)$",
+        ],
+    )
+    .await?;
+    let config: Vec<(&str, &str)> = text
+        .lines()
+        .filter_map(|line| line.split_once(' '))
+        .collect();
+    let branch_key = branch
+        .as_ref()
+        .map(|b| format!("branch.{}.remote", b.trim()));
+    let remote = config
+        .iter()
+        .find(|(key, _)| Some(*key) == branch_key.as_deref())
+        .map(|(_, remote)| *remote)
+        .unwrap_or("origin");
+    let remote_key = format!("remote.{remote}.url");
+    repository(config.iter().find(|(key, _)| *key == remote_key)?.1)
+}
+
+/// Run bounded local Git metadata reads without inherited Git overrides, prompts or hooks.
+async fn git_output(directory: &std::path::Path, args: &[&str]) -> Option<String> {
+    let mut command = tokio::process::Command::new("git");
+    command
+        .args([
+            "--no-optional-locks",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-C",
+        ])
+        .arg(directory)
+        .args(args);
+    for (key, _) in std::env::vars_os() {
+        if key.to_string_lossy().starts_with("GIT_") {
+            command.env_remove(key);
         }
     }
-}
-
-/// Encode bounded version-one JSON and enforce the server's five-second write deadline.
-async fn send(socket: &mut Socket, value: Value) -> Result<(), String> {
-    let text = value.to_string();
-    if text.len() > 65536 {
-        return Err("Gateway message exceeds protocol limit".into());
+    command.env("GIT_TERMINAL_PROMPT", "0");
+    let output = crate::task::run_output(
+        command,
+        Duration::from_secs(2),
+        64 * 1024,
+        4096,
+        cleanup_failed,
+    )
+    .await
+    .ok()?;
+    if !output.status.success() {
+        return None;
     }
-    tokio::time::timeout(Duration::from_secs(5), socket.send(Message::Text(text)))
-        .await
-        .map_err(|_| "Gateway send timed out")?
-        .map_err(|_| "Gateway send failed".into())
+    String::from_utf8(output.stdout).ok()
 }
 
-/// Load on a worker and keep servicing disabled/offline configuration; errors never disable terminals.
+/// Own local settings and prepared ingress; cancellation closes delivery replies and prevents delayed GTK input.
 pub async fn run(
     mut requests: mpsc::Receiver<Request>,
-    mut snapshots: watch::Receiver<Vec<Session>>,
+    mut snapshots: watch::Receiver<Vec<Terminal>>,
     view: watch::Sender<View>,
-    events: mpsc::Sender<Event>,
+    deliveries: mpsc::Sender<Delivery>,
 ) {
     let path = storage::path();
     let loading = path.clone();
@@ -712,135 +311,168 @@ pub async fn run(
         Ok::<_, String>((storage::load(&loading)?, storage::key(&loading)?))
     })
     .await;
-    let (journal, key) = match loaded {
-        Ok(Ok(state)) => state,
-        _ => {
-            view.send_replace(View {
-                connection: "Cannot load gateway journal; integration paused".into(),
-                ..Default::default()
-            });
-            while let Some(request) = requests.recv().await {
-                let _ = request.reply.send(Err(
-                    "Repair the gateway journal before enabling delivery".into(),
-                ));
-            }
-            return;
-        }
-    };
-    let mut worker = Worker {
-        journal,
-        key,
-        path,
-        sessions: Vec::new(),
-        view,
-        events,
-        connection: "Disabled".into(),
-    };
-    if worker.save().await.is_err() {
-        worker.connection = "Cannot persist gateway identity; integration paused".into();
+    let result = async {
+        let (journal, key) = loaded.map_err(|_| "Gateway storage worker stopped")??;
+        let mut worker = Worker {
+            journal,
+            key,
+            path,
+            projects: Vec::new(),
+            pipeline: Pipeline::default(),
+            storage_failed: false,
+            view: view.clone(),
+            deliveries,
+        };
+        worker.save().await?;
         worker.publish();
-        return;
-    }
-    loop {
-        worker.sessions = snapshots.borrow_and_update().clone();
-        if worker.journal.config.enabled {
-            worker.connection = "Connecting".into();
-            worker.publish();
-            let result = worker.connect(&mut requests, &mut snapshots).await;
-            // A severed acceptance or submission is uncertain; never reinterpret it as a new offer.
-            for run in &mut worker.journal.runs {
-                if matches!(run.phase.as_str(), "accepting" | "submitting") {
-                    run.phase = "uncertain".into();
+        loop {
+            tokio::select! {
+                request = requests.recv() => {
+                    let Some(request) = request else { return Ok::<_, String>(()); };
+                    let terminals = snapshots.borrow_and_update().clone();
+                    let result = worker.apply(request.action, &terminals).await;
+                    let _ = request.reply.send(result);
+                    if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                 }
+                changed = snapshots.changed() => { if changed.is_err() { return Ok(()); } }
             }
-            if let Err(error) = worker.save().await {
-                worker.connection = error;
-                worker.publish();
-                return;
-            }
-            worker.connection = result.err().unwrap_or_else(|| "Disconnected".into());
-        } else {
-            worker.connection = "Disabled".into();
-        }
-        worker.publish();
-        if requests.is_closed() {
-            return;
-        }
-        tokio::select! {
-            request = requests.recv() => {
-                let Some(request) = request else { return; };
-                let _ = worker.request(request, false).await;
-            }
-            changed = snapshots.changed() => { if changed.is_err() { return; } }
-            _ = tokio::time::sleep(Duration::from_secs(5)), if worker.journal.config.enabled => {},
+            let terminals = snapshots.borrow_and_update().clone();
+            worker.drain(&terminals).await?;
         }
     }
+    .await;
+    if let Err(error) = result {
+        view.send_modify(|v| v.connection = error);
+        while let Some(request) = requests.recv().await {
+            let _ = request.reply.send(Err(
+                "Gateway delivery paused; restart after repairing storage".into(),
+            ));
+        }
+    }
+}
+
+/// Record failed bounded Git subprocess cleanup without retaining paths or credentials.
+fn cleanup_failed(error: &std::io::Error) {
+    crate::diagnostics::event(format_args!("gateway Git child cleanup failed: {error}"));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gateway::pipeline::Admission;
 
-    /// An unchanged native UUID cannot authorize delivery after its client or CWD changes.
-    #[test]
-    fn readiness_freezes_assigned_provider_and_cwd() {
-        let id = uuid::Uuid::new_v4().to_string();
-        let session = Session {
-            workspace_id: id.clone(),
-            surface_id: id.clone(),
-            session_id: "native".into(),
-            project_ident: "project".into(),
-            client: "codex".into(),
-            model: None,
-            cwd: "/repo".into(),
-            state: "idle".into(),
-        };
-        let assignment = Assignment {
-            run_id: id.clone(),
-            task_id: id.clone(),
-            session_key: id.clone(),
-            workspace_id: id.clone(),
-            surface_id: id.clone(),
-            session_id: "native".into(),
-            project_ident: "project".into(),
-            action: "execute".into(),
-            prompt: "Task".into(),
-        };
+    /// Exercise real persistence and GTK-channel delivery after the platform/discovery boundary.
+    #[tokio::test]
+    async fn fences_before_delivery_and_defers_input_races() {
+        let root =
+            std::env::temp_dir().join(format!("cmux-gateway-worker-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("gateway.json");
+        let (deliveries, mut receiver) = mpsc::channel::<Delivery>(2);
         let (view, _) = watch::channel(View::default());
-        let (events, _) = mpsc::channel(1);
-        let mut worker = Worker {
-            journal: Journal {
-                config: Config {
-                    enabled: true,
-                    url: "https://gateway.example".into(),
-                    mappings: vec![Mapping {
-                        workspace_id: id,
-                        project_ident: "project".into(),
-                    }],
-                },
-                runs: vec![Run {
-                    assignment: assignment.clone(),
-                    session: session.clone(),
-                    phase: "offered".into(),
-                    status: "assigned".into(),
-                    ended: false,
-                    last_sequence: 0,
-                    reports: Vec::new(),
-                }],
-                ..Default::default()
-            },
-            key: String::new(),
-            path: PathBuf::new(),
-            sessions: vec![session],
-            view,
-            events,
-            connection: String::new(),
+        let mut journal = Journal::default();
+        journal.config.enabled = true;
+        journal.config.injection_approved = true;
+        let projects = vec![Project {
+            ident: "project".into(),
+            upstream_urls: vec!["https://github.com/org/repo".into()],
+        }];
+        let process = cmux_platform::process::Identity {
+            pid: 42,
+            start_ticks: 10,
+            client: "codex".into(),
         };
-        assert!(worker.ready(&assignment));
-        worker.sessions[0].cwd = "/other-project".into();
-        assert!(!worker.ready(&assignment));
-        worker.sessions[0].cwd = "/repo".into();
-        worker.sessions[0].client = "claude".into();
-        assert!(!worker.ready(&assignment));
+        let session = Session {
+            terminal: Terminal {
+                workspace_id: "workspace".into(),
+                surface_id: "surface".into(),
+                directory: "/repo".into(),
+                foreground_pid: 42,
+                input_revision: 3,
+                input_pending: false,
+                observation: Some(Observation {
+                    process: process.clone(),
+                    input_revision: 3,
+                    input: InputState::EmptyReady,
+                    actor_id: Some("recipient".into()),
+                    observed_at: std::time::Instant::now(),
+                }),
+            },
+            process,
+            repository: "github.com/org/repo".into(),
+        };
+        let message = Message {
+            event_id: "event".into(),
+            project_ident: "project".into(),
+            task_id: "task".into(),
+            kind: Kind::Created,
+            text: "Please inspect the task".into(),
+            author_id: None,
+            source_instance: None,
+        };
+        let mut worker = Worker {
+            journal,
+            path: path.clone(),
+            key: String::new(),
+            projects,
+            pipeline: Pipeline::default(),
+            view,
+            deliveries,
+            storage_failed: false,
+        };
+        worker
+            .pipeline
+            .admit(
+                &mut worker.journal,
+                &worker.projects,
+                std::slice::from_ref(&session),
+                message.clone(),
+            )
+            .unwrap();
+        let inspecting = path.clone();
+        let gtk = tokio::spawn(async move {
+            for outcome in [DeliveryOutcome::Deferred, DeliveryOutcome::Injected] {
+                let delivery = tokio::time::timeout(Duration::from_secs(5), receiver.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let journal = storage::load(&inspecting).unwrap();
+                // load converts submitting to uncertain, proving the fence preceded the GTK request.
+                assert_eq!(journal.receipts[0].event_id, "event");
+                assert_eq!(journal.receipts[0].outcome, "uncertain");
+                assert_eq!(delivery.message.terminal_text(), message.terminal_text());
+                delivery.reply.send(Ok(outcome)).unwrap();
+            }
+        });
+        worker.drain_verified(vec![session.clone()]).await.unwrap();
+        assert_eq!(worker.pipeline.pending.len(), 1);
+        assert!(worker.journal.receipts.is_empty());
+        worker.drain_verified(vec![session.clone()]).await.unwrap();
+        gtk.await.unwrap();
+        assert!(worker.pipeline.pending.is_empty());
+        let restored = storage::load(&path).unwrap();
+        assert_eq!(restored.receipts[0].outcome, "injected");
+        let mut replay = restored;
+        let replay_message = Message {
+            event_id: "event".into(),
+            project_ident: "project".into(),
+            task_id: "task".into(),
+            kind: Kind::Created,
+            text: "Replay".into(),
+            author_id: None,
+            source_instance: None,
+        };
+        assert_eq!(
+            worker
+                .pipeline
+                .admit(&mut replay, &worker.projects, &[session], replay_message)
+                .unwrap(),
+            Admission::Duplicate
+        );
+        // A journal failure never permits the next queued input to reach GTK.
+        worker.path = root.clone();
+        assert!(worker.save().await.is_err());
+        assert!(worker.storage_failed);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -579,6 +579,8 @@ pub fn create_surface(
                 None => return gtk4::glib::Propagation::Proceed,
             };
 
+            super::registry::record_input(surface as usize);
+
             // Handle Linux clipboard shortcuts at the terminal, leaving entries alone.
             let modifiers = state
                 & (gtk4::gdk::ModifierType::CONTROL_MASK
@@ -868,6 +870,7 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
         display.clipboard()
     };
 
+    super::registry::clipboard_pending(surface_ptr, true);
     glib::MainContext::default().spawn_local(async move {
         let result = clipboard.read_text_future().await;
         // The requesting pane may have closed while the clipboard owner replied.
@@ -881,6 +884,7 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
             .flatten()
             .map(|s| s.to_string())
             .unwrap_or_default();
+        super::registry::clipboard_pending(surface_ptr, false);
         let text = std::ffi::CString::new(text.replace('\0', "")).unwrap();
         unsafe {
             ffi::ghostty_surface_complete_clipboard_request(
@@ -917,6 +921,7 @@ pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(
     let Some(surface_ptr) = clipboard_surface(userdata as usize) else {
         return;
     };
+    super::registry::record_input(surface_ptr);
     unsafe {
         crate::ghostty::ffi::ghostty_surface_complete_clipboard_request(
             surface_ptr as crate::ghostty::ffi::ghostty_surface_t,

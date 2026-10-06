@@ -7,6 +7,8 @@ use std::sync::{LazyLock, Mutex};
 struct Surface {
     pane_id: u64,
     working_directory: String,
+    input_revision: u64,
+    pending_clipboard: u32,
 }
 
 static SURFACES: LazyLock<Mutex<HashMap<usize, Surface>>> =
@@ -24,6 +26,8 @@ pub(crate) fn register(surface: usize, pane_id: u64, directory: Option<&std::pat
             surface,
             Surface {
                 pane_id,
+                input_revision: 0,
+                pending_clipboard: 0,
                 working_directory: directory
                     .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_default(),
@@ -71,6 +75,47 @@ pub(crate) fn set_working_directory(surface: usize, directory: &str) {
     }
 }
 
+/// Invalidate readiness before keyboard, typed text or clipboard input reaches the process.
+pub(crate) fn record_input(surface: usize) {
+    if let Ok(mut surfaces) = SURFACES.lock() {
+        if let Some(surface) = surfaces.get_mut(&surface) {
+            surface.input_revision = surface.input_revision.saturating_add(1);
+        }
+    }
+}
+
+/// Read a monotonic input revision; an unavailable registry never permits a matching observation.
+pub(crate) fn input_revision(surface: usize) -> u64 {
+    SURFACES
+        .lock()
+        .ok()
+        .and_then(|s| s.get(&surface).map(|s| s.input_revision))
+        .unwrap_or(u64::MAX)
+}
+
+/// Mark asynchronous clipboard input pending, blocking injection through its completion.
+pub(crate) fn clipboard_pending(surface: usize, pending: bool) {
+    if let Ok(mut surfaces) = SURFACES.lock() {
+        if let Some(surface) = surfaces.get_mut(&surface) {
+            surface.input_revision = surface.input_revision.saturating_add(1);
+            surface.pending_clipboard = if pending {
+                surface.pending_clipboard.saturating_add(1)
+            } else {
+                surface.pending_clipboard.saturating_sub(1)
+            };
+        }
+    }
+}
+
+/// Require all asynchronous clipboard deliveries to finish before accepting an empty-prompt observation.
+pub(crate) fn input_pending(surface: usize) -> bool {
+    SURFACES
+        .lock()
+        .ok()
+        .and_then(|s| s.get(&surface).map(|s| s.pending_clipboard > 0))
+        .unwrap_or(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,6 +128,17 @@ mod tests {
         register(first, u64::MAX, Some(std::path::Path::new("/launch")));
         register(second, u64::MAX - 1, None);
         assert_eq!(working_directory(first), "/launch");
+        let revision = input_revision(first);
+        record_input(first);
+        assert_eq!(input_revision(first), revision + 1);
+        assert!(!input_pending(first));
+        clipboard_pending(first, true);
+        clipboard_pending(first, true);
+        assert!(input_pending(first));
+        clipboard_pending(first, false);
+        assert!(input_pending(first));
+        clipboard_pending(first, false);
+        assert!(!input_pending(first));
         assert_eq!(working_directory(second), "");
         set_working_directory(first, "/first");
         set_working_directory(second, "/second");

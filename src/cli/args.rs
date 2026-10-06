@@ -88,49 +88,26 @@ pub struct Cli {
     pub(super) command: Commands,
 }
 
-/// Native gateway controls; enter credentials in Preferences or the app environment.
+/// Global gateway controls; enter credentials in Preferences or the app environment.
 #[derive(Subcommand)]
 pub enum GatewayCommands {
-    /// Show connection, mappings, sessions and durable assignment status
+    /// Show global preferences, pending messages and delivery receipts
     Status,
-    /// Enable an outbound connection; project execution also requires gateway opt-in
+    /// Save connection preferences and explicit global experimental injection approval
     Configure {
         #[arg(long)]
         url: String,
         #[arg(long)]
         enabled: bool,
-    },
-    /// Map an exact local workspace UUID to an existing gateway project identity
-    Bind {
         #[arg(long)]
-        workspace: String,
-        #[arg(long)]
-        project: String,
-    },
-    /// Send one offered task after confirming the native agent has an empty prompt
-    Accept {
-        #[arg(long)]
-        run: String,
-        #[arg(long)]
-        confirm_ready: bool,
-    },
-    /// Persist progress, questions or final outcome without marking the canonical task done
-    Report {
-        #[arg(long)]
-        run: String,
-        #[arg(long, value_parser = ["running", "waiting-input", "finished", "failed"])]
-        state: String,
-        #[arg(long)]
-        message: String,
-        #[arg(long)]
-        summary: Option<String>,
+        approve_injection: bool,
     },
 }
 
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Connect mapped native Claude/Codex terminals to delegated gateway work
+    /// Configure automatic gateway lifecycle message delivery
     Gateway {
         #[command(subcommand)]
         command: GatewayCommands,

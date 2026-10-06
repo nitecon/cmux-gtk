@@ -190,3 +190,109 @@ mod tests {
         assert!(again.cpu_system_us.unwrap() >= sample.cpu_system_us.unwrap());
     }
 }
+
+/// A live foreground agent generation; start ticks prevent PID reuse from reusing readiness.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Identity {
+    /// Kernel PID of the verified foreground executable.
+    pub pid: u64,
+    /// Kernel start time in ticks since boot, used to identify this process generation.
+    pub start_ticks: u64,
+    /// Verified provider name: claude or codex.
+    pub client: String,
+}
+
+/// Verify a foreground Claude/Codex executable from bounded procfs metadata on a blocking worker.
+/// Generic interpreters, shell command strings and exited processes never establish agent identity.
+pub fn agent_identity(pid: u64) -> Option<Identity> {
+    if pid == 0 || pid > i32::MAX as u64 {
+        return None;
+    }
+    let root = std::path::PathBuf::from(format!("/proc/{pid}"));
+    let stat = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+    let start_ticks = process_start(&stat)?;
+    let executable = std::fs::read_link(root.join("exe")).ok()?;
+    let name = executable.file_name()?.to_str()?;
+    let client = match name {
+        "claude" | "codex" => name,
+        "node" => {
+            let mut bytes = Vec::new();
+            std::fs::File::open(root.join("cmdline"))
+                .ok()?
+                .take(4097)
+                .read_to_end(&mut bytes)
+                .ok()?;
+            if bytes.len() > 4096 {
+                return None;
+            }
+            node_agent(&bytes)?
+        }
+        _ => return None,
+    }
+    .to_owned();
+    // Confirm that the metadata belonged to the same still-live process generation.
+    let after = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+    if process_start(&after)? != start_ticks {
+        return None;
+    }
+    Some(Identity {
+        pid,
+        start_ticks,
+        client,
+    })
+}
+
+/// Parse the kernel start-time field after the parenthesized command, rejecting zombies and truncation.
+fn process_start(stat: &str) -> Option<u64> {
+    let fields: Vec<&str> = stat.rsplit_once(')')?.1.split_whitespace().collect();
+    if matches!(*fields.first()?, "Z" | "X" | "x") {
+        return None;
+    }
+    fields.get(19)?.parse().ok()
+}
+
+/// Recognize only known provider CLI entry points in node's script argument, never arbitrary arguments.
+fn node_agent(cmdline: &[u8]) -> Option<&'static str> {
+    let script = std::str::from_utf8(cmdline.split(|b| *b == 0).nth(1)?).ok()?;
+    if script.ends_with("/@anthropic-ai/claude-code/cli.js") {
+        Some("claude")
+    } else if script.ends_with("/@openai/codex/bin/codex.js") {
+        Some("codex")
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod agent_tests {
+    use super::*;
+
+    /// Command mentions and generic scripts are not live provider identities.
+    #[test]
+    fn recognizes_only_provider_entry_points() {
+        assert_eq!(
+            node_agent(b"node\0/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js\0"),
+            Some("claude")
+        );
+        assert_eq!(
+            node_agent(b"node\0/usr/lib/node_modules/@openai/codex/bin/codex.js\0"),
+            Some("codex")
+        );
+        assert_eq!(node_agent(b"node\0-e\0claude\0"), None);
+        assert_eq!(node_agent(b"node\0/tmp/claude.js\0"), None);
+        assert_eq!(agent_identity(0), None);
+        assert_eq!(agent_identity(std::process::id().into()), None);
+    }
+
+    /// A command containing spaces or closing parentheses cannot shift the process-generation field.
+    #[test]
+    fn process_generation_rejects_exited_and_truncated_metadata() {
+        let fields = format!("S {} 12345", vec!["0"; 18].join(" "));
+        assert_eq!(
+            process_start(&format!("123 (a tricky ) name) {fields}")),
+            Some(12345)
+        );
+        assert_eq!(process_start("123 (claude) Z 0 0"), None);
+        assert_eq!(process_start("123 (codex) S 0 0"), None);
+    }
+}

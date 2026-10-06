@@ -34,6 +34,7 @@ pub(crate) unsafe fn send_literal(
     let text = std::ffi::CString::new(text).map_err(|_| "terminal text contains a NUL byte")?;
     // SAFETY: the caller guarantees surface lifetime; the CString remains live
     // throughout the synchronous input call, including its trailing NUL.
+    super::registry::record_input(surface as usize);
     unsafe { ffi::ghostty_surface_text(surface, text.as_ptr(), text.as_bytes().len()) };
     Ok(())
 }
@@ -55,6 +56,7 @@ pub(crate) unsafe fn send_character(
     let text = character.encode_utf8(&mut buffer);
     // SAFETY: the caller guarantees a live surface; native typed input borrows
     // the explicit-length UTF-8 buffer only for this synchronous call.
+    super::registry::record_input(surface as usize);
     unsafe { ffi::ghostty_surface_text_input(surface, text.as_ptr().cast(), text.len()) };
     Ok(())
 }

@@ -17,32 +17,31 @@ pub fn load(path: &Path) -> Result<Journal, String> {
     let mut journal: Journal =
         serde_json::from_str(&text).map_err(|_| "Invalid gateway journal; integration paused")?;
     uuid::Uuid::parse_str(&journal.instance_id).map_err(|_| "Invalid gateway instance identity")?;
-    if journal.runs.len() > 128 || journal.config.mappings.len() > MAX_SESSIONS {
+    if journal.receipts.len() > MAX_RECEIPTS {
         return Err("Gateway journal exceeds retention limits".into());
     }
     if !journal.config.url.is_empty() {
         endpoint(&journal.config.url)?;
     }
-    for mapping in &journal.config.mappings {
-        uuid::Uuid::parse_str(&mapping.workspace_id)
-            .map_err(|_| "Invalid gateway workspace mapping")?;
-        identity(&mapping.project_ident)?;
-    }
-    for run in &mut journal.runs {
-        run.assignment.validate()?;
-        if !run.session.matches(&run.assignment) || run.reports.len() > 16 || run.last_sequence < 0
+    let mut ids = std::collections::HashSet::new();
+    for receipt in &mut journal.receipts {
+        identity(&receipt.event_id)?;
+        if !ids.insert(receipt.event_id.clone())
+            || !matches!(
+                receipt.outcome.as_str(),
+                "submitting" | "injected" | "skipped" | "uncertain"
+            )
         {
-            return Err("Invalid gateway delivery journal".into());
+            return Err("Invalid gateway delivery receipt".into());
         }
-        // A crash between native input and durable completion must never replay the prompt.
-        if matches!(run.phase.as_str(), "submitting" | "accepting") {
-            run.phase = "uncertain".into();
+        if receipt.outcome == "submitting" {
+            receipt.outcome = "uncertain".into();
         }
     }
     Ok(journal)
 }
 
-/// Replace and fsync private journal state before any external acceptance, report or input.
+/// Replace and fsync private journal state before any terminal input.
 pub fn save(path: &Path, journal: &Journal) -> Result<(), String> {
     let data = serde_json::to_vec(journal).map_err(|_| "Cannot encode gateway journal")?;
     if data.len() > 8 * 1024 * 1024 {
@@ -103,6 +102,31 @@ mod tests {
         assert!(load(&path).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), b"{damaged");
         assert!(validate_key("header\r\ninjection").is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    /// Legacy manual mappings/runs never grant global consent; interrupted submissions remain nonreplayable.
+    #[test]
+    fn legacy_preferences_and_delivery_fences() {
+        let root =
+            std::env::temp_dir().join(format!("cmux-gateway-migration-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("gateway.json");
+        let legacy = serde_json::json!({"instance_id": uuid::Uuid::new_v4().to_string(),
+            "config":{"enabled":true,"url":"https://gateway.example", "mappings":[{"workspace_id":"old","project_ident":"old"}]}, "runs":[]});
+        std::fs::write(&path, legacy.to_string()).unwrap();
+        let mut journal = load(&path).unwrap();
+        assert!(journal.config.enabled);
+        assert!(!journal.config.injection_approved);
+        journal.receipts.push_back(Receipt {
+            event_id: "event".into(),
+            outcome: "submitting".into(),
+        });
+        save(&path, &journal).unwrap();
+        let restored = load(&path).unwrap();
+        assert_eq!(restored.receipts[0].outcome, "uncertain");
+        let encoded = serde_json::to_value(&restored).unwrap();
+        assert!(encoded["config"].get("mappings").is_none());
+        assert!(encoded.get("runs").is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 }
