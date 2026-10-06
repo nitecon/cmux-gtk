@@ -1,10 +1,10 @@
-//! Global gateway preferences and guarded GTK input; network transport remains pending its stream spec.
-#[allow(dead_code)]
-// Internal normalized ingress/readiness types await the stream and hookless observer adapters.
+//! Global lifecycle subscription and consent-guarded GTK terminal input.
 pub mod model;
 mod pipeline;
+mod readiness;
 mod storage;
 mod ui;
+mod wire;
 mod worker;
 
 use crate::app_state::AppStateRef;
@@ -14,12 +14,11 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 pub use ui::append_preferences;
 
-/// GTK owns observations and native handles; the service owns storage and future transport.
+/// GTK owns native handles; the service owns transport, readiness observations and durable delivery.
 pub struct Handle {
     requests: mpsc::Sender<worker::Request>,
     snapshots: watch::Sender<Vec<Terminal>>,
     pub view: watch::Receiver<View>,
-    observations: std::collections::HashMap<String, Observation>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -41,7 +40,6 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
         requests,
         snapshots,
         view,
-        observations: Default::default(),
         task,
     });
     let weak = std::rc::Rc::downgrade(state);
@@ -95,11 +93,16 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
                     crate::ghostty::ffi::ghostty_surface_foreground_pid(pointer)
                 }
             };
-            let observation = state
-                .gateway
-                .as_ref()
-                .and_then(|g| g.observations.get(&surface_id))
-                .cloned();
+            let capture = state.gateway.as_ref().is_some_and(|g| {
+                let view = g.view.borrow();
+                view.config.enabled && view.config.injection_approved
+            });
+            // SAFETY: engine keeps the native surface live; the bounded getter does not iterate GTK events.
+            let screen = if capture {
+                unsafe { crate::ghostty::text::read_prompt_grid(pointer) }
+            } else {
+                None
+            };
             result.push(Terminal {
                 workspace_id: workspace.uuid.to_string(),
                 surface_id,
@@ -107,7 +110,9 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
                 foreground_pid: pid,
                 input_revision: crate::ghostty::registry::input_revision(pointer as usize),
                 input_pending: crate::ghostty::registry::input_pending(pointer as usize),
-                observation,
+                observation: None,
+                screen,
+                captured_at: Some(std::time::Instant::now()),
             });
         }
     }
@@ -118,44 +123,8 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
 fn snapshot(state: &AppStateRef) {
     let current = terminals(&state.borrow());
     if let Some(gateway) = &mut state.borrow_mut().gateway {
-        gateway
-            .observations
-            .retain(|id, _| current.iter().any(|t| &t.surface_id == id));
         gateway.snapshots.send_replace(current);
     }
-}
-
-/// Hookless provider adapters may supply recent readiness and author identity, never restored session metadata.
-/// Must run on GTK after observing the exact live foreground process and empty provider prompt.
-#[allow(dead_code)] // Remains fail-closed until a reliable provider observer is wired.
-pub(crate) fn observe_input(
-    state: &AppStateRef,
-    surface: &str,
-    observation: Observation,
-) -> Result<(), String> {
-    let current = terminals(&state.borrow());
-    let terminal = current
-        .iter()
-        .find(|t| t.surface_id == surface)
-        .ok_or("Terminal is no longer active")?;
-    if terminal.foreground_pid != observation.process.pid
-        || terminal.input_revision != observation.input_revision
-        || observation.observed_at.elapsed() >= std::time::Duration::from_secs(1)
-    {
-        return Err("Stale agent input observation".into());
-    }
-    if let Some(actor) = &observation.actor_id {
-        identity(actor)?;
-    }
-    state
-        .borrow_mut()
-        .gateway
-        .as_mut()
-        .ok_or("Gateway unavailable")?
-        .observations
-        .insert(surface.into(), observation);
-    snapshot(state);
-    Ok(())
 }
 
 /// Recheck consent, pinned target and unchanged ready input immediately before typing on GTK.
@@ -187,17 +156,13 @@ fn deliver(
             process: expected.process.clone(),
             repository: expected.repository.clone(),
         };
-        if message.kind == Kind::Commented
-            && checked
-                .terminal
-                .observation
-                .as_ref()
-                .and_then(|o| o.actor_id.as_ref())
-                .is_none_or(|actor| Some(actor) == message.author_id.as_ref())
+        if checked.terminal.input_revision != expected.terminal.input_revision
+            || checked.terminal.input_pending
+            || !expected.ready()
+            || checked.terminal.screen.as_ref().is_none_or(|f| {
+                readiness::classify(&expected.process.client, f) != InputState::EmptyReady
+            })
         {
-            return Err("Task comment attribution changed".into());
-        }
-        if checked.terminal.input_revision != expected.terminal.input_revision || !checked.ready() {
             return Ok(DeliveryOutcome::Deferred);
         }
         state
@@ -219,13 +184,6 @@ fn deliver(
             annotation.len(),
         );
     }
-    state
-        .borrow_mut()
-        .gateway
-        .as_mut()
-        .unwrap()
-        .observations
-        .remove(&expected.terminal.surface_id);
     snapshot(state);
     Ok(DeliveryOutcome::Injected)
 }

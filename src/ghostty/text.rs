@@ -130,3 +130,33 @@ pub(crate) unsafe fn read_scrollback(
     let text = std::str::from_utf8(bytes).map_err(|_| "invalid scrollback UTF-8")?;
     crate::scrollback::replay_text(text).ok_or("scrollback exceeds replay limit")
 }
+
+/// Copy a bounded live-screen render grid, including caret and faint placeholder styles, without moving focus.
+///
+/// # Safety
+/// Keep this native surface live on GTK with no model borrow across callbacks until its allocation is released.
+pub(crate) unsafe fn read_prompt_grid(
+    surface: ffi::ghostty_surface_t,
+) -> Option<serde_json::Value> {
+    // SAFETY: caller guarantees a live native surface throughout synchronous getters and allocation release.
+    let size = unsafe { ffi::ghostty_surface_size(surface) };
+    if size.columns == 0
+        || size.rows == 0
+        || usize::from(size.columns) * usize::from(size.rows) > 16384
+    {
+        return None;
+    }
+    let value = unsafe {
+        ffi::ghostty_surface_render_grid_json_v2(surface, b"".as_ptr().cast(), 0, 0, 0, false, true)
+    };
+    let result = if value.ptr.is_null() || value.len == 0 || value.len > MAX_BYTES {
+        None
+    } else {
+        // SAFETY: allocation contains value.len readable bytes until ghostty_string_free below.
+        let bytes = unsafe { std::slice::from_raw_parts(value.ptr.cast::<u8>(), value.len) };
+        serde_json::from_slice(bytes).ok()
+    };
+    // SAFETY: sole release of the native owned allocation; empty values are accepted by the native API.
+    unsafe { ffi::ghostty_string_free(value) };
+    result
+}

@@ -23,19 +23,62 @@ pub fn load(path: &Path) -> Result<Journal, String> {
     if !journal.config.url.is_empty() {
         endpoint(&journal.config.url)?;
     }
+    if journal.cursor.is_some_and(|c| c < 0) {
+        return Err("Invalid gateway cursor".into());
+    }
     let mut ids = std::collections::HashSet::new();
     for receipt in &mut journal.receipts {
         identity(&receipt.event_id)?;
+        if receipt.reason.len() > 4096 {
+            return Err("Invalid gateway receipt reason".into());
+        }
+        if let Some(payload) = &receipt.payload {
+            payload.validate()?;
+        }
+        if receipt.candidates.len() > MAX_PENDING
+            || receipt
+                .event
+                .as_ref()
+                .is_some_and(|e| e.to_string().len() > 65536)
+            || receipt.outcome == "received" && receipt.event.is_none()
+        {
+            return Err("Invalid received gateway event".into());
+        }
+        if receipt.outcome == "queued" && (receipt.payload.is_none() || receipt.target.is_none()) {
+            return Err("Incomplete queued gateway event".into());
+        }
+        if let Some(target) = &receipt.target {
+            uuid::Uuid::parse_str(&target.terminal.workspace_id)
+                .map_err(|_| "Invalid gateway target workspace")?;
+            uuid::Uuid::parse_str(&target.terminal.surface_id)
+                .map_err(|_| "Invalid gateway target surface")?;
+            if !target.terminal.directory.is_absolute()
+                || !matches!(target.process.client.as_str(), "claude" | "codex")
+            {
+                return Err("Invalid gateway terminal target".into());
+            }
+        }
         if !ids.insert(receipt.event_id.clone())
             || !matches!(
                 receipt.outcome.as_str(),
-                "submitting" | "injected" | "skipped" | "uncertain"
+                "received"
+                    | "queued"
+                    | "submitting"
+                    | "injected"
+                    | "skipped"
+                    | "failed"
+                    | "uncertain"
             )
         {
             return Err("Invalid gateway delivery receipt".into());
         }
         if receipt.outcome == "submitting" {
             receipt.outcome = "uncertain".into();
+            receipt.reason = "Interrupted terminal submission; automatic replay is disabled".into();
+            receipt.confirmed = false;
+            receipt.payload = None;
+            receipt.event = None;
+            receipt.candidates.clear();
         }
     }
     Ok(journal)
@@ -120,6 +163,7 @@ mod tests {
         journal.receipts.push_back(Receipt {
             event_id: "event".into(),
             outcome: "submitting".into(),
+            ..Default::default()
         });
         save(&path, &journal).unwrap();
         let restored = load(&path).unwrap();

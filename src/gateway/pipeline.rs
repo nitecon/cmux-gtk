@@ -45,7 +45,7 @@ impl Pipeline {
             return Ok(Admission::Duplicate);
         }
         // Reserve receipt capacity for all pending messages; never evict a fence and silently replay input.
-        if journal.receipts.len() + self.pending.len() >= MAX_RECEIPTS {
+        if journal.receipts.len() >= MAX_RECEIPTS {
             return Err("Gateway receipt capacity reached; delivery paused".into());
         }
         let candidates: Vec<&Session> = sessions
@@ -60,20 +60,7 @@ impl Pipeline {
             && message.source_instance.as_deref() != Some(&journal.instance_id)
             && candidates.len() == 1
         {
-            let candidate = candidates[0];
-            if message.kind == Kind::Commented {
-                // Without recipient attribution, self-comment suppression cannot be established.
-                candidate
-                    .terminal
-                    .observation
-                    .as_ref()
-                    .filter(|o| o.process == candidate.process)
-                    .and_then(|o| o.actor_id.as_ref())
-                    .filter(|actor| Some(*actor) != message.author_id.as_ref())
-                    .map(|_| candidate)
-            } else {
-                Some(candidate)
-            }
+            Some(candidates[0])
         } else {
             None
         };
@@ -81,12 +68,29 @@ impl Pipeline {
             journal.receipts.push_back(Receipt {
                 event_id: message.event_id,
                 outcome: "skipped".into(),
+                reason: if !journal.config.injection_approved {
+                    "Experimental injection approval is off"
+                } else if candidates.is_empty() {
+                    "No active agent in a matching repository"
+                } else {
+                    "Ambiguous recipient or source event"
+                }
+                .into(),
+                ..Default::default()
             });
             return Ok(Admission::Skipped);
         };
         if self.pending.len() >= MAX_PENDING {
             return Err("Gateway message queue is full".into());
         }
+        journal.receipts.push_back(Receipt {
+            event_id: message.event_id.clone(),
+            outcome: "queued".into(),
+            reason: "Waiting for an empty, idle agent prompt".into(),
+            payload: Some(message.clone()),
+            target: Some(target.clone()),
+            ..Default::default()
+        });
         self.pending.push_back(Pending {
             message,
             target: target.clone(),
@@ -160,11 +164,12 @@ mod tests {
                 foreground_pid: 42,
                 input_revision: 3,
                 input_pending: false,
+                screen: None,
+                captured_at: None,
                 observation: Some(Observation {
                     process: process.clone(),
                     input_revision: 3,
                     input,
-                    actor_id: Some("recipient".into()),
                     observed_at: std::time::Instant::now(),
                 }),
             },
@@ -236,6 +241,7 @@ mod tests {
         journal.receipts.push_back(Receipt {
             event_id: "new".into(),
             outcome: "injected".into(),
+            ..Default::default()
         });
         assert_eq!(
             pipeline
@@ -254,9 +260,9 @@ mod tests {
         assert!(!pipeline.next(&projects, &[]).unwrap().1);
     }
 
-    /// Missing agents, ambiguous recipients/projects, own comments and missing consent never queue input.
+    /// Missing agents, ambiguous recipients/projects and missing consent never queue input; all comment roles remain eligible.
     #[test]
-    fn skips_unroutable_and_looping_events() {
+    fn skips_unroutable_events_and_preserves_agent_comments() {
         let (journal, projects) = context();
         let s = session("one", InputState::EmptyReady);
         let scenarios = [
@@ -287,20 +293,7 @@ mod tests {
                     own
                 )
                 .unwrap(),
-            Admission::Skipped
-        );
-        let mut unknown = s.clone();
-        unknown.terminal.observation = None;
-        assert_eq!(
-            Pipeline::default()
-                .admit(
-                    &mut journal.clone(),
-                    &projects,
-                    &[unknown],
-                    message("comment", Kind::Commented)
-                )
-                .unwrap(),
-            Admission::Skipped
+            Admission::Queued
         );
         let mut other = projects.clone();
         other.push(Project {
@@ -400,6 +393,7 @@ mod tests {
             .map(|i| Receipt {
                 event_id: format!("receipt-{i}"),
                 outcome: "injected".into(),
+                ..Default::default()
             })
             .collect();
         assert!(pipeline

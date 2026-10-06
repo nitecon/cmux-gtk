@@ -35,7 +35,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
 - **Agent lifecycle integration** — Native resume and notification hooks for Claude, Codex, Grok, OpenCode, Pi, OMP, Campfire, Amp, Cursor, Gemini, Kiro, Antigravity, Hermes Agent, Kimi, Rovo Dev, Copilot, CodeBuddy, Factory, and Qoder
 - **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
-- **Agent Gateway preparation** — Global experimental injection consent and automatic task-message routing pipeline; the new lifecycle stream connection is awaiting its specification
+- **Agent Gateway** — One authenticated lifecycle stream, automatic repository matching and globally approved terminal injection into active agents
 - **Agent-accessible diff surfaces** — `cmux diff` opens patch, unstaged, staged, or branch changes in a searchable right-hand browser pane with unified and split layouts
 
 ## Workspace workflows
@@ -84,33 +84,39 @@ upstream features informed this port and which are candidates for later work.
 
 ### Agent Gateway messages
 
-**Preferences → Agent Gateway** now contains global connection settings and a
-separate **Allow experimental terminal message injection** approval. Manual
-workspace mappings, per-project execution settings, task acceptance dialogs and
-gateway lifecycle hooks have been removed from CMUX. Existing settings retain
-the address and credential but do not grant injection approval on upgrade.
+**Preferences → Agent Gateway** connects once to the gateway's task lifecycle
+stream across all projects. Requires agent-gateway **v1.19.0 or later**. A separate
+**Allow experimental terminal message injection** approval permits direct input
+into active local Claude/Codex terminals. Existing settings retain the address
+and credential but do not grant approval on upgrade. No per-project settings,
+manual workspace mappings or gateway hooks are required.
 
-The prepared pipeline matches projects by Git upstream URL and handles new
-tasks, ordinary task comments and task completion messages. It pins each message
-to one active local Claude/Codex process, waits for confirmed empty input, and
-skips absent or ambiguous recipients. Input changes and pending clipboard
-pastes invalidate readiness. Injected text uses the gateway start/stop markers
-and a cyan terminal annotation, without changing focus. Own comments and
-repeated event IDs are suppressed. A durable submission fence prevents automatic
-replay of uncertain input; delivery does not mean a task was completed.
+Projects match automatically by the current Git branch's upstream remote, with
+an origin fallback. New ordinary/delegated tasks, user/agent/system comments and
+completion notifications use the same stream. Outgoing delegation tracking
+tickets are skipped. Progress and canonical task completion use agent-tools;
+stream receipts describe message delivery only.
 
-**The new connection is not active yet.** Preferences and `cmux gateway status`
-show “Awaiting gateway stream specification.” The authenticated WebSocket
-subscription, project discovery, replay/acknowledgment rules and reliable
-hookless provider readiness/author observations remain to be connected. Until
-then, CMUX receives no stream events and unknown readiness never permits input.
-Progress and canonical task completion remain available through agent-tools.
+Messages stay pinned to the original agent process and terminal. Busy agents,
+unfinished input, clipboard pastes and unrecognized prompt layouts wait. Empty
+prompts require a visible caret, a recognized Claude/Codex prompt and shortcuts
+footer, and stable input. Unsupported provider layouts remain queued with a
+visible reason. Absent or ambiguous recipients receive nothing, and CMUX never
+launches an agent or changes focus to deliver a message.
+
+Input uses `<Start Agent Gateway Message Injection>` and
+`</Stop AgentGateway Message injection>` delimiters with a cyan local terminal
+annotation. ANSI styling is excluded from agent input. Receipt IDs, queued
+messages and the reconnect cursor are saved before acknowledgment; interrupted
+submissions become **uncertain** and are never blindly replayed. Preferences and
+`cmux gateway status` show connection, queue and recent delivery outcomes.
+Acknowledgments do not create task comments or complete tasks.
 
 Saved API keys remain in a separate owner-only credential file.
 `CMUX_GATEWAY_API_KEY` or `GATEWAY_API_KEY` in the **cmux-app environment** can
 provide the credential instead; environment keys take precedence on startup.
 HTTPS/WSS is required outside loopback. SSH workspaces remain excluded.
-The only gateway commands are `cmux gateway status` and
+The gateway commands are `cmux gateway status` and
 `cmux gateway configure --url URL --enabled [--approve-injection]`.
 
 ## Install

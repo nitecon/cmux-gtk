@@ -13,6 +13,15 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.0] - 2026-10-06
+
+### Added
+
+- Subscribe once to agent-gateway v1.19's authenticated task lifecycle stream across all projects, automatically matching Git upstream repositories.
+- Deliver ordinary/delegated tasks, user/agent/system comments and completion notifications directly to active Claude/Codex terminals behind one global experimental approval.
+- Queue busy or unfinished prompts, show marked colored injections, and persist reconnect cursors and delivery fences without gateway hooks or per-project execution settings.
+- Show connection, queue and delivery reasons in preferences; fetch truncated task context and fence uncertain submissions against automatic replay.
+
 ## [0.5.0] - 2026-10-06
 
 ### Added

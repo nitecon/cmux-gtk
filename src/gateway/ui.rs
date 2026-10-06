@@ -28,7 +28,7 @@ pub fn append_preferences(content: &gtk4::Box, state: &AppStateRef, dialog: &gtk
     let approval = gtk4::CheckButton::with_label("Allow experimental terminal message injection");
     approval.set_active(initial.config.injection_approved);
     content.append(&approval);
-    let help = gtk4::Label::new(Some("This approval allows task messages to be typed and submitted into active Claude/Codex terminals across matching workspaces. Projects will match automatically by Git upstream URL. Busy agents and unfinished input wait; terminals without an active agent receive nothing. No per-project setup or gateway hooks are required. The new stream connection is awaiting the gateway specification."));
+    let help = gtk4::Label::new(Some("This approval allows task messages to be typed and submitted into active Claude/Codex terminals across matching workspaces. Projects will match automatically by Git upstream URL. Busy agents and unfinished input wait; terminals without an active agent receive nothing. No per-project setup or gateway hooks are required."));
     help.set_wrap(true);
     help.set_xalign(0.0);
     content.append(&help);
@@ -62,10 +62,17 @@ pub fn append_preferences(content: &gtk4::Box, state: &AppStateRef, dialog: &gtk
                     break;
                 };
                 let view = receiver.borrow_and_update().clone();
-                status.set_text(&format!(
-                    "{} · {} queued messages",
-                    view.connection, view.pending
-                ));
+                let mut text = format!(
+                    "{} · {} projects · {} active agents · {} queued messages",
+                    view.connection, view.projects, view.agents, view.pending
+                );
+                for receipt in view.receipts.iter().rev().take(8) {
+                    text.push_str(&format!(
+                        "\nEvent {}: {} — {}",
+                        receipt.event_id, receipt.outcome, receipt.reason
+                    ));
+                }
+                status.set_text(&text);
                 drop(status);
                 if receiver.changed().await.is_err() {
                     break;

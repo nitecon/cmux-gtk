@@ -16,7 +16,7 @@ pub struct Config {
     pub injection_approved: bool,
 }
 
-/// Gateway project metadata, normalized by the future stream adapter, never inferred from folder names.
+/// Gateway project metadata, normalized by the lifecycle stream adapter, never inferred from folder names.
 #[derive(Clone, Debug)]
 pub struct Project {
     pub ident: String,
@@ -24,15 +24,15 @@ pub struct Project {
 }
 
 /// Canonical task lifecycle; these names define an internal model, not a WebSocket schema.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Kind {
     Created,
     Commented,
     Completed,
 }
 
-/// An event from the authenticated stream, including author attribution for comment loop suppression.
-#[derive(Clone, Debug)]
+/// An event from the authenticated stream, including visible comment author attribution.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
     pub event_id: String,
     pub project_ident: String,
@@ -79,7 +79,7 @@ impl Message {
             Kind::Commented => "Task commented",
             Kind::Completed => "Task completed",
         };
-        format!("{START}\n{kind}: {}\n{}\n{STOP}", self.task_id, self.text)
+        format!("{START}\nGateway event {} · {} · {kind}: {}\n{}\nDo not post task comments solely to acknowledge this injected message.\n{STOP}", self.event_id, self.project_ident, self.task_id, self.text)
     }
 }
 
@@ -99,12 +99,11 @@ pub struct Observation {
     pub process: cmux_platform::process::Identity,
     pub input_revision: u64,
     pub input: InputState,
-    pub actor_id: Option<String>,
     pub observed_at: std::time::Instant,
 }
 
 /// GTK copies only owned metadata; native pointers never cross into a worker.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Terminal {
     pub workspace_id: String,
     pub surface_id: String,
@@ -112,13 +111,19 @@ pub struct Terminal {
     pub foreground_pid: u64,
     pub input_revision: u64,
     pub input_pending: bool,
+    #[serde(skip)]
     pub observation: Option<Observation>,
+    #[serde(skip)]
+    pub screen: Option<serde_json::Value>,
+    #[serde(skip)]
+    pub captured_at: Option<std::time::Instant>,
 }
 
 /// A verified active Claude/Codex process and upstream repository, independent of resume hooks.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Session {
     pub terminal: Terminal,
+    #[serde(with = "ProcessIdentity")]
     pub process: cmux_platform::process::Identity,
     pub repository: String,
 }
@@ -145,11 +150,42 @@ impl Session {
     }
 }
 
-/// Durable at-most-once fence; uncertain input is never automatically replayed after a crash.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Persistable Linux identity without adding application serialization dependencies to platform services.
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "cmux_platform::process::Identity")]
+struct ProcessIdentity {
+    pid: u64,
+    start_ticks: u64,
+    client: String,
+}
+
+/// Durable event and delivery state; terminal outcomes retain routing/reason but release message bodies.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Receipt {
     pub event_id: String,
     pub outcome: String,
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub payload: Option<Message>,
+    #[serde(default)]
+    pub target: Option<Session>,
+    #[serde(default)]
+    pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub candidates: Vec<Session>,
+}
+
+impl Receipt {
+    /// Recognize finalized delivery, independent of canonical task status.
+    pub fn terminal(&self) -> bool {
+        matches!(
+            self.outcome.as_str(),
+            "injected" | "skipped" | "failed" | "uncertain"
+        )
+    }
 }
 
 /// V2 replaces assignments and reports; old configuration loads with injection approval disabled.
@@ -159,6 +195,8 @@ pub struct Journal {
     pub config: Config,
     #[serde(default)]
     pub receipts: VecDeque<Receipt>,
+    #[serde(default)]
+    pub cursor: Option<i64>,
 }
 
 impl Default for Journal {
@@ -168,6 +206,7 @@ impl Default for Journal {
             instance_id: uuid::Uuid::new_v4().to_string(),
             config: Config::default(),
             receipts: VecDeque::new(),
+            cursor: None,
         }
     }
 }
@@ -185,6 +224,8 @@ pub struct View {
     pub connection: String,
     pub config: Config,
     pub pending: usize,
+    pub projects: usize,
+    pub agents: usize,
     pub receipts: VecDeque<Receipt>,
 }
 
@@ -201,7 +242,7 @@ pub fn identity(value: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Validate a base address without assuming the pending WebSocket endpoint or subscription protocol.
+/// Validate a base address for the published lifecycle WebSocket and REST metadata.
 pub fn endpoint(value: &str) -> Result<url::Url, String> {
     let url = url::Url::parse(value).map_err(|_| "Invalid gateway URL")?;
     let loopback = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
@@ -226,6 +267,12 @@ pub fn repository(value: &str) -> Option<String> {
     }
     let url = if value.contains("://") {
         url::Url::parse(value).ok()?
+    } else if !value.contains(':')
+        && value
+            .split_once('/')
+            .is_some_and(|(host, _)| host.contains('.'))
+    {
+        url::Url::parse(&format!("https://{value}")).ok()?
     } else {
         let (host, path) = value.split_once(':')?;
         if host.contains('/') {
