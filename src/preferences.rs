@@ -68,11 +68,14 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
         .title("Preferences")
         .transient_for(parent)
         .modal(true)
-        .default_width(380)
+        .default_width(500)
         .build();
     dialog.add_button("Cancel", gtk4::ResponseType::Cancel);
     dialog.add_button("Apply", gtk4::ResponseType::Apply);
-    let content = dialog.content_area();
+    let notebook = gtk4::Notebook::new();
+    dialog.content_area().append(&notebook);
+    let content = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
+    notebook.append_page(&content, Some(&gtk4::Label::new(Some("Terminal"))));
     content.set_spacing(12);
     content.set_margin_top(20);
     content.set_margin_bottom(20);
@@ -105,10 +108,19 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
     invert.set_active(invert_scroll());
     content.append(&invert);
     crate::resume_review::append(&content, state);
-    crate::gateway::append_preferences(&content, state);
     let error_label = gtk4::Label::new(None);
     error_label.set_wrap(true);
     content.append(&error_label);
+    let gateway = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+    gateway.set_margin_top(16);
+    gateway.set_margin_bottom(16);
+    gateway.set_margin_start(20);
+    gateway.set_margin_end(20);
+    crate::gateway::append_preferences(&gateway, state, &dialog);
+    notebook.append_page(&gateway, Some(&gtk4::Label::new(Some("Agent Gateway"))));
+    if let Some(apply) = dialog.widget_for_response(gtk4::ResponseType::Apply) {
+        notebook.connect_switch_page(move |_, _, page| apply.set_sensitive(page == 0));
+    }
     dialog.connect_response(move |dialog, response| {
         if response != gtk4::ResponseType::Apply {
             dialog.close();

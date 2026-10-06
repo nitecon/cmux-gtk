@@ -84,7 +84,7 @@ upstream features informed this port and which are candidates for later work.
 
 ### Interactive gateway tasks
 
-Open **Preferences → Gateway tasks** to enable a connection, enter your gateway
+Open **Preferences → Agent Gateway** to enable a connection, enter your gateway
 URL and API key, and map each local workspace to its exact gateway project
 identity (for example, `cmux-gtk`). The integration requires **agent-gateway
 v1.18.0 or later**. In the gateway, explicitly enable the mapped project's
@@ -320,10 +320,14 @@ Shortcuts are configurable via TOML config file. Workspace move overrides are
 
 ## Terminal preferences
 
-Open the window menu → **Preferences** to set the terminal font size (6–72
+Open the window menu → **Preferences → Terminal** to set the terminal font size (6–72
 points). **Apply** updates existing terminals and saves the size for new tabs
 and future launches in `~/.config/cmux/preferences.json` (respecting
 `XDG_CONFIG_HOME`). Until a size is saved, terminals use their Ghostty configuration.
+
+The **Agent Gateway** tab contains the enable switch, gateway address, API key,
+and workspace-to-project mappings. Use **Save connection** and **Save workspace
+mapping** to persist those settings, and **Gateway tasks…** to review assignments.
 
 ## Diagnostics
 

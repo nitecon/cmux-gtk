@@ -4,8 +4,33 @@ use crate::app_state::AppStateRef;
 use gtk4::prelude::*;
 use serde_json::json;
 
-/// Add gateway configuration access without changing ordinary terminal preference ownership.
-pub fn append_preferences(content: &gtk4::Box, state: &AppStateRef) {
+/// Populate the dedicated preferences page; its dialog owns the status subscription.
+pub fn append_preferences(content: &gtk4::Box, state: &AppStateRef, dialog: &gtk4::Dialog) {
+    let status = configuration(content, state);
+    if let Some(mut receiver) = state.borrow().gateway.as_ref().map(|g| g.view.clone()) {
+        let status = status.downgrade();
+        let listener = glib::MainContext::default().spawn_local(async move {
+            loop {
+                let Some(status) = status.upgrade() else {
+                    break;
+                };
+                let view = receiver.borrow_and_update().clone();
+                status.set_text(&format!(
+                    "{} · {} registered sessions",
+                    view.connection,
+                    view.sessions.len()
+                ));
+                drop(status);
+                if receiver.changed().await.is_err() {
+                    break;
+                }
+            }
+        });
+        dialog.connect_close_request(move |_| {
+            listener.abort();
+            glib::Propagation::Proceed
+        });
+    }
     let button = gtk4::Button::with_label("Gateway tasks…");
     let state = std::rc::Rc::downgrade(state);
     button.connect_clicked(move |button| {
@@ -20,31 +45,16 @@ pub fn append_preferences(content: &gtk4::Box, state: &AppStateRef) {
     content.append(&button);
 }
 
-/// Show bounded task state and explicit workspace mapping without moving terminal focus.
-fn show(parent: Option<&gtk4::Window>, state: &AppStateRef) {
-    let dialog = gtk4::Dialog::builder()
-        .title("Gateway tasks")
-        .default_width(620)
-        .default_height(620)
-        .build();
-    dialog.set_transient_for(parent);
-    dialog.add_button("Close", gtk4::ResponseType::Close);
-    dialog.connect_response(|dialog, _| dialog.close());
-    let content = dialog.content_area();
-    content.set_spacing(12);
-    for side in [
-        gtk4::PositionType::Left,
-        gtk4::PositionType::Right,
-        gtk4::PositionType::Top,
-        gtk4::PositionType::Bottom,
-    ] {
-        match side {
-            gtk4::PositionType::Left => content.set_margin_start(16),
-            gtk4::PositionType::Right => content.set_margin_end(16),
-            gtk4::PositionType::Top => content.set_margin_top(16),
-            _ => content.set_margin_bottom(16),
-        }
-    }
+/// Add a visible field label, independent of placeholder or saved field contents.
+fn field(content: &gtk4::Box, text: &str, widget: &impl IsA<gtk4::Widget>) {
+    let label = gtk4::Label::new(Some(text));
+    label.set_xalign(0.0);
+    content.append(&label);
+    content.append(widget);
+}
+
+/// Connection settings and explicit local workspace mappings share the gateway worker.
+fn configuration(content: &gtk4::Box, state: &AppStateRef) -> gtk4::Label {
     let initial = state
         .borrow()
         .gateway
@@ -58,13 +68,13 @@ fn show(parent: Option<&gtk4::Window>, state: &AppStateRef) {
         .placeholder_text("https://gateway.example.com")
         .text(&initial.config.url)
         .build();
-    content.append(&url);
+    field(content, "Gateway address", &url);
     let key = gtk4::PasswordEntry::builder()
         .placeholder_text("API key (leave blank to keep current key)")
         .show_peek_icon(true)
         .build();
-    content.append(&key);
-    let help = gtk4::Label::new(Some("Map each local workspace to its exact gateway project identity. Install cmux Claude/Codex hooks. Enable cmux execution for that project in the gateway. New tasks appear here; Send to agent requires confirmation that its prompt is empty."));
+    field(content, "API key", &key);
+    let help = gtk4::Label::new(Some("Map each local workspace to its exact gateway project identity. Install cmux Claude/Codex hooks. Enable cmux execution for that project in the gateway. Open Gateway tasks to review new assignments. Send to agent requires confirmation that its prompt is empty."));
     help.set_wrap(true);
     help.set_xalign(0.0);
     content.append(&help);
@@ -149,8 +159,8 @@ fn show(parent: Option<&gtk4::Window>, state: &AppStateRef) {
             project.set_text(&text);
         }
     });
-    content.append(&chooser);
-    content.append(&project);
+    field(content, "Local workspace", &chooser);
+    field(content, "Gateway project identity", &project);
     let bind = gtk4::Button::with_label("Save workspace mapping");
     bind.connect_clicked({
         let state = std::rc::Rc::downgrade(state);
@@ -175,6 +185,38 @@ fn show(parent: Option<&gtk4::Window>, state: &AppStateRef) {
     content.append(&bind);
     content.append(&error);
     let status = gtk4::Label::new(Some(&initial.connection));
+    status.set_wrap(true);
+    status.set_xalign(0.0);
+    content.append(&status);
+    status
+}
+
+/// Show bounded task state without moving terminal focus.
+fn show(parent: Option<&gtk4::Window>, state: &AppStateRef) {
+    let dialog = gtk4::Dialog::builder()
+        .title("Gateway tasks")
+        .default_width(620)
+        .default_height(620)
+        .build();
+    dialog.set_transient_for(parent);
+    dialog.add_button("Close", gtk4::ResponseType::Close);
+    dialog.connect_response(|dialog, _| dialog.close());
+    let content = dialog.content_area();
+    content.set_spacing(12);
+    for side in [
+        gtk4::PositionType::Left,
+        gtk4::PositionType::Right,
+        gtk4::PositionType::Top,
+        gtk4::PositionType::Bottom,
+    ] {
+        match side {
+            gtk4::PositionType::Left => content.set_margin_start(16),
+            gtk4::PositionType::Right => content.set_margin_end(16),
+            gtk4::PositionType::Top => content.set_margin_top(16),
+            _ => content.set_margin_bottom(16),
+        }
+    }
+    let status = gtk4::Label::new(None);
     status.set_wrap(true);
     status.set_xalign(0.0);
     content.append(&status);
