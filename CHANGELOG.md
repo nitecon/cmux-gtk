@@ -13,6 +13,12 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.1] - 2026-10-06
+
+### Fixed
+
+- Recognize Claude's native versioned executable path and still-running binaries unlinked by updates, so native-installed Claude sessions can receive gateway messages.
+
 ## [0.6.0] - 2026-10-06
 
 ### Added

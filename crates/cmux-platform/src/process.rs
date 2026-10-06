@@ -212,10 +212,13 @@ pub fn agent_identity(pid: u64) -> Option<Identity> {
     let stat = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
     let start_ticks = process_start(&stat)?;
     let executable = std::fs::read_link(root.join("exe")).ok()?;
-    let name = executable.file_name()?.to_str()?;
-    let client = match name {
-        "claude" | "codex" => name,
-        "node" => {
+    let name = executable
+        .file_name()?
+        .to_str()?
+        .trim_end_matches(" (deleted)");
+    let client = match native_agent(&executable) {
+        Some(client) => client,
+        None if name == "node" => {
             let mut bytes = Vec::new();
             std::fs::File::open(root.join("cmdline"))
                 .ok()?
@@ -227,7 +230,7 @@ pub fn agent_identity(pid: u64) -> Option<Identity> {
             }
             node_agent(&bytes)?
         }
-        _ => return None,
+        None => return None,
     }
     .to_owned();
     // Confirm that the metadata belonged to the same still-live process generation.
@@ -240,6 +243,32 @@ pub fn agent_identity(pid: u64) -> Option<Identity> {
         start_ticks,
         client,
     })
+}
+
+/// Recognize named native clients and Claude's documented versioned native-install layout.
+/// Procfs appends `(deleted)` to a still-running executable after an updater unlinks its old version.
+fn native_agent(executable: &std::path::Path) -> Option<&'static str> {
+    let name = executable
+        .file_name()?
+        .to_str()?
+        .trim_end_matches(" (deleted)");
+    match name {
+        "claude" => Some("claude"),
+        "codex" => Some("codex"),
+        _ if executable
+            .parent()
+            .is_some_and(|p| p.ends_with(".local/share/claude/versions")) =>
+        {
+            let mut parts = name.split('.');
+            let version = (0..3).all(|_| {
+                parts.next().is_some_and(|p| {
+                    !p.is_empty() && p.len() <= 16 && p.bytes().all(|b| b.is_ascii_digit())
+                })
+            }) && parts.next().is_none();
+            version.then_some("claude")
+        }
+        _ => None,
+    }
 }
 
 /// Parse the kernel start-time field after the parenthesized command, rejecting zombies and truncation.
@@ -266,6 +295,29 @@ fn node_agent(cmdline: &[u8]) -> Option<&'static str> {
 #[cfg(test)]
 mod agent_tests {
     use super::*;
+
+    /// Versioned native installs remain agents after updater unlinking; generic versioned binaries never qualify.
+    #[test]
+    fn recognizes_native_install_executables() {
+        for (path, client) in [
+            ("/usr/bin/codex", Some("codex")),
+            ("/usr/bin/claude (deleted)", Some("claude")),
+            (
+                "/home/user/.local/share/claude/versions/2.1.288",
+                Some("claude"),
+            ),
+            (
+                "/home/user/.local/share/claude/versions/2.1.287 (deleted)",
+                Some("claude"),
+            ),
+            ("/home/user/.local/share/claude/versions/helper", None),
+            ("/home/user/.local/share/claude/versions/2.1.2.3", None),
+            ("/home/user/.local/share/unrelated/versions/2.1.288", None),
+            ("/usr/bin/bash", None),
+        ] {
+            assert_eq!(native_agent(std::path::Path::new(path)), client);
+        }
+    }
 
     /// Command mentions and generic scripts are not live provider identities.
     #[test]

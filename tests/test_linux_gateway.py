@@ -45,8 +45,11 @@ def setup(root):
     executable = root / "codex"
     subprocess.check_call(["cc", "-Wall", "-Wextra", "-O2", str(Path(__file__).parent / "fixtures/gateway_agent.c"),
                            "-o", str(executable)], timeout=20)
-    shutil.copyfile(executable, root / "claude")
-    (root / "claude").chmod(0o700)
+    native_claude = root / ".local/share/claude/versions/2.1.288"
+    native_claude.parent.mkdir(parents=True)
+    shutil.copyfile(executable, native_claude)
+    native_claude.chmod(0o700)
+    (root / "claude").symlink_to(native_claude)
     workspaces = []
     for index, name in enumerate(("first", "second", "absent")):
         project = root / name

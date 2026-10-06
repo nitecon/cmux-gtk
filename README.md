@@ -92,7 +92,8 @@ and credential but do not grant approval on upgrade. No per-project settings,
 manual workspace mappings or gateway hooks are required.
 
 Projects match automatically by the current Git branch's upstream remote, with
-an origin fallback. New ordinary/delegated tasks, user/agent/system comments and
+an origin fallback. Claude native versioned installs and supported Node CLI
+entry points are recognized alongside named native binaries. New ordinary/delegated tasks, user/agent/system comments and
 completion notifications use the same stream. Outgoing delegation tracking
 tickets are skipped. Progress and canonical task completion use agent-tools;
 stream receipts describe message delivery only.
