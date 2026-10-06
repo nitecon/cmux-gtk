@@ -17,7 +17,7 @@ All notable changes to cmux GTK are documented here.
 
 ### Added
 
-- Opt-in authenticated gateway WebSocket connection and explicit per-workspace project mapping in Preferences and the CLI; requires agent-gateway v1.18.0 or later.
+- Opt-in authenticated gateway WebSocket connection with a dedicated Agent Gateway tab in Preferences for the address, API key and per-workspace project mapping, plus CLI configuration; requires agent-gateway v1.18.0 or later.
 - Existing Claude/Codex native-session registration, delegated-task notifications and confirmed submission to the exact interactive terminal after durable gateway acknowledgment.
 - Bounded progress, question and outcome reporting, with persisted sequence numbers and acceptance/submission markers to prevent prompt replay after disconnect or restart.
 - Isolated real-WebSocket/native-terminal CI coverage for delivery ordering, busy-session rejection, exact routing, reporting and reconnect reconciliation.

@@ -64,7 +64,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
                             surface_id:assignment.surface_id.parse().ok() },
                         content: crate::inbox::Content { title:"Delegated task ready".into(),
                             subtitle:assignment.task_id.clone(),
-                            body:"Open Preferences → Gateway tasks. Confirm the agent is at an empty prompt, then choose Send to agent.".into() },
+                            body:"Open Preferences → Agent Gateway → Gateway tasks. Confirm the agent is at an empty prompt, then choose Send to agent.".into() },
                     });
                 }
                 worker::Event::Deliver { assignment, session, reply } => {
