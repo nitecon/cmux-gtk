@@ -13,6 +13,10 @@
 
 cmux for Linux is a full native port of [cmux](https://github.com/manaflow-ai/cmux) (originally a macOS Swift/AppKit app) rebuilt in Rust on GTK4. It provides the same experience — tabs, splits, workspaces, notifications, browser automation, and a scriptable socket API — running natively on Linux with GPU-accelerated terminal rendering via Ghostty.
 
+Built-in Git and Markdown document viewers keep repository history, working
+changes and project documentation beside your terminal sessions in native GTK
+tabs.
+
 Built for developers running multiple AI coding agents (Claude Code, Codex, etc.) in parallel who need visibility into which agent needs attention and the ability to script browser interactions alongside terminal sessions.
 
 ## Features
@@ -22,6 +26,8 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **Directory-bound workspaces** — Create a workspace with a folder browser; every terminal and split starts in that project directory
 - **Notification system** — Per-pane bell tracking, sidebar indicators, desktop notifications
 - **In-app browser** — CDP-based browser automation with accessibility tree snapshots, element interaction, and JS evaluation via [agent-browser](https://github.com/vercel-labs/agent-browser)
+- **Built-in Git viewer** — Browse commit history and staged, unstaged and untracked changes with per-file diffs in a native right-hand tab
+- **Built-in Markdown document viewer** — Browse an expandable project folder tree and read formatted documents, tables and code blocks in a native right-hand Files tab
 - **Scriptable CLI** — `cmux` CLI with 34+ subcommands for workspaces, panes, surfaces, and browser control
 - **Socket API** — v2 JSON-RPC over Unix socket with SO_PEERCRED auth
 - **SSH remote workspaces** — cmuxd-remote deployment with bidirectional PTY proxy and reconnect
@@ -56,6 +62,13 @@ In terminals, **Ctrl+Shift+C/V** copies and pastes the standard clipboard.
 Selecting text automatically makes it available to **middle-click paste** through
 Linux PRIMARY selection. Ghostty's `copy-on-select` configuration still applies;
 its Linux default is `true`.
+
+**Files** in the header opens the built-in Markdown document viewer in a
+right-hand tab. Expand folders in the project tree and select a document to
+read it with formatted headings, lists, links, tables and code blocks that
+preserve whitespace. The Files tab is restored with your session and shares the
+right-hand pane with Git, keeping documentation beside your terminal. It reads
+the local workspace folder; hidden directories and symlinks are skipped.
 
 **Git** in the header opens a tab in the right-hand pane, alongside Files. It
 starts on **Current — uncommitted changes**, listing staged, unstaged and
