@@ -59,6 +59,7 @@ class Gateway:
         self.receipts = {}
         self.subscriptions = []
         self.heartbeats = 0
+        self.server_heartbeats = True
         self.full_fetches = 0
         self.replay = None
         self.sockets = set()
@@ -152,7 +153,7 @@ class Gateway:
                         if event:
                             inflight = event["id"]
                             send_frame(connection, dict(type="event", event=event))
-                if time.monotonic() - heartbeat > 0.8:
+                if self.server_heartbeats and time.monotonic() - heartbeat > 0.8:
                     send_frame(connection, dict(type="heartbeat"))
                     heartbeat = time.monotonic()
                 readable, _, _ = select.select([connection], [], [], 0.05)

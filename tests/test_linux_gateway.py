@@ -56,16 +56,8 @@ def setup(root):
                                "git@github.com:fixture/" + name + ".git"], timeout=5)
         mode = root / (name + ".mode")
         mode.write_text("idle")
-        script = root / (name + ".sh")
-        if index < 2:
-            arguments = [str(root / ("codex" if index == 0 else "claude")), str(mode),
-                         str(root / (name + ".input")), str(project)]
-            script.write_text("cd " + shlex.quote(str(project)) + "\nexec " + shlex.join(arguments) + "\n")
-        else:
-            script.write_text("cd " + shlex.quote(str(project)) +
-                              "\nprintf '\\033]7;file://localhost%s\\007' \"$PWD\"\nexec /bin/bash --noprofile --norc\n")
         workspaces.append(dict(uuid=str(uuid.uuid4()), name=name, working_directory=str(project),
-                               startup_script=str(script), active_pane_uuid=None,
+                               startup_script=None, active_pane_uuid=None,
                                layout=dict(type="Leaf", pane_id=index + 1, surface_uuid=str(uuid.uuid4()),
                                            shell="/bin/bash", cwd="")))
     session = root / "data/cmux/session.json"
@@ -112,6 +104,13 @@ def main():
                     app.cli("select-workspace", workspace["uuid"])
                     surface = next(row["uuid"] for row in app.surfaces() if row["workspace_uuid"] == workspace["uuid"])
                     app.wait_for(lambda: bool(raw(app, "surface.read_text", id=surface)["text"].strip()), "workspace PTY allocation")
+                    name = workspace["name"]
+                    if name != "absent":
+                        arguments = [str(root / ("codex" if name == "first" else "claude")),
+                                     str(root / (name + ".mode")), str(root / (name + ".input")), str(root / name)]
+                        raw(app, "surface.send_text", id=surface, text=shlex.join(arguments))
+                        raw(app, "surface.send_key", id=surface, key="\r")
+                        app.wait_for(lambda: "Gateway fixture" in raw(app, "surface.read_text", id=surface)["text"], "interactive foreground agent")
                 app.wait_for(lambda: len(app.surfaces()) == 3, "all native surfaces")
                 surfaces = {workspace["name"]: next(row["uuid"] for row in app.surfaces()
                             if row["workspace_uuid"] == workspace["uuid"]) for workspace in workspaces}
@@ -123,8 +122,12 @@ def main():
                 wait_outcome(app, gateway, no_consent, "skipped")
                 app.wait_for(lambda: json.loads(journal_path.read_text())["cursor"] == no_consent, "recorded receipt persisted")
                 raw(app, "gateway.configure", enabled=True, url=gateway.url, injection_approved=True)
-                app.wait_for(lambda: status(app)["connection"] == "Connected" and status(app)["agents"] == 2,
-                             "foreground agent discovery", timeout=20)
+                try:
+                    app.wait_for(lambda: status(app)["connection"] == "Connected" and status(app)["agents"] == 2,
+                                 "foreground agent discovery", timeout=20)
+                except BaseException:
+                    print(json.dumps(status(app), indent=2))
+                    raise
                 selected = next(row["uuid"] for row in app.surfaces() if row["active"])
                 created = gateway.add(content="Incoming delegated target assignment")
                 wait_outcome(app, gateway, created, "injected")
@@ -186,6 +189,10 @@ def main():
                 assert gateway.subscriptions[-1]["consumer_id"] == instance
                 assert gateway.subscriptions[-1]["after_event_id"] >= truncated
                 assert gateway.heartbeats > 0 and gateway.maximum_connections == 1
+                with gateway.lock:
+                    gateway.server_heartbeats = False
+                    heartbeat_count = gateway.heartbeats
+                app.wait_for(lambda: gateway.heartbeats > heartbeat_count, "client-owned periodic heartbeat", timeout=15)
                 # Replacement shell, even with the same PID after exec, retires the original queued target.
                 (root / "first.mode").write_text("busy")
                 app.wait_for(lambda: "esc to interrupt" in raw(app, "surface.read_text", id=surfaces["first"])["text"], "busy before process replacement")

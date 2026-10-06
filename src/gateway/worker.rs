@@ -238,7 +238,11 @@ impl Worker {
     }
 
     /// Route one durable received event without delaying receipt of events for other projects.
-    async fn route(&mut self, client: &wire::Client, sessions: &[Session]) -> Result<(), String> {
+    async fn route(
+        &mut self,
+        connection: &mut Connection,
+        sessions: &[Session],
+    ) -> Result<(), String> {
         let Some(index) = self
             .journal
             .receipts
@@ -264,9 +268,11 @@ impl Worker {
                     .is_some_and(|remote| !p.upstream_urls.contains(remote))
             })
         {
-            self.projects = client.projects().await?;
+            self.projects = connection.client.projects().await?;
         }
-        let result = client
+        heartbeat(connection).await?;
+        let result = connection
+            .client
             .message(
                 received
                     .event
@@ -464,6 +470,7 @@ impl Worker {
     /// Send changed delivery receipts once per connection; recorded confirms the gateway's actual saved state.
     async fn acknowledge(&mut self, connection: &mut Connection) -> Result<(), String> {
         for receipt in &self.journal.receipts {
+            heartbeat(connection).await?;
             let Ok(id) = receipt.event_id.parse::<i64>() else {
                 continue;
             };
@@ -557,6 +564,15 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+/// Check between bounded metadata and delivery operations so their deadlines cannot starve the stream heartbeat.
+async fn heartbeat(connection: &mut Connection) -> Result<(), String> {
+    if connection.heartbeat.elapsed() >= Duration::from_secs(10) {
+        wire::send(&mut connection.socket, json!({"type":"heartbeat"})).await?;
+        connection.heartbeat = Instant::now();
+    }
+    Ok(())
 }
 
 /// Release message bodies after a terminal outcome while retaining its routing and explanation.
@@ -769,11 +785,14 @@ pub async fn run(
                         let result=async {
                             if c.last_input.elapsed()>Duration::from_secs(if c.subscribed {60} else {10}) { return Err("Gateway stream timed out; reconnecting".into()); }
                             if !c.subscribed { return Ok(()); }
-                            if c.heartbeat.elapsed()>=Duration::from_secs(20) { wire::send(&mut c.socket,json!({"type":"heartbeat"})).await?; c.heartbeat=Instant::now(); }
+                            heartbeat(c).await?;
                             if c.projects_at.elapsed()>=Duration::from_secs(30) { worker.projects=c.client.projects().await?; c.projects_at=Instant::now(); }
+                            heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
                             let mut sessions=discover(&terminals).await; worker.observe(&mut sessions);
-                            worker.route(&c.client,&sessions).await?;
+                            heartbeat(c).await?;
+                            worker.route(c,&sessions).await?;
+                            heartbeat(c).await?;
                             // Full-task hydration may have taken time: verify foreground generations again before fencing input.
                             let terminals=snapshots.borrow().clone();
                             let current=active(&terminals).await;
