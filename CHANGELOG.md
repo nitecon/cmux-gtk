@@ -13,6 +13,15 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.5.0] - 2026-10-06
+
+### Added
+
+- Opt-in authenticated gateway WebSocket connection and explicit per-workspace project mapping in Preferences and the CLI; requires agent-gateway v1.18.0 or later.
+- Existing Claude/Codex native-session registration, delegated-task notifications and confirmed submission to the exact interactive terminal after durable gateway acknowledgment.
+- Bounded progress, question and outcome reporting, with persisted sequence numbers and acceptance/submission markers to prevent prompt replay after disconnect or restart.
+- Isolated real-WebSocket/native-terminal CI coverage for delivery ordering, busy-session rejection, exact routing, reporting and reconnect reconciliation.
+
 ## [0.4.0] - 2026-10-02
 
 ### Added

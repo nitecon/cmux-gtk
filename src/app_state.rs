@@ -9,6 +9,8 @@ use std::rc::Rc;
 pub type AppStateRef = Rc<RefCell<AppState>>;
 
 pub struct AppState {
+    /// Optional interactive gateway worker; GTK retains only credential-free routing metadata.
+    pub gateway: Option<crate::gateway::Handle>,
     pub split_engines: Vec<SplitEngine>,
     pub gtk_app: gtk4::Application,
     /// All open workspaces. Never empty after initialization — create_workspace is called in new().
@@ -88,6 +90,7 @@ impl AppState {
         gtk_app: gtk4::Application,
     ) -> AppStateRef {
         let state = AppState {
+            gateway: None,
             workspaces: Vec::new(),
             workspace_groups: Vec::new(),
             split_engines: Vec::new(),

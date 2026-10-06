@@ -1,0 +1,32 @@
+app: cmux-gtk
+title: Interactive gateway session and task delivery
+space: cmux-gtk
+slug: gateway-execution
+summary: Opt-in native Claude/Codex terminal registration, acknowledged interactive task submission and durable execution reporting.
+kind: agent_context
+source_format: agent_context
+source_ref: src/gateway/mod.rs
+labels: [linux, gtk, gateway, websocket, execution, hooks]
+content:
+  purpose: Gateway owns dispatch/history/task state; cmux reuses attached interactive terminals and never launches headless fallback agents. Requires gateway v1.18.0 or later and its version-one interactive execution contract.
+  configuration: Preferences -> Gateway tasks or gateway.configure enables an outbound connection. gateway.bind explicitly maps a local workspace UUID to an existing gateway project identity; folder names never imply mappings. Project execution must separately be enabled with executor cmux in the gateway. Configuration is disabled by default; remote workspaces are excluded. URL changes and workspace remapping are rejected while affected assignments remain unfinished.
+  credentials: API keys come from the cmux-app environment (CMUX_GATEWAY_API_KEY, then GATEWAY_API_KEY), or a separate owner-only gateway-key file beside config.toml, saved through Preferences. Environment keys take precedence at startup. Keys are absent from session snapshots and status responses; shared bearer text is redacted before retaining prompts/reports. Upgrade uses Authorization Bearer and requires TLS outside exact loopback. URL credentials, query tokens and fragments are rejected.
+  registration: Complete version-one session snapshots use stable instance/workspace/surface/native-session identities, absolute hook CWD and explicit project ident. Supported clients are claude and codex. Current bindings are registered conservatively as busy; existing/new native hook events establish readiness. Prompt, attention, stop and exit update the exact native session without screen-text inference. Missing native bindings are retained as exited when an assignment needs reconciliation.
+  delivery: Notifications and Gateway tasks show each offered assignment. gateway.accept requires confirm_ready=true and a current idle native binding. The user confirms the agent is at an empty prompt. Acceptance is persisted before sending accepted; only a running response to this connection's user-initiated acceptance permits delivery. Submission intent is fsynced before GTK rechecks the workspace, surface, native identity and hook-observed foreground process, pastes literal bounded text and sends separate Enter without selecting or focusing. Busy, wrong, changed or missing bindings never receive input.
+  reporting: gateway.report accepts running, waiting_input, finished and failed. Final states require a summary. Hooks relay prompt/attention/turn/end events for submitted assignments; a stop remains progress and never infers task completion. Agents fetch/claim/complete canonical tasks via agent-tools. Reports have persisted positive signed-64-bit sequences, a bounded pending FIFO and UTF-8-safe truncation (4096-byte message, 16384-byte summary). Questions are answered in the same terminal; native prompt hooks resume progress. Explicit finished/failed reports release execution only after server acknowledgment; gateway checks canonical task state separately.
+  reconnect: Stable identity and journal live in private gateway.json beside config.toml, outside session snapshots. Reconnect registers current/ended identities and reconciles active run ownership, status, finished_at and last_sequence through authenticated bounded REST metadata. Pending reports replay idempotently; prompts never replay. An interrupted acceptance/submission becomes uncertain and needs human inspection. Unknown runs, corrupt journals and unsupported gateways show an error without disrupting terminal use.
+  limits: One owned connection; 32-slot local operation/event queues; 64 session registrations and active assignments; 128 retained runs; 16 pending reports per run; eight-MiB journal; 65536-byte wire frames/messages; five-second writes; ten-second upgrade; twenty-second client heartbeat; sixty-second incoming silence timeout. GTK owns native handles; Tokio owns socket state and blocking workers own atomic/fsynced filesystem writes.
+  endpoints:
+    - method: gateway.status
+      description: Return credential-free connection/config/session/run snapshots without changing focus.
+    - method: gateway.configure
+      description: Require enabled boolean and url string; optional api_key updates the separate private credential. CLI uses app credentials; GUI provides password entry.
+    - method: gateway.bind
+      description: Require workspace_id and project_ident; empty project removes the mapping. Only existing local workspace UUIDs are accepted.
+    - method: gateway.accept
+      description: Require run_id and confirm_ready=true. Queue durable acceptance; actual input waits for a nonterminal running server response and a final native identity/readiness check. Repeated or uncertain submission rejects.
+    - method: gateway.report
+      description: Require run_id, state and message; finished/failed also require nonempty summary. Persists before sending, stays queued offline and never changes canonical task status.
+    - method: gateway.agent_event
+      description: Native-hook ingress requires surface_id, session_id, client and event (start, prompt, attention, stop, exit). Validates against the current local terminal resume binding and rejects stale session IDs.
+  validation: tests/test_linux_gateway.py uses real native GTK PTYs plus a loopback standard-library HTTP/WebSocket fake. Unit tests cover protocol URL/text boundaries, exact identity/report retention and corrupt journal preservation. All runtime tests run only in GitHub Actions.

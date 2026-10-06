@@ -122,6 +122,22 @@ async fn dispatch_request(
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
+        "gateway.status"
+        | "gateway.configure"
+        | "gateway.bind"
+        | "gateway.accept"
+        | "gateway.report"
+        | "gateway.agent_event" => {
+            if params.to_string().len() > 65536 {
+                return err(req_id, "invalid_params", "gateway request exceeds limit");
+            }
+            commands::SocketCommand::Gateway {
+                req_id: req_id.clone(),
+                method: method.clone(),
+                params: params.take(),
+                resp_tx,
+            }
+        }
         "surface.resume.set" | "surface.resume.show" | "surface.resume.clear" => {
             let id = match params.get("surface_id").or_else(|| params.get("id")) {
                 None | Some(serde_json::Value::Null) => None,

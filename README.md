@@ -35,6 +35,7 @@ Built for developers running multiple AI coding agents (Claude Code, Codex, etc.
 - **Session persistence** — Atomic save/restore of full split tree topology with divider ratios
 - **Agent lifecycle integration** — Native resume and notification hooks for Claude, Codex, Grok, OpenCode, Pi, OMP, Campfire, Amp, Cursor, Gemini, Kiro, Antigravity, Hermes Agent, Kimi, Rovo Dev, Copilot, CodeBuddy, Factory, and Qoder
 - **Claude Code teams** — `cmux claude-teams` opens named teammates as native cmux panes with agent hooks and notifications
+- **Interactive gateway tasks** — Connect mapped Claude/Codex sessions to agent-gateway over WebSocket, review delegated tasks, send them to existing terminals and report progress and outcomes
 - **Agent-accessible diff surfaces** — `cmux diff` opens patch, unstaged, staged, or branch changes in a searchable right-hand browser pane with unified and split layouts
 
 ## Workspace workflows
@@ -80,6 +81,38 @@ the local workspace folder; SSH workspaces do not scan local files.
 
 The [six-month upstream review](docs/research/upstream-2026-09.md) records which
 upstream features informed this port and which are candidates for later work.
+
+### Interactive gateway tasks
+
+Open **Preferences → Gateway tasks** to enable a connection, enter your gateway
+URL and API key, and map each local workspace to its exact gateway project
+identity (for example, `cmux-gtk`). The integration requires **agent-gateway
+v1.18.0 or later**. In the gateway, explicitly enable the mapped project's
+execution policy with executor **cmux** and incoming delegated task delivery.
+Install the native agent hooks with `cmux hooks setup claude` or
+`cmux hooks setup codex`; already-running agents need a subsequent lifecycle
+event before their readiness can be confirmed.
+
+Delegated tasks appear in the notification inbox and Gateway tasks window.
+Choose **Send to agent**, confirm that the exact Claude/Codex session is at an
+empty prompt, and cmux waits for the gateway's acknowledgment before submitting
+the task in that terminal. Busy sessions wait until ready. Answer questions and
+permission requests directly in the same terminal. cmux launches no extra agent
+processes and preserves the terminal's focus during task delivery.
+
+Agents can report progress, questions and a concise final outcome with
+`cmux gateway report`. Native hooks relay prompt, attention, turn completion and
+session exit separately; a response ending does not mark the task done. Task
+completion remains `agent-tools tasks done`. Connection loss or application
+restart never automatically resubmits a prompt. Uncertain delivery is shown for
+manual reconciliation against the terminal and gateway history.
+
+The connection is disabled by default. HTTPS/WSS is required outside loopback;
+HTTP/WS is available for an isolated development gateway. Saved keys live in a
+separate owner-only credential file, outside terminal session snapshots.
+`CMUX_GATEWAY_API_KEY` or `GATEWAY_API_KEY` in the **cmux-app environment** can
+provide the credential instead; environment keys take precedence on startup.
+SSH workspaces are currently excluded from interactive gateway execution.
 
 ## Install
 
@@ -207,6 +240,14 @@ cmux hooks setup               # install every detected supported agent hook
 cmux hooks setup codex         # install only Codex lifecycle hooks
 cmux claude-teams              # launch Claude teams in native cmux splits
 cmux claude-teams --model sonnet  # forward ordinary Claude arguments
+
+# Interactive gateway delegation
+cmux gateway status --json     # inspect connection, mappings, sessions and assignments
+cmux gateway bind --workspace WORKSPACE_UUID --project cmux-gtk
+cmux gateway configure --url https://gateway.example.com --enabled
+cmux gateway accept --run RUN_UUID --confirm-ready  # confirm an empty native agent prompt
+cmux gateway report --run RUN_UUID --state waiting-input --message "Which environment?"
+cmux gateway report --run RUN_UUID --state finished --message "Work complete" --summary "Work; validation; blockers; references"
 
 # Diff review
 cmux diff change.patch         # open a patch in a right-hand browser pane

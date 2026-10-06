@@ -149,6 +149,14 @@ fn handle_socket_command_traced(
     trace_id: Option<String>,
 ) {
     match cmd {
+        SocketCommand::Gateway {
+            req_id,
+            method,
+            params,
+            resp_tx,
+        } => {
+            crate::gateway::rpc(state, &method, params, req_id, resp_tx);
+        }
         SocketCommand::Observed {
             command,
             trace_id,
@@ -366,6 +374,12 @@ fn handle_socket_command_traced(
                 "surface.drag_to_split",
                 "surface.send_text",
                 "surface.send_key",
+                "gateway.status",
+                "gateway.configure",
+                "gateway.bind",
+                "gateway.accept",
+                "gateway.report",
+                "gateway.agent_event",
                 "surface.read_text",
                 "surface.read_scrollback",
                 "surface.resume.set",

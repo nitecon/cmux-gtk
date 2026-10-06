@@ -9,6 +9,7 @@ mod browser_address;
 mod browser_timeout;
 mod config;
 mod diagnostics;
+mod gateway;
 mod ghostty;
 mod git_metadata;
 mod git_view;
@@ -463,6 +464,7 @@ fn build_ui(
 
     crate::git_metadata::start(&state, &window);
     crate::ports::start(&state, &window);
+    crate::gateway::start(&state, &runtime_handle);
     crate::browser::location::start(&state, &window);
 
     // Attach command receiver to GTK main loop via glib::MainContext::default().spawn_local.
@@ -694,6 +696,7 @@ fn build_ui(
             let mut state = state_for_shutdown.borrow_mut();
             state.finish_session();
             state.shutdown_browser();
+            state.gateway.take();
         });
     }
 

@@ -14,6 +14,13 @@ pub enum SplitDirection {
 /// GTK/AppState reads and mutations happen ONLY in handlers.rs on the main thread.
 #[allow(dead_code)]
 pub enum SocketCommand {
+    /// GTK validates gateway routing; its owned worker handles asynchronous durable operations.
+    Gateway {
+        req_id: Value,
+        method: String,
+        params: Value,
+        resp_tx: RespTx,
+    },
     /// Carry transport correlation and queue timing into the GTK dispatcher.
     Observed {
         command: Box<SocketCommand>,

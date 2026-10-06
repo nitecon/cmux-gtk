@@ -535,6 +535,29 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
+        Commands::Gateway { command } => match command {
+            args::GatewayCommands::Status => ("gateway.status", json!({})),
+            args::GatewayCommands::Configure { url, enabled } => {
+                ("gateway.configure", json!({"url":url,"enabled":enabled}))
+            }
+            args::GatewayCommands::Bind { workspace, project } => (
+                "gateway.bind",
+                json!({"workspace_id":workspace,"project_ident":project}),
+            ),
+            args::GatewayCommands::Accept { run, confirm_ready } => (
+                "gateway.accept",
+                json!({"run_id":run,"confirm_ready":confirm_ready}),
+            ),
+            args::GatewayCommands::Report {
+                run,
+                state,
+                message,
+                summary,
+            } => (
+                "gateway.report",
+                json!({"run_id":run,"state":state,"message":message,"summary":summary}),
+            ),
+        },
         Commands::ProjectRun {
             action,
             fingerprint,

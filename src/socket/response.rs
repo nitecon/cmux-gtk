@@ -51,12 +51,12 @@ fn fallback_error() -> &'static str {
 }
 
 /// Move the request identity and result into a successful protocol response.
-pub(super) fn ok(req_id: Value, result: Value) -> Value {
+pub(crate) fn ok(req_id: Value, result: Value) -> Value {
     json!({"id": req_id, "ok": true, "result": result})
 }
 
 /// Build a failed response, preserving request identity and copying public error details.
-pub(super) fn err(req_id: Value, code: &str, message: &str) -> Value {
+pub(crate) fn err(req_id: Value, code: &str, message: &str) -> Value {
     json!({"id": req_id, "ok": false, "error": {"code": code, "message": message}})
 }
 

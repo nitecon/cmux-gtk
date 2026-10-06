@@ -1672,6 +1672,9 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
         ClaudeHookEvent::Notification => "Notification",
     };
     let (payload, id, surface) = read_hook_payload(expected)?;
+    if matches!(event, ClaudeHookEvent::SessionEnd) {
+        gateway_event(client, &surface, &id, "claude", "exit", &payload);
+    }
     match event {
         ClaudeHookEvent::SessionStart => {
             set_agent_resume(
@@ -1717,6 +1720,16 @@ pub fn claude_event(client: &mut SocketClient, event: ClaudeHookEvent) -> Result
             create_agent_notification(client, &surface, title, subtitle, body)?;
         }
     }
+    let gateway_kind = match event {
+        ClaudeHookEvent::SessionStart => "start",
+        ClaudeHookEvent::PromptSubmit => "prompt",
+        ClaudeHookEvent::SessionEnd => "exit",
+        ClaudeHookEvent::Stop => "stop",
+        ClaudeHookEvent::Notification => "attention",
+    };
+    if gateway_kind != "exit" {
+        gateway_event(client, &surface, &id, "claude", gateway_kind, &payload);
+    }
     Ok(())
 }
 
@@ -1729,6 +1742,9 @@ pub fn codex_event(client: &mut SocketClient, event: CodexHookEvent) -> Result<(
         CodexHookEvent::Stop => "Stop",
     };
     let (payload, id, surface) = read_hook_payload(expected)?;
+    if matches!(event, CodexHookEvent::SessionEnd) {
+        gateway_event(client, &surface, &id, "codex", "exit", &payload);
+    }
     match event {
         CodexHookEvent::SessionStart => {
             set_agent_resume(
@@ -1756,6 +1772,15 @@ pub fn codex_event(client: &mut SocketClient, event: CodexHookEvent) -> Result<(
             let body = bounded_notification_text(body, 8192)?;
             create_agent_notification(client, &surface, title, String::new(), body)?;
         }
+    }
+    let gateway_kind = match event {
+        CodexHookEvent::SessionStart => "start",
+        CodexHookEvent::PromptSubmit => "prompt",
+        CodexHookEvent::SessionEnd => "exit",
+        CodexHookEvent::Stop => "stop",
+    };
+    if gateway_kind != "exit" {
+        gateway_event(client, &surface, &id, "codex", gateway_kind, &payload);
     }
     Ok(())
 }
@@ -2232,6 +2257,27 @@ fn notification_text(
         _ => return Err(CliError::Command(format!("{key} must be a string"))),
     };
     bounded_notification_text(text, limit)
+}
+
+/// Best-effort optional gateway lifecycle reporting; ordinary hooks also work with older/disabled GUIs.
+fn gateway_event(
+    client: &mut SocketClient,
+    surface: &str,
+    session: &str,
+    provider: &str,
+    event: &str,
+    payload: &Value,
+) {
+    let message = ["last_assistant_message", "message", "summary"]
+        .iter()
+        .find_map(|key| payload.get(*key).and_then(Value::as_str))
+        .unwrap_or("");
+    let message = bounded_notification_text(message, 4096).unwrap_or_default();
+    let _ = client.call(
+        "gateway.agent_event",
+        json!({"surface_id":surface, "session_id":session,
+        "client":provider, "event":event, "message":message}),
+    );
 }
 
 #[cfg(test)]

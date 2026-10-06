@@ -5,7 +5,7 @@ pub mod commands;
 mod dispatch;
 mod framing;
 pub(crate) mod project;
-mod response;
+pub(crate) mod response;
 use dispatch::dispatch_line;
 pub mod handlers;
 

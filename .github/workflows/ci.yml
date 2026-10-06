@@ -151,6 +151,9 @@ jobs:
         timeout-minutes: 10
         run: cargo test --workspace
 
+      - name: Test interactive gateway WebSocket delivery and reconnect
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
+
       - name: Test local listener attribution
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_ports.py
 
