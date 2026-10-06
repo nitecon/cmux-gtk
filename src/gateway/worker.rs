@@ -614,12 +614,12 @@ impl Worker {
             .as_str()
             .into_client_request()
             .map_err(|_| "Invalid gateway connection request")?;
-        request.headers_mut().insert(
-            "Authorization",
+        let mut authorization: tokio_tungstenite::tungstenite::http::HeaderValue =
             format!("Bearer {}", self.key)
                 .parse()
-                .map_err(|_| "Invalid bearer key")?,
-        );
+                .map_err(|_| "Invalid bearer key")?;
+        authorization.set_sensitive(true);
+        request.headers_mut().insert("Authorization", authorization);
         let config = WebSocketConfig {
             max_message_size: Some(65536),
             max_frame_size: Some(65536),

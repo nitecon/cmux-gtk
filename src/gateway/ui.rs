@@ -321,17 +321,38 @@ fn confirm(parent: &gtk4::Dialog, state: &AppStateRef, assignment: &Assignment) 
         move |dialog, response| {
             if response == gtk4::ResponseType::Accept && ready.is_active() {
                 if let Some(state) = state.upgrade() {
-                    respond(
-                        submit(
-                            &state,
-                            "gateway.accept",
-                            &json!({"run_id":run, "confirm_ready":true}),
-                        ),
-                        error.clone(),
+                    let result = submit(
+                        &state,
+                        "gateway.accept",
+                        &json!({"run_id":run, "confirm_ready":true}),
                     );
+                    ready.set_active(false);
+                    let dialog = dialog.downgrade();
+                    let error = error.clone();
+                    glib::MainContext::default().spawn_local(async move {
+                        let result = match result {
+                            Ok(result) => result
+                                .await
+                                .unwrap_or_else(|_| Err("Gateway worker stopped".into())),
+                            Err(error) => Err(error),
+                        };
+                        match result {
+                            Ok(_) => {
+                                if let Some(dialog) = dialog.upgrade() {
+                                    dialog.close();
+                                }
+                            }
+                            Err(message) => {
+                                if let Some(error) = error.upgrade() {
+                                    error.set_text(&message);
+                                }
+                            }
+                        }
+                    });
                 }
+            } else if response != gtk4::ResponseType::Accept {
+                dialog.close();
             }
-            dialog.close();
         }
     });
     dialog.present();
