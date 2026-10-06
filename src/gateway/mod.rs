@@ -67,9 +67,9 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
                             body:"Open Preferences → Gateway tasks. Confirm the agent is at an empty prompt, then choose Send to agent.".into() },
                     });
                 }
-                worker::Event::Deliver { assignment, reply } => {
+                worker::Event::Deliver { assignment, session, reply } => {
                     // A cancelled worker must not leave delayed native input queued on GTK.
-                    if !reply.is_closed() { let _ = reply.send(deliver(&state, &assignment)); }
+                    if !reply.is_closed() { let _ = reply.send(deliver(&state, &assignment, &session)); }
                 }
             }
         }
@@ -185,7 +185,7 @@ fn snapshot(state: &AppStateRef) {
 }
 
 /// Recheck surface, workspace, native session and idle hook immediately before literal input on GTK.
-fn deliver(state: &AppStateRef, assignment: &Assignment) -> Result<(), String> {
+fn deliver(state: &AppStateRef, assignment: &Assignment, expected: &Session) -> Result<(), String> {
     let pointer = {
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway bridge unavailable")?;
@@ -209,6 +209,8 @@ fn deliver(state: &AppStateRef, assignment: &Assignment) -> Result<(), String> {
                     native == &session.session_id && *saved > 0 && *saved == pid
                 });
         if !attached
+            || session.cwd != expected.cwd
+            || session.client != expected.client
             || session.workspace_id != assignment.workspace_id
             || session.session_id != assignment.session_id
             || !gateway.sessions.iter().any(|s| {

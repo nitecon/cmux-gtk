@@ -50,6 +50,7 @@ pub enum Event {
     Offered(Assignment),
     Deliver {
         assignment: Assignment,
+        session: Session,
         reply: oneshot::Sender<Result<(), String>>,
     },
 }
@@ -126,11 +127,20 @@ impl Worker {
 
     /// Validate local opt-in and exact live identity; human confirmation never authorizes a stale target.
     fn ready(&self, assignment: &Assignment) -> bool {
+        let expected = self
+            .journal
+            .runs
+            .iter()
+            .find(|r| r.assignment.run_id == assignment.run_id)
+            .map(|r| &r.session);
         self.journal.config.enabled
-            && self
-                .registered_sessions()
-                .iter()
-                .any(|s| s.matches(assignment) && s.state == "idle")
+            && self.registered_sessions().iter().any(|s| {
+                s.matches(assignment)
+                    && s.state == "idle"
+                    && expected.is_some_and(|original| {
+                        original.cwd == s.cwd && original.client == s.client
+                    })
+            })
     }
 
     /// Apply one durable user/hook operation. Connection loss keeps reports queued, never input replayed.
@@ -535,10 +545,15 @@ impl Worker {
                 self.journal.runs[index].phase = "submitting".into();
                 self.save().await?;
                 let assignment = self.journal.runs[index].assignment.clone();
+                let session = self.journal.runs[index].session.clone();
                 let (reply, result) = oneshot::channel();
                 tokio::time::timeout(
                     Duration::from_secs(5),
-                    self.events.send(Event::Deliver { assignment, reply }),
+                    self.events.send(Event::Deliver {
+                        assignment,
+                        session,
+                        reply,
+                    }),
                 )
                 .await
                 .map_err(|_| "GTK gateway delivery queue timed out")?
@@ -759,5 +774,73 @@ pub async fn run(
             changed = snapshots.changed() => { if changed.is_err() { return; } }
             _ = tokio::time::sleep(Duration::from_secs(5)), if worker.journal.config.enabled => {},
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An unchanged native UUID cannot authorize delivery after its client or CWD changes.
+    #[test]
+    fn readiness_freezes_assigned_provider_and_cwd() {
+        let id = uuid::Uuid::new_v4().to_string();
+        let session = Session {
+            workspace_id: id.clone(),
+            surface_id: id.clone(),
+            session_id: "native".into(),
+            project_ident: "project".into(),
+            client: "codex".into(),
+            model: None,
+            cwd: "/repo".into(),
+            state: "idle".into(),
+        };
+        let assignment = Assignment {
+            run_id: id.clone(),
+            task_id: id.clone(),
+            session_key: id.clone(),
+            workspace_id: id.clone(),
+            surface_id: id.clone(),
+            session_id: "native".into(),
+            project_ident: "project".into(),
+            action: "execute".into(),
+            prompt: "Task".into(),
+        };
+        let (view, _) = watch::channel(View::default());
+        let (events, _) = mpsc::channel(1);
+        let mut worker = Worker {
+            journal: Journal {
+                config: Config {
+                    enabled: true,
+                    url: "https://gateway.example".into(),
+                    mappings: vec![Mapping {
+                        workspace_id: id,
+                        project_ident: "project".into(),
+                    }],
+                },
+                runs: vec![Run {
+                    assignment: assignment.clone(),
+                    session: session.clone(),
+                    phase: "offered".into(),
+                    status: "assigned".into(),
+                    ended: false,
+                    last_sequence: 0,
+                    reports: Vec::new(),
+                }],
+                ..Default::default()
+            },
+            key: String::new(),
+            path: PathBuf::new(),
+            sessions: vec![session],
+            view,
+            events,
+            connection: String::new(),
+        };
+        assert!(worker.ready(&assignment));
+        worker.sessions[0].cwd = "/other-project".into();
+        assert!(!worker.ready(&assignment));
+        worker.sessions[0].cwd = "/repo".into();
+        worker.sessions[0].client = "claude".into();
+        assert!(!worker.ready(&assignment));
     }
 }
