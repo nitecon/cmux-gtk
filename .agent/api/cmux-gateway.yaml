@@ -6,7 +6,7 @@ summary: One authenticated global lifecycle stream, repository matching and appr
 kind: agent_context
 source_format: agent_context
 source_ref: src/gateway/mod.rs
-version: v0.6.1
+version: v0.6.2
 labels: [linux, gtk, gateway, websocket, injection]
 content:
   purpose: CMUX owns terminal delivery; gateway owns canonical task lifecycle. No manual mappings, per-project execution policies, assignment dialogs or gateway lifecycle hooks remain. Independent native resume hooks are unchanged.

@@ -13,6 +13,13 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.2] - 2026-10-06
+
+### Fixed
+
+- Recognize Codex's shaded input area separately from its status footer so gateway messages drain at empty prompts while drafts, attachments and permission prompts remain blocked.
+- Exclude permission and approval words in previous Codex replies from the shaded prompt's readiness check.
+
 ## [0.6.1] - 2026-10-06
 
 ### Fixed

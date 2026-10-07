@@ -3,7 +3,7 @@ members = [".", "crates/cmux-platform"]
 
 [package]
 name = "cmux-gtk"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 
 [[bin]]
