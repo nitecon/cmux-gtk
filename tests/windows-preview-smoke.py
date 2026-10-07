@@ -16,7 +16,7 @@ def main():
     bundle = Path(sys.argv[1]).resolve()
     # Exclude MSYS2 from PATH: the bundle must resolve its own native runtime DLLs.
     env = os.environ.copy()
-    env["PATH"] = str(bundle) + os.pathsep + str(Path(env["SystemRoot"]) / "System32")
+    env["PATH"] = str(bundle) + os.pathsep + str(Path(os.environ["SystemRoot"]) / "System32")
     env["XDG_DATA_DIRS"] = str(bundle / "share")
     env["CMUX_NO_UPDATE"] = "1"
     env["CMUX_SMOKE"] = "CONPTY_OK"
