@@ -156,7 +156,7 @@ jobs:
 
       - name: Build pinned session-aware client for shared-executor integration
         env:
-          ACTOR_CLIENT_REVISION: 9656f0126b0ffe2c7fdf85b38752575d5df0c502
+          ACTOR_CLIENT_REVISION: 95f24b3aaf38a89bf7437a82c4c75b2d622cb97b
           CARGO_TARGET_DIR: ${{ github.workspace }}/target/actor-client-build
         run: |
           git init target/actor-client-source

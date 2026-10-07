@@ -762,6 +762,9 @@ pub(super) async fn active(terminals: &[Terminal], instance_id: &str) -> Vec<Ses
     if terminals.len() > MAX_PENDING {
         return Vec::new();
     }
+    if terminals.len() > MAX_PENDING {
+        return Vec::new();
+    }
     let terminals = terminals.to_vec();
     let instance_id = instance_id.to_owned();
     tokio::task::spawn_blocking(move || {
@@ -1225,7 +1228,7 @@ mod tests {
             task_id: "task".into(),
             kind: Kind::Commented,
             text: "Own comment".into(),
-            author_id: None,
+            author_id: Some("worker".into()),
             source_instance: None,
             origin: Some(origin.clone()),
         };

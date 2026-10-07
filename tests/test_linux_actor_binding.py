@@ -38,11 +38,14 @@ def broker(endpoint, client, root):
                     # Drop every CMUX hint. The provider thread and executor generation alone identify the caller.
                     env = {k: v for k, v in os.environ.items() if not k.startswith("CMUX_")}
                     env.update(CODEX_THREAD_ID=native, CODEX_SESSION_ID=native)
-                    payload = dict(session_id=native, cwd=str(root / "first"), prompt=prompt,
-                                   hook_event_name="SessionStart" if kind == b"S" else "UserPromptSubmit")
-                    hook = subprocess.run([client, "hook", "session-start" if kind == b"S" else "user-prompt-submit",
+                    initial_notification = "<Start Agent Gateway Message Injection>\nGateway fixture task notification\n</Stop AgentGateway Message injection>"
+                    payload = dict(session_id=native, cwd=str(root / "first"), prompt=initial_notification if kind==b"S" else prompt,
+                                   hook_event_name="UserPromptSubmit")
+                    hook = subprocess.run([client, "hook", "user-prompt-submit",
                                            "--agent", "codex"], input=json.dumps(payload), env=env,
                                           cwd=root / "first", text=True, capture_output=True, timeout=10, check=True)
+                    if kind==b"S":
+                        assert not hook.stdout.strip(), "notification hook must announce privately without model context"
                     blocked = any(line.startswith("{") and json.loads(line).get("decision") == "block"
                                   for line in hook.stdout.splitlines())
                     actor = json.loads(subprocess.check_output([client, "session", "--json"], env=env,
