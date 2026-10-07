@@ -19,6 +19,20 @@ static void state(const char *path, char *value, size_t size) {
 
 /** Emit a deterministic provider prompt and live caret without exposing fixture controls to the application. */
 static void render(const char *mode, const char *marker, const char *draft) {
+    if (strcmp(marker, "›") == 0) {
+        printf("\033[2J\033[H%s\r\n", strcmp(mode, "busy") == 0 ?
+               "Working · esc to interrupt" : "Gateway fixture: permission checks preserved");
+        printf("\033[48;2;65;69;76m\033[K\r\n\033[1m%s \033[22m", marker);
+        if (*draft) printf("%s", draft);
+        else printf("\033[2mAsk Codex to do anything\033[22m");
+        printf("\033[K\r\n%s\033[K\033[0m\r\n", strcmp(mode, "multiline") == 0 ? "second draft line" : "");
+        printf("  GPT-6.1-Sol high · ~/project · Context 77%% left\r\n");
+        printf("%s\r\n", strcmp(mode, "permission") == 0 ?
+               "Allow once · ? for shortcuts" : "  ← for agents · ? for shortcuts");
+        printf("\033[?25h\033[3;%zuH", 3 + strlen(draft));
+        fflush(stdout);
+        return;
+    }
     printf("\033[2J\033[HGateway fixture\r\n");
     printf("%s %s\r\n", marker, draft);
     printf("%s\r\n", strcmp(mode, "busy") == 0 ? "esc to interrupt" :

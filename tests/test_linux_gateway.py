@@ -172,6 +172,16 @@ def main():
                 assert all("Wait for draft" not in entry for entry in submissions(root / "first.input"))
                 raw(app, "surface.send_key", id=surfaces["first"], key="\x15")
                 wait_outcome(app, gateway, draft, "injected")
+                # The shaded Codex composer must distinguish status rows from multiline drafts and dialogs.
+                for mode, visible in (("multiline", "second draft line"), ("permission", "Allow once")):
+                    (root / "first.mode").write_text(mode)
+                    app.wait_for(lambda: visible in raw(app, "surface.read_text", id=surfaces["first"])["text"], mode + " screen")
+                    blocked = gateway.add(content="Wait for " + mode)
+                    wait_outcome(app, gateway, blocked, "queued")
+                    time.sleep(1)
+                    assert all("Wait for " + mode not in entry for entry in submissions(root / "first.input"))
+                    (root / "first.mode").write_text("idle")
+                    wait_outcome(app, gateway, blocked, "injected")
                 # Full details are fetched before a truncated task becomes agent input; bearer text is redacted.
                 truncated = gateway.add(content="Preview", truncated=True)
                 with gateway.lock:
