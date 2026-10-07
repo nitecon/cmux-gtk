@@ -1,5 +1,6 @@
 /** GTK owns the borrowed GdkSurface. Resolve its Win32 HWND without taking ownership. */
 #include <windows.h>
+#include <gdk/gdk.h>
 #include <gdk/win32/gdkwin32.h>
 
 /** Read or request outer-window coordinates on the GTK thread; return zero on native failure. */
