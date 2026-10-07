@@ -13,6 +13,18 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.4] - 2026-10-07
+
+### Added
+
+- Expose verified process-session identity, provider and OS through local `gateway.session` and `gateway.sessions` RPCs for agent-tools provenance and harness coordination.
+
+### Changed
+
+- Broadcast task comments and completion to matching project peers, suppressing only the exact originating session and instance.
+- Keep separate durable recipient queues and submission fences, preserving busy/draft gating, process replacement and reconnect safety.
+- Confirm complete recipient ACK snapshots so delayed queued confirmations cannot hide newer peer-delivery progress.
+
 ## [0.6.3] - 2026-10-07
 
 ### Fixed
