@@ -8,7 +8,7 @@ The default shell is the Windows command prompt. A Ghostty `command` setting can
 
 Gateway routing uses the shared Linux lifecycle and readiness logic. Windows process verification accepts native `codex.exe` and `claude.exe` in a terminal's process tree; ambiguous or unverified interpreter processes remain ineligible for injection. Configure the same gateway URL and key through CMUX settings on the Windows machine. Live Windows delegation still needs acceptance on the destination machine.
 
-Desktop notification toasts, workspace startup scripts and automatic TCP-port attribution are unavailable in this preview. The in-app inbox and workspace attention indicators remain available. Linux command paths and externally installed browser services need Windows-compatible equivalents. Self-update is disabled until Windows releases are supported; update by replacing the extracted preview folder.
+Desktop notification toasts, workspace startup scripts, the Claude Teams POSIX tmux shim and automatic TCP-port attribution are unavailable in this preview. The in-app inbox and workspace attention indicators remain available. Linux command paths and externally installed browser services need Windows-compatible equivalents. Self-update is disabled until Windows releases are supported; update by replacing the extracted preview folder.
 
 Diagnostics live in `%LOCALAPPDATA%\state\cmux` by default. Include the preview's `build.json` and diagnostic log when reporting startup problems. CI smoke evidence, when successful, is included as `smoke-result.json` and `smoke.log`.
 
