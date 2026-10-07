@@ -188,7 +188,16 @@ impl Client {
         } else {
             &event["comment"]
         };
-        normalize(id, project, task_id, kind, task, comment)
+        let mut message = normalize(id, project, task_id, kind, task, comment)?;
+        if let Some(origin) = event.get("origin").filter(|value| !value.is_null()) {
+            let origin: Origin =
+                serde_json::from_value(origin.clone()).map_err(|_| "Invalid event agent origin")?;
+            origin.validate()?;
+            if let Some(message) = &mut message {
+                message.origin = Some(origin);
+            }
+        }
+        Ok(message)
     }
 }
 
@@ -272,6 +281,7 @@ fn normalize(
         text,
         author_id: author,
         source_instance: None,
+        origin: None,
     };
     message.validate().map_err(|_| {
         "Task content is unsafe or exceeds 48 KiB; fetch the full task through agent-tools"

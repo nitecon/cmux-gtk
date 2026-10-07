@@ -24,7 +24,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    /// Route only to one verified session of one uniquely matching project; no-agent events are discarded.
+    /// Broadcast to arrival-time peers in one matching project, excluding only the exact origin session.
     pub fn admit(
         &mut self,
         journal: &mut Journal,
@@ -55,16 +55,7 @@ impl Pipeline {
                     == Some(message.project_ident.as_str())
             })
             .collect();
-        let target = if journal.config.enabled
-            && journal.config.injection_approved
-            && message.source_instance.as_deref() != Some(&journal.instance_id)
-            && candidates.len() == 1
-        {
-            Some(candidates[0])
-        } else {
-            None
-        };
-        let Some(target) = target else {
+        if !journal.config.enabled || !journal.config.injection_approved || candidates.is_empty() {
             journal.receipts.push_back(Receipt {
                 event_id: message.event_id,
                 outcome: "skipped".into(),
@@ -73,29 +64,53 @@ impl Pipeline {
                 } else if candidates.is_empty() {
                     "No active agent in a matching repository"
                 } else {
-                    "Ambiguous recipient or source event"
+                    "Gateway is disabled"
                 }
                 .into(),
                 ..Default::default()
             });
             return Ok(Admission::Skipped);
+        }
+        let is_origin = |session: &Session| {
+            message.origin.as_ref().is_some_and(|o| {
+                o.session_id == session.session_id && o.instance_id == journal.instance_id
+            })
         };
-        if self.pending.len() >= MAX_PENDING {
+        let recipients = candidates.iter().filter(|s| !is_origin(s)).count();
+        if self.pending.len() + recipients > MAX_PENDING {
             return Err("Gateway message queue is full".into());
         }
-        journal.receipts.push_back(Receipt {
-            event_id: message.event_id.clone(),
-            outcome: "queued".into(),
-            reason: "Waiting for an empty, idle agent prompt".into(),
-            payload: Some(message.clone()),
-            target: Some(target.clone()),
-            ..Default::default()
-        });
-        self.pending.push_back(Pending {
-            message,
-            target: target.clone(),
-        });
-        Ok(Admission::Queued)
+        if journal.receipts.len() + candidates.len() > MAX_RECEIPTS {
+            return Err("Gateway receipt capacity reached; delivery paused".into());
+        }
+        for target in candidates {
+            let own = is_origin(target);
+            journal.receipts.push_back(Receipt {
+                event_id: message.event_id.clone(),
+                recipient_session_id: Some(target.session_id.clone()),
+                outcome: if own { "skipped" } else { "queued" }.into(),
+                reason: if own {
+                    "Event originated in this exact agent session"
+                } else {
+                    "Waiting for an empty, idle agent prompt"
+                }
+                .into(),
+                payload: (!own).then(|| message.clone()),
+                target: Some(target.clone()),
+                ..Default::default()
+            });
+            if !own {
+                self.pending.push_back(Pending {
+                    message: message.clone(),
+                    target: target.clone(),
+                });
+            }
+        }
+        Ok(if recipients == 0 {
+            Admission::Skipped
+        } else {
+            Admission::Queued
+        })
     }
 
     /// Remove one ready event without overtaking earlier messages for its terminal; retire changed targets.
@@ -175,6 +190,8 @@ mod tests {
             },
             process,
             repository: "github.com/org/repo".into(),
+            session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, surface.as_bytes())
+                .to_string(),
         }
     }
 
@@ -188,6 +205,7 @@ mod tests {
             text: "Please inspect the task".into(),
             author_id: Some("human".into()),
             source_instance: None,
+            origin: None,
         }
     }
 
@@ -260,15 +278,12 @@ mod tests {
         assert!(!pipeline.next(&projects, &[]).unwrap().1);
     }
 
-    /// Missing agents, ambiguous recipients/projects and missing consent never queue input; all comment roles remain eligible.
+    /// Missing agents, ambiguous projects and missing consent never queue input; authors alone do not suppress comments.
     #[test]
     fn skips_unroutable_events_and_preserves_agent_comments() {
         let (journal, projects) = context();
         let s = session("one", InputState::EmptyReady);
-        let scenarios = [
-            vec![],
-            vec![s.clone(), session("two", InputState::EmptyReady)],
-        ];
+        let scenarios = [vec![]];
         for sessions in scenarios {
             assert_eq!(
                 Pipeline::default()
@@ -330,7 +345,87 @@ mod tests {
             Pipeline::default()
                 .admit(&mut journal.clone(), &projects, &[s], sourced)
                 .unwrap(),
-            Admission::Skipped
+            Admission::Queued
+        );
+    }
+
+    /// Same-provider peers receive comments and completion independently while the exact origin stays silent.
+    #[test]
+    fn broadcasts_to_peers_and_suppresses_only_exact_origin() {
+        let (mut journal, projects) = context();
+        let own = session("own", InputState::EmptyReady);
+        let ready = session("ready", InputState::EmptyReady);
+        let busy = session("busy", InputState::Busy);
+        let sessions = vec![own.clone(), ready.clone(), busy.clone()];
+        let mut pipeline = Pipeline::default();
+        for (event, kind) in [("comment", Kind::Commented), ("completed", Kind::Completed)] {
+            let mut message = message(event, kind);
+            message.origin = Some(Origin {
+                session_id: own.session_id.clone(),
+                instance_id: journal.instance_id.clone(),
+                provider: "codex".into(),
+                os: "linux".into(),
+            });
+            assert_eq!(
+                pipeline
+                    .admit(&mut journal, &projects, &sessions, message.clone())
+                    .unwrap(),
+                Admission::Queued
+            );
+            assert_eq!(
+                pipeline
+                    .admit(&mut journal, &projects, &sessions, message)
+                    .unwrap(),
+                Admission::Duplicate
+            );
+        }
+        assert_eq!(journal.receipts.len(), 6);
+        assert!(journal
+            .receipts
+            .iter()
+            .filter(|r| r.recipient() == Some(own.session_id.as_str()))
+            .all(|r| r.outcome == "skipped" && r.payload.is_none()));
+        for event in ["comment", "completed"] {
+            let (pending, valid) = pipeline.next(&projects, &sessions).unwrap();
+            assert!(valid);
+            assert_eq!(pending.target.session_id, ready.session_id);
+            assert_eq!(pending.message.event_id, event);
+        }
+        assert!(pipeline.next(&projects, &sessions).is_none());
+        let mut idle = sessions;
+        idle[2].terminal.observation.as_mut().unwrap().input = InputState::EmptyReady;
+        for event in ["comment", "completed"] {
+            let (pending, valid) = pipeline.next(&projects, &idle).unwrap();
+            assert!(valid);
+            assert_eq!(pending.target.session_id, busy.session_id);
+            assert_eq!(pending.message.event_id, event);
+        }
+    }
+
+    /// Transport reconnection preserves identity; process replacement and another installation cannot share it.
+    #[test]
+    fn session_identity_follows_process_generation_and_instance() {
+        let original = session("surface", InputState::EmptyReady);
+        let instance = uuid::Uuid::new_v4().to_string();
+        let identify = |process: cmux_platform::process::Identity, namespace: &str| {
+            Session::identified(
+                original.terminal.clone(),
+                process,
+                original.repository.clone(),
+                namespace,
+            )
+        };
+        let first = identify(original.process.clone(), &instance);
+        assert_eq!(
+            first.session_id,
+            identify(original.process.clone(), &instance).session_id
+        );
+        let mut replaced = original.process.clone();
+        replaced.start_ticks += 1;
+        assert_ne!(first.session_id, identify(replaced, &instance).session_id);
+        assert_ne!(
+            first.session_id,
+            identify(original.process, &uuid::Uuid::new_v4().to_string()).session_id
         );
     }
 

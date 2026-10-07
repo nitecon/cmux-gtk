@@ -20,6 +20,7 @@ pub struct Handle {
     snapshots: watch::Sender<Vec<Terminal>>,
     pub view: watch::Receiver<View>,
     task: tokio::task::JoinHandle<()>,
+    runtime: tokio::runtime::Handle,
 }
 
 impl Drop for Handle {
@@ -41,6 +42,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
         snapshots,
         view,
         task,
+        runtime: runtime.clone(),
     });
     let weak = std::rc::Rc::downgrade(state);
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
@@ -67,7 +69,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
 }
 
 /// Capture local surface identity, current directory and input revision on GTK, without interpreting resume state.
-fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
+fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Terminal> {
     let mut result = Vec::new();
     for (index, engine) in state.split_engines.iter().enumerate() {
         let Some(workspace) = state.workspaces.get(index) else {
@@ -93,10 +95,11 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
                     crate::ghostty::ffi::ghostty_surface_foreground_pid(pointer)
                 }
             };
-            let capture = state.gateway.as_ref().is_some_and(|g| {
-                let view = g.view.borrow();
-                view.config.enabled && view.config.injection_approved
-            });
+            let capture = capture_screen
+                && state.gateway.as_ref().is_some_and(|g| {
+                    let view = g.view.borrow();
+                    view.config.enabled && view.config.injection_approved
+                });
             // SAFETY: engine keeps the native surface live; the bounded getter does not iterate GTK events.
             let screen = if capture {
                 unsafe { crate::ghostty::text::read_prompt_grid(pointer) }
@@ -121,7 +124,7 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
 
 /// Publish bounded metadata and retire observations for closed terminals; unknown readiness stays unknown.
 fn snapshot(state: &AppStateRef) {
-    let current = terminals(&state.borrow());
+    let current = terminals(&state.borrow(), true);
     if let Some(gateway) = &mut state.borrow_mut().gateway {
         gateway.snapshots.send_replace(current);
     }
@@ -141,7 +144,7 @@ fn deliver(
         if !view.config.enabled || !view.config.injection_approved {
             return Err("Gateway injection is disabled".into());
         }
-        let current = terminals(&state)
+        let current = terminals(&state, true)
             .into_iter()
             .find(|t| t.surface_id == expected.terminal.surface_id)
             .ok_or("Agent terminal closed")?;
@@ -155,6 +158,7 @@ fn deliver(
             terminal: current,
             process: expected.process.clone(),
             repository: expected.repository.clone(),
+            session_id: expected.session_id.clone(),
         };
         if checked.terminal.input_revision != expected.terminal.input_revision
             || checked.terminal.input_pending
@@ -183,12 +187,40 @@ fn deliver(
     Ok(DeliveryOutcome::Injected)
 }
 
-/// Submit global preferences through a bounded worker queue; no terminal-injection or readiness RPC is exposed.
+/// Submit preferences or read-only session discovery; identity lookup never authorizes terminal input.
 pub fn submit(
     state: &AppStateRef,
     method: &str,
     params: &Value,
 ) -> Result<oneshot::Receiver<Result<Value, String>>, String> {
+    if matches!(method, "gateway.session" | "gateway.sessions") {
+        let surface_id = if method == "gateway.session" {
+            let surface = params["surface_id"].as_str().ok_or("Missing surface_id")?;
+            uuid::Uuid::parse_str(surface).map_err(|_| "Invalid surface identity")?;
+            Some(surface.to_owned())
+        } else {
+            None
+        };
+        let state = state.borrow();
+        let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
+        let instance_id = gateway.view.borrow().instance_id.clone();
+        if instance_id.is_empty() {
+            return Err("Gateway identity is still loading".into());
+        }
+        let terminals = terminals(&state, false);
+        let (reply, result) = oneshot::channel();
+        // Identity queries must not wait behind network hydration or repository discovery.
+        gateway.runtime.spawn(async move {
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(1),
+                worker::context(terminals, instance_id, surface_id),
+            )
+            .await
+            .unwrap_or_else(|_| Err("Agent identity lookup timed out".into()));
+            let _ = reply.send(result);
+        });
+        return Ok(result);
+    }
     if method != "gateway.configure" {
         return Err("Unknown gateway operation".into());
     }

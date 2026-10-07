@@ -75,6 +75,7 @@ impl Worker {
             r.target = None;
         }
         self.view.send_replace(View {
+            instance_id: self.journal.instance_id.clone(),
             connection: self.connection.clone(),
             config: self.journal.config.clone(),
             pending: self
@@ -161,26 +162,30 @@ impl Worker {
     async fn receive(&mut self, mut event: Value, terminals: &[Terminal]) -> Result<(), String> {
         let id = wire::event_id(&event)?;
         let event_id = id.to_string();
-        if let Some(receipt) = self
-            .journal
-            .receipts
-            .iter_mut()
-            .find(|r| r.event_id == event_id)
-        {
-            receipt.confirmed = false;
+        if self.journal.receipts.iter().any(|r| r.event_id == event_id) {
+            for receipt in self
+                .journal
+                .receipts
+                .iter_mut()
+                .filter(|r| r.event_id == event_id)
+            {
+                receipt.confirmed = false;
+            }
             return self.save().await;
         }
         // Confirmed old fences can be pruned because the durable cursor prevents historical input replay.
-        while self.journal.receipts.len() >= MAX_RECEIPTS {
-            let Some(index) = self
-                .journal
-                .receipts
-                .iter()
-                .position(|r| r.terminal() && r.confirmed)
-            else {
+        while self.journal.receipts.len() > MAX_RECEIPTS - MAX_PENDING {
+            let Some(index) = self.journal.receipts.iter().position(|r| {
+                self.journal
+                    .receipts
+                    .iter()
+                    .filter(|other| other.event_id == r.event_id)
+                    .all(|other| other.terminal() && other.confirmed)
+            }) else {
                 return Err("Gateway receipt capacity reached; delivery paused".into());
             };
-            self.journal.receipts.remove(index);
+            let retired = self.journal.receipts[index].event_id.clone();
+            self.journal.receipts.retain(|r| r.event_id != retired);
         }
         wire::redact(&mut event, &self.key);
         let mut receipt = Receipt {
@@ -222,7 +227,7 @@ impl Worker {
         {
             finalize(&mut receipt, "failed", "Gateway message queue is full");
         } else {
-            receipt.candidates = active(terminals).await;
+            receipt.candidates = active(terminals, &self.journal.instance_id).await;
             if receipt.candidates.is_empty() {
                 finalize(
                     &mut receipt,
@@ -287,6 +292,7 @@ impl Worker {
                     .filter(|s| {
                         received.candidates.iter().any(|c| {
                             c.process == s.process
+                                && c.session_id == s.session_id
                                 && c.terminal.surface_id == s.terminal.surface_id
                                 && c.terminal.workspace_id == s.terminal.workspace_id
                                 && c.terminal.directory == s.terminal.directory
@@ -397,7 +403,10 @@ impl Worker {
             .journal
             .receipts
             .iter()
-            .position(|r| r.event_id == pending.message.event_id)
+            .position(|r| {
+                r.event_id == pending.message.event_id
+                    && r.recipient() == Some(pending.target.session_id.as_str())
+            })
             .ok_or("Missing delivery fence")?;
         if !ready {
             finalize(
@@ -469,23 +478,31 @@ impl Worker {
 
     /// Send changed delivery receipts once per connection; recorded confirms the gateway's actual saved state.
     async fn acknowledge(&mut self, connection: &mut Connection) -> Result<(), String> {
+        let mut visited = HashSet::new();
         for receipt in &self.journal.receipts {
             heartbeat(connection).await?;
+            if !visited.insert(&receipt.event_id) {
+                continue;
+            }
             let Ok(id) = receipt.event_id.parse::<i64>() else {
                 continue;
             };
-            let status = if receipt.outcome == "submitting" {
-                "queued"
-            } else {
-                &receipt.outcome
-            };
-            if receipt.confirmed || connection.sent.get(&id).is_some_and(|sent| sent == status) {
+            let group: Vec<&Receipt> = self
+                .journal
+                .receipts
+                .iter()
+                .filter(|r| r.event_id == receipt.event_id)
+                .collect();
+            let (status, summary, signature) = receipt_report(&group);
+            // One outstanding ACK per event makes a status-only recorded frame identify its exact snapshot.
+            if group.iter().all(|r| r.confirmed) || connection.sent.contains_key(&id) {
                 continue;
             }
             wire::send(&mut connection.socket,json!({"type":"ack","event_id":id,"status":status,
-                "workspace_id":receipt.target.as_ref().map(|s| &s.terminal.workspace_id),
-                "surface_id":receipt.target.as_ref().map(|s| &s.terminal.surface_id),"message":receipt.reason,"summary":null})).await?;
-            connection.sent.insert(id, status.into());
+                "workspace_id":if group.len()==1 {receipt.target.as_ref().map(|s| &s.terminal.workspace_id)} else {None},
+                "surface_id":if group.len()==1 {receipt.target.as_ref().map(|s| &s.terminal.surface_id)} else {None},
+                "message":if group.len()==1 {receipt.reason.as_str()} else {"Broadcast delivery to pinned local agent sessions"},"summary":summary})).await?;
+            connection.sent.insert(id, signature);
         }
         Ok(())
     }
@@ -528,21 +545,41 @@ impl Worker {
                     .filter(|n| *n > 0)
                     .ok_or("Invalid receipt ID")?;
                 let status = value["status"].as_str().ok_or("Invalid delivery receipt")?;
-                let receipt = self
+                let event_id = id.to_string();
+                let group: Vec<&Receipt> = self
                     .journal
                     .receipts
-                    .iter_mut()
-                    .find(|r| r.event_id == id.to_string())
-                    .ok_or("Unknown gateway receipt")?;
-                if receipt.outcome == status {
-                    receipt.confirmed = true;
+                    .iter()
+                    .filter(|r| r.event_id == event_id)
+                    .collect();
+                if group.is_empty() {
+                    return Err("Unknown gateway receipt".into());
+                }
+                let (aggregate, _, signature) = receipt_report(&group);
+                let sent = connection.sent.remove(&id);
+                if aggregate == status {
+                    for receipt in self
+                        .journal
+                        .receipts
+                        .iter_mut()
+                        .filter(|r| r.event_id == event_id)
+                    {
+                        receipt.confirmed = sent.as_ref() == Some(&signature);
+                    }
                 } else if matches!(status, "injected" | "skipped" | "failed" | "uncertain") {
-                    finalize(
-                        receipt,
-                        status,
-                        "Gateway retained a terminal outcome; automatic replay is disabled",
-                    );
-                    receipt.confirmed = true;
+                    for receipt in self
+                        .journal
+                        .receipts
+                        .iter_mut()
+                        .filter(|r| r.event_id == event_id)
+                    {
+                        finalize(
+                            receipt,
+                            status,
+                            "Gateway retained a terminal outcome; automatic replay is disabled",
+                        );
+                        receipt.confirmed = true;
+                    }
                     self.pipeline
                         .pending
                         .retain(|p| p.message.event_id != id.to_string());
@@ -566,6 +603,16 @@ impl Worker {
     }
 }
 
+/// Encode bounded recipient detail and an exact acknowledgment snapshot under protocol v1.
+fn receipt_report(group: &[&Receipt]) -> (&'static str, Option<String>, String) {
+    let status = receipt_status(group);
+    let recipients: Vec<Value> = group.iter().filter_map(|r| r.target.as_ref().map(|s|
+        json!({"session_id":s.session_id,"surface_id":s.terminal.surface_id,"status":if r.outcome=="submitting" {"queued"} else {&r.outcome}}))).collect();
+    let summary = (!recipients.is_empty()).then(|| json!({"recipients":recipients}).to_string());
+    let signature = format!("{status}/{summary:?}");
+    (status, summary, signature)
+}
+
 /// Check between bounded metadata and delivery operations so their deadlines cannot starve the stream heartbeat.
 async fn heartbeat(connection: &mut Connection) -> Result<(), String> {
     if connection.heartbeat.elapsed() >= Duration::from_secs(10) {
@@ -586,11 +633,12 @@ fn finalize(receipt: &mut Receipt, status: &str, reason: &str) {
 }
 
 /// Snapshot actual active foreground agents off GTK, before any slow repository lookup or receipt acknowledgment.
-async fn active(terminals: &[Terminal]) -> Vec<Session> {
+async fn active(terminals: &[Terminal], instance_id: &str) -> Vec<Session> {
     if terminals.len() > MAX_PENDING {
         return Vec::new();
     }
     let terminals = terminals.to_vec();
+    let instance_id = instance_id.to_owned();
     tokio::task::spawn_blocking(move || {
         terminals
             .into_iter()
@@ -599,11 +647,12 @@ async fn active(terminals: &[Terminal]) -> Vec<Session> {
                 terminal.screen = None;
                 terminal.captured_at = None;
                 terminal.observation = None;
-                Some(Session {
+                Some(Session::identified(
                     terminal,
                     process,
-                    repository: String::new(),
-                })
+                    String::new(),
+                    &instance_id,
+                ))
             })
             .collect()
     })
@@ -611,8 +660,26 @@ async fn active(terminals: &[Terminal]) -> Vec<Session> {
     .unwrap_or_default()
 }
 
+/// Resolve context independently of the transport queue, without Git reads or screen capture.
+pub async fn context(
+    terminals: Vec<Terminal>,
+    instance_id: String,
+    surface_id: Option<String>,
+) -> Result<Value, String> {
+    let sessions = active(&terminals, &instance_id).await;
+    if let Some(surface_id) = surface_id {
+        sessions
+            .iter()
+            .find(|s| s.terminal.surface_id == surface_id)
+            .map(|s| s.context(&instance_id))
+            .ok_or_else(|| "No verified active agent on this surface".to_owned())
+    } else {
+        Ok(json!({"sessions":sessions.iter().map(|s|s.context(&instance_id)).collect::<Vec<_>>()}))
+    }
+}
+
 /// Resolve foreground executable identities and selected Git upstreams within a bounded scan budget.
-async fn discover(terminals: &[Terminal]) -> Vec<Session> {
+async fn discover(terminals: &[Terminal], instance_id: &str) -> Vec<Session> {
     if terminals.len() > MAX_PENDING {
         return Vec::new();
     }
@@ -634,11 +701,12 @@ async fn discover(terminals: &[Terminal]) -> Vec<Session> {
         let Some(repository) = upstream(terminal).await else {
             continue;
         };
-        sessions.push(Session {
-            terminal: terminal.clone(),
+        sessions.push(Session::identified(
+            terminal.clone(),
             process,
             repository,
-        });
+            instance_id,
+        ));
     }
     sessions
 }
@@ -789,13 +857,13 @@ pub async fn run(
                             if c.projects_at.elapsed()>=Duration::from_secs(30) { worker.projects=c.client.projects().await?; c.projects_at=Instant::now(); }
                             heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
-                            let mut sessions=discover(&terminals).await; worker.observe(&mut sessions);
+                            let mut sessions=discover(&terminals,&worker.journal.instance_id).await; worker.observe(&mut sessions);
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
                             heartbeat(c).await?;
                             // Full-task hydration may have taken time: verify foreground generations again before fencing input.
                             let terminals=snapshots.borrow().clone();
-                            let current=active(&terminals).await;
+                            let current=active(&terminals,&worker.journal.instance_id).await;
                             sessions.retain(|s| current.iter().any(|now| now.process==s.process && now.terminal.surface_id==s.terminal.surface_id));
                             worker.drain_verified(sessions).await?; worker.acknowledge(c).await?;
                             Ok::<_,String>(())
@@ -827,6 +895,55 @@ fn cleanup_failed(error: &std::io::Error) {
 mod tests {
     use super::*;
     use crate::gateway::pipeline::Admission;
+
+    /// An older queued ACK cannot confirm a newer recipient result with the same aggregate status.
+    #[test]
+    fn recipient_ack_snapshots_distinguish_partial_progress() {
+        let mut first = Receipt {
+            event_id: "1".into(),
+            outcome: "queued".into(),
+            ..Default::default()
+        };
+        let mut second = first.clone();
+        let terminal = Terminal {
+            workspace_id: uuid::Uuid::new_v4().to_string(),
+            surface_id: uuid::Uuid::new_v4().to_string(),
+            directory: "/repo".into(),
+            foreground_pid: 42,
+            input_revision: 0,
+            input_pending: false,
+            observation: None,
+            screen: None,
+            captured_at: None,
+        };
+        let process = cmux_platform::process::Identity {
+            pid: 42,
+            start_ticks: 10,
+            client: "codex".into(),
+        };
+        first.target = Some(Session::identified(
+            terminal.clone(),
+            process.clone(),
+            String::new(),
+            "instance",
+        ));
+        let mut peer = terminal;
+        peer.surface_id = uuid::Uuid::new_v4().to_string();
+        second.target = Some(Session::identified(
+            peer,
+            process,
+            String::new(),
+            "instance",
+        ));
+        let before = receipt_report(&[&first, &second]);
+        assert_eq!(before.0, "queued");
+        first.outcome = "injected".into();
+        let after = receipt_report(&[&first, &second]);
+        assert_eq!(after.0, "queued");
+        assert_ne!(before.2, after.2);
+        second.outcome = "uncertain".into();
+        assert_eq!(receipt_report(&[&first, &second]).0, "uncertain");
+    }
 
     /// Exercise real persistence and GTK-channel delivery after the platform/discovery boundary.
     #[tokio::test]
@@ -868,6 +985,7 @@ mod tests {
             },
             process,
             repository: "github.com/org/repo".into(),
+            session_id: uuid::Uuid::new_v4().to_string(),
         };
         let message = Message {
             event_id: "event".into(),
@@ -877,6 +995,7 @@ mod tests {
             text: "Please inspect the task".into(),
             author_id: None,
             source_instance: None,
+            origin: None,
         };
         let mut worker = Worker {
             journal,
@@ -932,6 +1051,7 @@ mod tests {
             text: "Replay".into(),
             author_id: None,
             source_instance: None,
+            origin: None,
         };
         assert_eq!(
             worker

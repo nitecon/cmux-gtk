@@ -41,7 +41,7 @@ def submissions(path):
 
 
 def setup(root):
-    """Create three repository workspaces and native executable identities in isolated test storage."""
+    """Create isolated projects, including two same-provider agents sharing one repository."""
     executable = root / "codex"
     subprocess.check_call(["cc", "-Wall", "-Wextra", "-O2", str(Path(__file__).parent / "fixtures/gateway_agent.c"),
                            "-o", str(executable)], timeout=20)
@@ -51,12 +51,12 @@ def setup(root):
     native_claude.chmod(0o700)
     (root / "claude").symlink_to(native_claude)
     workspaces = []
-    for index, name in enumerate(("first", "second", "absent")):
+    for index, name in enumerate(("first", "second", "absent", "peer")):
         project = root / name
         project.mkdir()
         subprocess.check_call(["git", "init", "-q", str(project)], timeout=5)
         subprocess.check_call(["git", "-C", str(project), "remote", "add", "origin",
-                               "git@github.com:fixture/" + name + ".git"], timeout=5)
+                               "git@github.com:fixture/" + ("first" if name == "peer" else name) + ".git"], timeout=5)
         mode = root / (name + ".mode")
         mode.write_text("idle")
         workspaces.append(dict(uuid=str(uuid.uuid4()), name=name, working_directory=str(project),
@@ -109,14 +109,24 @@ def main():
                     app.wait_for(lambda: bool(raw(app, "surface.read_text", id=surface)["text"].strip()), "workspace PTY allocation")
                     name = workspace["name"]
                     if name != "absent":
-                        arguments = [str(root / ("codex" if name == "first" else "claude")),
+                        arguments = [str(root / ("codex" if name in ("first", "peer") else "claude")),
                                      str(root / (name + ".mode")), str(root / (name + ".input")), str(root / name)]
                         raw(app, "surface.send_text", id=surface, text=shlex.join(arguments))
                         raw(app, "surface.send_key", id=surface, key="\r")
                         app.wait_for(lambda: "Gateway fixture" in raw(app, "surface.read_text", id=surface)["text"], "interactive foreground agent")
-                app.wait_for(lambda: len(app.surfaces()) == 3, "all native surfaces")
+                app.wait_for(lambda: len(app.surfaces()) == 4, "all native surfaces")
                 surfaces = {workspace["name"]: next(row["uuid"] for row in app.surfaces()
                             if row["workspace_uuid"] == workspace["uuid"]) for workspace in workspaces}
+                # Identity is available with transport disabled and is exact to each running agent.
+                contexts = {name: raw(app, "gateway.session", surface_id=surface)
+                            for name, surface in surfaces.items() if name != "absent"}
+                assert len({context["session_id"] for context in contexts.values()}) == 3
+                assert contexts["first"]["provider"] == contexts["peer"]["provider"] == "codex"
+                assert contexts["second"]["provider"] == "claude"
+                assert all(context["instance_id"] == instance and context["os"] == "linux" for context in contexts.values())
+                assert raw(app, "gateway.session", surface_id=surfaces["first"]) == contexts["first"]
+                assert len(raw(app, "gateway.sessions")["sessions"]) == 3
+                rejects(app, "gateway.session", surface_id=surfaces["absent"])
                 raw(app, "gateway.configure", enabled=True, url=gateway.url, injection_approved=False, api_key=key)
                 app.wait_for(lambda: status(app)["connection"] == "Connected", "native Bearer subscription", timeout=20)
                 assert gateway.subscriptions[0]["after_event_id"] is None
@@ -126,7 +136,7 @@ def main():
                 app.wait_for(lambda: json.loads(journal_path.read_text())["cursor"] == no_consent, "recorded receipt persisted")
                 raw(app, "gateway.configure", enabled=True, url=gateway.url, injection_approved=True)
                 try:
-                    app.wait_for(lambda: status(app)["connection"] == "Connected" and status(app)["agents"] == 2,
+                    app.wait_for(lambda: status(app)["connection"] == "Connected" and status(app)["agents"] == 3,
                                  "foreground agent discovery", timeout=20)
                 except BaseException:
                     print(json.dumps(status(app), indent=2))
@@ -137,7 +147,32 @@ def main():
                 received = submissions(root / "first.input")
                 assert len(received) == 1 and received[0].startswith(START) and received[0].endswith(STOP)
                 assert "Task specification" in received[0]
+                assert len(submissions(root / "peer.input")) == 1
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
+                # Shared author/machine IDs do not suppress another Codex terminal's coordination context.
+                for kind in ("task_commented", "task_completed"):
+                    first_before = len(submissions(root / "first.input"))
+                    peer_before = len(submissions(root / "peer.input"))
+                    event_id = gateway.add(kind=kind, origin={key: contexts["first"][key]
+                        for key in ("session_id", "instance_id", "provider", "os")})
+                    wait_outcome(app, gateway, event_id, "injected")
+                    assert len(submissions(root / "first.input")) == first_before
+                    assert len(submissions(root / "peer.input")) == peer_before + 1
+                    recorded = json.loads(gateway.receipts[event_id]["summary"])["recipients"]
+                    assert {entry["session_id"]: entry["status"] for entry in recorded} == {
+                        contexts["first"]["session_id"]: "skipped", contexts["peer"]["session_id"]: "injected"}
+                peer_before = len(submissions(root / "peer.input"))
+                first_before = len(submissions(root / "first.input"))
+                reply = gateway.add(kind="task_commented", origin={key: contexts["peer"][key]
+                    for key in ("session_id", "instance_id", "provider", "os")})
+                wait_outcome(app, gateway, reply, "injected")
+                assert len(submissions(root / "peer.input")) == peer_before
+                assert len(submissions(root / "first.input")) == first_before + 1
+                # Foreign Windows provenance is context, not a local provider/OS assignment filter.
+                foreign = gateway.add(kind="task_completed", origin=dict(session_id=str(uuid.uuid4()),
+                    instance_id=str(uuid.uuid4()), provider="codex", os="windows"))
+                wait_outcome(app, gateway, foreign, "injected")
+                assert len(json.loads(gateway.receipts[foreign]["summary"])["recipients"]) == 2
                 # An incremental TUI owns the screen: long injections must not alter untouched rows or scroll it.
                 (root / "first.mode").write_text("incremental")
                 app.wait_for(lambda: "permission checks preserved" in raw(app, "surface.read_text", id=surfaces["first"])["text"],
@@ -170,10 +205,20 @@ def main():
                 assert "Never type into the shell" not in raw(app, "surface.read_text", id=surfaces["absent"])["text"]
                 # A busy terminal acknowledges promptly so another project's comment can be delivered.
                 (root / "first.mode").write_text("busy")
+                (root / "peer.mode").write_text("busy")
                 app.wait_for(lambda: "esc to interrupt" in raw(app, "surface.read_text", id=surfaces["first"])["text"], "busy screen")
+                app.wait_for(lambda: "esc to interrupt" in raw(app, "surface.read_text", id=surfaces["peer"])["text"], "busy peer screen")
                 before = len(submissions(root / "first.input"))
+                gateway.record_delay = 2
                 busy = gateway.add(content="Wait while busy")
                 wait_outcome(app, gateway, busy, "queued")
+                (root / "peer.mode").write_text("idle")
+                gateway.record_delay = 0
+                # An old queued confirmation cannot hide a newer peer result with the same aggregate status.
+                app.wait_for(lambda: any(entry["session_id"] == contexts["peer"]["session_id"]
+                    and entry["status"] == "injected" for entry in json.loads(gateway.receipts[busy]["summary"])["recipients"]),
+                    "partial peer delivery acknowledged while first remains busy", timeout=10)
+                assert gateway.outcome(busy) == "queued"
                 independent = gateway.add(project="second", kind="task_commented", content="Other project proceeds")
                 wait_outcome(app, gateway, independent, "injected")
                 assert len(submissions(root / "first.input")) == before
@@ -228,7 +273,9 @@ def main():
                 changed = gateway.add(content="Never send to the replacement shell")
                 wait_outcome(app, gateway, changed, "queued")
                 (root / "first.mode").write_text("shell")
-                wait_outcome(app, gateway, changed, "skipped")
+                wait_outcome(app, gateway, changed, "injected")
+                recorded = json.loads(gateway.receipts[changed]["summary"])["recipients"]
+                assert next(entry["status"] for entry in recorded if entry["session_id"] == contexts["first"]["session_id"]) == "skipped"
                 assert all("replacement shell" not in entry for entry in submissions(root / "first.input"))
                 view = status(app)
                 assert key not in json.dumps(view) and "Historical task" not in json.dumps(view)

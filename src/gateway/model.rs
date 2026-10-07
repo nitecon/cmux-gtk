@@ -31,6 +31,29 @@ pub enum Kind {
     Completed,
 }
 
+/// Mutation provenance identifies an exact agent; provider and OS describe it without selecting work.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Origin {
+    pub session_id: String,
+    pub instance_id: String,
+    pub provider: String,
+    pub os: String,
+}
+
+impl Origin {
+    /// Validate the additive gateway context without treating its identifiers as authentication.
+    pub fn validate(&self) -> Result<(), String> {
+        uuid::Uuid::parse_str(&self.session_id).map_err(|_| "Invalid agent session identity")?;
+        uuid::Uuid::parse_str(&self.instance_id).map_err(|_| "Invalid agent instance identity")?;
+        if !matches!(self.provider.as_str(), "codex" | "claude")
+            || !matches!(self.os.as_str(), "linux" | "windows" | "macos")
+        {
+            return Err("Invalid agent provider or OS".into());
+        }
+        Ok(())
+    }
+}
+
 /// An event from the authenticated stream, including visible comment author attribution.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message {
@@ -41,6 +64,8 @@ pub struct Message {
     pub text: String,
     pub author_id: Option<String>,
     pub source_instance: Option<String>,
+    #[serde(default)]
+    pub origin: Option<Origin>,
 }
 
 impl Message {
@@ -69,6 +94,9 @@ impl Message {
         if self.kind == Kind::Commented && self.author_id.is_none() {
             return Err("Task comments require author attribution".into());
         }
+        if let Some(origin) = &self.origin {
+            origin.validate()?;
+        }
         Ok(())
     }
 
@@ -79,7 +107,17 @@ impl Message {
             Kind::Commented => "Task commented",
             Kind::Completed => "Task completed",
         };
-        format!("{START}\nGateway event {} · {} · {kind}: {}\n{}\nDo not post task comments solely to acknowledge this injected message.\n{STOP}", self.event_id, self.project_ident, self.task_id, self.text)
+        let origin = self
+            .origin
+            .as_ref()
+            .map(|o| {
+                format!(
+                    "Origin: {} on {} · session {}\n",
+                    o.provider, o.os, o.session_id
+                )
+            })
+            .unwrap_or_default();
+        format!("{START}\nGateway event {} · {} · {kind}: {}\n{origin}{}\nDo not post task comments solely to acknowledge this injected message.\n{STOP}", self.event_id, self.project_ident, self.task_id, self.text)
     }
 }
 
@@ -126,9 +164,54 @@ pub struct Session {
     #[serde(with = "ProcessIdentity")]
     pub process: cmux_platform::process::Identity,
     pub repository: String,
+    #[serde(default)]
+    pub session_id: String,
 }
 
 impl Session {
+    /// Bind a globally namespaced UUID to a verified process generation and its exact terminal.
+    pub fn identified(
+        terminal: Terminal,
+        process: cmux_platform::process::Identity,
+        repository: String,
+        instance_id: &str,
+    ) -> Self {
+        // Linux start ticks repeat across boots; missing native identity gets a fresh runtime namespace.
+        static BOOT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        let boot = BOOT.get_or_init(|| {
+            cmux_platform::process::boot_identity()
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string())
+        });
+        let name = format!(
+            "cmux/{instance_id}/{boot}/{}/{}/{}/{}/{}",
+            terminal.workspace_id,
+            terminal.surface_id,
+            process.pid,
+            process.start_ticks,
+            process.client
+        );
+        Self {
+            terminal,
+            process,
+            repository,
+            session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes()).to_string(),
+        }
+    }
+
+    /// Expose current local context without credentials, screen contents or readiness authority.
+    pub fn context(&self, instance_id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "session_id": self.session_id,
+            "instance_id": instance_id,
+            "provider": self.process.client,
+            "os": std::env::consts::OS,
+            "surface_id": self.terminal.surface_id,
+            "workspace_id": self.terminal.workspace_id,
+            "repository": self.repository,
+            "directory": self.terminal.directory,
+        })
+    }
+
     /// Require a fresh positive observation for this process and unchanged input revision.
     pub fn ready(&self) -> bool {
         !self.terminal.input_pending
@@ -147,6 +230,7 @@ impl Session {
             && self.terminal.directory == other.terminal.directory
             && self.process == other.process
             && self.repository == other.repository
+            && self.session_id == other.session_id
     }
 }
 
@@ -163,6 +247,8 @@ struct ProcessIdentity {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Receipt {
     pub event_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipient_session_id: Option<String>,
     pub outcome: String,
     #[serde(default)]
     pub reason: String,
@@ -179,6 +265,13 @@ pub struct Receipt {
 }
 
 impl Receipt {
+    /// Distinguish each recipient fence while retaining one event-level transport cursor.
+    pub fn recipient(&self) -> Option<&str> {
+        self.recipient_session_id
+            .as_deref()
+            .or_else(|| self.target.as_ref().map(|s| s.session_id.as_str()))
+    }
+
     /// Recognize finalized delivery, independent of canonical task status.
     pub fn terminal(&self) -> bool {
         matches!(
@@ -186,6 +279,23 @@ impl Receipt {
             "injected" | "skipped" | "failed" | "uncertain"
         )
     }
+}
+
+/// Aggregate transport outcomes only after every pinned recipient has reached a terminal state.
+pub fn receipt_status(receipts: &[&Receipt]) -> &'static str {
+    for (state, aggregate) in [
+        ("received", "received"),
+        ("queued", "queued"),
+        ("submitting", "queued"),
+        ("uncertain", "uncertain"),
+        ("failed", "failed"),
+        ("injected", "injected"),
+    ] {
+        if receipts.iter().any(|r| r.outcome == state) {
+            return aggregate;
+        }
+    }
+    "skipped"
 }
 
 /// V2 replaces assignments and reports; old configuration loads with injection approval disabled.
@@ -221,6 +331,7 @@ pub enum DeliveryOutcome {
 /// Credential-free preferences/status snapshot, with no event bodies or execution reports.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct View {
+    pub instance_id: String,
     pub connection: String,
     pub config: Config,
     pub pending: usize,

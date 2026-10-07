@@ -3,6 +3,24 @@
 use std::io;
 use std::io::Read;
 
+/// Read a bounded Linux boot generation once on a worker; None means unavailable or unsupported.
+pub fn boot_identity() -> Option<String> {
+    static BOOT: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    BOOT.get_or_init(|| {
+        let text = crate::filesystem::read_text_bounded(
+            std::path::Path::new("/proc/sys/kernel/random/boot_id"),
+            128,
+        )
+        .ok()?;
+        let value = text.trim();
+        (!value.is_empty()
+            && value.len() <= 64
+            && value.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-'))
+        .then(|| value.to_owned())
+    })
+    .clone()
+}
+
 /// Replace the calling process with a prepared command, retaining its terminal descriptors.
 /// Success never returns; an exec failure returns the OS error without spawning a second process.
 pub fn replace_current(command: &mut std::process::Command) -> io::Error {

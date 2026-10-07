@@ -59,6 +59,7 @@ class Gateway:
         self.receipts = {}
         self.subscriptions = []
         self.heartbeats = 0
+        self.record_delay = 0
         self.server_heartbeats = True
         self.full_fetches = 0
         self.replay = None
@@ -181,6 +182,7 @@ class Gateway:
                         self.consumers[consumer] = max(self.consumers[consumer], event_id)
                     if event_id == inflight:
                         inflight = None
+                    time.sleep(self.record_delay)
                     send_frame(connection, dict(type="recorded", event_id=event_id, status=status))
         finally:
             with self.lock:

@@ -29,6 +29,16 @@ pub fn load(path: &Path) -> Result<Journal, String> {
     let mut ids = std::collections::HashSet::new();
     for receipt in &mut journal.receipts {
         identity(&receipt.event_id)?;
+        if let Some(session_id) = &receipt.recipient_session_id {
+            uuid::Uuid::parse_str(session_id).map_err(|_| "Invalid gateway receipt session")?;
+            if receipt
+                .target
+                .as_ref()
+                .is_some_and(|target| target.session_id != *session_id)
+            {
+                return Err("Gateway recipient fence identity changed".into());
+            }
+        }
         if receipt.reason.len() > 4096 {
             return Err("Invalid gateway receipt reason".into());
         }
@@ -57,20 +67,26 @@ pub fn load(path: &Path) -> Result<Journal, String> {
             {
                 return Err("Invalid gateway terminal target".into());
             }
+            if !target.session_id.is_empty() {
+                uuid::Uuid::parse_str(&target.session_id)
+                    .map_err(|_| "Invalid gateway agent session")?;
+            }
         }
-        if !ids.insert(receipt.event_id.clone())
-            || !matches!(
-                receipt.outcome.as_str(),
-                "received"
-                    | "queued"
-                    | "submitting"
-                    | "injected"
-                    | "skipped"
-                    | "failed"
-                    | "uncertain"
-            )
-        {
+        if !ids.insert((
+            receipt.event_id.clone(),
+            receipt.recipient().map(str::to_owned),
+        )) || !matches!(
+            receipt.outcome.as_str(),
+            "received" | "queued" | "submitting" | "injected" | "skipped" | "failed" | "uncertain"
+        ) {
             return Err("Invalid gateway delivery receipt".into());
+        }
+        if receipt.outcome == "queued" && receipt.recipient() == Some("") {
+            receipt.outcome = "skipped".into();
+            receipt.reason =
+                "Legacy queued recipient has no exact agent session; replay disabled".into();
+            receipt.confirmed = false;
+            receipt.payload = None;
         }
         if receipt.outcome == "submitting" {
             receipt.outcome = "uncertain".into();
