@@ -94,7 +94,7 @@ def main():
                         raise RuntimeError(f"No real ConPTY shell output: {screen}")
                     time.sleep(0.5)
                 print("Real ConPTY shell input/output verified")
-                (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True}, indent=2) + "\n")
+                (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
             finally:
                 if app.poll() is None:
                     subprocess.run(["taskkill", "/PID", str(app.pid), "/T", "/F"], env=env, capture_output=True, timeout=15)
