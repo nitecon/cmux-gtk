@@ -4,6 +4,11 @@ on:
   push:
     branches: [feature/windows-native]
   workflow_dispatch:
+    inputs:
+      verify_run:
+        description: Existing preview run to smoke-check without rebuilding (optional)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ concurrency:
 
 jobs:
   windows-native:
+    if: ${{ !inputs.verify_run }}
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -114,3 +120,36 @@ jobs:
           path: |
             ghostty/zig-out/include/ghostty.h
             target/release/build/cmux-gtk-*/output
+
+  verify-preview:
+    if: ${{ inputs.verify_run != '' }}
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout smoke script
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download built preview
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PREVIEW_BUILD_RUN: ${{ inputs.verify_run }}
+        run: gh run download $env:PREVIEW_BUILD_RUN --name cmux-windows-x86_64-preview --dir target/windows-preview
+
+      - name: Test portable preview startup and terminal RPC
+        run: python tests/windows-preview-smoke.py target/windows-preview
+
+      - name: Upload preview with runtime evidence
+        if: always() && steps.download.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-windows-x86_64-preview
+          path: target/windows-preview/
+          if-no-files-found: error
