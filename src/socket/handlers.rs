@@ -189,7 +189,7 @@ fn handle_socket_command_traced(
                 req_id,
                 json!({
                     "version": env!("CARGO_PKG_VERSION"),
-                    "platform": "linux",
+                    "platform": std::env::consts::OS,
                     "socket_path": socket_path,
                 }),
             ));

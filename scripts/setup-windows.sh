@@ -13,4 +13,6 @@ zig build \
     -Di18n=false \
     -Demit-xcframework=false
 test -f zig-out/lib/ghostty-internal-static.lib
+test -f zig-out/lib/ghostty-internal.dll
+test -f zig-out/lib/ghostty-internal.lib
 test -f zig-out/include/ghostty.h

@@ -78,6 +78,9 @@ jobs:
           LIBCLANG_PATH: C:\msys64\ucrt64\bin
         run: cargo build --workspace --bins --release --locked
 
+      - name: Test native Windows storage and pipe boundaries
+        run: cargo test -p cmux-platform --no-default-features --features async-io --locked
+
       - name: Bundle portable preview
         run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)"
 

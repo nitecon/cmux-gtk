@@ -209,3 +209,41 @@ pub fn atomic_write_with<T>(
         "cannot allocate staging file",
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Exercise NTFS private-key ownership, atomic replacement and rejection of corrupt persistent data.
+    #[test]
+    fn private_storage_roundtrip() {
+        let root = std::env::temp_dir().join(format!(
+            "cmux-win-storage-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        create_private_directory(&root).unwrap();
+        let key = root.join("key");
+        let original = load_or_create_secret(&key).unwrap();
+        assert_eq!(load_or_create_secret(&key).unwrap(), original);
+        let file = std::fs::File::open(&key).unwrap();
+        assert!(windows::private_file(file.as_raw_handle()).unwrap());
+        drop(file);
+        let value = root.join("value");
+        atomic_write(&value, b"before").unwrap();
+        assert!(atomic_write_with(&value, |file| {
+            file.write_all(b"partial")?;
+            Err::<(), _>(io::Error::other("rejected"))
+        })
+        .is_err());
+        assert_eq!(read_text_bounded(&value, 32).unwrap(), "before");
+        atomic_write(&value, b"after").unwrap();
+        assert_eq!(read_text_bounded(&value, 32).unwrap(), "after");
+        std::fs::write(&key, b"invalid").unwrap();
+        assert_eq!(
+            load_or_create_secret(&key).unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

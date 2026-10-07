@@ -19,7 +19,8 @@ def main():
     if bundle.exists():
         shutil.rmtree(bundle)
     bundle.mkdir(parents=True)
-    binaries = [root / "target/release" / name for name in ("cmux.exe", "cmux-app.exe")]
+    ghostty = root / "ghostty/zig-out/lib/ghostty-internal.dll"
+    binaries = [root / "target/release" / name for name in ("cmux.exe", "cmux-app.exe")] + [ghostty]
     pending = list(binaries)
     copied = set()
     system = Path(os.environ["SystemRoot"]) / "System32"
@@ -31,7 +32,7 @@ def main():
         shutil.copy2(source, bundle / source.name)
         output = subprocess.check_output(["objdump", "-p", str(source)], text=True)
         for name in re.findall(r"DLL Name:\s*(\S+)", output):
-            dependency = args.prefix / "bin" / name
+            dependency = ghostty if name.lower() == ghostty.name.lower() else args.prefix / "bin" / name
             if dependency.is_file():
                 pending.append(dependency)
             elif not (system / name).is_file() and not name.lower().startswith(("api-ms-", "ext-ms-")):

@@ -132,23 +132,18 @@ fn main() {
         .expect("Couldn't write ghostty_sys.rs");
 }
 
-/// Link the native Windows Ghostty archive and generate bindings for the same embedded surface ABI.
+/// Link the native Windows Ghostty DLL and generate bindings for the same embedded surface ABI.
 /// Windows DLL symbol resolution does not require Linux's bundled-library symbol namespacing.
 fn build_windows() {
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let library = root.join("ghostty/zig-out/lib/ghostty-internal-static.lib");
+    let library = root.join("ghostty/zig-out/lib/ghostty-internal.lib");
     let output = PathBuf::from(env::var("OUT_DIR").unwrap());
     println!("cargo:rerun-if-changed={}", library.display());
-    fs::copy(&library, output.join("libghostty.a"))
+    fs::copy(&library, output.join("libghostty.dll.a"))
         .expect("Build Windows Ghostty first with scripts/setup-windows.sh");
     println!("cargo:rustc-link-search=native={}", output.display());
-    println!("cargo:rustc-link-lib=static=ghostty");
-    for library in [
-        "stdc++", "onig", "opengl32", "user32", "gdi32", "shell32", "ole32", "ws2_32", "bcrypt",
-        "advapi32",
-    ] {
-        println!("cargo:rustc-link-lib={library}");
-    }
+    // Zig owns the DLL's bundled C++ runtime and dependencies; keep its generated import library intact.
+    println!("cargo:rustc-link-lib=dylib=ghostty");
     let header = root.join("ghostty/zig-out/include/ghostty.h");
     println!("cargo:rerun-if-changed={}", header.display());
     bindgen::Builder::default()

@@ -86,9 +86,9 @@ pub(crate) fn current_sid() -> io::Result<String> {
 pub(crate) struct PrivateSecurity(PSECURITY_DESCRIPTOR);
 impl PrivateSecurity {
     pub(crate) fn new() -> io::Result<Self> {
+        let sid = current_sid()?;
         let text = wide(std::ffi::OsStr::new(&format!(
-            "D:P(A;OICI;FA;;;{})",
-            current_sid()?
+            "O:{sid}D:P(A;OICI;FA;;;{sid})"
         )));
         let mut descriptor = ptr::null_mut();
         // SAFETY: text is NUL terminated; output points to an owned LocalAlloc descriptor.

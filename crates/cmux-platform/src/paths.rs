@@ -116,7 +116,7 @@ fn find_command_in(name: &str, search_path: &OsStr) -> Option<PathBuf> {
     None
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
 

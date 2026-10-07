@@ -311,3 +311,51 @@ pub fn connect(path: &Path, timeout: Duration) -> io::Result<BlockingStream> {
         closed: Arc::new(AtomicBool::new(false)),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Exercise real named-pipe ownership, exclusive binding and cloned blocking CLI I/O.
+    #[tokio::test]
+    async fn local_pipe_roundtrip() {
+        let path = PathBuf::from(format!(
+            r"\\.\pipe\cmux-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let listener = Listener::bind(&path).unwrap();
+        assert!(Listener::bind(&path).is_err());
+        let client_path = path.clone();
+        let client = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let mut reader = connect(&client_path, Duration::from_secs(3)).unwrap();
+            let mut writer = reader.try_clone().unwrap();
+            writer.write_all(b"request\n").unwrap();
+            let mut response = [0; 3];
+            reader.read_exact(&mut response).unwrap();
+            assert_eq!(&response, b"ok\n");
+        });
+        let (mut stream, _) = tokio::time::timeout(Duration::from_secs(3), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(crate::peer::same_user(&stream).unwrap());
+        assert!(!crate::peer::disconnected(&stream).unwrap());
+        let mut request = [0; 8];
+        tokio::io::AsyncReadExt::read_exact(&mut stream, &mut request)
+            .await
+            .unwrap();
+        assert_eq!(&request, b"request\n");
+        tokio::io::AsyncWriteExt::write_all(&mut stream, b"ok\n")
+            .await
+            .unwrap();
+        tokio::task::spawn_blocking(move || client.join())
+            .await
+            .unwrap()
+            .unwrap();
+    }
+}
