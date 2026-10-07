@@ -51,6 +51,9 @@ def capture_terminal(window, destination):
         previous = gdi32.SelectObject(memory, bitmap)
         if not gdi32.BitBlt(memory, 0, 0, width, height, desktop, origin.x, origin.y, 0x00CC0020 | 0x40000000):
             raise ctypes.WinError(ctypes.get_last_error())
+        # Finish GDI's bitmap copy before reading the DIB's shared memory on the CPU.
+        if not gdi32.GdiFlush():
+            raise ctypes.WinError(ctypes.get_last_error())
         raw = ctypes.string_at(pixels, width * height * 4)
     finally:
         if previous:
