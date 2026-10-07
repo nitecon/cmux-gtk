@@ -17,6 +17,11 @@ fn main() {
     println!("cargo:rustc-env=CMUX_RELEASE_BUILD={release_build}");
     println!("cargo:rerun-if-env-changed=CMUX_RELEASE_BUILD");
 
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        build_windows();
+        return;
+    }
+
     // Get the absolute path to the project directory
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ghostty_archive = PathBuf::from(&manifest_dir).join("ghostty/zig-out/lib/libghostty.a");
@@ -125,6 +130,36 @@ fn main() {
     bindings
         .write_to_file(out_path.join("ghostty_sys.rs"))
         .expect("Couldn't write ghostty_sys.rs");
+}
+
+/// Link the native Windows Ghostty archive and generate bindings for the same embedded surface ABI.
+/// Windows DLL symbol resolution does not require Linux's bundled-library symbol namespacing.
+fn build_windows() {
+    let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let library = root.join("ghostty/zig-out/lib/ghostty-internal-static.lib");
+    let output = PathBuf::from(env::var("OUT_DIR").unwrap());
+    println!("cargo:rerun-if-changed={}", library.display());
+    fs::copy(&library, output.join("libghostty.a"))
+        .expect("Build Windows Ghostty first with scripts/setup-windows.sh");
+    println!("cargo:rustc-link-search=native={}", output.display());
+    println!("cargo:rustc-link-lib=static=ghostty");
+    for library in [
+        "stdc++", "onig", "opengl32", "user32", "gdi32", "shell32", "ole32", "ws2_32", "bcrypt",
+        "advapi32",
+    ] {
+        println!("cargo:rustc-link-lib={library}");
+    }
+    let header = root.join("ghostty/zig-out/include/ghostty.h");
+    println!("cargo:rerun-if-changed={}", header.display());
+    bindgen::Builder::default()
+        .header(header.to_string_lossy())
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .allowlist_item("ghostty_.*")
+        .allowlist_item("GHOSTTY_.*")
+        .generate()
+        .expect("Unable to generate Windows Ghostty bindings")
+        .write_to_file(output.join("ghostty_sys.rs"))
+        .expect("Unable to write Windows Ghostty bindings");
 }
 
 /// Namespace bundled dependency symbols in an OUT_DIR copy while preserving Ghostty's public ABI.

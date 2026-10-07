@@ -1,5 +1,6 @@
 //! Linux control-socket discovery shared by command-line adapters.
 
+#[cfg(not(windows))]
 use std::path::{Path, PathBuf};
 
 /// Discover the cmux socket path using the standard search chain.
@@ -25,27 +26,34 @@ pub fn discover_socket() -> Option<String> {
 
     // 2. $XDG_RUNTIME_DIR/cmux/cmux.sock (fallback /run/user/{uid}/cmux/cmux.sock)
     let xdg_socket = crate::paths::socket_path().to_string_lossy().into_owned();
-    if Path::new(&xdg_socket).exists() {
-        return Some(xdg_socket);
-    }
+    #[cfg(windows)]
+    return Some(xdg_socket);
 
-    // 3. $XDG_RUNTIME_DIR/cmux/last-socket-path marker file
-    let marker = crate::paths::socket_marker_path();
-    if let Some(path) = read_marker(&marker) {
-        return Some(path.to_string_lossy().into_owned());
-    }
+    #[cfg(not(windows))]
+    {
+        if Path::new(&xdg_socket).exists() {
+            return Some(xdg_socket);
+        }
 
-    // 4. /tmp/cmux-debug.sock
-    let debug_sock = "/tmp/cmux-debug.sock";
-    if Path::new(debug_sock).exists() {
-        return Some(debug_sock.to_string());
-    }
+        // 3. $XDG_RUNTIME_DIR/cmux/last-socket-path marker file
+        let marker = crate::paths::socket_marker_path();
+        if let Some(path) = read_marker(&marker) {
+            return Some(path.to_string_lossy().into_owned());
+        }
 
-    // 5. Tagged debug sockets, retaining only the newest candidate.
-    newest_debug_path(Path::new("/tmp")).map(|path| path.to_string_lossy().into_owned())
+        // 4. /tmp/cmux-debug.sock
+        let debug_sock = "/tmp/cmux-debug.sock";
+        if Path::new(debug_sock).exists() {
+            return Some(debug_sock.to_string());
+        }
+
+        // 5. Tagged debug sockets, retaining only the newest candidate.
+        newest_debug_path(Path::new("/tmp")).map(|path| path.to_string_lossy().into_owned())
+    }
 }
 
 /// Read at most 4097 bytes and reject oversized, non-UTF-8, empty or missing marker targets.
+#[cfg(not(windows))]
 fn read_marker(marker: &Path) -> Option<PathBuf> {
     let contents = crate::filesystem::read_text_bounded(marker, 4096).ok()?;
     let target = contents.trim();
@@ -57,6 +65,7 @@ fn read_marker(marker: &Path) -> Option<PathBuf> {
 }
 
 /// Keep one newest matching entry, preserving the first enumerated entry on equal timestamps.
+#[cfg(not(windows))]
 fn newest_debug_path(directory: &Path) -> Option<PathBuf> {
     let mut newest = None;
     for entry in std::fs::read_dir(directory).ok()?.flatten() {
@@ -79,7 +88,7 @@ fn newest_debug_path(directory: &Path) -> Option<PathBuf> {
     newest.map(|(path, _)| path)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
     use std::fs::File;

@@ -90,6 +90,11 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
                 if crate::ghostty::ffi::ghostty_surface_process_exited(pointer) {
                     0
                 } else {
+                    #[cfg(windows)]
+                    {
+                        crate::ghostty::ffi::ghostty_surface_child_pid(pointer)
+                    }
+                    #[cfg(not(windows))]
                     crate::ghostty::ffi::ghostty_surface_foreground_pid(pointer)
                 }
             };
@@ -147,7 +152,7 @@ fn deliver(
             .ok_or("Agent terminal closed")?;
         if current.workspace_id != expected.terminal.workspace_id
             || current.directory != expected.terminal.directory
-            || current.foreground_pid != expected.process.pid
+            || current.foreground_pid != expected.terminal.foreground_pid
         {
             return Err("Agent terminal changed before delivery".into());
         }

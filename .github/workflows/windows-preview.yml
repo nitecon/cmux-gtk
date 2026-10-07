@@ -1,0 +1,103 @@
+name: Windows preview
+
+on:
+  push:
+    branches: [feature/windows-native]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install native GTK and build tools
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            unzip
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-oniguruma
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-rust
+            mingw-w64-ucrt-x86_64-python
+
+      - name: Restore native build cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .tools
+            ghostty/.zig-cache
+            ghostty/zig-out
+            target
+          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
+          restore-keys: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-
+
+      - name: Install pinned Zig
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = [regex]::Match((Get-Content ghostty/build.zig.zon -Raw), 'minimum_zig_version = "([^"]+)"').Groups[1].Value
+          if (-not $version) { throw 'Missing pinned Zig version' }
+          $index = Invoke-RestMethod https://ziglang.org/download/index.json
+          $package = $index.$version.'x86_64-windows'
+          if (-not $package) { throw "No Windows Zig package for $version" }
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          Invoke-WebRequest $package.tarball -OutFile .tools/zig.zip
+          if ((Get-FileHash .tools/zig.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $package.shasum) { throw 'Zig checksum mismatch' }
+          Expand-Archive .tools/zig.zip -DestinationPath .tools -Force
+          $directory = (Get-ChildItem .tools -Directory | Where-Object Name -Like "zig*windows*$version").FullName
+          if (-not $directory) { throw 'Zig archive layout unrecognized' }
+          Add-Content $env:GITHUB_PATH $directory
+
+      - name: Build native Ghostty terminal backend
+        run: bash scripts/setup-windows.sh
+
+      - name: Build Windows CMUX binaries
+        env:
+          LIBCLANG_PATH: C:\msys64\ucrt64\bin
+        run: cargo build --workspace --bins --release --locked
+
+      - name: Bundle portable preview
+        run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)"
+
+      - name: Test portable preview startup and terminal RPC
+        shell: pwsh
+        run: python tests/windows-preview-smoke.py target/windows-preview
+
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-windows-x86_64-preview
+          path: target/windows-preview/
+          if-no-files-found: error
+
+      - name: Collect build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-preview-build-evidence
+          if-no-files-found: ignore
+          path: |
+            ghostty/zig-out/include/ghostty.h
+            target/release/build/cmux-gtk-*/output

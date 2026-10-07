@@ -7,7 +7,6 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::io::{IsTerminal, Read};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -318,18 +317,9 @@ fn git_text_with(
     let token = uuid::Uuid::new_v4();
     let stdout_path = directory.join(format!("{token}.out"));
     let stderr_path = directory.join(format!("{token}.err"));
-    let stdout = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&stdout_path)
+    let stdout = cmux_platform::filesystem::create_private_file(&stdout_path)
         .map_err(|error| CliError::Command(format!("create Git output: {error}")))?;
-    let stderr = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&stderr_path)
-    {
+    let stderr = match cmux_platform::filesystem::create_private_file(&stderr_path) {
         Ok(file) => file,
         Err(error) => {
             let _ = std::fs::remove_file(&stdout_path);

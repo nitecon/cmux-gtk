@@ -33,6 +33,9 @@ pub struct Resolved {
 
 /// Resolve the shared user configuration path without opening files or expanding project content.
 pub fn global_path() -> Option<PathBuf> {
+    #[cfg(windows)]
+    return Some(cmux_platform::paths::config_dir().join("cmux.json"));
+    #[cfg(not(windows))]
     std::env::var_os("XDG_CONFIG_HOME")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)

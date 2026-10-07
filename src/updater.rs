@@ -29,7 +29,8 @@ use cmux_platform::installation::{method as install_method, InstallMethod};
 
 /// Run a silent, rate-limited update check for manually installed binaries.
 pub fn spawn_auto_update() {
-    if env!("CMUX_RELEASE_BUILD") != "1"
+    if cfg!(windows)
+        || env!("CMUX_RELEASE_BUILD") != "1"
         || std::env::var("CMUX_NO_UPDATE").as_deref() == Ok("1")
         || install_method() != InstallMethod::SelfManaged
     {
@@ -55,6 +56,9 @@ pub fn spawn_auto_update() {
 
 /// Update an unpacked/manual installation, or explain the package-manager path.
 pub fn manual_update() -> Result<()> {
+    if cfg!(windows) {
+        bail!("Windows preview updates are installed by replacing the extracted preview folder");
+    }
     match install_method() {
         InstallMethod::Homebrew => {
             bail!("this cmux is managed by Homebrew; run: brew upgrade --cask cmux-gtk")

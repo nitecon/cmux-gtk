@@ -7,6 +7,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMPORARY: AtomicU64 = AtomicU64::new(0);
 
+/// Exclusively create an owner-only file for a caller-owned temporary output.
+pub fn create_private_file(path: &Path) -> io::Result<std::fs::File> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+}
+
 /// Load or create a durable, owner-only 32-byte signing key without following symlinks.
 /// Performs blocking I/O before the UI starts. Invalid or concurrently incomplete files fail closed.
 pub fn load_or_create_secret(path: &Path) -> io::Result<[u8; 32]> {

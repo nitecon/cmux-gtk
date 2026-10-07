@@ -23,11 +23,18 @@ pub fn renderer_info() -> Option<&'static RendererInfo> {
     RENDERER.get()
 }
 
+#[cfg(not(windows))]
 #[link(name = "GL")]
 extern "C" {
     /// Resolve a desktop GL entry point through the Linux GL dispatcher.
     fn glXGetProcAddressARB(name: *const u8) -> *mut c_void;
     /// Read a driver-owned NUL-terminated label while a GL context is current.
+    fn glGetString(name: u32) -> *const u8;
+}
+
+#[cfg(windows)]
+#[link(name = "opengl32")]
+extern "system" {
     fn glGetString(name: u32) -> *const u8;
 }
 
@@ -115,7 +122,33 @@ pub unsafe extern "C" fn get_proc_address(
         return std::ptr::null_mut();
     }
     // SAFETY: The caller supplies a readable C name; libGL does not retain it.
-    unsafe { glXGetProcAddressARB(name.cast()) }
+    #[cfg(not(windows))]
+    unsafe {
+        glXGetProcAddressARB(name.cast())
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::{
+            Graphics::OpenGL::wglGetProcAddress,
+            System::LibraryLoader::{GetModuleHandleA, GetProcAddress},
+        };
+        // SAFETY: a desktop GL context is current; name is a borrowed NUL-terminated string.
+        unsafe {
+            let pointer = wglGetProcAddress(name.cast())
+                .map(|function| function as *mut c_void)
+                .unwrap_or(std::ptr::null_mut());
+            if !matches!(pointer as isize, 0 | 1 | 2 | 3 | -1) {
+                return pointer;
+            }
+            let module = GetModuleHandleA(c"opengl32.dll".as_ptr().cast());
+            if module.is_null() {
+                return std::ptr::null_mut();
+            }
+            GetProcAddress(module, name.cast())
+                .map(|function| function as *mut c_void)
+                .unwrap_or(std::ptr::null_mut())
+        }
+    }
 }
 
 /// Leave presentation to GtkGLArea after the render signal returns.
