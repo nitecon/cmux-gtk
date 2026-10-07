@@ -138,6 +138,22 @@ def main():
                 assert len(received) == 1 and received[0].startswith(START) and received[0].endswith(STOP)
                 assert "Task specification" in received[0]
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
+                # An incremental TUI owns the screen: long injections must not alter untouched rows or scroll it.
+                (root / "first.mode").write_text("incremental")
+                app.wait_for(lambda: "permission checks preserved" in raw(app, "surface.read_text", id=surfaces["first"])["text"],
+                             "incremental screen")
+                baseline = raw(app, "surface.read_text", id=surfaces["first"])["text"]
+                expected_screen = baseline.replace("Gateway fixture: permission checks preserved",
+                                                   "Gateway fixture: submission received")
+                for index in range(2):
+                    content = f"Incremental display check {index}\n" + ("Long wrapped message " * 100 + "\n") * 3
+                    event_id = gateway.add(content=content)
+                    wait_outcome(app, gateway, event_id, "injected")
+                    app.wait_for(lambda: content in submissions(root / "first.input")[-1], "incremental submission")
+                    app.wait_for(lambda: "submission received" in raw(app, "surface.read_text", id=surfaces["first"])["text"],
+                                 "incremental response")
+                    assert raw(app, "surface.read_text", id=surfaces["first"])["text"] == expected_screen
+                (root / "first.mode").write_text("idle")
                 for role in ("user", "agent", "system"):
                     comment = dict(id="ordinary-" + role, task_id="ordinary-task", author="ordinary-writer",
                                    author_type=role, content="Context from " + role)

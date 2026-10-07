@@ -176,14 +176,9 @@ fn deliver(
     unsafe {
         crate::ghostty::text::send_literal(pointer, &text).map_err(str::to_owned)?;
         crate::ghostty::text::send_character(pointer, '\r').map_err(str::to_owned)?;
-        // Display-only annotation: trusted ANSI style and validated literal text never go into agent stdin.
-        let annotation = format!("\r\n\x1b[36m{}\x1b[0m\r\n", text.replace("\n", "\r\n"));
-        crate::ghostty::ffi::ghostty_surface_process_output(
-            pointer,
-            annotation.as_ptr().cast(),
-            annotation.len(),
-        );
     }
+    // The foreground agent owns terminal output and cursor state, including rendering the submitted message.
+    // Writing an extra annotation into its output stream would invalidate incremental TUI redraws.
     snapshot(state);
     Ok(DeliveryOutcome::Injected)
 }

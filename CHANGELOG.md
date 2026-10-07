@@ -13,6 +13,12 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.3] - 2026-10-07
+
+### Fixed
+
+- Preserve agent terminal cursor and screen state during gateway injection by letting the foreground agent render submitted messages instead of writing a second annotation into its output stream.
+
 ## [0.6.2] - 2026-10-06
 
 ### Fixed

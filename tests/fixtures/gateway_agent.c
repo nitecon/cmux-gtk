@@ -50,14 +50,17 @@ int main(int argc, char **argv) {
     cfmakeraw(&raw);
     if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) return 4;
     const char *marker = strstr(argv[0], "claude") ? "❯" : "›";
-    char input[65536] = {0}, mode[64], sequence[16] = {0};
+    char input[65536] = {0}, mode[64], previous_mode[64] = {0}, sequence[16] = {0};
     size_t length = 0, sequence_length = 0;
     int paste = 0;
     printf("\033[?2004h\033]7;file://localhost%s\007", argv[3]);
     for (;;) {
         state(argv[1], mode, sizeof(mode));
         if (strcmp(mode, "exit") == 0 || strcmp(mode, "shell") == 0) break;
-        render(mode, marker, length < 128 ? input : "");
+        /* Incremental mode keeps untouched rows, like a TUI that trusts its previous frame. */
+        if (strcmp(mode, "incremental") != 0 || strcmp(mode, previous_mode) != 0)
+            render(mode, marker, length < 128 ? input : "");
+        strcpy(previous_mode, mode);
         struct pollfd descriptor = {STDIN_FILENO, POLLIN, 0};
         int ready = poll(&descriptor, 1, 250);
         if (ready < 0) break;
@@ -84,6 +87,11 @@ int main(int argc, char **argv) {
                 if (!log) { tcsetattr(STDIN_FILENO, TCSANOW, &original); return 5; }
                 fprintf(log, "%s\n===SUBMITTED===\n", input); fclose(log);
                 length = 0; input[0] = '\0';
+                if (strcmp(mode, "incremental") == 0) {
+                    /* Repaint only the response heading; preserve composer, footer and caret. */
+                    printf("\033[1;1H\033[2KGateway fixture: submission received\033[3;3H");
+                    fflush(stdout);
+                }
                 continue;
             }
             if (length + 1 < sizeof(input)) { input[length++] = (char)c; input[length] = '\0'; }
