@@ -8,6 +8,14 @@ use std::os::fd::{AsFd, AsRawFd};
 /// Accepts borrowed standard-library or Tokio sockets. Returns false for a
 /// different user and an I/O error if the kernel cannot provide credentials.
 pub fn same_user(socket: &impl AsFd) -> io::Result<bool> {
+    let credential = credentials(socket)?;
+    // SAFETY: getuid takes no arguments and has no caller preconditions.
+    Ok(credential.uid == unsafe { libc::getuid() })
+}
+
+/// Return kernel credentials of the actual connected caller, never request-supplied identifiers.
+/// The caller must still check UID and revalidate a live process generation before trusting PID.
+pub fn credentials(socket: &impl AsFd) -> io::Result<libc::ucred> {
     let fd = socket.as_fd();
     let mut credential = libc::ucred {
         pid: 0,
@@ -35,8 +43,13 @@ pub fn same_user(socket: &impl AsFd) -> io::Result<bool> {
             "invalid peer credential size",
         ));
     }
-    // SAFETY: getuid takes no arguments and has no caller preconditions.
-    Ok(credential.uid == unsafe { libc::getuid() })
+    if credential.pid <= 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid peer process",
+        ));
+    }
+    Ok(credential)
 }
 
 /// Check full peer hangup or socket failure without consuming data or waiting.

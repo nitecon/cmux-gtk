@@ -310,9 +310,212 @@ fn node_agent(cmdline: &[u8]) -> Option<&'static str> {
     }
 }
 
+/// Find the actual provider executor of a local caller on a blocking worker.
+/// Thread identity is supplied separately by the provider invocation; ancestor environment and
+/// terminal identity are never used. Every hop is bounded and rechecked against PID reuse.
+pub fn agent_executor(caller_pid: u64, provider: &str) -> Option<Identity> {
+    if !matches!(provider, "codex" | "claude") {
+        return None;
+    }
+    let mut pid = caller_pid;
+    for _ in 0..32 {
+        if pid == 0 || pid > i32::MAX as u64 {
+            return None;
+        }
+        let root = std::path::PathBuf::from(format!("/proc/{pid}"));
+        let before = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+        let start = process_start(&before)?;
+        let fields: Vec<_> = before.rsplit_once(')')?.1.split_whitespace().collect();
+        let parent: u64 = fields.get(1)?.parse().ok()?;
+        if let Some(identity) = agent_identity(pid) {
+            if identity.client != provider || identity.start_ticks != start {
+                return None;
+            }
+            let mut command = Vec::new();
+            std::fs::File::open(root.join("cmdline"))
+                .ok()?
+                .take(16 * 1024 + 1)
+                .read_to_end(&mut command)
+                .ok()?;
+            if command.len() > 16 * 1024 || !executor_role(provider, &command) {
+                return None;
+            }
+            // Codex's official Node entrypoint launches Rust; it is not a model executor.
+            if provider == "codex"
+                && std::fs::read_link(root.join("exe"))
+                    .ok()?
+                    .file_name()?
+                    .to_str()?
+                    == "node"
+            {
+                return None;
+            }
+            return (agent_identity(pid)? == identity).then_some(identity);
+        }
+        let after = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+        let after_fields: Vec<_> = after.rsplit_once(')')?.1.split_whitespace().collect();
+        if process_start(&after)? != start
+            || after_fields.get(1)?.parse::<u64>().ok()? != parent
+            || parent == pid
+        {
+            return None;
+        }
+        pid = parent;
+    }
+    None
+}
+
+/// Utility commands are not model executors, even when the executable has the provider name.
+fn executor_role(provider: &str, command: &[u8]) -> bool {
+    let args: Vec<_> = command
+        .split(|b| *b == 0)
+        .filter(|arg| !arg.is_empty())
+        .collect();
+    if provider == "claude" {
+        return true; // Native Claude and its verified official Node entrypoint own execution.
+    }
+    if args
+        .iter()
+        .any(|a| matches!(*a, b"--help" | b"-h" | b"--version" | b"-V"))
+    {
+        return false;
+    }
+    let mut index = 1;
+    while let Some(arg) = args.get(index) {
+        if matches!(
+            *arg,
+            b"-c"
+                | b"--config"
+                | b"-m"
+                | b"--model"
+                | b"-p"
+                | b"--profile"
+                | b"--remote"
+                | b"--remote-auth-token-env"
+                | b"-C"
+                | b"--cd"
+                | b"-s"
+                | b"--sandbox"
+                | b"-a"
+                | b"--ask-for-approval"
+                | b"--local-provider"
+                | b"--enable"
+                | b"--disable"
+                | b"--add-dir"
+                | b"--code-mode-host"
+                | b"--listen"
+        ) {
+            if args
+                .get(index + 1)
+                .is_none_or(|value| value.starts_with(b"-"))
+            {
+                return false;
+            }
+            index += 2;
+            continue;
+        }
+        if !arg.starts_with(b"-") {
+            return match *arg {
+                b"app-server" => !args.iter().any(|a| {
+                    matches!(
+                        *a,
+                        b"generate-json-schema" | b"generate-ts" | b"proxy" | b"daemon"
+                    )
+                }),
+                b"exec" | b"e" | b"review" => true,
+                b"resume" | b"fork" => args.contains(&b"--no-daemon".as_slice()),
+                _ => false,
+            };
+        }
+        index += 1;
+    }
+    args.contains(&b"--no-daemon".as_slice())
+}
+
+/// Read only provider-native identifiers from a bounded caller environment; no terminal or secret data escapes.
+pub fn provider_invocation_ids(pid: u64) -> Option<Vec<(String, String)>> {
+    if pid == 0 || pid > i32::MAX as u64 {
+        return None;
+    }
+    let path = std::path::PathBuf::from(format!("/proc/{pid}/environ"));
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(65537)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() > 65536 {
+        return None;
+    }
+    let mut result = Vec::new();
+    for field in bytes.split(|b| *b == 0) {
+        let Some(index) = field.iter().position(|b| *b == b'=') else {
+            continue;
+        };
+        let key = &field[..index];
+        if matches!(
+            key,
+            b"CODEX_THREAD_ID" | b"CODEX_SESSION_ID" | b"CLAUDE_CODE_SESSION_ID"
+        ) {
+            result.push((
+                std::str::from_utf8(key).ok()?.to_owned(),
+                std::str::from_utf8(&field[index + 1..]).ok()?.to_owned(),
+            ));
+        }
+    }
+    Some(result)
+}
+
+/// Observe the configured agent-tools hook execution rather than trusting a capability flag in JSON.
+pub fn agent_tools_hook(pid: u64) -> bool {
+    let path = std::path::PathBuf::from(format!("/proc/{pid}"));
+    let Ok(exe) = std::fs::read_link(path.join("exe")) else {
+        return false;
+    };
+    if exe.file_name().is_none_or(|name| name != "agent-tools") {
+        return false;
+    }
+    let mut bytes = Vec::new();
+    let Ok(mut file) = std::fs::File::open(path.join("cmdline")) else {
+        return false;
+    };
+    if file.by_ref().take(4097).read_to_end(&mut bytes).is_err() || bytes.len() > 4096 {
+        return false;
+    }
+    let args: Vec<_> = bytes.split(|b| *b == 0).collect();
+    args.get(1) == Some(&b"hook".as_slice())
+        && args
+            .get(2)
+            .is_some_and(|value| matches!(*value, b"user-prompt-submit" | b"session-start"))
+}
+
 #[cfg(test)]
 mod agent_tests {
     use super::*;
+
+    /// Frontends, Node launchers and utilities cannot become a replacement executor after a daemon dies.
+    #[test]
+    fn executor_roles_require_execution_evidence() {
+        for args in [
+            b"codex\0app-server\0".as_slice(),
+            b"codex\0exec\0hi\0",
+            b"codex\0--no-daemon\0",
+            b"codex\0resume\0--no-daemon\0",
+        ] {
+            assert!(executor_role("codex", args));
+        }
+        for args in [
+            b"codex\0".as_slice(),
+            b"codex\0login\0--no-daemon\0",
+            b"codex\0unknown\0--no-daemon\0",
+            b"codex\0app-server\0generate-ts\0",
+            b"codex\0resume\0",
+            b"codex\0--no-daemon\0--help\0",
+            b"codex\0--no-daemon\0-m\0",
+        ] {
+            assert!(!executor_role("codex", args));
+        }
+    }
 
     /// Versioned native installs remain agents after updater unlinking; generic versioned binaries never qualify.
     #[test]

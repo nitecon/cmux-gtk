@@ -4,10 +4,9 @@ pub mod auth;
 pub mod commands;
 mod dispatch;
 mod framing;
+pub mod handlers;
 pub(crate) mod project;
 pub(crate) mod response;
-use dispatch::dispatch_line;
-pub mod handlers;
 
 pub use cmux_platform::paths::socket_path;
 
@@ -109,6 +108,10 @@ async fn handle_connection(
 ) {
     use tokio::io::BufReader;
 
+    // UID admission has already succeeded. Only the kernel can supply a process identity.
+    let peer_pid = cmux_platform::peer::credentials(&stream)
+        .ok()
+        .and_then(|peer| u32::try_from(peer.pid).ok());
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
 
@@ -127,7 +130,7 @@ async fn handle_connection(
         let response = tokio::select! {
             biased;
             // Preserve admission of a complete request even if its sender has already closed.
-            response = dispatch_line(line, &cmd_tx) => response,
+            response = dispatch::dispatch_peer_line(line, &cmd_tx, peer_pid) => response,
             closed = wait_for_disconnect(writer.as_ref()) => {
                 crate::diagnostics::record("rpc.connection.abandoned", serde_json::json!({
                     "monitor_error": closed.err().map(|error| format!("{:?}", error.kind())),

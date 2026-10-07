@@ -16,6 +16,8 @@ pub enum SplitDirection {
 pub enum SocketCommand {
     /// GTK validates gateway routing; its owned worker handles asynchronous durable operations.
     Gateway {
+        /// Native transport credentials; JSON clients cannot select this process.
+        peer_pid: Option<u32>,
         req_id: Value,
         method: String,
         params: Value,

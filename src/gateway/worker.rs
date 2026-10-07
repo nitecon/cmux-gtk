@@ -1,5 +1,6 @@
 //! One owned lifecycle connection and fsynced delivery queue; GTK alone owns native terminal input.
 use super::{
+    actor,
     model::*,
     pipeline::{Pending, Pipeline},
     readiness, storage, wire,
@@ -25,9 +26,15 @@ pub struct Request {
 
 /// GTK rechecks the live target and reports actual input separately from canonical task completion.
 pub struct Delivery {
-    pub message: Message,
+    pub payload: Payload,
     pub session: Session,
     pub reply: oneshot::Sender<Result<DeliveryOutcome, String>>,
+}
+
+/// Enrollment is local housekeeping and never impersonates a gateway task or emits gateway receipts.
+pub enum Payload {
+    Task(Box<Message>),
+    Enrollment(String),
 }
 
 /// One socket and its subscription/heartbeat lifetime; dropping it cancels this connection.
@@ -62,6 +69,7 @@ struct Worker {
     connection: String,
     agents: usize,
     prompts: HashMap<String, StablePrompt>,
+    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 }
 
 impl Worker {
@@ -228,6 +236,11 @@ impl Worker {
             finalize(&mut receipt, "failed", "Gateway message queue is full");
         } else {
             receipt.candidates = active(terminals, &self.journal.instance_id).await;
+            if let Ok(actors) = self.actors.lock() {
+                for candidate in &mut receipt.candidates {
+                    candidate.actor_origin = actors.origin(candidate);
+                }
+            }
             if receipt.candidates.is_empty() {
                 finalize(
                     &mut receipt,
@@ -291,11 +304,10 @@ impl Worker {
                     .iter()
                     .filter(|s| {
                         received.candidates.iter().any(|c| {
-                            c.process == s.process
-                                && c.session_id == s.session_id
-                                && c.terminal.surface_id == s.terminal.surface_id
-                                && c.terminal.workspace_id == s.terminal.workspace_id
-                                && c.terminal.directory == s.terminal.directory
+                            c.same_attachment(s)
+                                && c.actor_origin
+                                    .as_ref()
+                                    .is_none_or(|origin| s.actor_origin.as_ref() == Some(origin))
                         })
                     })
                     .cloned()
@@ -323,7 +335,66 @@ impl Worker {
     }
 
     /// Attach a fresh readiness observation only after native layout, process generation and input stay stable.
-    fn observe(&mut self, sessions: &mut [Session]) {
+    async fn observe(&mut self, sessions: &mut [Session]) -> Result<(), String> {
+        let known = self.actors.lock().map(|a| a.actors()).unwrap_or_default();
+        let dead = tokio::task::spawn_blocking(move || {
+            known.into_iter().filter(|a| !a.live()).collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or_default();
+        let mut pinned = false;
+        if let Ok(mut actors) = self.actors.lock() {
+            actors.retire(&dead);
+            actors.retain(sessions);
+            for session in sessions.iter_mut() {
+                session.actor_origin = actors.origin(session);
+            }
+            // Pin previously unknown logical actors exactly once after automatic enrollment.
+            for pending in &mut self.pipeline.pending {
+                if pending.target.actor_origin.is_none() {
+                    pending.target.actor_origin = sessions
+                        .iter()
+                        .find(|s| pending.target.same_target(s))
+                        .and_then(|s| s.actor_origin.clone());
+                }
+            }
+            for receipt in self
+                .journal
+                .receipts
+                .iter_mut()
+                .filter(|r| r.outcome == "queued")
+            {
+                if let Some(target) = &mut receipt.target {
+                    if target.actor_origin.is_none() {
+                        target.actor_origin = sessions
+                            .iter()
+                            .find(|s| target.same_target(s))
+                            .and_then(|s| s.actor_origin.clone());
+                        pinned |= target.actor_origin.is_some();
+                    }
+                }
+            }
+            for receipt in self
+                .journal
+                .receipts
+                .iter_mut()
+                .filter(|r| r.outcome == "received")
+            {
+                for candidate in &mut receipt.candidates {
+                    if candidate.actor_origin.is_none() {
+                        candidate.actor_origin = sessions
+                            .iter()
+                            .find(|s| candidate.same_attachment(s))
+                            .and_then(|s| s.actor_origin.clone());
+                        pinned |= candidate.actor_origin.is_some();
+                    }
+                }
+            }
+        }
+        // Persist first actor attribution even when its prompt remains busy; a restart cannot lose the fence.
+        if pinned {
+            self.save().await?;
+        }
         self.agents = sessions.len();
         let mut live = HashSet::new();
         for session in sessions.iter_mut() {
@@ -392,11 +463,50 @@ impl Worker {
                 }.into();
             }
         }
+        Ok(())
     }
 
     /// Fsync a submitting fence, then request one GTK operation; lost replies become nonreplayable uncertainty.
     async fn drain_verified(&mut self, sessions: Vec<Session>) -> Result<(), String> {
-        let Some((pending, ready)) = self.pipeline.next(&self.projects, &sessions) else {
+        if self.journal.config.enabled && self.journal.config.injection_approved {
+            // One safe native input per tick. Enrollment precedes tasks and creates no model turn.
+            for session in &sessions {
+                let text = self
+                    .actors
+                    .lock()
+                    .map_err(|_| "Agent identity state unavailable")?
+                    .enrollment(session);
+                if let Some(text) = text {
+                    let (reply, result) = oneshot::channel();
+                    let delivery = Delivery {
+                        payload: Payload::Enrollment(text),
+                        session: session.clone(),
+                        reply,
+                    };
+                    let _ = tokio::time::timeout(Duration::from_secs(2), async {
+                        if self.deliveries.send(delivery).await.is_ok() {
+                            let _ = result.await;
+                        }
+                    })
+                    .await;
+                    self.prompts.remove(&session.terminal.surface_id);
+                    return Ok(());
+                }
+            }
+        }
+        let mut available = sessions;
+        {
+            let actors = self
+                .actors
+                .lock()
+                .map_err(|_| "Agent identity state unavailable")?;
+            for session in &mut available {
+                if actors.waiting(session) {
+                    session.terminal.observation = None;
+                }
+            }
+        }
+        let Some((pending, ready)) = self.pipeline.next(&self.projects, &available) else {
             return Ok(());
         };
         let index = self
@@ -418,13 +528,28 @@ impl Worker {
             self.publish();
             return Ok(());
         }
+        if pending
+            .message
+            .origin
+            .as_ref()
+            .is_some_and(|origin| pending.target.is_origin(origin, &self.journal.instance_id))
+        {
+            finalize(
+                &mut self.journal.receipts[index],
+                "skipped",
+                "Event originated in this exact agent session",
+            );
+            self.save().await?;
+            self.publish();
+            return Ok(());
+        }
         self.journal.receipts[index].outcome = "submitting".into();
         self.journal.receipts[index].confirmed = false;
         self.save().await?;
         let (reply, result) = oneshot::channel();
         let surface = pending.target.terminal.surface_id.clone();
         let delivery = Delivery {
-            message: pending.message.clone(),
+            payload: Payload::Task(Box::new(pending.message.clone())),
             session: pending.target.clone(),
             reply,
         };
@@ -633,7 +758,7 @@ fn finalize(receipt: &mut Receipt, status: &str, reason: &str) {
 }
 
 /// Snapshot actual active foreground agents off GTK, before any slow repository lookup or receipt acknowledgment.
-async fn active(terminals: &[Terminal], instance_id: &str) -> Vec<Session> {
+pub(super) async fn active(terminals: &[Terminal], instance_id: &str) -> Vec<Session> {
     if terminals.len() > MAX_PENDING {
         return Vec::new();
     }
@@ -665,16 +790,32 @@ pub async fn context(
     terminals: Vec<Terminal>,
     instance_id: String,
     surface_id: Option<String>,
+    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 ) -> Result<Value, String> {
-    let sessions = active(&terminals, &instance_id).await;
+    let mut sessions = active(&terminals, &instance_id).await;
+    let mut actors = actors
+        .lock()
+        .map_err(|_| "Agent identity state unavailable")?;
+    actors.retain(&sessions);
+    let metadata = |session: &mut Session| {
+        let actor = actors.actor(session);
+        session.actor_origin = actor.as_ref().map(|a| a.origin.clone());
+        let mut context = session.context(&instance_id);
+        context["binding_state"] = json!(if actor.is_some() { "bound" } else { "unbound" });
+        if let Some(actor) = actor {
+            context["provider_session_id"] = json!(actor.provider_session_id);
+            context["executor_generation"] = json!(actor.executor_generation);
+        }
+        context
+    };
     if let Some(surface_id) = surface_id {
         sessions
-            .iter()
+            .iter_mut()
             .find(|s| s.terminal.surface_id == surface_id)
-            .map(|s| s.context(&instance_id))
+            .map(metadata)
             .ok_or_else(|| "No verified active agent on this surface".to_owned())
     } else {
-        Ok(json!({"sessions":sessions.iter().map(|s|s.context(&instance_id)).collect::<Vec<_>>()}))
+        Ok(json!({"sessions":sessions.iter_mut().map(metadata).collect::<Vec<_>>()}))
     }
 }
 
@@ -782,6 +923,7 @@ pub async fn run(
     snapshots: watch::Receiver<Vec<Terminal>>,
     view: watch::Sender<View>,
     deliveries: mpsc::Sender<Delivery>,
+    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 ) {
     let path = storage::path();
     let loading = path.clone();
@@ -798,7 +940,7 @@ pub async fn run(
             }); }
         }
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new()};
+            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new(),actors};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -857,7 +999,7 @@ pub async fn run(
                             if c.projects_at.elapsed()>=Duration::from_secs(30) { worker.projects=c.client.projects().await?; c.projects_at=Instant::now(); }
                             heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
-                            let mut sessions=discover(&terminals,&worker.journal.instance_id).await; worker.observe(&mut sessions);
+                            let mut sessions=discover(&terminals,&worker.journal.instance_id).await; worker.observe(&mut sessions).await?;
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
                             heartbeat(c).await?;
@@ -986,6 +1128,7 @@ mod tests {
             process,
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v4().to_string(),
+            actor_origin: None,
         };
         let message = Message {
             event_id: "event".into(),
@@ -1009,6 +1152,7 @@ mod tests {
             connection: "Connected".into(),
             agents: 1,
             prompts: HashMap::new(),
+            actors: std::sync::Arc::default(),
         };
         worker
             .pipeline
@@ -1030,7 +1174,10 @@ mod tests {
                 // load converts submitting to uncertain, proving the fence preceded the GTK request.
                 assert_eq!(journal.receipts[0].event_id, "event");
                 assert_eq!(journal.receipts[0].outcome, "uncertain");
-                assert_eq!(delivery.message.terminal_text(), message.terminal_text());
+                let Payload::Task(delivered) = &delivery.payload else {
+                    panic!("unexpected enrollment");
+                };
+                assert_eq!(delivered.terminal_text(), message.terminal_text());
                 delivery.reply.send(Ok(outcome)).unwrap();
             }
         });
@@ -1056,10 +1203,59 @@ mod tests {
         assert_eq!(
             worker
                 .pipeline
-                .admit(&mut replay, &worker.projects, &[session], replay_message)
+                .admit(
+                    &mut replay,
+                    &worker.projects,
+                    std::slice::from_ref(&session),
+                    replay_message
+                )
                 .unwrap(),
             Admission::Duplicate
         );
+        // Arrival before enrollment cannot leak an echo once the exact logical actor becomes known.
+        let origin = Origin {
+            session_id: uuid::Uuid::new_v4().to_string(),
+            instance_id: uuid::Uuid::new_v4().to_string(),
+            provider: "codex".into(),
+            os: "linux".into(),
+        };
+        let late = Message {
+            event_id: "late-echo".into(),
+            project_ident: "project".into(),
+            task_id: "task".into(),
+            kind: Kind::Commented,
+            text: "Own comment".into(),
+            author_id: None,
+            source_instance: None,
+            origin: Some(origin.clone()),
+        };
+        worker
+            .pipeline
+            .admit(
+                &mut worker.journal,
+                &worker.projects,
+                std::slice::from_ref(&session),
+                late,
+            )
+            .unwrap();
+        let mut bound = session;
+        bound.actor_origin = Some(origin.clone());
+        worker
+            .pipeline
+            .pending
+            .back_mut()
+            .unwrap()
+            .target
+            .actor_origin = Some(origin);
+        worker.drain_verified(vec![bound]).await.unwrap();
+        assert_eq!(worker.journal.receipts.back().unwrap().outcome, "skipped");
+        assert!(worker
+            .journal
+            .receipts
+            .back()
+            .unwrap()
+            .reason
+            .contains("exact agent session"));
         // A journal failure never permits the next queued input to reach GTK.
         worker.path = root.clone();
         assert!(worker.save().await.is_err());

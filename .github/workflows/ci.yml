@@ -154,6 +154,22 @@ jobs:
       - name: Test gateway lifecycle stream and native terminal injection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
 
+      - name: Build pinned session-aware client for shared-executor integration
+        env:
+          ACTOR_CLIENT_REVISION: 9656f0126b0ffe2c7fdf85b38752575d5df0c502
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/actor-client-build
+        run: |
+          git init target/actor-client-source
+          git -C target/actor-client-source remote add origin https://github.com/nitecon/agent-tools.git
+          git -C target/actor-client-source fetch --depth=1 origin "$ACTOR_CLIENT_REVISION"
+          git -C target/actor-client-source checkout --detach FETCH_HEAD
+          cargo build --locked --release --manifest-path target/actor-client-source/Cargo.toml -p agent-cli --bin agent-tools
+
+      - name: Test automatic actor binding with real client hooks and tools
+        env:
+          CMUX_ACTOR_CLIENT: target/actor-client-build/release/agent-tools
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_actor_binding.py
+
       - name: Test local listener attribution
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_ports.py
 

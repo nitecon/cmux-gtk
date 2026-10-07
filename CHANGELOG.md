@@ -13,6 +13,14 @@ All notable changes to cmux GTK are documented here.
 - Centralize Linux paths, peer authentication and the optional GTK/X11 placement bridge in a platform library.
 - Remove the inherited marketing website, unused native linker stubs and duplicate desktop launcher; replace obsolete contribution instructions.
 
+## [0.6.5] - 2026-10-07
+
+### Fixed
+
+- Resolve logical agent identity automatically through shared Codex executors using the calling provider conversation and exact executor generation, with agent-tools actor provenance independent of inherited terminal variables.
+- Bind actors to native CMUX recipients through existing prompt hooks, consuming enrollment before model execution; preserve useful peer comments and completions while suppressing exact-origin echoes.
+- Retire membership and queued actor targets on conversation or executor replacement, preserving consent, busy/draft, process-generation and uncertain-submission fences.
+
 ## [0.6.4] - 2026-10-07
 
 ### Added

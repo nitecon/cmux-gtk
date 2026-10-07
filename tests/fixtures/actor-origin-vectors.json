@@ -1,0 +1,105 @@
+[
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "linux",
+    "provider": "codex",
+    "provider_session_id": "01a117a5-2240-7e00-be27-d42910e71473",
+    "executor_generation": [
+      "linux-proc-v1",
+      "11111111-2222-4333-8444-555555555555",
+      "1234",
+      "987654321"
+    ],
+    "name": "linux_codex",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"linux\",\"codex\",\"01a117a5-2240-7e00-be27-d42910e71473\",[\"linux-proc-v1\",\"11111111-2222-4333-8444-555555555555\",\"1234\",\"987654321\"]]",
+    "session_id": "6609e22a-f740-5d8e-ad37-7751cf2d2f95"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "linux",
+    "provider": "codex",
+    "provider_session_id": "01a11435-6625-7070-ae4d-668abecf45df",
+    "executor_generation": [
+      "linux-proc-v1",
+      "11111111-2222-4333-8444-555555555555",
+      "1234",
+      "987654321"
+    ],
+    "name": "same_daemon_peer",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"linux\",\"codex\",\"01a11435-6625-7070-ae4d-668abecf45df\",[\"linux-proc-v1\",\"11111111-2222-4333-8444-555555555555\",\"1234\",\"987654321\"]]",
+    "session_id": "d6caec74-bcd8-5559-8f62-f18c149773f3"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "linux",
+    "provider": "codex",
+    "provider_session_id": "01a117a5-2240-7e00-be27-d42910e71473",
+    "executor_generation": [
+      "linux-proc-v1",
+      "11111111-2222-4333-8444-555555555555",
+      "1234",
+      "987654322"
+    ],
+    "name": "executor_restart",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"linux\",\"codex\",\"01a117a5-2240-7e00-be27-d42910e71473\",[\"linux-proc-v1\",\"11111111-2222-4333-8444-555555555555\",\"1234\",\"987654322\"]]",
+    "session_id": "ee26a8bf-7fc5-5501-abb8-9fc3c50ba872"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeefe",
+    "os": "linux",
+    "provider": "codex",
+    "provider_session_id": "01a117a5-2240-7e00-be27-d42910e71473",
+    "executor_generation": [
+      "linux-proc-v1",
+      "11111111-2222-4333-8444-555555555555",
+      "1234",
+      "987654321"
+    ],
+    "name": "other_machine",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"linux\",\"codex\",\"01a117a5-2240-7e00-be27-d42910e71473\",[\"linux-proc-v1\",\"11111111-2222-4333-8444-555555555555\",\"1234\",\"987654321\"]]",
+    "session_id": "8ded97e2-ca79-54cb-87ee-b3dce7415ac1"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "windows",
+    "provider": "claude",
+    "provider_session_id": "opaque-native-id",
+    "executor_generation": [
+      "windows-process-v1",
+      "5678",
+      "134042112001234567"
+    ],
+    "name": "windows_claude",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"windows\",\"claude\",\"opaque-native-id\",[\"windows-process-v1\",\"5678\",\"134042112001234567\"]]",
+    "session_id": "874785c3-a5b9-56f1-a688-1bb4cb9f91ae"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "macos",
+    "provider": "codex",
+    "provider_session_id": "01a117a5-2240-7e00-be27-d42910e71473",
+    "executor_generation": [
+      "macos-proc-v1",
+      "5678",
+      "1791403200123456"
+    ],
+    "name": "macos_codex",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"macos\",\"codex\",\"01a117a5-2240-7e00-be27-d42910e71473\",[\"macos-proc-v1\",\"5678\",\"1791403200123456\"]]",
+    "session_id": "b8c116df-e470-5e0b-bb41-63ec775f00de"
+  },
+  {
+    "instance_id": "00112233-4455-4677-8899-aabbccddeeff",
+    "os": "linux",
+    "provider": "codex",
+    "provider_session_id": "01A117A5-2240-7E00-BE27-D42910E71473",
+    "executor_generation": [
+      "linux-proc-v1",
+      "11111111-2222-4333-8444-555555555555",
+      "1234",
+      "987654321"
+    ],
+    "name": "uuid_case_normalization",
+    "name_utf8": "[\"agent-tools-actor-v1\",\"linux\",\"codex\",\"01a117a5-2240-7e00-be27-d42910e71473\",[\"linux-proc-v1\",\"11111111-2222-4333-8444-555555555555\",\"1234\",\"987654321\"]]",
+    "session_id": "6609e22a-f740-5d8e-ad37-7751cf2d2f95"
+  }
+]

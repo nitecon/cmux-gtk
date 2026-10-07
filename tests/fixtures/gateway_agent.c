@@ -5,6 +5,53 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/un.h>
+
+static void state(const char *path, char *value, size_t size);
+static int send_all(int descriptor, const void *data, size_t length) {
+    const char *bytes = data;
+    while (length) {
+        ssize_t count = write(descriptor, bytes, length);
+        if (count <= 0) return 0;
+        bytes += count; length -= (size_t)count;
+    }
+    return 1;
+}
+
+/** Optional real-client hook relay: the shared executor owns all client subprocesses, never this frontend. */
+static int hook(const char *prompt) {
+    const char *endpoint = getenv("CMUX_FIXTURE_ACTOR_BROKER");
+    const char *native_file = getenv("CMUX_FIXTURE_NATIVE_FILE");
+    if (!endpoint || !native_file) return 0;
+    char native[257];
+    state(native_file, native, sizeof(native));
+    struct sockaddr_un address = { .sun_family = AF_UNIX };
+    if (strlen(endpoint) >= sizeof(address.sun_path)) return -1;
+    strcpy(address.sun_path, endpoint);
+    int connection = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (connection < 0 || connect(connection, (struct sockaddr *)&address, sizeof(address)) != 0) {
+        if (connection >= 0) close(connection);
+        return -1;
+    }
+    struct timeval timeout = { .tv_sec = 12 };
+    setsockopt(connection, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    const char *parts[] = {native, prompt ? prompt : ""};
+    char kind = prompt ? 'U' : 'S';
+    int good = send_all(connection, &kind, 1);
+    for (int i = 0; i < 2 && good; ++i) {
+        uint32_t length = htonl((uint32_t)strlen(parts[i]));
+        good = send_all(connection, &length, sizeof(length))
+            && send_all(connection, parts[i], strlen(parts[i]));
+    }
+    char blocked = 0;
+    if (!good || read(connection, &blocked, 1) != 1) blocked = -1;
+    close(connection);
+    return blocked;
+}
 
 /** Read caller-owned state on each tick; absence defaults to an idle, editable prompt. */
 static void state(const char *path, char *value, size_t size) {
@@ -54,6 +101,7 @@ int main(int argc, char **argv) {
     size_t length = 0, sequence_length = 0;
     int paste = 0;
     printf("\033[?2004h\033]7;file://localhost%s\007", argv[3]);
+    if (hook(NULL) < 0) return 6;
     for (;;) {
         state(argv[1], mode, sizeof(mode));
         if (strcmp(mode, "exit") == 0 || strcmp(mode, "shell") == 0) break;
@@ -83,6 +131,7 @@ int main(int argc, char **argv) {
             }
             if (!paste && c == 21) { length = 0; input[0] = '\0'; continue; }
             if (!paste && (c == '\r' || c == '\n')) {
+                if (hook(input) < 0) { tcsetattr(STDIN_FILENO, TCSANOW, &original); return 6; }
                 FILE *log = fopen(argv[2], "a");
                 if (!log) { tcsetattr(STDIN_FILENO, TCSANOW, &original); return 5; }
                 fprintf(log, "%s\n===SUBMITTED===\n", input); fclose(log);

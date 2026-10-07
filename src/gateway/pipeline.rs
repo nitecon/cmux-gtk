@@ -72,9 +72,10 @@ impl Pipeline {
             return Ok(Admission::Skipped);
         }
         let is_origin = |session: &Session| {
-            message.origin.as_ref().is_some_and(|o| {
-                o.session_id == session.session_id && o.instance_id == journal.instance_id
-            })
+            message
+                .origin
+                .as_ref()
+                .is_some_and(|o| session.is_origin(o, &journal.instance_id))
         };
         let recipients = candidates.iter().filter(|s| !is_origin(s)).count();
         if self.pending.len() + recipients > MAX_PENDING {
@@ -192,6 +193,7 @@ mod tests {
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, surface.as_bytes())
                 .to_string(),
+            actor_origin: None,
         }
     }
 

@@ -32,7 +32,7 @@ pub enum Kind {
 }
 
 /// Mutation provenance identifies an exact agent; provider and OS describe it without selecting work.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Origin {
     pub session_id: String,
     pub instance_id: String,
@@ -166,6 +166,9 @@ pub struct Session {
     pub repository: String,
     #[serde(default)]
     pub session_id: String,
+    /// Logical actor provenance is independent of this terminal's durable delivery fence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor_origin: Option<Origin>,
 }
 
 impl Session {
@@ -195,14 +198,16 @@ impl Session {
             process,
             repository,
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes()).to_string(),
+            actor_origin: None,
         }
     }
 
     /// Expose current local context without credentials, screen contents or readiness authority.
     pub fn context(&self, instance_id: &str) -> serde_json::Value {
         serde_json::json!({
-            "session_id": self.session_id,
-            "instance_id": instance_id,
+            "session_id": self.actor_origin.as_ref().map(|o|o.session_id.as_str()).unwrap_or(&self.session_id),
+            "instance_id": self.actor_origin.as_ref().map(|o|o.instance_id.as_str()).unwrap_or(instance_id),
+            "recipient_session_id": self.session_id,
             "provider": self.process.client,
             "os": std::env::consts::OS,
             "surface_id": self.terminal.surface_id,
@@ -210,6 +215,13 @@ impl Session {
             "repository": self.repository,
             "directory": self.terminal.directory,
         })
+    }
+
+    /// Suppress logical actor echoes while accepting exact provenance issued by older CMUX versions.
+    pub fn is_origin(&self, origin: &Origin, legacy_instance: &str) -> bool {
+        self.actor_origin.as_ref().is_some_and(|own| {
+            own.session_id == origin.session_id && own.instance_id == origin.instance_id
+        }) || self.session_id == origin.session_id && legacy_instance == origin.instance_id
     }
 
     /// Require a fresh positive observation for this process and unchanged input revision.
@@ -225,11 +237,20 @@ impl Session {
 
     /// Pin queued messages to one workspace, surface, process generation and repository.
     pub fn same_target(&self, other: &Self) -> bool {
+        self.same_attachment(other)
+            && self.repository == other.repository
+            && self
+                .actor_origin
+                .as_ref()
+                .is_none_or(|origin| other.actor_origin.as_ref() == Some(origin))
+    }
+
+    /// Native terminal membership, independent of Git context and client-owned logical identity.
+    pub fn same_attachment(&self, other: &Self) -> bool {
         self.terminal.workspace_id == other.terminal.workspace_id
             && self.terminal.surface_id == other.terminal.surface_id
             && self.terminal.directory == other.terminal.directory
             && self.process == other.process
-            && self.repository == other.repository
             && self.session_id == other.session_id
     }
 }

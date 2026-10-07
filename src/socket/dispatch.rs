@@ -17,12 +17,22 @@ fn optional_target(params: &serde_json::Value) -> Result<Option<String>, &'stati
 /// Parse a JSON-RPC line and dispatch to the appropriate SocketCommand.
 /// Consumes raw input and releases unused JSON fields before awaiting execution.
 /// Returns encoded JSON and its validated operation identity for transport diagnostics.
+#[cfg(test)]
 pub(super) async fn dispatch_line(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
 ) -> DispatchedResponse {
+    dispatch_peer_line(line, cmd_tx, None).await
+}
+
+/// Carry kernel-authenticated caller identity separately from untrusted request parameters.
+pub(super) async fn dispatch_peer_line(
+    line: String,
+    cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
+    peer_pid: Option<u32>,
+) -> DispatchedResponse {
     let mut operation = None;
-    let response = dispatch_request(line, cmd_tx, &mut operation).await;
+    let response = dispatch_request(line, cmd_tx, &mut operation, peer_pid).await;
     let body = super::response::encode(response, operation.as_mut());
     DispatchedResponse {
         body,
@@ -41,6 +51,7 @@ async fn dispatch_request(
     line: String,
     cmd_tx: &tokio::sync::mpsc::Sender<commands::SocketCommand>,
     operation: &mut Option<crate::diagnostics::Operation>,
+    peer_pid: Option<u32>,
 ) -> serde_json::Value {
     let mut req: serde_json::Value = match serde_json::from_str(&line) {
         Ok(v) => v,
@@ -122,11 +133,17 @@ async fn dispatch_request(
     let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
 
     let cmd = match method.as_str() {
-        "gateway.status" | "gateway.configure" | "gateway.session" | "gateway.sessions" => {
+        "gateway.status"
+        | "gateway.configure"
+        | "gateway.session"
+        | "gateway.sessions"
+        | "gateway.session.announce"
+        | "gateway.session.resolve" => {
             if params.to_string().len() > 65536 {
                 return err(req_id, "invalid_params", "gateway request exceeds limit");
             }
             commands::SocketCommand::Gateway {
+                peer_pid,
                 req_id: req_id.clone(),
                 method: method.clone(),
                 params: params.take(),

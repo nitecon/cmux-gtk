@@ -150,12 +150,13 @@ fn handle_socket_command_traced(
 ) {
     match cmd {
         SocketCommand::Gateway {
+            peer_pid,
             req_id,
             method,
             params,
             resp_tx,
         } => {
-            crate::gateway::rpc(state, &method, params, req_id, resp_tx);
+            crate::gateway::rpc(state, &method, params, peer_pid, req_id, resp_tx);
         }
         SocketCommand::Observed {
             command,
