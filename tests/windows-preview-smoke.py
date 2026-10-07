@@ -67,9 +67,9 @@ def capture_terminal(window, destination):
     destination.write_bytes(struct.pack("<2sIHHI", b"BM", 54 + len(raw), 0, 0, 54) + header + raw)
 
     def is_green(offset):
-        """Recognize the shell's new green background without depending on an exact palette."""
+        """Recognize green or olive ANSI backgrounds while rejecting the preceding blue frame."""
         blue, green, red = raw[offset:offset + 3]
-        return green >= 40 and green > red + 20 and green > blue + 8
+        return green >= 40 and green >= red - 10 and green > blue + 20
 
     offsets = [4 * (y * width + x) for y in range(int(height * 0.3), int(height * 0.8), 3) for x in range(int(width * 0.45), int(width * 0.95), 3)]
     green_fraction = sum(is_green(offset) for offset in offsets) / len(offsets)
