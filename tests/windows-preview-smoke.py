@@ -14,7 +14,7 @@ import time
 
 
 def capture_terminal(window, destination):
-    """Capture the visible client and measure blue terminal background and white glyphs."""
+    """Capture the visible client and measure keyboard-updated green background and white glyphs."""
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
     user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
@@ -66,21 +66,21 @@ def capture_terminal(window, destination):
             user32.ReleaseDC(None, desktop)
     destination.write_bytes(struct.pack("<2sIHHI", b"BM", 54 + len(raw), 0, 0, 54) + header + raw)
 
-    def is_blue(offset):
-        """Recognize the shell's blue background without depending on an exact palette."""
+    def is_green(offset):
+        """Recognize the shell's new green background without depending on an exact palette."""
         blue, green, red = raw[offset:offset + 3]
-        return blue >= 40 and blue > red + 20 and blue > green + 8
+        return green >= 40 and green > red + 20 and green > blue + 8
 
     offsets = [4 * (y * width + x) for y in range(int(height * 0.3), int(height * 0.8), 3) for x in range(int(width * 0.45), int(width * 0.95), 3)]
-    blue_fraction = sum(is_blue(offset) for offset in offsets) / len(offsets)
+    green_fraction = sum(is_green(offset) for offset in offsets) / len(offsets)
     glyph_pixels = 0
     for y in range(int(height * 0.12), int(height * 0.45)):
         for x in range(int(width * 0.3), int(width * 0.95)):
             offset = 4 * (y * width + x)
             color = raw[offset:offset + 3]
-            if min(color) >= 160 and max(color) - min(color) < 35 and (is_blue(offset - 20) or is_blue(offset + 20)):
+            if min(color) >= 160 and max(color) - min(color) < 35 and (is_green(offset - 20) or is_green(offset + 20)):
                 glyph_pixels += 1
-    return {"width": width, "height": height, "blue_fraction": blue_fraction, "glyph_pixels": glyph_pixels}
+    return {"width": width, "height": height, "green_fraction": green_fraction, "glyph_pixels": glyph_pixels}
 
 
 def main():
@@ -187,7 +187,8 @@ def main():
                     time.sleep(0.5)
                 print("Real ConPTY shell input/output verified")
                 user32.MapVirtualKeyW.argtypes = [wintypes.UINT, wintypes.UINT]
-                for character in "echo cmuxnativekeyboard\r":
+                # Change the color through keyboard input so the pixel check must observe a new frame.
+                for character in "color 2f\rcls\recho cmuxnativekeyboard\r":
                     key = 0x0D if character == "\r" else ord(character.upper())
                     scan = user32.MapVirtualKeyW(key, 0)
                     flags = 1 | (scan << 16)
@@ -206,7 +207,7 @@ def main():
                 deadline = time.monotonic() + 15
                 while True:
                     frame = capture_terminal(windows[0], bundle / "smoke-terminal.bmp")
-                    if frame["blue_fraction"] > 0.5 and frame["glyph_pixels"] > 16:
+                    if frame["green_fraction"] > 0.5 and frame["glyph_pixels"] > 16:
                         break
                     if time.monotonic() >= deadline:
                         raise RuntimeError(f"No visible terminal background/glyphs: {frame}")
