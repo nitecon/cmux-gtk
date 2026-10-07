@@ -2,6 +2,7 @@
 
 /// Apply version-scoped GL workarounds before GTK initialization and worker startup.
 pub fn configure() {
+    cmux_platform::opengl::register_gtk_thread();
     let version = (
         gtk4::major_version(),
         gtk4::minor_version(),

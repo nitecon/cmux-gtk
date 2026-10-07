@@ -100,8 +100,9 @@ jobs:
         run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)"
 
       - name: Test portable preview startup and terminal RPC
-        shell: pwsh
-        run: python tests/windows-preview-smoke.py target/windows-preview
+        run: |
+          pacman -S --noconfirm mingw-w64-ucrt-x86_64-mesa
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)"
 
       - name: Upload Windows preview
         if: always() && steps.bundle.outcome == 'success'
@@ -151,31 +152,9 @@ jobs:
           path-type: inherit
           install: mingw-w64-ucrt-x86_64-mesa
 
-      - name: Prepare isolated software-rendered smoke copy
-        shell: msys2 {0}
-        run: |
-          cp -R target/windows-preview target/windows-smoke-preview
-          for dll in /ucrt64/bin/*.dll; do
-            if [ ! -f "target/windows-smoke-preview/${dll##*/}" ]; then
-              cp "$dll" target/windows-smoke-preview/
-            fi
-          done
-
       - name: Test portable preview startup and terminal RPC
-        env:
-          GALLIUM_DRIVER: llvmpipe
-          LIBGL_ALWAYS_SOFTWARE: '1'
-          GDK_DISABLE: egl
-          CMUX_SMOKE_GRAPHICS: software-opengl
-        run: python tests/windows-preview-smoke.py target/windows-smoke-preview
-
-      - name: Preserve runtime evidence in the original portable bundle
-        if: always() && steps.download.outcome == 'success'
-        run: |
-          foreach ($name in @('smoke.log', 'smoke-result.json')) {
-            $source = "target/windows-smoke-preview/$name"
-            if (Test-Path $source) { Copy-Item $source "target/windows-preview/$name" }
-          }
+        shell: msys2 {0}
+        run: python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)"
 
       - name: Upload preview with runtime evidence
         if: always() && steps.download.outcome == 'success'

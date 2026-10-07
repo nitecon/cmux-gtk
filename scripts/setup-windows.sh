@@ -6,6 +6,7 @@ cd "$CMUX_REPOSITORY/ghostty"
 zig build \
     -Dtarget=x86_64-windows-gnu \
     -Dapp-runtime=none \
+    -Dembedded-app-thread-render=true \
     -Dfont-backend=freetype_windows \
     -Doptimize=ReleaseFast \
     -Dcpu=baseline \
