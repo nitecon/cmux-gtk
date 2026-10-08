@@ -232,7 +232,7 @@ fn read_response(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
