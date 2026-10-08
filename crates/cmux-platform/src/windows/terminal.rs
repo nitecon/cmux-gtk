@@ -12,5 +12,36 @@ pub fn physical_keycode(hardware: u32, keypad_enter: bool) -> u32 {
     }
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MapVirtualKeyW, MAPVK_VK_TO_VSC_EX};
     // SAFETY: this queries the current keyboard mapping without retaining pointers.
-    unsafe { MapVirtualKeyW(hardware, MAPVK_VK_TO_VSC_EX) }
+    let scan = unsafe { MapVirtualKeyW(hardware, MAPVK_VK_TO_VSC_EX) };
+    // Navigation virtual keys identify the dedicated extended keys. Some Windows
+    // mappings omit E0 even with MAPVK_VK_TO_VSC_EX; Ghostty then sees keypad keys.
+    match hardware {
+        0x21..=0x28 | 0x2d | 0x2e => scan | 0xe000,
+        _ => scan,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::physical_keycode;
+
+    #[test]
+    fn navigation_keys_remain_distinct_from_keypad_keys() {
+        for (virtual_key, scan) in [
+            (0x21, 0xe049),
+            (0x22, 0xe051),
+            (0x23, 0xe04f),
+            (0x24, 0xe047),
+            (0x25, 0xe04b),
+            (0x26, 0xe048),
+            (0x27, 0xe04d),
+            (0x28, 0xe050),
+            (0x2d, 0xe052),
+            (0x2e, 0xe053),
+        ] {
+            assert_eq!(physical_keycode(virtual_key, false), scan);
+        }
+        assert_eq!(physical_keycode(0x68, false), 0x48); // VK_NUMPAD8
+        assert_eq!(physical_keycode(0x0d, true), 0xe01c);
+    }
 }

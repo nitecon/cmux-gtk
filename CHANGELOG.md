@@ -10,6 +10,7 @@ All notable changes to cmux GTK are documented here.
 
 ### Fixed
 
+- Preserve extended Windows navigation scan codes so arrow keys recall shell history and navigate agent input instead of being interpreted as keypad keys.
 - Start Windows directory-bound terminals using ordinary drive paths, preventing Command Prompt from treating canonical paths as unsupported UNC directories and falling back to `C:\Windows`.
 
 ### Changed

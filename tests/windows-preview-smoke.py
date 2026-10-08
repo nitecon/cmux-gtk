@@ -112,9 +112,8 @@ def verify_workspace_shell(rpc, user32, window, profile):
     def native_key(key):
         """Retain the extended scan-code bit for navigation keys such as Up-arrow."""
         scan = user32.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
-        if key == 0x26:
-            print("Native Up-arrow scan code:", hex(scan))
-        flags = 1 | ((scan & 0xff) << 16) | (0x01000000 if scan & 0xff00 else 0)
+        extended = bool(scan & 0xff00) or key in (*range(0x21, 0x29), 0x2d, 0x2e)
+        flags = 1 | ((scan & 0xff) << 16) | (0x01000000 if extended else 0)
         for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
             if not user32.PostMessageW(window, message, key, detail):
                 raise ctypes.WinError(ctypes.get_last_error())
@@ -136,11 +135,6 @@ def verify_workspace_shell(rpc, user32, window, profile):
     native_key(0x26)  # VK_UP
     native_key(0x0D)
     history_ok = wait_text("CMUX_HISTORY_CONPTY_OK", count=2)
-    if not history_ok:
-        # Isolate GTK/native key translation from ConPTY's VT decoder using the same shell history.
-        for character in "\x1b[A\r":
-            rpc("surface.send_key", {"id": surface, "key": character})
-        print("Direct ConPTY VT Up-arrow history:", wait_text("CMUX_HISTORY_CONPTY_OK", count=2, seconds=5))
     if not cwd_ok or not history_ok:
         raise RuntimeError(f"Native workspace shell failed: working_directory={cwd_ok}, up_arrow_history={history_ok}")
     print("Native directory-bound workspace and Up-arrow command history PASS")
