@@ -283,20 +283,14 @@ impl Actor {
     /// Kernel peer ancestry proves executor generation, never the daemon creator's terminal.
     pub fn verify_peer(&self, peer_pid: u32) -> Result<(), String> {
         self.validate()?;
-        if self.origin.os != "linux" {
+        if self.origin.os != std::env::consts::OS {
             return Err("Actor OS does not match local host".into());
         }
         let executor =
             cmux_platform::process::agent_executor(peer_pid.into(), &self.origin.provider)
                 .ok_or("Cannot verify caller's provider executor")?;
-        let boot = cmux_platform::process::boot_identity()
-            .ok_or("Cannot verify kernel boot generation")?;
-        let expected = vec![
-            "linux-proc-v1".to_owned(),
-            boot,
-            executor.pid.to_string(),
-            executor.start_ticks.to_string(),
-        ];
+        let expected = cmux_platform::process::executor_generation(&executor)
+            .ok_or("Cannot verify native executor generation")?;
         if self.executor_generation != expected {
             return Err("Actor executor generation is stale or mismatched".into());
         }
@@ -326,16 +320,21 @@ impl Actor {
 
     /// Recheck the executor on a blocking worker; a live TUI cannot keep a dead backend actor alive.
     pub fn live(&self) -> bool {
-        if self.origin.os != "linux" || self.executor_generation.len() != 4 {
+        if self.origin.os != std::env::consts::OS {
             return false;
         }
-        let generation = &self.executor_generation;
-        let Some(pid) = generation[2].parse::<u64>().ok() else {
+        let pid_index = if cfg!(windows) { 1 } else { 2 };
+        let Some(pid) = self
+            .executor_generation
+            .get(pid_index)
+            .and_then(|value| value.parse::<u64>().ok())
+        else {
             return false;
         };
-        cmux_platform::process::boot_identity().as_ref() == Some(&generation[1])
-            && cmux_platform::process::agent_executor(pid, &self.origin.provider)
-                .is_some_and(|p| p.pid == pid && p.start_ticks.to_string() == generation[3])
+        cmux_platform::process::agent_executor(pid, &self.origin.provider)
+            .filter(|p| p.pid == pid)
+            .and_then(|p| cmux_platform::process::executor_generation(&p))
+            .is_some_and(|generation| generation == self.executor_generation)
     }
 }
 

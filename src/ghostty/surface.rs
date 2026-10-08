@@ -624,10 +624,11 @@ pub fn create_surface(
             };
 
             let mut input = unsafe { std::mem::zeroed::<ffi::ghostty_input_key_s>() };
-            // keycode must be the raw GTK hardware keycode (XKB scancode).
-            // Ghostty looks this up in its own native keycodes table to resolve the physical key.
-            // Do NOT translate to ghostty_input_key_e here — that is an entirely different type.
-            input.keycode = keycode;
+            // Ghostty requires XKB codes on Linux and scan codes on Windows; GDK Win32 supplies virtual keys.
+            input.keycode = cmux_platform::terminal::physical_keycode(
+                keycode,
+                keyval == gtk4::gdk::Key::KP_Enter,
+            );
             input.mods = map_mods(state);
             input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_PRESS;
             input.text = text_ptr;
@@ -646,7 +647,7 @@ pub fn create_surface(
     });
     key_controller.connect_key_released({
         let cell = surface_cell.clone();
-        move |ctrl, _keyval, keycode, state| {
+        move |ctrl, keyval, keycode, state| {
             use crate::ghostty::input::{key_event_details, map_mods};
 
             let surface = match *cell.borrow() {
@@ -655,7 +656,10 @@ pub fn create_surface(
             };
 
             let mut input = unsafe { std::mem::zeroed::<ffi::ghostty_input_key_s>() };
-            input.keycode = keycode;
+            input.keycode = cmux_platform::terminal::physical_keycode(
+                keycode,
+                keyval == gtk4::gdk::Key::KP_Enter,
+            );
             input.mods = map_mods(state);
             input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
             input.text = std::ptr::null();
@@ -821,7 +825,11 @@ pub fn create_surface(
             } else {
                 1.0
             };
-            let factor = if crate::preferences::invert_scroll() { -factor } else { factor };
+            let factor = if crate::preferences::invert_scroll() {
+                -factor
+            } else {
+                factor
+            };
             let (dx, dy) = (dx * factor, dy * factor);
 
             unsafe {

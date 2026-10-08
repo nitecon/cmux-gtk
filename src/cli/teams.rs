@@ -253,6 +253,15 @@ fn wait_for_shell(client: &mut SocketClient, id: &str) -> Result<(), CliError> {
     }
 }
 
+/// POSIX tmux compatibility requires a POSIX shell; native Windows sessions remain available separately.
+#[cfg(windows)]
+fn install_shim() -> Result<PathBuf, CliError> {
+    Err(CliError::Command(
+        "Claude Teams tmux compatibility is unavailable in the Windows preview".into(),
+    ))
+}
+
+#[cfg(not(windows))]
 fn install_shim() -> Result<PathBuf, CliError> {
     use std::os::unix::fs::PermissionsExt;
     let root = std::env::var_os("XDG_RUNTIME_DIR")
@@ -307,6 +316,12 @@ fn save_layout_state(path: &std::path::Path, state: &TeamLayoutState) -> Result<
         .map_err(|error| CliError::Command(format!("cannot save team layout: {error}")))
 }
 
+#[cfg(windows)]
+fn find_executable(name: &str) -> Result<PathBuf, ()> {
+    cmux_platform::paths::find_command_on_path(name).ok_or(())
+}
+
+#[cfg(not(windows))]
 fn find_executable(name: &str) -> Result<PathBuf, ()> {
     use std::os::unix::fs::PermissionsExt;
     std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())

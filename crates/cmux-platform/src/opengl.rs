@@ -1,7 +1,8 @@
-//! Linux OpenGL callbacks for renderers hosted inside a GTK GLArea.
+//! OpenGL callbacks for renderers hosted inside a GTK GLArea.
 //!
 //! GTK owns context lifetime and presentation. External renderers resolve desktop
-//! GL entry points through libGL, but must leave GTK's context current after drawing.
+//! GL entry points through the platform dispatcher, but must leave GTK's context
+//! current after drawing. Windows callbacks must stay on GTK's owning thread.
 
 use std::ffi::{c_char, c_void};
 use std::sync::OnceLock;
@@ -18,16 +19,33 @@ pub struct RendererInfo {
 
 static RENDERER: OnceLock<RendererInfo> = OnceLock::new();
 
+#[cfg(windows)]
+static GTK_THREAD: OnceLock<std::thread::ThreadId> = OnceLock::new();
+
+/// Record GTK's owning thread before starting the app or native renderer workers.
+/// Windows embedders must opt into app-thread drawing; GTK objects cannot migrate.
+pub fn register_gtk_thread() {
+    #[cfg(windows)]
+    GTK_THREAD.get_or_init(|| std::thread::current().id());
+}
+
 /// Read captured labels without querying GTK or GL; None means no context has been observed yet.
 pub fn renderer_info() -> Option<&'static RendererInfo> {
     RENDERER.get()
 }
 
+#[cfg(not(windows))]
 #[link(name = "GL")]
 extern "C" {
     /// Resolve a desktop GL entry point through the Linux GL dispatcher.
     fn glXGetProcAddressARB(name: *const u8) -> *mut c_void;
     /// Read a driver-owned NUL-terminated label while a GL context is current.
+    fn glGetString(name: u32) -> *const u8;
+}
+
+#[cfg(windows)]
+#[link(name = "opengl32")]
+extern "system" {
     fn glGetString(name: u32) -> *const u8;
 }
 
@@ -40,18 +58,32 @@ pub unsafe extern "C" fn make_current(userdata: *mut c_void) -> bool {
     if userdata.is_null() {
         return false;
     }
+    #[cfg(windows)]
+    if GTK_THREAD.get() != Some(&std::thread::current().id()) {
+        eprintln!("cmux: OpenGL callback rejected outside GTK owner thread");
+        return false;
+    }
     let area = userdata.cast();
     // SAFETY: The callback contract guarantees a live GLArea on its GTK thread.
     // Context pointers remain borrowed from GTK and are used only during this call.
     unsafe {
         let context = gtk4::ffi::gtk_gl_area_get_context(area);
         if !context.is_null() && gtk4::gdk::ffi::gdk_gl_context_get_current() == context {
+            #[cfg(windows)]
+            if windows_sys::Win32::Graphics::OpenGL::wglGetCurrentContext().is_null() {
+                return false;
+            }
             capture_renderer();
             return true;
         }
         gtk4::ffi::gtk_gl_area_make_current(area);
-        let ready = gtk4::ffi::gtk_gl_area_get_error(area).is_null();
-        if ready && !gtk4::gdk::ffi::gdk_gl_context_get_current().is_null() {
+        let ready = !context.is_null()
+            && gtk4::ffi::gtk_gl_area_get_error(area).is_null()
+            && gtk4::gdk::ffi::gdk_gl_context_get_current() == context;
+        #[cfg(windows)]
+        let ready =
+            ready && !windows_sys::Win32::Graphics::OpenGL::wglGetCurrentContext().is_null();
+        if ready {
             capture_renderer();
         }
         ready
@@ -115,7 +147,33 @@ pub unsafe extern "C" fn get_proc_address(
         return std::ptr::null_mut();
     }
     // SAFETY: The caller supplies a readable C name; libGL does not retain it.
-    unsafe { glXGetProcAddressARB(name.cast()) }
+    #[cfg(not(windows))]
+    unsafe {
+        glXGetProcAddressARB(name.cast())
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::{
+            Graphics::OpenGL::wglGetProcAddress,
+            System::LibraryLoader::{GetModuleHandleA, GetProcAddress},
+        };
+        // SAFETY: a desktop GL context is current; name is a borrowed NUL-terminated string.
+        unsafe {
+            let pointer = wglGetProcAddress(name.cast())
+                .map(|function| function as *mut c_void)
+                .unwrap_or(std::ptr::null_mut());
+            if !matches!(pointer as isize, 0 | 1 | 2 | 3 | -1) {
+                return pointer;
+            }
+            let module = GetModuleHandleA(c"opengl32.dll".as_ptr().cast());
+            if module.is_null() {
+                return std::ptr::null_mut();
+            }
+            GetProcAddress(module, name.cast())
+                .map(|function| function as *mut c_void)
+                .unwrap_or(std::ptr::null_mut())
+        }
+    }
 }
 
 /// Leave presentation to GtkGLArea after the render signal returns.

@@ -1,6 +1,6 @@
 # Architecture
 
-cmux is a native terminal multiplexer. Its product hierarchy is workspace → split pane → sibling terminal/browser surface tabs. The current supported desktop is Linux; portability work isolates operating-system services without pretending a Windows implementation exists.
+cmux is a native terminal multiplexer. Its product hierarchy is workspace → split pane → sibling terminal/browser surface tabs. Linux is the supported desktop; an experimental native Windows preview shares the GTK workspace UI and Ghostty engine through isolated platform services. See [Windows preview](WindowsPreview.md) for build, launch and acceptance limits.
 
 ## Stack and ownership
 
@@ -65,5 +65,7 @@ Commit directly to `main`; do not create PRs. Main pushes run CI. Only `release-
 Document each owned function at its declaration using native documentation syntax. Describe purpose and meaningful inputs, outputs, errors, ownership, side effects and thread requirements; omit irrelevant boilerplate. Name helpers by behavior so symbol search can locate them. Explain unsafe preconditions and cleanup responsibilities. Keep component docs linked to real modules rather than duplicating source listings. Dependency/generated code follows its upstream rules; do not bulk rewrite it to satisfy local documentation conventions.
 
 Use symbol-aware navigation (`agent-tools symbols`, `symbol`, `search`) for exploration. Documentation should support OKF and tree-sitter through clear declarations and adjacent comments, not through generated prose that repeats function names.
+
+Windows builds run scripts/setup-windows.sh under MSYS2 UCRT64 and bundle the native runtime with scripts/package-windows.py. The Windows preview workflow runs on main and supplies a transferable artifact; native storage/pipe tests, real client session hooks and visible keyboard-caused terminal pixels run on GitHub Actions. Hosted software OpenGL does not prove destination hardware graphics.
 
 Local transport type selection is centralized in `cmux-platform::local_socket`. Its `async-io` feature exposes Tokio networking without GTK, while blocking CLI connections use the same Linux component. CI checks both minimal and asynchronous platform configurations independently of GTK. Native transport operations retain their existing semantics; application protocol ownership stays outside the platform crate.

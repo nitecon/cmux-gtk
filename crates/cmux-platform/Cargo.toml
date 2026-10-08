@@ -11,8 +11,23 @@ async-io = ["dep:tokio"]
 [dependencies]
 libc = "0.2"
 socket2 = "0.6.3"
-tokio = { version = "1", features = ["net"], optional = true }
+tokio = { version = "1", features = ["net", "rt", "time", "io-util", "sync"], optional = true }
 gtk4 = { version = "0.10.3", features = ["v4_8"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+getrandom = "0.3"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+tokio = { version = "1", features = ["net", "rt", "time", "io-util", "sync"] }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation", "Win32_Security", "Win32_Security_Authorization",
+    "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_IO",
+    "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus",
+    "Win32_System_LibraryLoader", "Win32_System_SystemServices", "Win32_Graphics_OpenGL", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse",
+] }
 
 [build-dependencies]
 cc = { version = "1.2.57", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros"] }

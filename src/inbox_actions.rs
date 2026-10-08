@@ -241,9 +241,11 @@ fn create(
             .is_some_and(|window| window.is_active());
     let id = Uuid::new_v4();
     let workspace = state.workspaces[index].uuid;
-    let desktop = (!focused).then(|| {
-        cmux_platform::notification::message(&content.title, &content.subtitle, &content.body)
-    });
+    let desktop = (!focused)
+        .then(|| {
+            cmux_platform::notification::message(&content.title, &content.subtitle, &content.body)
+        })
+        .flatten();
     let created_at = glib::DateTime::now_utc()
         .and_then(|date| date.format_iso8601())
         .map(|value| value.to_string())

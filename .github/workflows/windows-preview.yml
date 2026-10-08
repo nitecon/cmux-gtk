@@ -1,0 +1,184 @@
+name: Windows preview
+
+on:
+  push:
+    branches: [main, feature/windows-native]
+  workflow_dispatch:
+    inputs:
+      verify_run:
+        description: Existing preview run to smoke-check without rebuilding (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-native:
+    if: ${{ !inputs.verify_run }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install native GTK and build tools
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            unzip
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-oniguruma
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-rust
+            mingw-w64-ucrt-x86_64-python
+
+      - name: Restore native build cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .tools
+            ghostty/.zig-cache
+            ghostty/zig-out
+            target
+          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
+          restore-keys: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-
+
+      - name: Install pinned Zig
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = [regex]::Match((Get-Content ghostty/build.zig.zon -Raw), 'minimum_zig_version = "([^"]+)"').Groups[1].Value
+          if (-not $version) { throw 'Missing pinned Zig version' }
+          $index = Invoke-RestMethod https://ziglang.org/download/index.json
+          $package = $index.$version.'x86_64-windows'
+          if (-not $package) { throw "No Windows Zig package for $version" }
+          New-Item -ItemType Directory -Force .tools | Out-Null
+          Invoke-WebRequest $package.tarball -OutFile .tools/zig.zip
+          if ((Get-FileHash .tools/zig.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $package.shasum) { throw 'Zig checksum mismatch' }
+          Expand-Archive .tools/zig.zip -DestinationPath .tools -Force
+          $directory = (Get-ChildItem .tools -Directory | Where-Object Name -Like "zig*windows*$version").FullName
+          if (-not $directory) { throw 'Zig archive layout unrecognized' }
+          Add-Content $env:GITHUB_PATH $directory
+
+      - name: Build native Ghostty terminal backend
+        run: bash scripts/setup-windows.sh
+
+      - name: Cache completed native terminal backend
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .tools
+            ghostty/.zig-cache
+            ghostty/zig-out
+            target
+          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
+
+      - name: Build Windows CMUX binaries
+        run: LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo build --workspace --bins --release --locked
+
+      - name: Test native Windows storage and pipe boundaries
+        run: cargo test -p cmux-platform --no-default-features --features async-io --locked
+
+      - name: Prepare real actor client and native provider fixture
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force target/actor-client | Out-Null
+          gh release download v1.20.0 --repo nitecon/agent-tools --pattern agent-tools-v1.20.0-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client
+          if ($LASTEXITCODE) { throw 'Actor client download failed' }
+          $archive = 'agent-tools-v1.20.0-x86_64-pc-windows-msvc.zip'
+          $expected = ((Get-Content target/actor-client/SHA256SUMS.txt | Where-Object { $_.EndsWith($archive) }) -split '\s+')[0]
+          if ((Get-FileHash "target/actor-client/$archive" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Actor client checksum mismatch' }
+          Expand-Archive "target/actor-client/$archive" target/actor-client -Force
+
+      - name: Compile native provider fixture
+        run: gcc -Wall -Wextra -Werror -O2 tests/fixtures/windows_actor_agent.c -o target/actor-client/codex.exe
+
+      - name: Bundle portable preview
+        id: bundle
+        run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)"
+
+      - name: Test portable preview startup and terminal RPC
+        run: |
+          pacman -S --noconfirm mingw-w64-ucrt-x86_64-mesa
+          actor_client="$(find target/actor-client -name agent-tools.exe -print -quit)"
+          test -n "$actor_client"
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)"
+
+      - name: Upload Windows preview
+        if: always() && steps.bundle.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-windows-x86_64-preview
+          path: target/windows-preview/
+          if-no-files-found: error
+
+      - name: Collect build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-preview-build-evidence
+          if-no-files-found: ignore
+          path: |
+            ghostty/zig-out/include/ghostty.h
+            target/release/build/cmux-gtk-*/output
+
+  verify-preview:
+    if: ${{ inputs.verify_run != '' }}
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout smoke script
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download built preview
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PREVIEW_BUILD_RUN: ${{ inputs.verify_run }}
+        run: gh run download $env:PREVIEW_BUILD_RUN --name cmux-windows-x86_64-preview --dir target/windows-preview
+
+      - name: Install software OpenGL for the hosted runner
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: mingw-w64-ucrt-x86_64-mesa
+
+      - name: Test portable preview startup and terminal RPC
+        shell: msys2 {0}
+        run: python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)"
+
+      - name: Upload preview with runtime evidence
+        if: always() && steps.download.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-windows-x86_64-preview
+          path: target/windows-preview/
+          if-no-files-found: error

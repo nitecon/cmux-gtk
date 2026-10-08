@@ -288,6 +288,9 @@ pub fn shell_quote(value: &str) -> String {
 
 /// Resolve a readable regular script file, returning a user-facing validation error.
 pub fn prepare_startup_script(path: &std::path::Path) -> Result<PathBuf, String> {
+    if cfg!(windows) {
+        return Err("Startup scripts are unavailable in the Windows preview; launch a native shell in the project directory instead.".into());
+    }
     let path = path
         .canonicalize()
         .map_err(|e| format!("Cannot open startup script: {e}"))?;

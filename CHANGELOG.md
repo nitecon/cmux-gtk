@@ -4,6 +4,10 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Native Windows portable preview on main with ConPTY, private named-pipe control, GTK-thread OpenGL rendering and current agent session/peer routing.
+
 ### Changed
 
 - Add structured diagnostic snapshots, process resource sampling, bounded log delivery and CLI/GTK request correlation.

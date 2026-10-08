@@ -12,7 +12,25 @@ fn application_directory(variable: &str, fallback: &str) -> PathBuf {
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| ".".into())).join(fallback)
+            #[cfg(windows)]
+            {
+                let _ = fallback;
+                PathBuf::from(
+                    std::env::var_os("LOCALAPPDATA")
+                        .or_else(|| std::env::var_os("USERPROFILE"))
+                        .unwrap_or_else(|| ".".into()),
+                )
+                .join(match variable {
+                    "XDG_CONFIG_HOME" => "config",
+                    "XDG_DATA_HOME" => "data",
+                    "XDG_STATE_HOME" => "state",
+                    _ => "cache",
+                })
+            }
+            #[cfg(not(windows))]
+            {
+                PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| ".".into())).join(fallback)
+            }
         })
         .join("cmux")
 }
@@ -43,6 +61,11 @@ pub fn runtime_dir() -> PathBuf {
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| {
+            #[cfg(windows)]
+            {
+                return std::env::temp_dir();
+            }
+            #[cfg(not(windows))]
             // SAFETY: getuid takes no arguments and has no caller preconditions.
             PathBuf::from(format!("/run/user/{}", unsafe { libc::getuid() }))
         })
@@ -51,6 +74,13 @@ pub fn runtime_dir() -> PathBuf {
 
 /// Return the default control socket path shared by desktop and CLI discovery.
 pub fn socket_path() -> PathBuf {
+    #[cfg(windows)]
+    {
+        // A SID-qualified local pipe prevents different users from sharing a control endpoint.
+        let user = crate::windows::current_sid().expect("Cannot identify current Windows user");
+        return PathBuf::from(format!(r"\\.\pipe\cmux-{user}-control"));
+    }
+    #[cfg(not(windows))]
     runtime_dir().join("cmux.sock")
 }
 
@@ -68,12 +98,25 @@ pub fn find_command_on_path(name: &str) -> Option<PathBuf> {
 
 /// Search a supplied OS-native path list without reading or mutating process environment.
 fn find_command_in(name: &str, search_path: &OsStr) -> Option<PathBuf> {
-    std::env::split_paths(search_path)
-        .map(|directory| directory.join(name))
-        .find(|candidate| candidate.is_file())
+    for directory in std::env::split_paths(search_path) {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        #[cfg(windows)]
+        if std::path::Path::new(name).extension().is_none() {
+            for extension in ["exe", "cmd", "bat", "com"] {
+                let candidate = directory.join(format!("{name}.{extension}"));
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    None
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
 

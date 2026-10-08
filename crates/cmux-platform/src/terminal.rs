@@ -1,5 +1,10 @@
 //! Bounded terminal identity discovery for command-line callers.
 
+/// Preserve GDK's XKB physical keycode for the Linux terminal renderer.
+pub fn physical_keycode(hardware: u32, _keypad_enter: bool) -> u32 {
+    hardware
+}
+
 /// Return the first terminal attached to stdin, stdout or stderr, without spawning a helper.
 /// Pipes and closed descriptors are skipped. No controlling terminal means no TTY evidence.
 pub fn caller_tty() -> Option<String> {

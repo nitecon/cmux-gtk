@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/windows-native
   pull_request:
 
 concurrency:

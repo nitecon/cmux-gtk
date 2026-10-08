@@ -146,6 +146,7 @@ pub struct Terminal {
     pub workspace_id: String,
     pub surface_id: String,
     pub directory: std::path::PathBuf,
+    /// POSIX foreground PID, or the ConPTY root used for conservative Windows agent discovery.
     pub foreground_pid: u64,
     pub input_revision: u64,
     pub input_pending: bool,
@@ -250,6 +251,7 @@ impl Session {
         self.terminal.workspace_id == other.terminal.workspace_id
             && self.terminal.surface_id == other.terminal.surface_id
             && self.terminal.directory == other.terminal.directory
+            && self.terminal.foreground_pid == other.terminal.foreground_pid
             && self.process == other.process
             && self.session_id == other.session_id
     }

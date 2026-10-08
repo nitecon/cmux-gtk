@@ -2,7 +2,7 @@
 
 /// Construct a notify-send bell without launching it or invoking a shell.
 /// The caller must bound concurrency and process lifetime; the body may contain user text.
-pub fn terminal_bell(workspace_name: &str) -> std::process::Command {
+pub fn terminal_bell(workspace_name: &str) -> Option<std::process::Command> {
     let mut command = std::process::Command::new("notify-send");
     command.args([
         "--app-name=cmux",
@@ -11,12 +11,12 @@ pub fn terminal_bell(workspace_name: &str) -> std::process::Command {
         "Terminal Bell",
     ]);
     command.arg(format!("{workspace_name} - Terminal bell"));
-    command
+    Some(command)
 }
 
 /// Construct an actionable Linux notification without a shell. The caller bounds process lifetime,
 /// captures the selected action and routes it to the original application message identity.
-pub fn message(title: &str, subtitle: &str, body: &str) -> std::process::Command {
+pub fn message(title: &str, subtitle: &str, body: &str) -> Option<std::process::Command> {
     let mut command = std::process::Command::new("notify-send");
     command.args([
         "--app-name=cmux",
@@ -37,5 +37,5 @@ pub fn message(title: &str, subtitle: &str, body: &str) -> std::process::Command
             .replace('<', "&lt;")
             .replace('>', "&gt;"),
     );
-    command
+    Some(command)
 }
