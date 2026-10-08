@@ -52,7 +52,13 @@ fn codex_composer(frame: &Value, row: usize) -> Option<Range<usize>> {
     Some(start..end)
 }
 
-/// Classify only supported editable Claude/Codex prompt layouts with a visible caret and shortcuts footer.
+/// Claude's closing horizontal rule separates editable input from a custom status line.
+fn horizontal_rule(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.chars().count() >= 3 && trimmed.chars().all(|c| matches!(c, '─' | '━'))
+}
+
+/// Classify supported editable provider layouts with a visible caret and recognized footer.
 /// Unknown layouts, dialogs, multiline drafts and dim disabled prompts remain blocked.
 pub fn classify(client: &str, frame: &Value) -> InputState {
     let Some(row) = frame["cursor"]["row"].as_u64() else {
@@ -142,11 +148,23 @@ pub fn classify(client: &str, frame: &Value) -> InputState {
         .enumerate()
         .skip(row as usize + 1)
         .take(4)
-        .find(|(_, l)| l.to_lowercase().contains("for shortcuts"));
-    let Some((footer_row, _)) = footer else {
+        .find(|(_, l)| {
+            l.to_lowercase().contains("for shortcuts")
+                || (client == "claude"
+                    && l.trim_start()
+                        .starts_with("⏵⏵ auto mode on (shift+tab to cycle)"))
+        });
+    let Some((footer_row, footer_text)) = footer else {
         return InputState::Unknown;
     };
-    let input = composer.unwrap_or(row as usize..footer_row);
+    let closing_rule = (client == "claude")
+        .then(|| (row as usize + 1..footer_row).find(|&y| horizontal_rule(&lines[y])))
+        .flatten();
+    // The observed auto-mode footer is supported only with Claude's composer boundary.
+    if !footer_text.to_lowercase().contains("for shortcuts") && closing_rule.is_none() {
+        return InputState::Unknown;
+    }
+    let input = composer.unwrap_or(row as usize..closing_rule.map_or(footer_row, |y| y + 1));
     if input.end > footer_row {
         return InputState::Unknown;
     }
@@ -287,5 +305,49 @@ mod tests {
         changed["styles"][1]["background"] = "#EEEEEE".into();
         changed["styles"][2]["background"] = "#EEEEEE".into();
         assert_eq!(classify("codex", &changed), InputState::EmptyReady);
+    }
+
+    /// Match the reported Claude 2.1.294 custom status line and auto-mode footer;
+    /// status text is outside the editor, while draft, multiline and dialog gates remain enforced.
+    #[test]
+    fn claude_custom_statusline_auto_mode() {
+        let frame = json!({"anchor":"screen","rows":8,
+            "cursor":{"row":2,"column":2,"visible":true},
+            "styles":[{"id":0,"faint":false}],
+            "row_spans":[
+                {"row":1,"column":0,"style_id":0,"text":"────────────────────────"},
+                {"row":2,"column":0,"style_id":0,"text":"❯ "},
+                {"row":3,"column":0,"style_id":0,"text":" "},
+                {"row":4,"column":0,"style_id":0,"text":"────────────────────────"},
+                {"row":5,"column":0,"style_id":0,"text":"Opus 5.5 | cmux-gtk | ctx"},
+                {"row":6,"column":0,"style_id":0,"text":"⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"}]});
+        assert_eq!(classify("claude", &frame), InputState::EmptyReady);
+        let mut changed = frame.clone();
+        changed["row_spans"][1]["text"] = "❯ draft".into();
+        assert_eq!(classify("claude", &changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["row_spans"][2]["text"] = "second draft line".into();
+        assert_eq!(classify("claude", &changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["cursor"]["column"] = 3.into();
+        assert_eq!(classify("claude", &changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["cursor"]["visible"] = false.into();
+        assert_eq!(classify("claude", &changed), InputState::Unknown);
+        let mut changed = frame.clone();
+        changed["row_spans"][0]["text"] = "Working · esc to interrupt".into();
+        assert_eq!(classify("claude", &changed), InputState::Busy);
+        let mut changed = frame.clone();
+        changed["row_spans"][4]["text"] = "Allow once".into();
+        assert_eq!(classify("claude", &changed), InputState::Busy);
+        let mut changed = frame.clone();
+        changed["row_spans"][3]["text"] = "unrecognized boundary".into();
+        assert_eq!(classify("claude", &changed), InputState::Unknown);
+        let mut changed = frame.clone();
+        changed["row_spans"][5]["text"] = "unrecognized footer".into();
+        assert_eq!(classify("claude", &changed), InputState::Unknown);
+        let mut changed = frame;
+        changed["row_spans"][5]["text"] = "? for shortcuts".into();
+        assert_eq!(classify("claude", &changed), InputState::EmptyReady);
     }
 }

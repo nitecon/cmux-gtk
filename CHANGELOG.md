@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-10-08
+
+### Fixed
+
+- Recognize Claude's empty auto-mode prompt with a custom status line even when the shortcuts hint is absent. Use the closing composer rule to keep status text outside the editable input; real drafts, multiline input, busy states and permission dialogs still block gateway delivery.
+
 ## [0.6.6] - 2026-10-08
 
 ### Added
