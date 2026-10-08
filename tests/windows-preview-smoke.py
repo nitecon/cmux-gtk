@@ -5,6 +5,7 @@ import json
 import ctypes
 from ctypes import wintypes
 import os
+import ntpath
 from pathlib import Path
 import subprocess
 import shutil
@@ -111,6 +112,8 @@ def verify_workspace_shell(rpc, user32, window, profile):
     def native_key(key):
         """Retain the extended scan-code bit for navigation keys such as Up-arrow."""
         scan = user32.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
+        if key == 0x26:
+            print("Native Up-arrow scan code:", hex(scan))
         flags = 1 | ((scan & 0xff) << 16) | (0x01000000 if scan & 0xff00 else 0)
         for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
             if not user32.PostMessageW(window, message, key, detail):
@@ -120,7 +123,12 @@ def verify_workspace_shell(rpc, user32, window, profile):
         raise RuntimeError("Directory-bound workspace shell did not initialize")
     rpc("surface.send_text", {"id": surface, "text": "echo CMUX_CWD=%CD%"})
     native_key(0x0D)
-    cwd_ok = wait_text("CMUX_CWD=" + str(directory))
+    wait_text("\nCMUX_CWD=")
+    screen = rpc("surface.read_text", {"id": surface})["text"]
+    actual_cwd = next((line.removeprefix("CMUX_CWD=") for line in screen.splitlines()
+                       if line.startswith("CMUX_CWD=")), "")
+    cwd_ok = ntpath.normcase(ntpath.normpath(actual_cwd)) == ntpath.normcase(ntpath.normpath(str(directory)))
+    print("Workspace directory expected/actual:", repr(str(directory)), repr(actual_cwd))
     rpc("surface.send_text", {"id": surface, "text": "echo CMUX_HISTORY_%CMUX_SMOKE%"})
     native_key(0x0D)
     if not wait_text("CMUX_HISTORY_CONPTY_OK"):
@@ -128,6 +136,11 @@ def verify_workspace_shell(rpc, user32, window, profile):
     native_key(0x26)  # VK_UP
     native_key(0x0D)
     history_ok = wait_text("CMUX_HISTORY_CONPTY_OK", count=2)
+    if not history_ok:
+        # Isolate GTK/native key translation from ConPTY's VT decoder using the same shell history.
+        for character in "\x1b[A\r":
+            rpc("surface.send_key", {"id": surface, "key": character})
+        print("Direct ConPTY VT Up-arrow history:", wait_text("CMUX_HISTORY_CONPTY_OK", count=2, seconds=5))
     if not cwd_ok or not history_ok:
         raise RuntimeError(f"Native workspace shell failed: working_directory={cwd_ok}, up_arrow_history={history_ok}")
     print("Native directory-bound workspace and Up-arrow command history PASS")
