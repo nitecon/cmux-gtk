@@ -76,7 +76,7 @@ def verify(rpc, profile, client, fixture, python):
         record = root / (name + ".json")
         records.append(record)
         native = str(uuid.uuid4())
-        command = subprocess.list2cmdline([str(fixture), "--no-daemon", str(python), script,
+        command = subprocess.list2cmdline([str(fixture), "exec", str(python), script,
                                           str(client), native, str(root / (name + ".prompt")), str(record), str(directory)])
         rpc("surface.send_text", {"id": surface, "text": command})
         rpc("surface.send_key", {"id": surface, "key": "\r"})

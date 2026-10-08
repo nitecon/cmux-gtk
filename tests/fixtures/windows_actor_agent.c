@@ -39,7 +39,7 @@ static void render(void) {
 
 /** Own a raw native console and relay complete bracketed-paste submissions to the real prompt hook. */
 int main(int argc, char **argv) {
-    if (argc != 9 || strcmp(argv[1], "--no-daemon") != 0) return 2;
+    if (argc != 9 || strcmp(argv[1], "exec") != 0) return 2;
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     HANDLE input = GetStdHandle(STD_INPUT_HANDLE), output = GetStdHandle(STD_OUTPUT_HANDLE);
