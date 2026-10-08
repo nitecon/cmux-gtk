@@ -8,6 +8,10 @@ All notable changes to cmux GTK are documented here.
 
 - Native Windows portable preview on main with ConPTY, private named-pipe control, GTK-thread OpenGL rendering and current agent session/peer routing.
 
+### Fixed
+
+- Start Windows directory-bound terminals using ordinary drive paths, preventing Command Prompt from treating canonical paths as unsupported UNC directories and falling back to `C:\Windows`.
+
 ### Changed
 
 - Add structured diagnostic snapshots, process resource sampling, bounded log delivery and CLI/GTK request correlation.

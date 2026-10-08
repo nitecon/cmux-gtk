@@ -83,6 +83,57 @@ def capture_terminal(window, destination):
     return {"width": width, "height": height, "green_fraction": green_fraction, "glyph_pixels": glyph_pixels}
 
 
+def verify_workspace_shell(rpc, user32, window, profile):
+    """Check the actual shell directory and command recall through native extended-key events."""
+    directory = Path(profile) / "workspace with spaces"
+    directory.mkdir()
+    workspace = rpc("workspace.create", {"name": "Shell acceptance", "working_directory": str(directory)})
+    rpc("workspace.select", {"id": workspace["uuid"]})
+    surfaces = rpc("surface.list")["surfaces"]
+    surface = next(row["uuid"] for row in surfaces if row["workspace_uuid"] == workspace["uuid"])
+
+    def wait_text(marker, count=1, seconds=15):
+        """Observe shell output, rather than treating successful key submission as execution."""
+        deadline = time.monotonic() + seconds
+        screen = ""
+        while time.monotonic() < deadline:
+            try:
+                screen = rpc("surface.read_text", {"id": surface})["text"]
+            except RuntimeError:
+                time.sleep(0.25)  # New terminal surfaces initialize after allocation.
+                continue
+            if screen.count(marker) >= count:
+                return True
+            time.sleep(0.25)
+        print("Workspace shell screen:", screen)
+        return False
+
+    def native_key(key):
+        """Retain the extended scan-code bit for navigation keys such as Up-arrow."""
+        scan = user32.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
+        flags = 1 | ((scan & 0xff) << 16) | (0x01000000 if scan & 0xff00 else 0)
+        for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
+            if not user32.PostMessageW(window, message, key, detail):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+    if not wait_text(">"):
+        raise RuntimeError("Directory-bound workspace shell did not initialize")
+    rpc("surface.send_text", {"id": surface, "text": "echo CMUX_CWD=%CD%"})
+    native_key(0x0D)
+    cwd_ok = wait_text("CMUX_CWD=" + str(directory))
+    rpc("surface.send_text", {"id": surface, "text": "echo CMUX_HISTORY_%CMUX_SMOKE%"})
+    native_key(0x0D)
+    if not wait_text("CMUX_HISTORY_CONPTY_OK"):
+        raise RuntimeError("History fixture command did not execute")
+    native_key(0x26)  # VK_UP
+    native_key(0x0D)
+    history_ok = wait_text("CMUX_HISTORY_CONPTY_OK", count=2)
+    if not cwd_ok or not history_ok:
+        raise RuntimeError(f"Native workspace shell failed: working_directory={cwd_ok}, up_arrow_history={history_ok}")
+    print("Native directory-bound workspace and Up-arrow command history PASS")
+    rpc("workspace.close", {"id": workspace["uuid"]})
+
+
 def main():
     """Run from a clean profile and check terminal execution before bounded cleanup."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -226,11 +277,12 @@ def main():
                 if "gdk_gl_context_make_current() failed" in messages or "outside GTK owner thread" in messages:
                     raise RuntimeError("GTK OpenGL ownership failed; see smoke.log")
                 print("Visible terminal pixels and native keyboard text verified:", frame)
+                verify_workspace_shell(rpc, user32, windows[0], profile)
                 if args.actor_client:
                     import sys
                     from windows_actor_binding import verify
                     verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable))
-                (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "native_keyboard_text": True, "visible_terminal_pixels": True, "actor_peers": bool(args.actor_client), "frame": frame, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
+                (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "native_keyboard_text": True, "visible_terminal_pixels": True, "workspace_working_directory": True, "native_up_arrow_history": True, "actor_peers": bool(args.actor_client), "frame": frame, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
             finally:
                 if app.poll() is None:
                     subprocess.run(["taskkill", "/PID", str(app.pid), "/T", "/F"], env=env, capture_output=True, timeout=15)

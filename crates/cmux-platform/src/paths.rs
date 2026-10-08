@@ -3,6 +3,26 @@
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
+/// Present canonical local drive paths to shells using ordinary DOS syntax.
+/// File operations retain their canonical paths; other Windows namespaces are preserved.
+pub fn terminal_working_directory(path: &std::path::Path) -> std::borrow::Cow<'_, std::path::Path> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+        use std::path::{Component, Prefix};
+
+        if matches!(path.components().next(), Some(Component::Prefix(prefix))
+            if matches!(prefix.kind(), Prefix::VerbatimDisk(_)))
+        {
+            let ordinary: Vec<u16> = path.as_os_str().encode_wide().skip(4).collect();
+            return std::borrow::Cow::Owned(PathBuf::from(std::ffi::OsString::from_wide(
+                &ordinary,
+            )));
+        }
+    }
+    std::borrow::Cow::Borrowed(path)
+}
+
 /// Resolve an XDG application directory, using the home-relative default.
 ///
 /// Empty or relative XDG overrides are ignored, as required by XDG. Missing

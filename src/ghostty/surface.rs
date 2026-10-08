@@ -88,6 +88,7 @@ fn initialize_surface(
         let working_directory_c = init
             .working_directory
             .as_ref()
+            .map(|path| cmux_platform::paths::terminal_working_directory(path))
             .and_then(|path| std::ffi::CString::new(path.to_string_lossy().as_bytes()).ok());
         if let Some(ref cwd) = working_directory_c {
             config.working_directory = cwd.as_ptr();
