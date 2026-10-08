@@ -6,9 +6,10 @@ summary: Streamed checksum-verified staging, bounded executable preflight, and i
 kind: agent_context
 source_format: agent_context
 source_ref: src/updater.rs
-labels: [linux, distribution, lifecycle]
+version: portable-bundle-v1
+labels: [linux, windows, distribution, lifecycle]
 content:
-  purpose: Update self-managed Linux executables without retaining the compressed release archive in memory.
+  purpose: Update self-managed Linux executables and complete Windows portable bundles with verified staging and preserved installation ownership.
   workflows:
     - name: Release check and staging
       steps:
@@ -20,5 +21,11 @@ content:
   safety:
     - Blocking HTTP/filesystem work runs on the automatic-update worker or the manual CLI caller, never the GTK event loop.
     - The shared child helper drains both pipes concurrently, uses null stdin and kill-on-drop, and preserves caller-specific cleanup diagnostics.
-    - Streaming caps archive buffering, not disk usage or decompression time. Kernel-stuck children can outlive userspace cleanup budgets.
+    - Archive downloads are capped at 256 MiB; streaming caps buffering, while Linux decompression time remains dependent on the archive. Kernel-stuck children can outlive userspace cleanup budgets.
     - Tests run only in GitHub Actions; stream integrity, metadata bounds and real executable preflight failures have behavior cases.
+  commands: cmux --update and cmux update run before local RPC discovery. They query the latest nitecon/cmux-gtk GitHub release and compare semantic versions. Equal or older releases are a no-op. Unsupported architectures or missing platform/checksum assets fail without changing the installation.
+  assets: Linux uses cmux-gtk-linux-x86_64.tar.gz and its .sha256 file. Windows x86-64 uses cmux-gtk-windows-x86_64.zip and its .sha256 file. GitHub version tags publish both alongside Linux DEB/RPM and Homebrew metadata. Windows remains an experimental portable preview even when accompanying a stable Linux release.
+  validation: Metadata, downloads and expanded Windows archives are bounded. SHA256 is verified before extraction; staged executables must run their bounded version preflight. Windows also checks PE architecture, platform metadata, exact release version and managed-files.json coverage, rejecting duplicate or unsafe paths.
+  windows: Close CMUX and run the update from a separate Windows Terminal in a writable extracted folder. A staged CLI applies the full bundle after the invoking CLI exits. It verifies file locks, backs up owned files, rolls back on replacement failure and preserves recovery files if rollback fails. Check .cmux-update.log for completion before launch-cmux.cmd. No process is killed or automatically restarted; settings and sessions in LOCALAPPDATA and unrelated bundle-folder files are preserved. managed-files.json enumerates bundled files, allowing stale owned runtime files to be retired on later updates.
+  ownership: Homebrew, system packages and AppImage installations retain their package-owner upgrade instructions. Windows updates are explicit; no background polling or unattended update is enabled. Existing Linux release-build rate-limited updates are preserved.
+  verification: GitHub Actions exercises native Windows full-bundle download, checksum/missing-platform failures, no-update and both command spellings, file preservation, stale file removal, locked-file failure and rollback. Hosted software OpenGL and provider fixtures do not prove destination hardware performance or live delegation.

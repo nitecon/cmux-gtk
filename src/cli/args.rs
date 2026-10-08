@@ -229,7 +229,15 @@ pub enum Commands {
         command: SurfaceCommands,
     },
     /// Update a self-managed cmux installation
+    #[command(long_flag = "update")]
     Update,
+    /// Apply a verified staged Windows bundle after the updating CLI exits.
+    #[cfg(windows)]
+    #[command(name = "__apply-update", hide = true)]
+    ApplyUpdate {
+        install: std::path::PathBuf,
+        staging: std::path::PathBuf,
+    },
     /// Ping the running cmux instance
     Ping,
     /// Show cmux instance identity (version, platform, pid)

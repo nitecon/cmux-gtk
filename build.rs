@@ -16,6 +16,15 @@ fn main() {
     let release_build = env::var("CMUX_RELEASE_BUILD").unwrap_or_else(|_| "0".into());
     println!("cargo:rustc-env=CMUX_RELEASE_BUILD={release_build}");
     println!("cargo:rerun-if-env-changed=CMUX_RELEASE_BUILD");
+    // Native CI can compile an isolated updater client against a loopback fixture.
+    // Public release builds always use GitHub, regardless of the build environment.
+    let update_test_api = if release_build == "1" {
+        String::new()
+    } else {
+        env::var("CMUX_UPDATE_TEST_API").unwrap_or_default()
+    };
+    println!("cargo:rustc-env=CMUX_UPDATE_TEST_API={update_test_api}");
+    println!("cargo:rerun-if-env-changed=CMUX_UPDATE_TEST_API");
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         build_windows();

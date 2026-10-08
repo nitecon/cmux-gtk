@@ -3,7 +3,7 @@ members = [".", "crates/cmux-platform"]
 
 [package]
 name = "cmux-gtk"
-version = "0.6.5"
+version = "0.6.6"
 edition = "2021"
 
 [[bin]]
@@ -33,6 +33,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 semver = "1"
 sha2 = "0.10"
 tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 clap = { version = "4", features = ["derive", "color", "env"] }
 clap_complete = "4.6"
 clap_mangen = "0.3"

@@ -54,7 +54,7 @@ Do not run tests locally. GitHub Actions runs Rust, Go, packaging and executable
 
 Keep distribution `cmux-gtk`, executables `cmux` and `cmux-app`, application/desktop ID `io.cmux.App`. Keep DEB, RPM, archive, icons, launcher, completions, man page and Homebrew Cask aligned. Package-manager installations must not self-replace through binary updates. Releases respect the Debian 12 glibc ceiling.
 
-Commit directly to `main`; do not create PRs. Main pushes run CI. Only `release-linux.yml` runs for `v*` tags. Before tagging a requested release, bump Cargo version and changelog. The tag workflow publishes archive, checksums, DEB, RPM and Cask. Do not tag documentation-only changes. Push any required Ghostty commits to a reachable remote before changing the parent pointer.
+Commit directly to `main`; do not create PRs. Main pushes run CI. Version tags run `release-linux.yml` and `windows-preview.yml`. Before tagging a requested release, bump Cargo version and changelog. Linux publication supplies archive, checksums, DEB, RPM and Cask; Windows publication supplies the complete portable ZIP and checksum after native build, terminal and updater checks. Windows remains explicitly experimental. Its updater replaces only files listed in the bundle's `managed-files.json`, preserves user data, and requires an unlocked installation. Do not tag documentation-only changes. Push any required Ghostty commits to a reachable remote before changing the parent pointer.
 
 ## Documentation and discoverability
 

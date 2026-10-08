@@ -98,6 +98,11 @@ fn restore_terminal(
 
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
+    #[cfg(windows)]
+    if let Commands::ApplyUpdate { install, staging } = &cli.command {
+        return updater::windows::apply_update(install, staging)
+            .map_err(|error| CliError::Command(format!("{error:#}")));
+    }
     if let Commands::ClaudeTeams { args } = &cli.command {
         return teams::launch(args);
     }
@@ -560,6 +565,8 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
             serde_json::json!({"workspace_id":workspace}),
         ),
         Commands::Update => unreachable!("update is handled before socket discovery"),
+        #[cfg(windows)]
+        Commands::ApplyUpdate { .. } => unreachable!("update helper runs before socket discovery"),
         Commands::Diff { .. } => unreachable!("diff is prepared before socket dispatch"),
         Commands::Project { .. } => unreachable!("project is prepared before socket dispatch"),
         Commands::Comments { .. } => unreachable!("comments run without socket dispatch"),

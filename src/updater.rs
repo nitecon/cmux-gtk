@@ -1,4 +1,8 @@
-//! Self-update support for direct Linux binary installations.
+//! Self-update support for direct Linux binaries and complete Windows portable bundles.
+
+#[cfg(windows)]
+#[path = "updater/windows.rs"]
+pub(crate) mod windows;
 
 use anyhow::{bail, Context, Result};
 use semver::Version;
@@ -56,9 +60,6 @@ pub fn spawn_auto_update() {
 
 /// Update an unpacked/manual installation, or explain the package-manager path.
 pub fn manual_update() -> Result<()> {
-    if cfg!(windows) {
-        bail!("Windows preview updates are installed by replacing the extracted preview folder");
-    }
     match install_method() {
         InstallMethod::Homebrew => {
             bail!("this cmux is managed by Homebrew; run: brew upgrade --cask cmux-gtk")
@@ -83,10 +84,13 @@ fn update_if_available(verbose: bool) -> Result<()> {
     }
 
     let client = http_client()?;
+    let endpoint = if env!("CMUX_UPDATE_TEST_API").is_empty() {
+        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/latest")
+    } else {
+        env!("CMUX_UPDATE_TEST_API").to_owned()
+    };
     let release_response = client
-        .get(format!(
-            "https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-        ))
+        .get(endpoint)
         .send()
         .context("GitHub release request failed")?
         .error_for_status()
@@ -104,7 +108,11 @@ fn update_if_available(verbose: bool) -> Result<()> {
         return Ok(());
     }
 
-    let asset_name = format!("cmux-gtk-linux-{}.tar.gz", release_arch()?);
+    let asset_name = if cfg!(windows) {
+        format!("cmux-gtk-windows-{}.zip", release_arch()?)
+    } else {
+        format!("cmux-gtk-linux-{}.tar.gz", release_arch()?)
+    };
     let asset = release
         .assets
         .iter()
@@ -132,8 +140,12 @@ fn update_if_available(verbose: bool) -> Result<()> {
         .context("release checksum download returned an error")?;
     let checksum = String::from_utf8(read_metadata(checksum, 4096)?)
         .context("release checksum is not UTF-8")?;
+    #[cfg(windows)]
+    windows::stage_update(archive, &checksum, &latest)?;
+    #[cfg(not(windows))]
     install_archive(archive, &checksum)?;
     touch_marker(&marker_path()?);
+    #[cfg(not(windows))]
     eprintln!("cmux: updated to v{latest}; restart cmux to use it");
     Ok(())
 }
@@ -169,6 +181,7 @@ fn download_verified(
         bail!("release checksum is invalid");
     }
     let mut hash = Sha256::new();
+    let mut total = 0u64;
     let mut buffer = [0u8; 64 * 1024];
     loop {
         let count = source
@@ -176,6 +189,10 @@ fn download_verified(
             .context("failed to read release archive")?;
         if count == 0 {
             break;
+        }
+        total += count as u64;
+        if total > 256 * 1024 * 1024 {
+            bail!("release archive exceeds 256-MiB download limit");
         }
         destination
             .write_all(&buffer[..count])
@@ -289,7 +306,7 @@ fn install_archive(source: impl Read, checksum: &str) -> Result<()> {
 }
 
 /// Run the staged executable version preflight and reject incompatible binaries.
-fn validate_staged_binary(name: &str, path: &Path) -> Result<()> {
+fn validate_staged_binary(name: &str, path: &Path) -> Result<String> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -321,7 +338,7 @@ fn validate_staged_binary(name: &str, path: &Path) -> Result<()> {
             "downloaded {name} returned unexpected version output; the installed binaries were not changed"
         );
     }
-    Ok(())
+    Ok(stdout.trim().to_owned())
 }
 
 /// Create the shared update-cache directory and return its last-check marker path.
@@ -372,6 +389,7 @@ mod tests {
 
     /// Real staged executables must pass version validation within bounded pipes and time.
     #[test]
+    #[cfg(unix)]
     fn staged_preflight_rejects_overflow_and_hang() {
         let root = std::env::temp_dir().join(format!("cmux-preflight-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();

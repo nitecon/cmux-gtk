@@ -1,8 +1,9 @@
-name: Windows preview
+name: Windows builds and releases
 
 on:
   push:
     branches: [main, feature/windows-native]
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       verify_run:
@@ -20,6 +21,8 @@ concurrency:
 jobs:
   windows-native:
     if: ${{ !inputs.verify_run }}
+    permissions:
+      contents: write
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -30,6 +33,14 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
+
+      - name: Verify release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          source scripts/release-version.sh
+          version="$(package_version Cargo.toml)"
+          test "$GITHUB_REF_NAME" = "v$version"
 
       - name: Install native GTK and build tools
         uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
@@ -57,7 +68,9 @@ jobs:
             ghostty/zig-out
             target
           key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
-          restore-keys: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-
+          restore-keys: |
+            windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-
+            windows-native-
 
       - name: Install pinned Zig
         shell: pwsh
@@ -93,10 +106,15 @@ jobs:
           key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
 
       - name: Build Windows CMUX binaries
+        env:
+          CMUX_RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
         run: LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo build --workspace --bins --release --locked
 
       - name: Test native Windows storage and pipe boundaries
         run: cargo test -p cmux-platform --no-default-features --features async-io --locked
+
+      - name: Test verified native Windows update archives
+        run: LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo test --bin cmux updater:: --locked
 
       - name: Prepare real actor client and native provider fixture
         shell: pwsh
@@ -105,9 +123,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force target/actor-client | Out-Null
-          gh release download v1.20.0 --repo nitecon/agent-tools --pattern agent-tools-v1.20.0-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client
+          gh release download v1.20.1 --repo nitecon/agent-tools --pattern agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client
           if ($LASTEXITCODE) { throw 'Actor client download failed' }
-          $archive = 'agent-tools-v1.20.0-x86_64-pc-windows-msvc.zip'
+          $archive = 'agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip'
           $expected = ((Get-Content target/actor-client/SHA256SUMS.txt | Where-Object { $_.EndsWith($archive) }) -split '\s+')[0]
           if ((Get-FileHash "target/actor-client/$archive" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Actor client checksum mismatch' }
           Expand-Archive "target/actor-client/$archive" target/actor-client -Force
@@ -117,7 +135,7 @@ jobs:
 
       - name: Bundle portable preview
         id: bundle
-        run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)"
+        run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)" --archive dist/cmux-gtk-windows-x86_64.zip
 
       - name: Test portable preview startup and terminal RPC
         run: |
@@ -125,6 +143,40 @@ jobs:
           actor_client="$(find target/actor-client -name agent-tools.exe -print -quit)"
           test -n "$actor_client"
           python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)"
+
+      - name: Test portable Windows updater
+        run: |
+          CMUX_VERSION=0.0.1 CMUX_UPDATE_TEST_API=http://127.0.0.1:50127/release CMUX_RELEASE_BUILD=0 LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo build --release --bin cmux --locked
+          python scripts/test_windows_updater.py --bundle target/windows-preview --client target/release/cmux.exe --archive dist/cmux-gtk-windows-x86_64.zip
+
+      - name: Upload Windows release archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cmux-gtk-windows-x86_64
+          path: |
+            dist/cmux-gtk-windows-x86_64.zip
+            dist/cmux-gtk-windows-x86_64.zip.sha256
+          if-no-files-found: error
+
+      - name: Publish Windows GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE) {
+            gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes
+            if ($LASTEXITCODE) {
+              # Linux publication may have created the same release concurrently.
+              gh release view $env:GITHUB_REF_NAME
+              if ($LASTEXITCODE) { throw 'GitHub release creation failed' }
+            }
+          }
+          gh release upload $env:GITHUB_REF_NAME dist/cmux-gtk-windows-x86_64.zip dist/cmux-gtk-windows-x86_64.zip.sha256 --clobber
+          if ($LASTEXITCODE) { throw 'Windows release asset upload failed' }
 
       - name: Upload Windows preview
         if: always() && steps.bundle.outcome == 'success'

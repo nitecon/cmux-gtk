@@ -229,6 +229,21 @@ fn command_bytes(process: &Snapshot) -> Vec<u8> {
         .collect()
 }
 
+/// The installed Windows Codex TUI may own model execution without daemon flags.
+/// Keep the observed bare invocation exception tied to its absolute official install path.
+fn executor_role(process: &Snapshot, client: &str) -> bool {
+    (client == "codex"
+        && process.command.len() == 1
+        && process.executable.is_absolute()
+        && process
+            .executable
+            .to_string_lossy()
+            .replace('\\', "/")
+            .to_ascii_lowercase()
+            .ends_with("/appdata/local/programs/openai/codex/bin/codex.exe"))
+        || crate::provider::executor_role(client, &command_bytes(process))
+}
+
 /// Recognize a live native agent or official Claude Node runtime in a terminal tree.
 fn native_identity(pid: u64) -> Option<Identity> {
     let process = snapshot(u32::try_from(pid).ok()?, false)?;
@@ -272,9 +287,7 @@ pub fn agent_executor(caller_pid: u64, requested: &str) -> Option<Identity> {
         }
         let found = provider(&process);
         if let Some(client) = found {
-            if client != requested
-                || !crate::provider::executor_role(client, &command_bytes(&process))
-            {
+            if client != requested || !executor_role(&process, client) {
                 return None;
             }
             if client == "codex"
@@ -327,4 +340,36 @@ pub fn agent_tools_hook(pid: u64) -> bool {
             .command
             .get(2)
             .is_some_and(|v| matches!(v.as_str(), "user-prompt-submit" | "session-start"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The real bare Windows launch is an executor; utility commands and aliases stay fenced.
+    #[test]
+    fn installed_bare_codex_executor() {
+        let mut process = Snapshot {
+            pid: 1,
+            parent: 0,
+            start: 1,
+            executable: r"C:\Users\nitec\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe".into(),
+            command: vec!["codex".into()],
+            environment: Vec::new(),
+        };
+        assert!(executor_role(&process, "codex"));
+        for arg in ["login", "--help", "--version", "resume"] {
+            process.command = vec!["codex".into(), arg.into()];
+            assert!(!executor_role(&process, "codex"));
+        }
+        process.command = vec!["codex".into()];
+        for path in [
+            r"C:\tools\codex.exe",
+            r"AppData\Local\Programs\OpenAI\Codex\bin\codex.exe",
+            r"C:\Users\nitec\.codex\packages\standalone\bin\codex-code-mode-host.exe",
+        ] {
+            process.executable = path.into();
+            assert!(!executor_role(&process, "codex"));
+        }
+    }
 }

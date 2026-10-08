@@ -4,12 +4,16 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-10-08
+
 ### Added
 
+- `cmux --update` (also `cmux update`) downloads checksum-verified complete Windows bundles from GitHub Releases, stages a replacement worker and preserves settings and user files. Close the app before updating; the update log reports completion or a recoverable failure.
 - Native Windows portable preview on main with ConPTY, private named-pipe control, GTK-thread OpenGL rendering and current agent session/peer routing.
 
 ### Fixed
 
+- Recognize the installed Windows Codex model executor's plain invocation without requiring daemon flags, aligned with the agent-tools identity fix while retaining process and utility-command fences.
 - Preserve extended Windows navigation scan codes so arrow keys recall shell history and navigate agent input instead of being interpreted as keypad keys.
 - Start Windows directory-bound terminals using ordinary drive paths, preventing Command Prompt from treating canonical paths as unsupported UNC directories and falling back to `C:\Windows`.
 
