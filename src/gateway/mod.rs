@@ -316,7 +316,7 @@ pub fn rpc(
         "gateway.session.announce" | "gateway.session.resolve"
     ) {
         let prepared = (|| {
-            if params["version"].as_u64() != Some(1) {
+            if !matches!(params["version"].as_u64(), Some(1 | 2)) {
                 return Err("Unsupported actor identity version".to_owned());
             }
             let actor: actor::Actor = serde_json::from_value(params.clone())

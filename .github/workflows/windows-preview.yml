@@ -121,16 +121,21 @@ jobs:
       - name: Prepare real actor client and native provider fixture
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          ACTOR_CLIENT_REVISION: af92179ed831b3076c1334e4395c670eff245806
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/actor-client-build
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force target/actor-client | Out-Null
-          gh release download v1.20.1 --repo nitecon/agent-tools --pattern agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client --clobber
-          if ($LASTEXITCODE) { throw 'Actor client download failed' }
-          $archive = 'agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip'
-          $expected = ((Get-Content target/actor-client/SHA256SUMS.txt | Where-Object { $_.EndsWith($archive) }) -split '\s+')[0]
-          if ((Get-FileHash "target/actor-client/$archive" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Actor client checksum mismatch' }
-          Expand-Archive "target/actor-client/$archive" target/actor-client -Force
+          if (-not (Test-Path target/actor-client-source/.git)) {
+            git init target/actor-client-source
+            git -C target/actor-client-source remote add origin https://github.com/nitecon/agent-tools.git
+          }
+          git -C target/actor-client-source fetch --depth=1 origin $env:ACTOR_CLIENT_REVISION
+          if ($LASTEXITCODE) { throw 'Actor client source fetch failed' }
+          git -C target/actor-client-source checkout --detach FETCH_HEAD
+          if ($LASTEXITCODE) { throw 'Actor client checkout failed' }
+          & "$env:USERPROFILE/.cargo/bin/cargo.exe" build --locked --release --manifest-path target/actor-client-source/Cargo.toml -p agent-cli --bin agent-tools
+          if ($LASTEXITCODE) { throw 'Native actor client compilation failed' }
 
       - name: Compile native provider fixture
         run: gcc -Wall -Wextra -Werror -O2 tests/fixtures/windows_actor_agent.c -o target/actor-client/codex.exe
@@ -142,8 +147,8 @@ jobs:
       - name: Test portable preview startup and terminal RPC
         run: |
           pacman -S --noconfirm mingw-w64-ucrt-x86_64-mesa
-          actor_client="$(find target/actor-client -name agent-tools.exe -print -quit)"
-          test -n "$actor_client"
+          actor_client=target/actor-client-build/release/agent-tools.exe
+          test -f "$actor_client"
           python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)"
 
       - name: Test portable Windows updater

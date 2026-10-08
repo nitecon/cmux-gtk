@@ -85,6 +85,10 @@ def verify(rpc, profile, client, fixture, python):
     assert origins[0]["session_id"] != origins[1]["session_id"]
     assert origins[0]["instance_id"] == origins[1]["instance_id"]
     assert all(origin["os"] == "windows" for origin in origins)
+    actors = [json.loads(path.read_text())["actor"] for path in records]
+    assert actors[0]["base_id"] == actors[1]["base_id"]
+    assert actors[0]["session_slot"] != actors[1]["session_slot"]
+    assert all(actor["version"] == 2 and "executor_generation" not in actor for actor in actors)
     gateway = Gateway("windows-fixture-key")
     try:
         rpc("gateway.configure", dict(enabled=True, url=gateway.url, injection_approved=True, api_key="windows-fixture-key"))

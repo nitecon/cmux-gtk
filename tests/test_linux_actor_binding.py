@@ -25,7 +25,7 @@ def broker(endpoint, client, root):
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     server.bind(str(endpoint))
     server.listen(4)
-    records = {}
+    records = json.loads((root / "actors.json").read_text()) if (root / "actors.json").exists() else {}
     try:
         while True:
             connection, _ = server.accept()
@@ -35,7 +35,7 @@ def broker(endpoint, client, root):
                     native, prompt = [read_exact(connection, struct.unpack("!I", read_exact(connection, 4))[0]).decode()
                                       for _ in range(2)]
                     assert len(native) <= 256 and len(prompt) <= 65536
-                    # Drop every CMUX hint. The provider thread and executor generation alone identify the caller.
+                    # Registration uses native conversation metadata, independent of process ancestry or CMUX hints.
                     env = {k: v for k, v in os.environ.items() if not k.startswith("CMUX_")}
                     env.update(CODEX_THREAD_ID=native, CODEX_SESSION_ID=native)
                     initial_notification = "<Start Agent Gateway Message Injection>\nGateway fixture task notification\n</Stop AgentGateway Message injection>"
@@ -83,11 +83,6 @@ def main():
     with tempfile.TemporaryDirectory(prefix="cmux-actor-") as directory:
         root = Path(directory)
         workspaces = setup(root)
-        executor_dir = root / "executor"
-        executor_dir.mkdir()
-        executor_binary = executor_dir / "codex"
-        subprocess.check_call(["cc", "-Wall", "-Wextra", "-Werror", "-O2",
-                               str(Path(__file__).parent / "fixtures/actor_executor.c"), "-o", str(executor_binary)], timeout=20)
         endpoint = root / "broker.sock"
         gateway = Gateway("fixture-key")
         executor = None
@@ -98,7 +93,7 @@ def main():
                 for key in list(executor_env):
                     if key.startswith("CMUX_") or key.startswith("CODEX_") or key == "CLAUDE_CODE_SESSION_ID":
                         executor_env.pop(key)
-                executor = subprocess.Popen([str(executor_binary), "app-server", sys.executable,
+                executor = subprocess.Popen([sys.executable,
                     str(Path(__file__).resolve()), "--broker", str(endpoint), client, str(root)], env=executor_env)
                 wait_until(endpoint.exists, "shared executor socket", 10)
                 native = {name:str(uuid.uuid4()) for name in ("first","peer")}
@@ -122,7 +117,9 @@ def main():
                 origins={name:initial[value]["actor"]["origin"] for name,value in native.items()}
                 assert origins["first"]["instance_id"]==origins["peer"]["instance_id"]
                 assert origins["first"]["session_id"]!=origins["peer"]["session_id"]
-                assert initial[native["first"]]["actor"]["executor_generation"]==initial[native["peer"]]["actor"]["executor_generation"]
+                assert initial[native["first"]]["actor"]["base_id"]==initial[native["peer"]]["actor"]["base_id"]
+                assert initial[native["first"]]["actor"]["session_slot"]!=initial[native["peer"]]["actor"]["session_slot"]
+                assert all("executor_generation" not in row["actor"] for row in initial.values())
                 assert all(r["enrollments"]==0 for r in initial.values()) # Consent is still off.
                 raw(app,"gateway.configure",enabled=True,url=gateway.url,injection_approved=True,api_key="fixture-key")
                 app.wait_for(lambda: status(app)["connection"]=="Connected","gateway stream",20)
@@ -170,16 +167,30 @@ def main():
                 assert before=={k:len(v["model_prompts"]) for k,v in records(root).items()}
                 journal=json.loads((root/"config/cmux/gateway.json").read_text())
                 assert "enrollment_token" not in json.dumps(journal)
-                # Losing the backend leaves the TUI alive but retires its logical membership automatically.
+                enrolled_before_restart=records(root)[native["first"]]["enrollments"]
+                # An executor restart cannot change logical registration or retire live frontend membership.
                 for name in native:
                     (root/(name+".mode")).write_text("busy")
                 app.wait_for(lambda:all("esc to interrupt" in raw(app,"surface.read_text",id=s)["text"] for s in surfaces.values()),
                              "frontends remain busy while backend exits")
                 stop_process(executor)
-                executor=None
-                app.wait_for(lambda:len(raw(app,"gateway.sessions")["sessions"])==2 and all(c["binding_state"]=="unbound" for c in raw(app,"gateway.sessions")["sessions"]),
-                             "dead shared executor retirement",20)
-                print("actual client hooks/tools: shared executor, two actor bindings, consumed enrollment, peer comments/completion, reset and reconnect fences PASS")
+                endpoint.unlink(missing_ok=True)
+                executor = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
+                    "--broker", str(endpoint), client, str(root)], env=executor_env)
+                wait_until(endpoint.exists, "restarted shared executor socket", 10)
+                contexts=raw(app,"gateway.sessions")["sessions"]
+                assert len(contexts)==2 and all(c["binding_state"]=="bound" for c in contexts)
+                assert {c["session_id"] for c in contexts}=={origins["first"]["session_id"],current["session_id"]}
+                restarted=gateway.add(kind="task_commented",content="Research after backend restart",origin=current)
+                wait_outcome(app,gateway,restarted,"queued")
+                for name in native:
+                    (root/(name+".mode")).write_text("idle")
+                wait_outcome(app,gateway,restarted,"injected")
+                app.wait_for(lambda:any("Research after backend restart" in p for p in records(root)[native["first"]]["model_prompts"]),
+                             "ordinary registration survives executor restart",20)
+                assert records(root)[native["first"]]["actor"]["origin"]==origins["first"]
+                assert records(root)[native["first"]]["enrollments"]==enrolled_before_restart
+                print("actual registered client: plain shared host, two numbered sessions, consumed enrollment, peer comments/completion and restart/reconnect fences PASS")
         finally:
             if executor is not None:
                 stop_process(executor)

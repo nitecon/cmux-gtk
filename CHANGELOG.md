@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-10-08
+
+### Changed
+
+- Accept automatic project/provider session registrations from agent-tools v1.21.0, with a readable numbered session and stable conversation identity across executor restarts. Task identity no longer requires recognizing a provider installation or executor role. Existing terminal generation fences and peer echo suppression remain in place.
+
 ## [0.6.7] - 2026-10-08
 
 ### Fixed

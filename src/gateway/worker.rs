@@ -806,8 +806,8 @@ pub async fn context(
         let mut context = session.context(&instance_id);
         context["binding_state"] = json!(if actor.is_some() { "bound" } else { "unbound" });
         if let Some(actor) = actor {
+            actor.describe(&mut context);
             context["provider_session_id"] = json!(actor.provider_session_id);
-            context["executor_generation"] = json!(actor.executor_generation);
         }
         context
     };

@@ -11,12 +11,26 @@ use std::{
 pub const START: &str = "<cmux-session-enrollment>";
 pub const STOP: &str = "</cmux-session-enrollment>";
 
-/// Shared agent-tools-actor-v1 inputs; terminal membership is deliberately absent from the hash.
+/// Client-owned registration; native terminal generations never define a v2 logical identity.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Actor {
+    #[serde(default = "legacy_version")]
+    pub version: u8,
     pub origin: Origin,
     pub provider_session_id: String,
+    #[serde(default)]
     pub executor_generation: Vec<String>,
+    #[serde(default)]
+    pub base_id: Option<String>,
+    #[serde(default)]
+    pub session_slot: Option<u32>,
+    #[serde(default)]
+    pub actor_id: Option<String>,
+}
+
+/// Announcements without a version are the original client contract.
+fn legacy_version() -> u8 {
+    1
 }
 
 #[cfg(test)]
@@ -41,6 +55,7 @@ mod tests {
         ]))
         .unwrap();
         Actor {
+            version: 1,
             origin: Origin {
                 session_id: uuid::Uuid::new_v5(&instance, &name).to_string(),
                 instance_id: instance.to_string(),
@@ -49,6 +64,9 @@ mod tests {
             },
             provider_session_id: native.into(),
             executor_generation: epoch,
+            base_id: None,
+            session_slot: None,
+            actor_id: None,
         }
     }
 
@@ -120,6 +138,116 @@ mod tests {
         }
         assert!(actor("has spaces").validate().is_err());
         assert!(actor("valid").verify_peer(std::process::id()).is_err());
+    }
+
+    /// Registration uses the SDK's published project/conversation vectors, without process identity.
+    #[test]
+    fn registered_contract_vectors_and_plain_local_caller() {
+        let vectors: Vec<Value> = serde_json::from_str(include_str!(
+            "../../tests/fixtures/actor-registration-vectors.json"
+        ))
+        .unwrap();
+        for vector in &vectors {
+            let registered: Actor = serde_json::from_value(json!({
+                "version":2,
+                "origin":{"session_id":vector["session_id"],"instance_id":vector["instance_id"],
+                    "provider":vector["provider"],"os":vector["os"]},
+                "provider_session_id":vector["provider_session_id"],
+                "base_id":vector["base_id"],"session_slot":vector["session_slot"],
+                "actor_id":vector["actor_id"]
+            }))
+            .unwrap();
+            registered.validate().unwrap();
+            assert!(registered.executor_generation.is_empty());
+            let name = json!([
+                "agent-tools-actor-v2",
+                native_id(&registered.provider_session_id).unwrap()
+            ])
+            .to_string();
+            assert_eq!(name, vector["name_utf8"].as_str().unwrap());
+            let namespace = uuid::Uuid::parse_str(&registered.origin.instance_id).unwrap();
+            let base = uuid::Uuid::new_v5(
+                &namespace,
+                vector["base_name_utf8"].as_str().unwrap().as_bytes(),
+            );
+            assert_eq!(base.to_string(), registered.base_id.as_deref().unwrap());
+            if registered.origin.os == std::env::consts::OS {
+                registered.verify_peer(std::process::id()).unwrap();
+                assert!(registered.live());
+            } else {
+                assert!(registered.verify_peer(std::process::id()).is_err());
+            }
+            let mut invalid = registered.clone();
+            invalid.origin.session_id = uuid::Uuid::new_v4().to_string();
+            assert!(invalid.validate().is_err());
+            invalid = registered.clone();
+            invalid.session_slot = Some(0);
+            assert!(invalid.validate().is_err());
+            invalid = registered;
+            invalid.executor_generation = vec!["legacy-runtime".into()];
+            assert!(invalid.validate().is_err());
+        }
+        assert_eq!(vectors[0]["session_id"], vectors[2]["session_id"]);
+        assert_eq!(vectors[0]["session_id"], vectors[3]["session_id"]);
+        assert_ne!(vectors[0]["session_id"], vectors[1]["session_id"]);
+    }
+
+    /// Readable renumbering keeps one logical identity, while replacement still retires its terminal.
+    #[test]
+    fn registered_peer_identity_survives_renumbering_but_not_terminal_replacement() {
+        let make = |native: &str, slot: u32| {
+            let base = uuid::Uuid::parse_str("e443f9c2-dd60-5411-8ed4-0ad39c447bed").unwrap();
+            let mut registered = actor(native);
+            registered.version = 2;
+            registered.origin.os = std::env::consts::OS.into();
+            registered.origin.session_id = uuid::Uuid::new_v5(
+                &base,
+                json!(["agent-tools-actor-v2", native])
+                    .to_string()
+                    .as_bytes(),
+            )
+            .to_string();
+            registered.base_id = Some(base.to_string());
+            registered.session_slot = Some(slot);
+            registered.actor_id = Some(format!("{base}-{slot}"));
+            registered.executor_generation.clear();
+            registered
+        };
+        let a = make("conversation-a", 1);
+        let b = make("conversation-b", 2);
+        let first = session("first");
+        let peer = session("peer");
+        let current = [first.clone(), peer.clone()];
+        let mut registry = Registry::default();
+        for actor in [&a, &b] {
+            actor.validate().unwrap();
+            registry
+                .announce(actor.clone(), None, None, &current, true)
+                .unwrap();
+        }
+        for (actor, session) in [(&a, &first), (&b, &peer)] {
+            let proof = token(&registry.enrollment(session).unwrap());
+            registry
+                .announce(actor.clone(), Some(&proof), None, &current, true)
+                .unwrap();
+        }
+        assert_ne!(registry.origin(&first), registry.origin(&peer));
+        let mut renumbered = a.clone();
+        renumbered.session_slot = Some(7);
+        renumbered.actor_id = Some(format!("{}-7", renumbered.base_id.as_ref().unwrap()));
+        let response = registry
+            .announce(renumbered.clone(), None, None, &current, false)
+            .unwrap();
+        assert_eq!(response["session_slot"], 7);
+        assert_eq!(response["binding_state"], "bound");
+        assert_eq!(registry.origin(&first), Some(a.origin));
+        assert_eq!(registry.actor(&first).unwrap().session_slot, Some(7));
+        assert!(!registry.waiting(&first));
+        let mut replaced = first;
+        replaced.process.start_ticks += 1;
+        registry.retain(&[replaced.clone(), peer.clone()]);
+        assert!(registry.origin(&replaced).is_none());
+        assert_eq!(registry.origin(&peer), Some(b.origin));
     }
 
     /// Hook capability and recipient token are separate proofs; none can be replaced by a surface or CLI hint.
@@ -254,7 +382,43 @@ impl Actor {
         self.origin.validate()?;
         let namespace = uuid::Uuid::parse_str(&self.origin.instance_id)
             .map_err(|_| "Invalid actor namespace")?;
+        if namespace.to_string() != self.origin.instance_id {
+            return Err("Invalid actor namespace".into());
+        }
         let native = native_id(&self.provider_session_id)?;
+        if self.version == 2 {
+            let base_id = self
+                .base_id
+                .as_deref()
+                .ok_or("Missing registration base identity")?;
+            let base =
+                uuid::Uuid::parse_str(base_id).map_err(|_| "Invalid registration base identity")?;
+            if base.to_string() != base_id {
+                return Err("Invalid registration base identity".into());
+            }
+            let slot = self
+                .session_slot
+                .filter(|slot| *slot > 0)
+                .ok_or("Invalid numbered session registration")?;
+            if !self.executor_generation.is_empty() {
+                return Err("Invalid numbered session registration".into());
+            }
+            if self.actor_id.as_deref() != Some(format!("{base_id}-{slot}").as_str()) {
+                return Err("Readable actor identity does not match its registration".into());
+            }
+            let name = json!(["agent-tools-actor-v2", native]).to_string();
+            if uuid::Uuid::new_v5(&base, name.as_bytes()).to_string() != self.origin.session_id {
+                return Err("Actor identity does not match its registered conversation".into());
+            }
+            return Ok(());
+        }
+        if self.version != 1
+            || self.base_id.is_some()
+            || self.session_slot.is_some()
+            || self.actor_id.is_some()
+        {
+            return Err("Unsupported actor registration".into());
+        }
         if self.executor_generation.is_empty()
             || self.executor_generation.len() > 4
             || self
@@ -272,9 +436,7 @@ impl Actor {
             self.executor_generation
         ]))
         .map_err(|_| "Cannot encode actor identity")?;
-        if namespace.to_string() != self.origin.instance_id
-            || uuid::Uuid::new_v5(&namespace, &name).to_string() != self.origin.session_id
-        {
+        if uuid::Uuid::new_v5(&namespace, &name).to_string() != self.origin.session_id {
             return Err("Actor identity does not match its namespace and runtime".into());
         }
         Ok(())
@@ -285,6 +447,11 @@ impl Actor {
         self.validate()?;
         if self.origin.os != std::env::consts::OS {
             return Err("Actor OS does not match local host".into());
+        }
+        // The socket already authenticates the local caller. Registration is not
+        // contingent on recognizing a provider's installation or executor role.
+        if self.version == 2 {
+            return Ok(());
         }
         let executor =
             cmux_platform::process::agent_executor(peer_pid.into(), &self.origin.provider)
@@ -312,16 +479,22 @@ impl Actor {
 
     /// One normalized actor, independent of changing directories or terminal reattachment.
     fn same(&self, other: &Self) -> bool {
-        self.origin == other.origin
+        self.version == other.version
+            && self.origin == other.origin
             && self.executor_generation == other.executor_generation
             && native_id(&self.provider_session_id).ok()
                 == native_id(&other.provider_session_id).ok()
     }
 
-    /// Recheck the executor on a blocking worker; a live TUI cannot keep a dead backend actor alive.
+    /// Logical registrations outlive executors; old clients retain their runtime liveness check.
     pub fn live(&self) -> bool {
         if self.origin.os != std::env::consts::OS {
             return false;
+        }
+        // Registry::retain independently retires closed or replaced native
+        // attachments; a logical registration survives backend restarts.
+        if self.version == 2 {
+            return true;
         }
         let pid_index = if cfg!(windows) { 1 } else { 2 };
         let Some(pid) = self
@@ -335,6 +508,18 @@ impl Actor {
             .filter(|p| p.pid == pid)
             .and_then(|p| cmux_platform::process::executor_generation(&p))
             .is_some_and(|generation| generation == self.executor_generation)
+    }
+
+    /// Add the same versioned registration metadata to RPC replies and peer discovery.
+    pub fn describe(&self, context: &mut Value) {
+        context["version"] = json!(self.version);
+        if self.version == 2 {
+            context["base_id"] = json!(self.base_id);
+            context["session_slot"] = json!(self.session_slot);
+            context["actor_id"] = json!(self.actor_id);
+        } else {
+            context["executor_generation"] = json!(self.executor_generation);
+        }
     }
 }
 
@@ -558,10 +743,16 @@ impl Registry {
                 },
             );
         }
+        // A temp-registry reset may renumber the readable slot without changing
+        // the conversation UUID or its separately fenced terminal attachment.
+        for binding in self.bindings.values_mut().filter(|b| b.actor.same(&actor)) {
+            binding.actor = actor.clone();
+        }
         let binding = self.bindings.values().find(|b| b.actor.same(&actor));
-        let mut response = json!({"version":1,"origin":actor.origin,
-            "provider_session_id":native_id(&actor.provider_session_id)?,"executor_generation":actor.executor_generation,
+        let mut response = json!({"version":actor.version,"origin":actor.origin,
+            "provider_session_id":native_id(&actor.provider_session_id)?,
             "binding_state":if binding.is_some() {"bound"} else {"unbound"}});
+        actor.describe(&mut response);
         response["repository"] = json!(repository);
         if let Some(binding) = binding {
             if repository.is_some_and(|repo| {
