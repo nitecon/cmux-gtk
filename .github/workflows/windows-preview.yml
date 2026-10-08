@@ -125,7 +125,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force target/actor-client | Out-Null
-          gh release download v1.20.1 --repo nitecon/agent-tools --pattern agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client
+          gh release download v1.20.1 --repo nitecon/agent-tools --pattern agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip --pattern SHA256SUMS.txt --dir target/actor-client --clobber
           if ($LASTEXITCODE) { throw 'Actor client download failed' }
           $archive = 'agent-tools-v1.20.1-x86_64-pc-windows-msvc.zip'
           $expected = ((Get-Content target/actor-client/SHA256SUMS.txt | Where-Object { $_.EndsWith($archive) }) -split '\s+')[0]
