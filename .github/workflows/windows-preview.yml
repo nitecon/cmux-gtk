@@ -75,6 +75,9 @@ jobs:
           $directory = (Get-ChildItem .tools -Directory | Where-Object Name -Like "zig*windows*$version").FullName
           if (-not $directory) { throw 'Zig archive layout unrecognized' }
           Add-Content $env:GITHUB_PATH $directory
+          # Zig 0.16 ZIP dependency fetching requires this directory on fresh runners.
+          $zigCache = (& "$directory/zig.exe" env | Select-String '^\s*\.global_cache_dir = (".*"),$').Matches.Groups[1].Value | ConvertFrom-Json
+          New-Item -ItemType Directory -Force (Join-Path $zigCache 'tmp') | Out-Null
 
       - name: Build native Ghostty terminal backend
         run: bash scripts/setup-windows.sh
