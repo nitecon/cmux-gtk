@@ -114,7 +114,8 @@ jobs:
         run: cargo test -p cmux-platform --no-default-features --features async-io --locked
 
       - name: Test verified native Windows update archives
-        run: LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo test --bin cmux updater:: --locked
+        run: |
+          LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo test --bin cmux updater:: --locked
 
       - name: Prepare real actor client and native provider fixture
         shell: pwsh
