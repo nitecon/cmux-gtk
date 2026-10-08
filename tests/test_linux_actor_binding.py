@@ -124,7 +124,7 @@ def main():
                 contexts=raw(app,"gateway.sessions")["sessions"]
                 assert len(contexts)==2 and all(c["binding_state"]=="unbound" for c in contexts)
                 assert all(not r["model_prompts"] for r in records(root).values())
-                assert all(r["actor"]["binding_state"]=="unbound" for r in records(root).values())
+                assert all(r["actor"]["membership"]["binding_state"]=="unbound" for r in records(root).values())
 
                 event=gateway.add(kind="task_commented",content="Native peer research result")
                 wait_outcome(app,gateway,event,"injected")

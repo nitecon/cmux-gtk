@@ -93,7 +93,7 @@ def verify(rpc, profile, client, fixture, python):
         for surface, record in zip(surfaces, records):
             assert rpc("gateway.session", {"surface_id": surface})["binding_state"] == "unbound"
             snapshot = json.loads(record.read_text())
-            assert snapshot["actor"]["binding_state"] == "unbound" and not snapshot["prompts"]
+            assert snapshot["actor"]["membership"]["binding_state"] == "unbound" and not snapshot["prompts"]
 
         def delivered(event):
             """Require a terminal ACK for the complete two-recipient event group."""
