@@ -1,6 +1,5 @@
 //! One owned lifecycle connection and fsynced delivery queue; GTK alone owns native terminal input.
 use super::{
-    actor,
     model::*,
     pipeline::{Pending, Pipeline},
     readiness, storage, wire,
@@ -26,15 +25,9 @@ pub struct Request {
 
 /// GTK rechecks the live target and reports actual input separately from canonical task completion.
 pub struct Delivery {
-    pub payload: Payload,
+    pub message: Box<Message>,
     pub session: Session,
     pub reply: oneshot::Sender<Result<DeliveryOutcome, String>>,
-}
-
-/// Enrollment is local housekeeping and never impersonates a gateway task or emits gateway receipts.
-pub enum Payload {
-    Task(Box<Message>),
-    Enrollment(String),
 }
 
 /// One socket and its subscription/heartbeat lifetime; dropping it cancels this connection.
@@ -69,7 +62,6 @@ struct Worker {
     connection: String,
     agents: usize,
     prompts: HashMap<String, StablePrompt>,
-    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 }
 
 impl Worker {
@@ -236,11 +228,6 @@ impl Worker {
             finalize(&mut receipt, "failed", "Gateway message queue is full");
         } else {
             receipt.candidates = active(terminals, &self.journal.instance_id).await;
-            if let Ok(actors) = self.actors.lock() {
-                for candidate in &mut receipt.candidates {
-                    candidate.actor_origin = actors.origin(candidate);
-                }
-            }
             if receipt.candidates.is_empty() {
                 finalize(
                     &mut receipt,
@@ -336,65 +323,6 @@ impl Worker {
 
     /// Attach a fresh readiness observation only after native layout, process generation and input stay stable.
     async fn observe(&mut self, sessions: &mut [Session]) -> Result<(), String> {
-        let known = self.actors.lock().map(|a| a.actors()).unwrap_or_default();
-        let dead = tokio::task::spawn_blocking(move || {
-            known.into_iter().filter(|a| !a.live()).collect::<Vec<_>>()
-        })
-        .await
-        .unwrap_or_default();
-        let mut pinned = false;
-        if let Ok(mut actors) = self.actors.lock() {
-            actors.retire(&dead);
-            actors.retain(sessions);
-            for session in sessions.iter_mut() {
-                session.actor_origin = actors.origin(session);
-            }
-            // Pin previously unknown logical actors exactly once after automatic enrollment.
-            for pending in &mut self.pipeline.pending {
-                if pending.target.actor_origin.is_none() {
-                    pending.target.actor_origin = sessions
-                        .iter()
-                        .find(|s| pending.target.same_target(s))
-                        .and_then(|s| s.actor_origin.clone());
-                }
-            }
-            for receipt in self
-                .journal
-                .receipts
-                .iter_mut()
-                .filter(|r| r.outcome == "queued")
-            {
-                if let Some(target) = &mut receipt.target {
-                    if target.actor_origin.is_none() {
-                        target.actor_origin = sessions
-                            .iter()
-                            .find(|s| target.same_target(s))
-                            .and_then(|s| s.actor_origin.clone());
-                        pinned |= target.actor_origin.is_some();
-                    }
-                }
-            }
-            for receipt in self
-                .journal
-                .receipts
-                .iter_mut()
-                .filter(|r| r.outcome == "received")
-            {
-                for candidate in &mut receipt.candidates {
-                    if candidate.actor_origin.is_none() {
-                        candidate.actor_origin = sessions
-                            .iter()
-                            .find(|s| candidate.same_attachment(s))
-                            .and_then(|s| s.actor_origin.clone());
-                        pinned |= candidate.actor_origin.is_some();
-                    }
-                }
-            }
-        }
-        // Persist first actor attribution even when its prompt remains busy; a restart cannot lose the fence.
-        if pinned {
-            self.save().await?;
-        }
         self.agents = sessions.len();
         let mut live = HashSet::new();
         for session in sessions.iter_mut() {
@@ -468,45 +396,7 @@ impl Worker {
 
     /// Fsync a submitting fence, then request one GTK operation; lost replies become nonreplayable uncertainty.
     async fn drain_verified(&mut self, sessions: Vec<Session>) -> Result<(), String> {
-        if self.journal.config.enabled && self.journal.config.injection_approved {
-            // One safe native input per tick. Enrollment precedes tasks and creates no model turn.
-            for session in &sessions {
-                let text = self
-                    .actors
-                    .lock()
-                    .map_err(|_| "Agent identity state unavailable")?
-                    .enrollment(session);
-                if let Some(text) = text {
-                    let (reply, result) = oneshot::channel();
-                    let delivery = Delivery {
-                        payload: Payload::Enrollment(text),
-                        session: session.clone(),
-                        reply,
-                    };
-                    let _ = tokio::time::timeout(Duration::from_secs(2), async {
-                        if self.deliveries.send(delivery).await.is_ok() {
-                            let _ = result.await;
-                        }
-                    })
-                    .await;
-                    self.prompts.remove(&session.terminal.surface_id);
-                    return Ok(());
-                }
-            }
-        }
-        let mut available = sessions;
-        {
-            let actors = self
-                .actors
-                .lock()
-                .map_err(|_| "Agent identity state unavailable")?;
-            for session in &mut available {
-                if actors.waiting(session) {
-                    session.terminal.observation = None;
-                }
-            }
-        }
-        let Some((pending, ready)) = self.pipeline.next(&self.projects, &available) else {
+        let Some((pending, ready)) = self.pipeline.next(&self.projects, &sessions) else {
             return Ok(());
         };
         let index = self
@@ -549,7 +439,7 @@ impl Worker {
         let (reply, result) = oneshot::channel();
         let surface = pending.target.terminal.surface_id.clone();
         let delivery = Delivery {
-            payload: Payload::Task(Box::new(pending.message.clone())),
+            message: Box::new(pending.message.clone()),
             session: pending.target.clone(),
             reply,
         };
@@ -793,22 +683,11 @@ pub async fn context(
     terminals: Vec<Terminal>,
     instance_id: String,
     surface_id: Option<String>,
-    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 ) -> Result<Value, String> {
     let mut sessions = active(&terminals, &instance_id).await;
-    let mut actors = actors
-        .lock()
-        .map_err(|_| "Agent identity state unavailable")?;
-    actors.retain(&sessions);
     let metadata = |session: &mut Session| {
-        let actor = actors.actor(session);
-        session.actor_origin = actor.as_ref().map(|a| a.origin.clone());
         let mut context = session.context(&instance_id);
-        context["binding_state"] = json!(if actor.is_some() { "bound" } else { "unbound" });
-        if let Some(actor) = actor {
-            actor.describe(&mut context);
-            context["provider_session_id"] = json!(actor.provider_session_id);
-        }
+        context["binding_state"] = json!("unbound");
         context
     };
     if let Some(surface_id) = surface_id {
@@ -926,7 +805,6 @@ pub async fn run(
     snapshots: watch::Receiver<Vec<Terminal>>,
     view: watch::Sender<View>,
     deliveries: mpsc::Sender<Delivery>,
-    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 ) {
     let path = storage::path();
     let loading = path.clone();
@@ -943,7 +821,7 @@ pub async fn run(
             }); }
         }
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new(),actors};
+            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new()};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -1155,7 +1033,6 @@ mod tests {
             connection: "Connected".into(),
             agents: 1,
             prompts: HashMap::new(),
-            actors: std::sync::Arc::default(),
         };
         worker
             .pipeline
@@ -1177,9 +1054,7 @@ mod tests {
                 // load converts submitting to uncertain, proving the fence preceded the GTK request.
                 assert_eq!(journal.receipts[0].event_id, "event");
                 assert_eq!(journal.receipts[0].outcome, "uncertain");
-                let Payload::Task(delivered) = &delivery.payload else {
-                    panic!("unexpected enrollment");
-                };
+                let delivered = &delivery.message;
                 assert_eq!(delivered.terminal_text(), message.terminal_text());
                 delivery.reply.send(Ok(outcome)).unwrap();
             }
@@ -1215,7 +1090,7 @@ mod tests {
                 .unwrap(),
             Admission::Duplicate
         );
-        // Arrival before enrollment cannot leak an echo once the exact logical actor becomes known.
+        // A previously unattributed receipt cannot leak an echo if its exact origin becomes known.
         let origin = Origin {
             session_id: uuid::Uuid::new_v4().to_string(),
             instance_id: uuid::Uuid::new_v4().to_string(),

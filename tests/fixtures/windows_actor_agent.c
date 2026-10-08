@@ -1,11 +1,11 @@
-/** Native ConPTY provider fixture; real installed client hooks consume enrollment before model input. */
+/** Native ConPTY provider fixture; ordinary tools record actual model input. */
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /** Run the Python relay below this native provider process, keeping prompt bytes out of shell arguments. */
-static int hook(char **args, const char *prompt) {
+static int relay(char **args, const char *prompt) {
     FILE *file = fopen(args[6], "wb");
     if (!file) return -1;
     fwrite(prompt, 1, strlen(prompt), file);
@@ -25,7 +25,7 @@ static int hook(char **args, const char *prompt) {
     GetExitCodeProcess(child.hProcess, &status);
     CloseHandle(child.hThread);
     CloseHandle(child.hProcess);
-    return status == 10 ? 1 : status == 0 ? 0 : -1;
+    return status == 0 ? 0 : -1;
 }
 
 /** Render the same bounded Codex composer used by the Linux native readiness fixture. */
@@ -37,7 +37,7 @@ static void render(void) {
     fflush(stdout);
 }
 
-/** Own a raw native console and relay complete bracketed-paste submissions to the real prompt hook. */
+/** Own a raw native console and relay complete bracketed-paste submissions to ordinary model tools. */
 int main(int argc, char **argv) {
     if (argc != 9 || strcmp(argv[1], "exec") != 0) return 2;
     SetConsoleCP(CP_UTF8);
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
     if (!GetConsoleMode(input, &original_input) || !GetConsoleMode(output, &original_output)) return 3;
     if (!SetConsoleMode(input, ENABLE_VIRTUAL_TERMINAL_INPUT) ||
         !SetConsoleMode(output, original_output | ENABLE_VIRTUAL_TERMINAL_PROCESSING)) return 4;
-    if (hook(argv, "") < 0) return 5;
+    if (relay(argv, "") < 0) return 5;
     printf("\033[?2004h");
     char bytes[4096], text[65536] = {0}, sequence[16] = {0};
     size_t length = 0, sequence_length = 0;
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
                 continue;
             }
             if (!paste && (value == '\r' || value == '\n')) {
-                if (length && hook(argv, text) < 0) return 6;
+                if (length && relay(argv, text) < 0) return 6;
                 length = 0; text[0] = 0;
             } else if (length + 1 < sizeof(text)) {
                 text[length++] = (char)value; text[length] = 0;

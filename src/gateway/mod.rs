@@ -22,7 +22,6 @@ pub struct Handle {
     pub view: watch::Receiver<View>,
     task: tokio::task::JoinHandle<()>,
     runtime: tokio::runtime::Handle,
-    actors: std::sync::Arc<std::sync::Mutex<actor::Registry>>,
 }
 
 impl Drop for Handle {
@@ -38,15 +37,13 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
     let (snapshots, sx) = watch::channel(Vec::new());
     let (view_tx, view) = watch::channel(View::default());
     let (deliveries, mut delivery_rx) = mpsc::channel::<worker::Delivery>(32);
-    let actors = std::sync::Arc::new(std::sync::Mutex::new(actor::Registry::default()));
-    let task = runtime.spawn(worker::run(rx, sx, view_tx, deliveries, actors.clone()));
+    let task = runtime.spawn(worker::run(rx, sx, view_tx, deliveries));
     state.borrow_mut().gateway = Some(Handle {
         requests,
         snapshots,
         view,
         task,
         runtime: runtime.clone(),
-        actors,
     });
     let weak = std::rc::Rc::downgrade(state);
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
@@ -65,7 +62,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
             if !delivery.reply.is_closed() {
                 let _ = delivery
                     .reply
-                    .send(deliver(&state, &delivery.payload, &delivery.session));
+                    .send(deliver(&state, &delivery.message, &delivery.session));
             }
         }
     });
@@ -142,42 +139,11 @@ fn snapshot(state: &AppStateRef) {
 /// Recheck consent, pinned target and unchanged ready input immediately before typing on GTK.
 fn deliver(
     state: &AppStateRef,
-    payload: &worker::Payload,
+    message: &Message,
     expected: &Session,
 ) -> Result<DeliveryOutcome, String> {
-    let text = match payload {
-        worker::Payload::Task(message) => {
-            message.validate()?;
-            message.terminal_text()
-        }
-        worker::Payload::Enrollment(text) => text.clone(),
-    };
-    let actors = state
-        .borrow()
-        .gateway
-        .as_ref()
-        .ok_or("Gateway unavailable")?
-        .actors
-        .clone();
-    // Keep binding changes serialized through this short, non-yielding GTK input operation.
-    let actors = actors
-        .lock()
-        .map_err(|_| "Agent identity state unavailable")?;
-    match payload {
-        worker::Payload::Enrollment(_) if !actors.accepts_enrollment(&text, expected) => {
-            return Err("Enrollment target changed".into())
-        }
-        worker::Payload::Task(_)
-            if actors.waiting(expected)
-                || expected
-                    .actor_origin
-                    .as_ref()
-                    .is_some_and(|origin| actors.origin(expected).as_ref() != Some(origin)) =>
-        {
-            return Ok(DeliveryOutcome::Deferred)
-        }
-        _ => {}
-    }
+    message.validate()?;
+    let text = message.terminal_text();
     let pointer = {
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
@@ -245,7 +211,6 @@ pub fn submit(
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
         let instance_id = gateway.view.borrow().instance_id.clone();
-        let actors = gateway.actors.clone();
         if instance_id.is_empty() {
             return Err("Gateway identity is still loading".into());
         }
@@ -255,7 +220,7 @@ pub fn submit(
         gateway.runtime.spawn(async move {
             let result = tokio::time::timeout(
                 std::time::Duration::from_secs(1),
-                worker::context(terminals, instance_id, surface_id, actors),
+                worker::context(terminals, instance_id, surface_id),
             )
             .await
             .unwrap_or_else(|_| Err("Agent identity lookup timed out".into()));
@@ -322,13 +287,9 @@ pub fn rpc(
             let actor: actor::Actor = serde_json::from_value(params.clone())
                 .map_err(|_| "Invalid actor announcement".to_owned())?;
             let peer_pid = peer_pid.ok_or("Caller process is not kernel authenticated")?;
-            let token = match params.get("enrollment_token") {
-                None | Some(Value::Null) => None,
-                Some(Value::String(token)) if method == "gateway.session.announce" => {
-                    Some(token.clone())
-                }
-                _ => return Err("Invalid enrollment token".into()),
-            };
+            if params.get("enrollment_token").is_some() {
+                return Err("Identity enrollment is not supported".into());
+            }
             let repository = match params.get("repository") {
                 None | Some(Value::Null) => None,
                 Some(Value::String(repo)) => {
@@ -338,21 +299,9 @@ pub fn rpc(
             };
             let state = state.borrow();
             let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
-            let instance = gateway.view.borrow().instance_id.clone();
-            Ok((
-                actor,
-                peer_pid,
-                token,
-                repository,
-                terminals(&state, false),
-                instance,
-                gateway.actors.clone(),
-                gateway.runtime.clone(),
-            ))
+            Ok((actor, peer_pid, repository, gateway.runtime.clone()))
         })();
-        let Ok((actor, peer_pid, token, repository, terminals, instance, actors, runtime)) =
-            prepared
-        else {
+        let Ok((actor, peer_pid, repository, runtime)) = prepared else {
             let _ = resp_tx.send(crate::socket::response::err(
                 req_id,
                 "invalid_params",
@@ -362,31 +311,12 @@ pub fn rpc(
         };
         runtime.spawn(async move {
             let checked = tokio::task::spawn_blocking(move || {
-                actor.verify_peer(peer_pid).map(|_| {
-                    (
-                        actor,
-                        cmux_platform::process::agent_tools_hook(peer_pid.into()),
-                    )
-                })
+                actor.verify_peer(peer_pid)?;
+                actor.announcement(repository.as_deref())
             })
             .await;
             let result = match checked {
-                Ok(Ok((actor, hook))) => {
-                    let current = worker::active(&terminals, &instance).await;
-                    actors
-                        .lock()
-                        .map_err(|_| "Agent identity state unavailable".to_owned())
-                        .and_then(|mut registry| {
-                            registry.announce(
-                                actor,
-                                token.as_deref(),
-                                repository.as_deref(),
-                                &current,
-                                hook,
-                            )
-                        })
-                }
-                Ok(Err(error)) => Err(error),
+                Ok(result) => result,
                 Err(_) => Err("Caller identity worker stopped".into()),
             };
             let response = match result {

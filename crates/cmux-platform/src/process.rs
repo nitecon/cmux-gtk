@@ -410,29 +410,6 @@ pub fn provider_invocation_ids(pid: u64) -> Option<Vec<(String, String)>> {
     Some(result)
 }
 
-/// Observe the configured agent-tools hook execution rather than trusting a capability flag in JSON.
-pub fn agent_tools_hook(pid: u64) -> bool {
-    let path = std::path::PathBuf::from(format!("/proc/{pid}"));
-    let Ok(exe) = std::fs::read_link(path.join("exe")) else {
-        return false;
-    };
-    if exe.file_name().is_none_or(|name| name != "agent-tools") {
-        return false;
-    }
-    let mut bytes = Vec::new();
-    let Ok(mut file) = std::fs::File::open(path.join("cmdline")) else {
-        return false;
-    };
-    if file.by_ref().take(4097).read_to_end(&mut bytes).is_err() || bytes.len() > 4096 {
-        return false;
-    }
-    let args: Vec<_> = bytes.split(|b| *b == 0).collect();
-    args.get(1) == Some(&b"hook".as_slice())
-        && args
-            .get(2)
-            .is_some_and(|value| matches!(*value, b"user-prompt-submit" | b"session-start"))
-}
-
 #[cfg(test)]
 mod agent_tests {
     use super::*;

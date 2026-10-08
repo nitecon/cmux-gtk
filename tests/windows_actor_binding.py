@@ -1,4 +1,4 @@
-"""Native Windows CI: real client hooks, named-pipe caller identity and two independently enrolled peers."""
+"""Native Windows CI: registered tools and legacy hooks cannot cause synthetic identity input."""
 import json
 import os
 from pathlib import Path
@@ -11,38 +11,33 @@ from gateway_fixture import Gateway
 
 
 def relay(client, native, prompt_file, record_file, directory):
-    """Run actual installed hooks/tools from each native provider, with no CMUX environment hints."""
+    """Run ordinary tools; a legacy startup hook is only a regression trigger, never installed."""
     env = {key: value for key, value in os.environ.items() if not key.startswith("CMUX_")}
     env.update(CODEX_THREAD_ID=native, CODEX_SESSION_ID=native)
     env.pop("CLAUDE_CODE_SESSION_ID", None)
     prompt = Path(prompt_file).read_text(encoding="utf-8")
     notification = "<Start Agent Gateway Message Injection>\nWindows fixture notification\n</Stop AgentGateway Message injection>"
     payload = dict(session_id=native, cwd=directory, prompt=prompt or notification, hook_event_name="UserPromptSubmit")
-    hook = subprocess.run([client, "hook", "user-prompt-submit", "--agent", "codex"],
-                          input=json.dumps(payload), env=env, cwd=directory, text=True,
-                          capture_output=True, timeout=12, check=True)
     if not prompt:
-        assert not hook.stdout.strip(), "Notification-first hook must announce quietly"
-    blocked = any(line.startswith("{") and json.loads(line).get("decision") == "block"
-                  for line in hook.stdout.splitlines())
+        hook = subprocess.run([client, "hook", "user-prompt-submit", "--agent", "codex"],
+            input=json.dumps(payload), env=env, cwd=directory, text=True,
+            capture_output=True, timeout=12, check=True)
+        assert not hook.stdout.strip(), "Legacy notification hook should remain quiet"
     actor = json.loads(subprocess.check_output([client, "session", "--json"], env=env,
                                              cwd=directory, text=True, timeout=5))
     record_path = Path(record_file)
-    record = json.loads(record_path.read_text()) if record_path.exists() else dict(enrollments=0, prompts=[])
+    record = json.loads(record_path.read_text()) if record_path.exists() else dict(prompts=[])
     record["actor"] = actor
-    if blocked:
-        assert prompt.startswith("<cmux-session-enrollment>")
-        record["enrollments"] += 1
-    elif prompt:
+    if prompt:
         record["prompts"].append(prompt)
     temporary = record_path.with_suffix(".tmp")
     temporary.write_text(json.dumps(record), encoding="utf-8")
     temporary.replace(record_path)
-    return 10 if blocked else 0
+    return 0
 
 
 def verify(rpc, profile, client, fixture, python):
-    """Enroll native ConPTY peers then check useful comments/completion, exact-origin skips and bound RPC."""
+    """Verify ordinary registration and native delivery without automatic identity prompt submission."""
     root = Path(profile) / "actors"
     root.mkdir()
     directory = root / "first"
@@ -80,7 +75,7 @@ def verify(rpc, profile, client, fixture, python):
                                           str(client), native, str(root / (name + ".prompt")), str(record), str(directory)])
         rpc("surface.send_text", {"id": surface, "text": command})
         rpc("surface.send_key", {"id": surface, "key": "\r"})
-        wait(lambda: record.exists() and "Windows actor fixture" in rpc("surface.read_text", {"id": surface})["text"], "native provider/hook startup")
+        wait(lambda: record.exists() and "Windows actor fixture" in rpc("surface.read_text", {"id": surface})["text"], "native provider startup")
     origins = [json.loads(path.read_text())["actor"]["origin"] for path in records]
     assert origins[0]["session_id"] != origins[1]["session_id"]
     assert origins[0]["instance_id"] == origins[1]["instance_id"]
@@ -93,27 +88,26 @@ def verify(rpc, profile, client, fixture, python):
     try:
         rpc("gateway.configure", dict(enabled=True, url=gateway.url, injection_approved=True, api_key="windows-fixture-key"))
         wait(lambda: rpc("gateway.status")["connection"] == "Connected", "gateway subscription")
-        wait(lambda: all(rpc("gateway.session", {"surface_id": surface}).get("binding_state") == "bound" for surface in surfaces), "automatic Windows enrollment")
-        for surface, record, origin in zip(surfaces, records, origins):
-            context = rpc("gateway.session", {"surface_id": surface})
-            assert context["session_id"] == origin["session_id"]
+        wait(lambda: rpc("gateway.status")["agents"] == 2, "two native peers")
+        time.sleep(2)
+        for surface, record in zip(surfaces, records):
+            assert rpc("gateway.session", {"surface_id": surface})["binding_state"] == "unbound"
             snapshot = json.loads(record.read_text())
-            assert snapshot["enrollments"] == 1 and not snapshot["prompts"]
+            assert snapshot["actor"]["binding_state"] == "unbound" and not snapshot["prompts"]
 
         def delivered(event):
             """Require a terminal ACK for the complete two-recipient event group."""
             rows = [row for row in rpc("gateway.status")["receipts"] if str(row["event_id"]) == str(event)]
             return len(rows) == 2 and all(row["confirmed"] and row["outcome"] in ("injected", "skipped") for row in rows)
 
-        comment = gateway.add(kind="task_commented", content="Windows peer research result", origin=origins[0])
-        wait(lambda: delivered(comment), "comment peer delivery and exact-origin suppression")
-        wait(lambda: len(json.loads(records[1].read_text())["prompts"]) == 1, "peer comment visible to model")
-        assert not json.loads(records[0].read_text())["prompts"]
-        completion = gateway.add(kind="task_completed", content="Windows peer completed", origin=origins[1])
-        wait(lambda: delivered(completion), "completion peer delivery and exact-origin suppression")
-        wait(lambda: len(json.loads(records[0].read_text())["prompts"]) == 1, "peer completion visible to model")
-        assert len(json.loads(records[1].read_text())["prompts"]) == 1
-        print("Native Windows actual SDK: two actors, named-pipe identity, notification-first hooks, consumed enrollment and peer comment/completion PASS")
+        comment = gateway.add(kind="task_commented", content="Windows peer research result")
+        wait(lambda: delivered(comment), "comment delivery to native peers")
+        wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 1 for record in records), "comment visible to both peers")
+        completion = gateway.add(kind="task_completed", content="Windows peer completed")
+        wait(lambda: delivered(completion), "completion delivery to native peers")
+        wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 2 for record in records), "completion visible to both peers")
+        assert all("cmux-session-enrollment" not in prompt for record in records for prompt in json.loads(record.read_text())["prompts"])
+        print("Native Windows ordinary SDK: two registrations, no enrollment input, native peer comment/completion PASS")
     finally:
         rpc("gateway.configure", dict(enabled=False, url=gateway.url, injection_approved=False))
         gateway.close()

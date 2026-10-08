@@ -326,22 +326,6 @@ pub fn provider_invocation_ids(pid: u64) -> Option<Vec<(String, String)>> {
     Some(snapshot(u32::try_from(pid).ok()?, true)?.environment)
 }
 
-/// Observe the installed prompt hook's executable and argv through native process metadata.
-pub fn agent_tools_hook(pid: u64) -> bool {
-    let Some(process) = u32::try_from(pid).ok().and_then(|pid| snapshot(pid, false)) else {
-        return false;
-    };
-    process
-        .executable
-        .file_name()
-        .is_some_and(|n| n.eq_ignore_ascii_case("agent-tools.exe"))
-        && process.command.get(1).is_some_and(|v| v == "hook")
-        && process
-            .command
-            .get(2)
-            .is_some_and(|v| matches!(v.as_str(), "user-prompt-submit" | "session-start"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

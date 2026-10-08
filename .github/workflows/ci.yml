@@ -155,7 +155,7 @@ jobs:
       - name: Test gateway lifecycle stream and native terminal injection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
 
-      - name: Build pinned session-aware client for shared-executor integration
+      - name: Build pinned legacy client for enrollment-removal regression
         env:
           ACTOR_CLIENT_REVISION: af92179ed831b3076c1334e4395c670eff245806
           CARGO_TARGET_DIR: ${{ github.workspace }}/target/actor-client-build
@@ -166,7 +166,7 @@ jobs:
           git -C target/actor-client-source checkout --detach FETCH_HEAD
           cargo build --locked --release --manifest-path target/actor-client-source/Cargo.toml -p agent-cli --bin agent-tools
 
-      - name: Test automatic actor binding with real client hooks and tools
+      - name: Test registered tools without identity-enrollment prompts
         env:
           CMUX_ACTOR_CLIENT: target/actor-client-build/release/agent-tools
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_actor_binding.py

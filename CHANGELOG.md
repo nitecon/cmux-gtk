@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-10-08
+
+### Removed
+
+- Delete synthetic identity-enrollment prompts, token challenges, hook-capability checks and enrollment waiting gates. CMUX no longer submits identity housekeeping into provider prompts. Ordinary task registration remains available; automatic logical-actor attachment is deferred for user architecture review.
+
 ## [0.6.8] - 2026-10-08
 
 ### Changed

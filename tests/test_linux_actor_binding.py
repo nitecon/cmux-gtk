@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI: actual client hooks/tools below one shared executor, independently bound to native GTK terminals."""
+"""CI: ordinary registration works and legacy hook announcements cannot generate enrollment input."""
 import json
 import os
 from pathlib import Path
@@ -9,6 +9,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 
 from gateway_fixture import Gateway, read_exact
@@ -41,27 +42,22 @@ def broker(endpoint, client, root):
                     initial_notification = "<Start Agent Gateway Message Injection>\nGateway fixture task notification\n</Stop AgentGateway Message injection>"
                     payload = dict(session_id=native, cwd=str(root / "first"), prompt=initial_notification if kind==b"S" else prompt,
                                    hook_event_name="UserPromptSubmit")
-                    hook = subprocess.run([client, "hook", "user-prompt-submit",
-                                           "--agent", "codex"], input=json.dumps(payload), env=env,
-                                          cwd=root / "first", text=True, capture_output=True, timeout=10, check=True)
-                    if kind==b"S":
-                        assert not hook.stdout.strip(), "notification hook must announce privately without model context"
-                    blocked = any(line.startswith("{") and json.loads(line).get("decision") == "block"
-                                  for line in hook.stdout.splitlines())
+                    if kind == b"S":
+                        # Regression trigger only: an old client hook must not enable synthetic identity input.
+                        hook = subprocess.run([client, "hook", "user-prompt-submit", "--agent", "codex"],
+                            input=json.dumps(payload), env=env, cwd=root / "first", text=True,
+                            capture_output=True, timeout=10, check=True)
+                        assert not hook.stdout.strip()
                     actor = json.loads(subprocess.check_output([client, "session", "--json"], env=env,
                                        cwd=root / "first", text=True, timeout=5))
-                    record = records.setdefault(native, dict(model_prompts=[], enrollments=0))
+                    record = records.setdefault(native, dict(model_prompts=[]))
                     if kind == b"U":
-                        if blocked:
-                            assert prompt.startswith("<cmux-session-enrollment>")
-                            record["enrollments"] += 1
-                        else:
-                            record["model_prompts"].append(prompt)
+                        record["model_prompts"].append(prompt)
                     record["actor"] = actor
                     temporary = root / "actor.tmp"
                     temporary.write_text(json.dumps(records))
                     temporary.replace(root / "actors.json")
-                    connection.sendall(bytes([int(blocked)]))
+                    connection.sendall(b"\x00")
                 except BaseException as error:
                     (root / "broker-error").write_text(str(error)[:2048])
                     connection.sendall(b"\xff")
@@ -72,13 +68,13 @@ def broker(endpoint, client, root):
 
 
 def records(root):
-    """Only actor metadata and model-visible inputs are persisted; bootstrap tokens are never recorded here."""
+    """Persist only ordinary registration metadata and actual model-visible inputs."""
     assert not (root / "broker-error").exists(), (root / "broker-error").read_text() if (root / "broker-error").exists() else ""
     return json.loads((root / "actors.json").read_text()) if (root / "actors.json").exists() else {}
 
 
 def main():
-    """Verify automatic enrollment, exact logical echoes, busy peers, conversation reset and reconnect fences."""
+    """Verify removal of identity input while ordinary registration and native delivery remain usable."""
     client = str(Path(os.environ["CMUX_ACTOR_CLIENT"]).resolve())
     with tempfile.TemporaryDirectory(prefix="cmux-actor-") as directory:
         root = Path(directory)
@@ -120,77 +116,48 @@ def main():
                 assert initial[native["first"]]["actor"]["base_id"]==initial[native["peer"]]["actor"]["base_id"]
                 assert initial[native["first"]]["actor"]["session_slot"]!=initial[native["peer"]]["actor"]["session_slot"]
                 assert all("executor_generation" not in row["actor"] for row in initial.values())
-                assert all(r["enrollments"]==0 for r in initial.values()) # Consent is still off.
                 raw(app,"gateway.configure",enabled=True,url=gateway.url,injection_approved=True,api_key="fixture-key")
                 app.wait_for(lambda: status(app)["connection"]=="Connected","gateway stream",20)
+                app.wait_for(lambda: status(app)["agents"]==2,"two native peers",20)
+                # More than two observer/drain ticks: legacy hooks must produce no identity prompts.
+                time.sleep(2)
+                contexts=raw(app,"gateway.sessions")["sessions"]
+                assert len(contexts)==2 and all(c["binding_state"]=="unbound" for c in contexts)
+                assert all(not r["model_prompts"] for r in records(root).values())
+                assert all(r["actor"]["binding_state"]=="unbound" for r in records(root).values())
 
-                def bound():
-                    contexts=raw(app,"gateway.sessions")["sessions"]
-                    return len(contexts)==2 and all(c.get("binding_state")=="bound" for c in contexts)
-                app.wait_for(bound,"hook-consumed automatic terminal enrollment",30)
-                for name, surface in surfaces.items():
-                    context=raw(app,"gateway.session",surface_id=surface)
-                    assert context["session_id"]==origins[name]["session_id"]
-                    assert context["instance_id"]==origins[name]["instance_id"]
-                    assert records(root)[native[name]]["enrollments"]==1
-                    assert not records(root)[native[name]]["model_prompts"]
-                # Exact-origin comments remain useful to the other same-project/same-provider terminal.
-                event=gateway.add(kind="task_commented",content="Peer research result",origin=origins["first"])
+                event=gateway.add(kind="task_commented",content="Native peer research result")
                 wait_outcome(app,gateway,event,"injected")
-                app.wait_for(lambda: len(records(root)[native["peer"]]["model_prompts"])==1,"peer model sees useful comment",20)
-                assert not records(root)[native["first"]]["model_prompts"]
-                assert "Peer research result" in records(root)[native["peer"]]["model_prompts"][0]
-                # Busy recipient is pinned to its known actor; a conversation reset must not inherit queued work.
+                app.wait_for(lambda: all(len(records(root)[n]["model_prompts"])==1 for n in native.values()),
+                             "useful lifecycle comment reaches both native peers",20)
                 (root/"peer.mode").write_text("busy")
                 app.wait_for(lambda:"esc to interrupt" in raw(app,"surface.read_text",id=surfaces["peer"])["text"],"busy peer")
-                queued=gateway.add(kind="task_commented",content="Work pinned to old conversation",origin=origins["first"])
-                wait_outcome(app,gateway,queued,"queued")
-                replacement=str(uuid.uuid4())
-                (root/"peer.native").write_text(replacement)
-                raw(app,"surface.send_text",id=surfaces["peer"],text="Human starts a new conversation")
-                raw(app,"surface.send_key",id=surfaces["peer"],key="\r")
-                app.wait_for(lambda: replacement in records(root),"new provider native conversation",20)
+                completion=gateway.add(kind="task_completed",content="Native peer completed")
+                app.wait_for(lambda: any(r["event_id"]==str(completion) and r["outcome"]=="injected" for r in status(app)["receipts"])
+                    and any(r["event_id"]==str(completion) and r["outcome"]=="queued" for r in status(app)["receipts"]),
+                    "busy peer waits while ready peer progresses",20)
+                assert len(records(root)[native["peer"]]["model_prompts"])==1
                 (root/"peer.mode").write_text("idle")
-                app.wait_for(lambda: raw(app,"gateway.session",surface_id=surfaces["peer"]).get("provider_session_id")==replacement,
-                             "renewed generation-fenced membership",30)
-                wait_outcome(app,gateway,queued,"skipped")
-                assert all("Work pinned" not in p for r in records(root).values() for p in r["model_prompts"])
-                current=records(root)[replacement]["actor"]["origin"]
-                assert current["session_id"]!=origins["peer"]["session_id"]
-                completion=gateway.add(kind="task_completed",content="Peer finished research",origin=current)
                 wait_outcome(app,gateway,completion,"injected")
-                app.wait_for(lambda: len(records(root)[native["first"]]["model_prompts"])==1,"completion reaches implementer",20)
+                app.wait_for(lambda: all(len(records(root)[n]["model_prompts"])==2 for n in native.values()),
+                             "completion reaches waiting native peer",20)
                 before={k:len(v["model_prompts"]) for k,v in records(root).items()}
                 gateway.disconnect(replay=completion)
                 app.wait_for(lambda:len(gateway.subscriptions)>=2,"transport reconnect",20)
                 app.wait_for(lambda:status(app)["connection"]=="Connected","connected again",20)
                 assert before=={k:len(v["model_prompts"]) for k,v in records(root).items()}
-                journal=json.loads((root/"config/cmux/gateway.json").read_text())
-                assert "enrollment_token" not in json.dumps(journal)
-                enrolled_before_restart=records(root)[native["first"]]["enrollments"]
-                # An executor restart cannot change logical registration or retire live frontend membership.
-                for name in native:
-                    (root/(name+".mode")).write_text("busy")
-                app.wait_for(lambda:all("esc to interrupt" in raw(app,"surface.read_text",id=s)["text"] for s in surfaces.values()),
-                             "frontends remain busy while backend exits")
                 stop_process(executor)
                 endpoint.unlink(missing_ok=True)
                 executor = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
                     "--broker", str(endpoint), client, str(root)], env=executor_env)
-                wait_until(endpoint.exists, "restarted shared executor socket", 10)
-                contexts=raw(app,"gateway.sessions")["sessions"]
-                assert len(contexts)==2 and all(c["binding_state"]=="bound" for c in contexts)
-                assert {c["session_id"] for c in contexts}=={origins["first"]["session_id"],current["session_id"]}
-                restarted=gateway.add(kind="task_commented",content="Research after backend restart",origin=current)
-                wait_outcome(app,gateway,restarted,"queued")
-                for name in native:
-                    (root/(name+".mode")).write_text("idle")
+                wait_until(endpoint.exists,"restarted shared host",10)
+                restarted=gateway.add(kind="task_commented",content="Ordinary registration after restart")
                 wait_outcome(app,gateway,restarted,"injected")
-                app.wait_for(lambda:any("Research after backend restart" in p for p in records(root)[native["first"]]["model_prompts"]),
-                             "ordinary registration survives executor restart",20)
-                assert records(root)[native["first"]]["actor"]["origin"]==origins["first"]
-                assert records(root)[native["first"]]["enrollments"]==enrolled_before_restart
-                print("actual registered client: plain shared host, two numbered sessions, consumed enrollment, peer comments/completion and restart/reconnect fences PASS")
+                app.wait_for(lambda: all(len(records(root)[n]["model_prompts"])==3 for n in native.values()),
+                             "ordinary tools continue after backend restart",20)
+                assert {r["actor"]["origin"]["session_id"] for r in records(root).values()}=={o["session_id"] for o in origins.values()}
+                assert all("cmux-session-enrollment" not in prompt for r in records(root).values() for prompt in r["model_prompts"])
+                print("ordinary registered tools: two peers, no enrollment input/blocking, busy gating and restart/reconnect PASS")
         finally:
             if executor is not None:
                 stop_process(executor)
