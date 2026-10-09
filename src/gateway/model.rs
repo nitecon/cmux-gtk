@@ -321,6 +321,7 @@ impl Default for Journal {
 pub enum DeliveryOutcome {
     Injected,
     Deferred,
+    Uncertain,
 }
 
 /// Credential-free preferences/status snapshot, with no event bodies or execution reports.

@@ -54,14 +54,19 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
     });
     let weak = std::rc::Rc::downgrade(state);
     glib::MainContext::default().spawn_local(async move {
-        while let Some(delivery) = delivery_rx.recv().await {
+        while let Some(mut delivery) = delivery_rx.recv().await {
             let Some(state) = weak.upgrade() else {
                 break;
             };
             if !delivery.reply.is_closed() {
-                let _ = delivery
-                    .reply
-                    .send(deliver(&state, &delivery.message, &delivery.session).await);
+                let result = tokio::select! {
+                    biased;
+                    _ = delivery.reply.closed() => None,
+                    result = deliver(&state, &delivery.message, &delivery.session) => Some(result),
+                };
+                if let Some(result) = result {
+                    let _ = delivery.reply.send(result);
+                }
             }
         }
     });
@@ -195,9 +200,16 @@ async fn deliver(
         Err(error) if error.contains("queue is full") => return Ok(DeliveryOutcome::Deferred),
         Err(error) => return Err(error),
     };
-    result
+    match result
         .await
-        .map_err(|_| "Terminal executor stopped".to_owned())??;
+        .map_err(|_| "Terminal executor stopped".to_owned())?
+    {
+        Err(error) if error.starts_with("Input submission incomplete:") => {
+            return Ok(DeliveryOutcome::Uncertain)
+        }
+        Err(error) => return Err(error),
+        Ok(()) => {}
+    }
     snapshot(state);
     Ok(DeliveryOutcome::Injected)
 }

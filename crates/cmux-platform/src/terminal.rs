@@ -10,6 +10,11 @@ pub fn enter_keycode() -> u32 {
     36
 }
 
+/// POSIX bracketed paste carries its boundary separately from Return.
+pub fn submission_interval() -> std::time::Duration {
+    std::time::Duration::ZERO
+}
+
 /// Return the first terminal attached to stdin, stdout or stderr, without spawning a helper.
 /// Pipes and closed descriptors are skipped. No controlling terminal means no TTY evidence.
 pub fn caller_tty() -> Option<String> {

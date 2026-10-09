@@ -139,6 +139,9 @@ def verify(rpc, root, codex, model):
                 # The fixture owns this empty temporary Git project; normal Enter confirms its access.
                 rpc("surface.send_key", {"id": surface, "key": "\r"})
                 wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"], "normal empty Enter confirms fixture folder access")
+            # Startup may initialize native sandbox state asynchronously; observe only this isolated test UI.
+            wait(lambda: "? for shortcuts" in rpc("surface.read_text", {"id": surface})["text"], "fixture reaches its ordinary TUI")
+            time.sleep(1)
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
         assert all(s["delivery_transport"] == "cmux_input_queue" for s in sessions)
         assert len({s["recipient_session_id"] for s in sessions}) == 2

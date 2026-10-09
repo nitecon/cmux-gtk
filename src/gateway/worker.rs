@@ -411,6 +411,7 @@ impl Worker {
                 match result.await {
                     Ok(Ok(DeliveryOutcome::Injected)) => Ok(DeliveryOutcome::Injected),
                     Ok(Ok(DeliveryOutcome::Deferred)) => Ok(DeliveryOutcome::Deferred),
+                    Ok(Ok(DeliveryOutcome::Uncertain)) => Err("uncertain"),
                     Ok(Err(_)) => Err("skipped"),
                     Err(_) => Err("uncertain"),
                 }
@@ -430,6 +431,9 @@ impl Worker {
                 receipt.confirmed = false;
                 receipt.reason = "CMUX input queue is unavailable; waiting".into();
                 self.pipeline.pending.push_front(pending);
+            }
+            Ok(DeliveryOutcome::Uncertain) => {
+                unreachable!("uncertain submissions are terminal errors")
             }
             Err(status) => finalize(
                 &mut self.journal.receipts[index],
