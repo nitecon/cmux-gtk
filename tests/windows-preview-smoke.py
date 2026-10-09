@@ -178,7 +178,7 @@ def main():
                 if not (runtime_bundle / dll.name).exists():
                     shutil.copy2(dll, runtime_bundle / dll.name)
             env["PATH"] = str(runtime_bundle) + os.pathsep + str(Path(os.environ["SystemRoot"]) / "System32")
-            if args.actor_client:
+            if args.actor_client or args.codex_fixture:
                 env["PATH"] += os.pathsep + str(git_directory)
             env["XDG_DATA_DIRS"] = str(runtime_bundle / "share")
             env.update(GALLIUM_DRIVER="llvmpipe", LIBGL_ALWAYS_SOFTWARE="1", CMUX_SMOKE_GRAPHICS="software-opengl")

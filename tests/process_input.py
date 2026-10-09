@@ -107,8 +107,10 @@ def verify(rpc, root, codex, model):
                 return
             time.sleep(0.5)
         print("Process input status:", json.dumps(rpc("gateway.status"), indent=2))
+        print("Observed model requests:", len(model.inputs))
         for surface in surfaces:
             print("Process input screen:", rpc("surface.read_text", {"id": surface}))
+            print("Process input scrollback:", rpc("surface.read_scrollback", {"id": surface})["text"])
         raise AssertionError(description)
 
     def editor(surface):

@@ -249,7 +249,9 @@ jobs:
 
       - name: Test portable preview startup and terminal RPC
         shell: msys2 {0}
-        run: python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)"
+        run: |
+          python scripts/fetch-codex-fixture.py target/codex-fixture --platform windows
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --codex-fixture "$(cat target/codex-fixture/executable.txt)"
 
       - name: Upload preview with runtime evidence
         if: always() && steps.download.outcome == 'success'
