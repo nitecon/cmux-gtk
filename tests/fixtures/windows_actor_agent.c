@@ -62,7 +62,8 @@ int main(int argc, char **argv) {
                 if (sequence_length + 1 >= sizeof(sequence)) { sequence_length = 0; continue; }
                 sequence[sequence_length++] = (char)value;
                 sequence[sequence_length] = 0;
-                if (value == '~') {
+                /* A navigation CSI ends with a letter; End keeps this append-only fixture at its tail. */
+                if (sequence_length >= 3 && sequence[1] == '[' && value >= 0x40 && value <= 0x7e) {
                     if (strcmp(sequence, "\033[200~") == 0) paste = 1;
                     if (strcmp(sequence, "\033[201~") == 0) paste = 0;
                     sequence_length = 0;
