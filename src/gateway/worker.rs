@@ -27,6 +27,7 @@ pub enum Action {
         terminal: Terminal,
         peer_pid: u32,
         executable: std::path::PathBuf,
+        options: Value,
     },
     CodexStop {
         surface: String,
@@ -212,6 +213,7 @@ impl Worker {
                 terminal,
                 peer_pid,
                 executable,
+                options,
             } => {
                 if self.codex.contains_key(&terminal.surface_id) {
                     return Err("A managed Codex session already owns this pane".into());
@@ -230,7 +232,8 @@ impl Worker {
                     .find(|p| p.pid == peer_pid)
                     .ok_or("Caller does not own this terminal")?;
                 let backend =
-                    super::codex::Backend::start(terminal.clone(), launcher, &executable).await?;
+                    super::codex::Backend::start(terminal.clone(), launcher, &executable, options)
+                        .await?;
                 let context = backend.launch_context();
                 self.codex.insert(terminal.surface_id, backend);
                 return Ok(context);

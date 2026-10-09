@@ -102,6 +102,8 @@ For Codex, run **`cmux codex`** inside the project's CMUX terminal. This explici
 launch keeps the native Codex TUI and starts a private backend owned by the pane.
 Requires Codex **0.161.0 or newer** with app-server queue and remote TUI support.
 Native options can be passed explicitly, for example `cmux codex -- --model MODEL`.
+Explicit model, sandbox and approval options configure the backend conversation;
+the native remote TUI resumes those choices. Other native TUI options pass through.
 Existing Codex authentication and configuration are reused; CMUX installs no hooks
 and changes no provider settings. An already-running plain `codex` session must
 be exited before starting this managed path.

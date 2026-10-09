@@ -29,7 +29,27 @@ impl Backend {
         terminal: super::model::Terminal,
         launcher: cmux_platform::listeners::ProcessIdentity,
         executable: &Path,
+        mut options: Value,
     ) -> Result<Self, String> {
+        let fields = options.as_object().ok_or("Invalid Codex thread options")?;
+        if fields.iter().any(|(key, value)| {
+            !matches!(key.as_str(), "model" | "sandbox" | "approvalPolicy")
+                || value.as_str().is_none_or(|s| s.is_empty() || s.len() > 512)
+        }) {
+            return Err("Invalid Codex thread options".into());
+        }
+        if options.get("sandbox").is_some_and(|v| {
+            !matches!(
+                v.as_str(),
+                Some("read-only" | "workspace-write" | "danger-full-access")
+            )
+        }) || options
+            .get("approvalPolicy")
+            .is_some_and(|v| !matches!(v.as_str(), Some("never" | "on-request" | "untrusted")))
+        {
+            return Err("Unsupported Codex permission option".into());
+        }
+        options["cwd"] = json!(terminal.directory);
         let listener = std::net::TcpListener::bind("127.0.0.1:0")
             .map_err(|_| "Cannot allocate Codex endpoint")?;
         let endpoint = format!(
@@ -100,13 +120,7 @@ impl Backend {
             }
         };
         initialize(&mut socket).await?;
-        let started = call(
-            &mut socket,
-            2,
-            "thread/start",
-            json!({"cwd":backend.terminal.directory}),
-        )
-        .await?;
+        let started = call(&mut socket, 2, "thread/start", options).await?;
         let id = started["thread"]["id"]
             .as_str()
             .ok_or("Codex did not return a conversation ID")?;

@@ -301,6 +301,10 @@ pub fn rpc(
                     terminal,
                     peer_pid: pid,
                     executable,
+                    options: params
+                        .get("thread_options")
+                        .cloned()
+                        .unwrap_or_else(|| json!({})),
                 }
             } else {
                 worker::Action::CodexStop {
