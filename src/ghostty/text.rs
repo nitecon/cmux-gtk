@@ -59,18 +59,37 @@ pub(crate) unsafe fn send_character(
     Ok(())
 }
 
-/// Submit with an unmodified native Enter pair, allowing Ghostty to encode the active keyboard protocol.
+/// Finish the platform text boundary and submit with native Enter using the active keyboard protocol.
 ///
 /// # Safety
-/// The caller must keep the surface live on its GTK thread throughout both synchronous calls.
-pub(crate) unsafe fn submit(surface: ffi::ghostty_surface_t) {
+/// The caller must keep the surface live on its GTK thread throughout the synchronous key pairs.
+pub(crate) unsafe fn submit(surface: ffi::ghostty_surface_t, has_text: bool) -> bool {
+    if has_text {
+        if let Some(keycode) = cmux_platform::terminal::submission_boundary_keycode() {
+            if !unsafe { key_pair(surface, keycode, 0) } {
+                return false;
+            }
+        }
+    }
+    unsafe {
+        key_pair(
+            surface,
+            cmux_platform::terminal::enter_keycode(),
+            '\r' as u32,
+        )
+    }
+}
+
+/// Send one native unmodified key pair without introducing a provider-specific input protocol.
+unsafe fn key_pair(surface: ffi::ghostty_surface_t, keycode: u32, codepoint: u32) -> bool {
     let mut key: ffi::ghostty_input_key_s = unsafe { std::mem::zeroed() };
-    key.keycode = cmux_platform::terminal::enter_keycode();
-    key.unshifted_codepoint = '\r' as u32;
+    key.keycode = keycode;
+    key.unshifted_codepoint = codepoint;
     key.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_PRESS;
-    unsafe { ffi::ghostty_surface_key(surface, key) };
+    let handled = unsafe { ffi::ghostty_surface_key(surface, key) };
     key.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
     unsafe { ffi::ghostty_surface_key(surface, key) };
+    handled
 }
 
 /// Copy up to 256 KiB of clipboard-formatted text from the current viewport.

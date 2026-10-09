@@ -403,7 +403,7 @@ impl Composer {
                     {
                         Err("Running process changed".into())
                     } else {
-                        composer.write(&message).await
+                        composer.write(&message)
                     };
                     if message.allowed.is_none() {
                         if let Err(error) = &result {
@@ -427,7 +427,7 @@ impl Composer {
     }
 
     /// Keep FIFO ownership through literal text and native Enter, including platform input framing.
-    async fn write(&self, message: &Message) -> Result<(), String> {
+    fn write(&self, message: &Message) -> Result<(), String> {
         let surface = self.surface.borrow().ok_or("Terminal closed")?;
         // SAFETY: the weak widget and shared surface cell keep lifetime checks on GTK; no yield occurs here.
         unsafe {
@@ -438,44 +438,9 @@ impl Composer {
             }
             crate::ghostty::text::send_literal(surface, &message.text).map_err(str::to_owned)?;
         }
-        let interval = cmux_platform::terminal::submission_interval();
-        if !message.text.is_empty() && !interval.is_zero() {
-            glib::timeout_future(interval).await;
-            let runtime = self
-                .runtime
-                .borrow()
-                .clone()
-                .ok_or("Input submission incomplete: runtime stopped")?;
-            let root = message.target.terminal.foreground_pid;
-            let process = message.target.process.clone();
-            let verified = runtime
-                .spawn_blocking(move || {
-                    cmux_platform::process::input_identity(root).as_ref() == Some(&process)
-                })
-                .await
-                .unwrap_or(false);
-            if !verified
-                || message.reply.is_closed()
-                || message.allowed.as_ref().is_some_and(|allowed| !allowed())
-                || self
-                    .target
-                    .borrow()
-                    .as_ref()
-                    .is_none_or(|current| !current.same_attachment(&message.target))
-                || self.surface.borrow().as_ref() != Some(&surface)
-                || self.area.upgrade().is_none()
-            {
-                return Err(
-                    "Input submission incomplete: process or consent changed after text".into(),
-                );
-            }
-        }
-        // SAFETY: the FIFO retains ownership and rechecks the live cell after any platform wait.
-        unsafe {
-            if crate::ghostty::tty::root_pid(surface) != message.target.terminal.foreground_pid {
-                return Err("Input submission incomplete: terminal changed after text".into());
-            }
-            crate::ghostty::text::submit(surface);
+        // SAFETY: the live cell and FIFO retain ownership through the native text boundary and Enter.
+        if !unsafe { crate::ghostty::text::submit(surface, !message.text.is_empty()) } {
+            return Err("Input submission incomplete: native submit key was not handled".into());
         }
         self.status
             .set_text("Enter to send · Shift+Enter for a newline");

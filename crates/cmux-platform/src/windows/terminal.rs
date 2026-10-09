@@ -10,9 +10,9 @@ pub fn enter_keycode() -> u32 {
     physical_keycode(0x0d, false)
 }
 
-/// ConPTY readers receive bulk text as console key records; separate Return from the text burst.
-pub fn submission_interval() -> std::time::Duration {
-    std::time::Duration::from_millis(250)
+/// ConPTY turns bulk text into key records. End finishes that text at its final caret before Return.
+pub fn submission_boundary_keycode() -> Option<u32> {
+    Some(physical_keycode(0x23, false))
 }
 
 /// Convert GDK's Windows virtual key to the renderer's native scan code, retaining extended keys.
