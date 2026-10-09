@@ -50,7 +50,6 @@ impl Backend {
             return Err("Unsupported Codex permission option".into());
         }
         options["cwd"] = json!(terminal.directory);
-        options["historyMode"] = json!("paginated");
         let listener = std::net::TcpListener::bind("127.0.0.1:0")
             .map_err(|_| "Cannot allocate Codex endpoint")?;
         let endpoint = format!(
@@ -128,14 +127,13 @@ impl Backend {
         backend.thread_id = uuid::Uuid::parse_str(id)
             .map_err(|_| "Invalid Codex conversation ID")?
             .to_string();
-        // Codex stages a zero-turn thread in memory. Its documented history read
-        // materializes paginated persistence so native remote resume can find it,
-        // without sending a synthetic prompt or starting a model turn.
+        // Naming saves even a zero-turn thread using the provider's own store.
+        // Native remote resume can then find it without synthetic model input.
         call(
             &mut socket,
             3,
-            "thread/read",
-            json!({"threadId":backend.thread_id,"includeTurns":true}),
+            "thread/name/set",
+            json!({"threadId":backend.thread_id,"name":"CMUX"}),
         )
         .await?;
         Ok(backend)
@@ -302,10 +300,8 @@ async fn call(socket: &mut Socket, id: u64, method: &str, params: Value) -> Resu
                         continue;
                     }
                     if value.get("error").is_some() {
-                        return Err(
-                            "Codex rejected the request; inspect provider configuration/version"
-                                .into(),
-                        );
+                        let code = value["error"]["code"].as_i64().unwrap_or(-1);
+                        return Err(format!("Codex rejected {method} (code {code}); inspect provider configuration/version"));
                     }
                     return value
                         .get("result")
