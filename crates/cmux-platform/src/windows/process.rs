@@ -64,15 +64,64 @@ pub fn resources() -> io::Result<Resources> {
     }
 }
 
-/// A verified native agent executable and its process generation.
+/// A verified native executable and its process generation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
     /// Windows PID of the executable.
     pub pid: u64,
-    /// Process creation FILETIME ticks; prevents PID reuse from retaining readiness.
+    /// Process creation FILETIME ticks; prevents PID reuse from retaining a target.
     pub start_ticks: u64,
-    /// Verified provider name: claude or codex.
+    /// Application name; provider names are display context only.
     pub client: String,
+}
+
+/// Observe one running application in the owned ConPTY tree, independently of provider UI or protocol.
+/// The earliest live non-shell application owns the terminal; later tool children cannot replace it.
+/// Call on a blocking worker. Native creation ticks and root rechecks fence process replacement.
+pub fn input_identity(pid: u64) -> Option<Identity> {
+    let root = crate::listeners::identity(u32::try_from(pid).ok()?).ok()?;
+    let mut applications = Vec::new();
+    for process in crate::listeners::process_tree(root).ok()? {
+        let Some(current) = snapshot(process.pid, false) else {
+            continue;
+        };
+        if current.start != process.start_ticks {
+            continue;
+        }
+        let name = current
+            .executable
+            .file_name()?
+            .to_str()?
+            .to_ascii_lowercase();
+        if matches!(
+            name.as_str(),
+            "cmd.exe"
+                | "powershell.exe"
+                | "pwsh.exe"
+                | "bash.exe"
+                | "sh.exe"
+                | "conhost.exe"
+                | "openconsole.exe"
+        ) {
+            continue;
+        }
+        applications.push(Identity {
+            pid: u64::from(process.pid),
+            start_ticks: current.start,
+            client: name.trim_end_matches(".exe").into(),
+        });
+    }
+    applications.sort_by_key(|process| process.start_ticks);
+    let first = applications.into_iter().next()?;
+    if crate::listeners::identity(root.pid).ok()? != root
+        || crate::listeners::identity(u32::try_from(first.pid).ok()?)
+            .ok()?
+            .start_ticks
+            != first.start_ticks
+    {
+        return None;
+    }
+    Some(first)
 }
 
 /// Verify one native agent in the terminal's current tree; ambiguous trees remain ineligible.

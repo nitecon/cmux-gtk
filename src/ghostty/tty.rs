@@ -22,3 +22,19 @@ pub(crate) unsafe fn name(surface: ffi::ghostty_surface_t) -> Option<String> {
     unsafe { ffi::ghostty_string_free(value) };
     result
 }
+
+/// Ghostty's POSIX foreground group and Windows ConPTY root feed one common process-inspection contract.
+/// Call only on GTK with a live native surface.
+pub(crate) unsafe fn root_pid(surface: ffi::ghostty_surface_t) -> u64 {
+    if unsafe { ffi::ghostty_surface_process_exited(surface) } {
+        return 0;
+    }
+    #[cfg(windows)]
+    {
+        unsafe { ffi::ghostty_surface_child_pid(surface) }
+    }
+    #[cfg(not(windows))]
+    {
+        unsafe { ffi::ghostty_surface_foreground_pid(surface) }
+    }
+}

@@ -4,6 +4,13 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-09
+
+### Changed
+- CMUX owns a visible human-input editor for running local applications. Plain Enter submits the whole draft; modified Enter adds a newline. Editing, paste and human command history remain local until submission.
+- Complete human messages and gateway events share one ordered process input queue on Linux and Windows. Events bypass unfinished human drafts and downstream busy states, with existing consent, project matching and process-generation/durable delivery fences retained.
+- Ordinary `codex`, `claude` and other app commands use the same path. Removed prompt-layout recognition and the special `cmux codex` backend/launcher. No hooks or enrollment are required; shells retain raw terminal input.
+
 ## [0.6.10] - 2026-10-08
 
 ### Added

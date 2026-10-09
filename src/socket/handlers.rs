@@ -74,11 +74,36 @@ fn send_terminal_text(
     id: Option<&str>,
     text: &str,
 ) -> Result<(), (&'static str, &'static str)> {
+    if text.contains('\0') {
+        return Err(("invalid_params", "terminal text contains a NUL byte"));
+    }
+    if crate::terminal_input::insert(&terminal_area(state, id)?, text) {
+        return Ok(());
+    }
     let surface = terminal_target(state, id)?;
     // SAFETY: target resolution found a live native terminal on GTK and released
     // the model borrow. No event-loop iteration or teardown occurs before delivery.
     unsafe { crate::ghostty::text::send_literal(surface, text) }
         .map_err(|message| ("invalid_params", message))
+}
+
+/// Resolve the GTK editor/output owner using the same active-pane rules as native terminal input.
+fn terminal_area(
+    state: &crate::app_state::AppStateRef,
+    id: Option<&str>,
+) -> Result<gtk4::GLArea, (&'static str, &'static str)> {
+    let state = state.borrow();
+    let area = match id {
+        Some(id) => state
+            .split_engines
+            .iter()
+            .find_map(|engine| engine.gl_area_for_surface(id)),
+        None => state
+            .split_engines
+            .get(state.active_index)
+            .and_then(|engine| engine.gl_area_for_pane(engine.active_pane_id)),
+    };
+    area.ok_or(("not_found", "live terminal surface not found"))
 }
 
 /// Resolve a surface_ref string ("surface:N" or UUID) to a UUID string.
@@ -861,29 +886,13 @@ fn handle_socket_command_traced(
             text,
             resp_tx,
         } => {
-            // SOCK-05: No focus side effects (sends text to active surface without changing focus).
-            let s = state.borrow();
-            if let Some(engine) = s.split_engines.get(s.active_index) {
-                if let Some(pane_id) = engine.root.find_active_pane_id() {
-                    if let Some(surface) = engine.root.find_surface_for_pane(pane_id) {
-                        if !surface.is_null() {
-                            crate::ghostty::registry::record_input(surface as usize);
-                            let c_text = std::ffi::CString::new(text.clone()).unwrap_or_default();
-                            unsafe {
-                                crate::ghostty::ffi::ghostty_surface_text(
-                                    surface,
-                                    c_text.as_ptr(),
-                                    c_text.to_bytes().len(),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            let _ = resp_tx.send(ok(req_id, json!({})));
+            let response = match send_terminal_text(state, None, &text) {
+                Ok(()) => ok(req_id, json!({})),
+                Err((code, message)) => err(req_id, code, message),
+            };
+            let _ = resp_tx.send(response);
         }
 
-        // ── surface.* ────────────────────────────────────────────────────
         SocketCommand::SurfaceResume {
             req_id,
             id,
@@ -1285,7 +1294,13 @@ fn handle_socket_command_traced(
             // native key translation; never report them as successfully delivered.
             let mut characters = key.chars();
             let result = if let (Some(character), None) = (characters.next(), characters.next()) {
-                terminal_target(state, id.as_deref()).and_then(|surface| {
+                terminal_area(state, id.as_deref()).and_then(|area| {
+                    if crate::terminal_input::character(&area, character)
+                        .map_err(|_| ("input_error", "terminal composition failed"))?
+                    {
+                        return Ok(());
+                    }
+                    let surface = terminal_target(state, id.as_deref())?;
                     // SAFETY: resolution releases the model borrow and returns a
                     // live GTK-owned terminal; no teardown occurs before input.
                     unsafe { crate::ghostty::text::send_character(surface, character) }
@@ -1323,7 +1338,12 @@ fn handle_socket_command_traced(
                 .map_err(|message| ("read_failed", message))
             });
             let response = match result {
-                Ok(text) => ok(req_id, json!({"text": text})),
+                Ok(text) => {
+                    let input = terminal_area(state, id.as_deref())
+                        .ok()
+                        .map(|area| crate::terminal_input::context(&area));
+                    ok(req_id, json!({"text": text, "input":input}))
+                }
                 Err((code, message)) => err(req_id, code, message),
             };
             let _ = resp_tx.send(response);

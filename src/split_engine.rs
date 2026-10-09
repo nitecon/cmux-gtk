@@ -69,7 +69,7 @@ impl PaneSurface {
     /// Clone the GTK page widget without transferring native terminal ownership.
     fn widget(&self) -> gtk4::Widget {
         match self {
-            Self::Terminal { gl_area, .. } => gl_area.clone().upcast(),
+            Self::Terminal { gl_area, .. } => crate::terminal_input::widget(gl_area),
             Self::Browser { widgets, .. } => widgets.container.clone().upcast(),
             Self::Files { widget, .. } | Self::Git { widget, .. } => widget.clone(),
         }

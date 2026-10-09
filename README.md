@@ -87,7 +87,7 @@ upstream features informed this port and which are candidates for later work.
 **Preferences → Agent Gateway** connects once to the gateway's task lifecycle
 stream across all projects. Requires agent-gateway **v1.19.0 or later**. A separate
 **Allow experimental terminal message injection** approval permits direct input
-into active local Claude/Codex terminals. Existing settings retain the address
+into running local application terminals. Existing settings retain the address
 and credential but do not grant approval on upgrade. No per-project settings,
 manual workspace mappings or gateway hooks are required.
 
@@ -98,29 +98,26 @@ completion notifications use the same stream. Outgoing delegation tracking
 tickets are skipped. Progress and canonical task completion use agent-tools;
 stream receipts describe message delivery only.
 
-For Codex, run **`cmux codex`** inside the project's CMUX terminal. This explicit
-launch keeps the native Codex TUI and starts a private backend owned by the pane.
-Requires Codex **0.161.0 or newer** with app-server queue and remote TUI support.
-Native options can be passed explicitly, for example `cmux codex -- --model MODEL`.
-Explicit model, sandbox and approval options configure the backend conversation;
-the native remote TUI resumes those choices. Other native TUI options pass through.
-Existing Codex authentication and configuration are reused; CMUX installs no hooks
-and changes no provider settings. An already-running plain `codex` session must
-be exited before starting this managed path.
+Launch applications normally inside the CMUX terminal: `codex`, `claude`, or
+another interactive app. CMUX tracks the running process and displays its own
+input editor below the process output. Typing, paste, multiline editing and
+Up/Down human command history remain in CMUX until **plain Enter** submits the
+whole message. **Modified Enter** adds a newline. Ctrl+C/Ctrl+D, Escape and
+function keys remain available as process controls. Shells retain raw input.
 
-Gateway messages go to that exact conversation's **native queue**, even while
-Codex is busy or the composer contains a draft. CMUX does not inspect the managed
-Codex composer or type messages/Enter into it. Codex decides when to process the
-queue. A receipt saying **Accepted by Codex native queue** confirms submission,
-not model receipt or task completion. `cmux gateway status` exposes managed
-conversation/process metadata without its private endpoint or capability.
-Each managed launch has one conversation; exit and launch `cmux codex` again
-instead of switching conversations through `/new`, `/resume` or `/fork`.
+Gateway events and complete human messages share one ordered input queue per
+terminal. An event is submitted while an unfinished human draft stays local;
+when the user presses Enter, their complete message follows in queue order.
+Delivery does not inspect the app's prompt, busy state, theme or provider API.
+A receipt saying **Submitted through CMUX input queue** confirms transport
+submission, not model receipt or task completion. No special provider launcher,
+hooks, enrollment prompts or configuration changes are required.
 
-Claude and plain Codex launches retain terminal injection and its conservative
-busy/draft/clipboard/prompt-layout checks. No agent is launched or focused in
-response to a gateway event. Messages remain pinned to the original process,
-pane and repository; changed targets retire rather than moving queued work.
+No application is launched or focused in response to a gateway event. Messages
+remain pinned to the original process generation, pane and repository; changed
+targets retire rather than moving queued work. SDK task identity remains
+independent of native terminal membership; unbound registration is honest
+metadata, not a guessed actor-to-terminal attachment.
 
 Messages retain `<Start Agent Gateway Message Injection>` and
 `</Stop AgentGateway Message injection>` delimiters. Receipt IDs, queued
@@ -264,12 +261,10 @@ cmux claude-teams              # launch Claude teams in native cmux splits
 cmux claude-teams --model sonnet  # forward ordinary Claude arguments
 
 # Interactive gateway delegation
-cmux gateway status --json     # inspect connection, mappings, sessions and assignments
-cmux gateway bind --workspace WORKSPACE_UUID --project cmux-gtk
-cmux gateway configure --url https://gateway.example.com --enabled
-cmux gateway accept --run RUN_UUID --confirm-ready  # confirm an empty native agent prompt
-cmux gateway report --run RUN_UUID --state waiting-input --message "Which environment?"
-cmux gateway report --run RUN_UUID --state finished --message "Work complete" --summary "Work; validation; blockers; references"
+cmux gateway status --json     # connection, process recipients and delivery receipts
+cmux gateway configure --url https://gateway.example.com --enabled --approve-injection
+cmux --json raw gateway.sessions # native process/session context, without provider-specific setup
+
 
 # Diff review
 cmux diff change.patch         # open a patch in a right-hand browser pane

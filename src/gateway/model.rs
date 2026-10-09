@@ -121,25 +121,6 @@ impl Message {
     }
 }
 
-/// Unknown, busy and unfinished prompts never authorize input; an observer must positively confirm readiness.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum InputState {
-    #[default]
-    Unknown,
-    Busy,
-    Unfinished,
-    EmptyReady,
-}
-
-/// A recent hookless observation, bound to the process and all subsequent terminal input.
-#[derive(Clone, Debug)]
-pub struct Observation {
-    pub process: cmux_platform::process::Identity,
-    pub input_revision: u64,
-    pub input: InputState,
-    pub observed_at: std::time::Instant,
-}
-
 /// GTK copies only owned metadata; native pointers never cross into a worker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Terminal {
@@ -148,17 +129,12 @@ pub struct Terminal {
     pub directory: std::path::PathBuf,
     /// POSIX foreground PID, or the ConPTY root used for conservative Windows agent discovery.
     pub foreground_pid: u64,
-    pub input_revision: u64,
-    pub input_pending: bool,
-    #[serde(skip)]
-    pub observation: Option<Observation>,
-    #[serde(skip)]
-    pub screen: Option<serde_json::Value>,
-    #[serde(skip)]
-    pub captured_at: Option<std::time::Instant>,
+    /// Human drafts stay in CMUX; the GTK-owned executor is attached to this process.
+    #[serde(default)]
+    pub composer_active: bool,
 }
 
-/// A verified active Claude/Codex process and upstream repository, independent of resume hooks.
+/// A verified running application process and upstream repository, independent of resume hooks.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Session {
     pub terminal: Terminal,
@@ -170,9 +146,6 @@ pub struct Session {
     /// Logical actor provenance is independent of this terminal's durable delivery fence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_origin: Option<Origin>,
-    /// Exact conversation created by the explicitly managed backend; not inferred from the screen.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub codex_thread_id: Option<String>,
 }
 
 impl Session {
@@ -203,7 +176,6 @@ impl Session {
             repository,
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes()).to_string(),
             actor_origin: None,
-            codex_thread_id: None,
         }
     }
 
@@ -214,8 +186,8 @@ impl Session {
             "instance_id": self.actor_origin.as_ref().map(|o|o.instance_id.as_str()).unwrap_or(instance_id),
             "recipient_session_id": self.session_id,
             "provider": self.process.client,
-            "codex_thread_id": self.codex_thread_id,
-            "delivery_transport": if self.codex_thread_id.is_some() { "codex_queue" } else { "terminal" },
+            "delivery_transport": "cmux_input_queue",
+            "composer_active": self.terminal.composer_active,
             "os": std::env::consts::OS,
             "surface_id": self.terminal.surface_id,
             "workspace_id": self.terminal.workspace_id,
@@ -231,16 +203,9 @@ impl Session {
         }) || self.session_id == origin.session_id && legacy_instance == origin.instance_id
     }
 
-    /// Require a fresh positive observation for this process and unchanged input revision.
+    /// Complete messages can run independently of downstream UI and unfinished local human text.
     pub fn ready(&self) -> bool {
-        self.codex_thread_id.is_some()
-            || !self.terminal.input_pending
-                && self.terminal.observation.as_ref().is_some_and(|o| {
-                    o.process == self.process
-                        && o.input_revision == self.terminal.input_revision
-                        && o.input == InputState::EmptyReady
-                        && o.observed_at.elapsed() < std::time::Duration::from_secs(1)
-                })
+        self.terminal.composer_active
     }
 
     /// Pin queued messages to one workspace, surface, process generation and repository.
@@ -261,7 +226,6 @@ impl Session {
             && self.terminal.foreground_pid == other.terminal.foreground_pid
             && self.process == other.process
             && self.session_id == other.session_id
-            && self.codex_thread_id == other.codex_thread_id
     }
 }
 
@@ -352,7 +316,7 @@ impl Default for Journal {
     }
 }
 
-/// Final GTK outcome; a busy/input race defers without claiming a message was injected.
+/// Executor submission outcome; unavailable queue admission defers without claiming a message was sent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeliveryOutcome {
     Injected,
@@ -369,8 +333,9 @@ pub struct View {
     pub projects: usize,
     pub agents: usize,
     pub receipts: VecDeque<Receipt>,
-    /// Credential-free explicitly managed provider lifetimes.
-    pub managed_codex: Vec<serde_json::Value>,
+    /// Verified local process metadata used by GTK to attach each input composer, even with gateway disabled.
+    #[serde(skip)]
+    pub sessions: Vec<Session>,
 }
 
 /// Validate bounded nonempty identifiers without exposing their contents in errors.

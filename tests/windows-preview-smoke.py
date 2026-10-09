@@ -185,7 +185,7 @@ def main():
             env["GDK_DISABLE"] = env.get("GDK_DISABLE", "") + ",egl"
         model = None
         if args.codex_fixture:
-            from managed_codex import Model
+            from process_input import Model
             model = Model()
             model.configure(Path(profile) / "codex-home")
             env["CODEX_HOME"] = str(Path(profile) / "codex-home")
@@ -293,12 +293,19 @@ def main():
                 print("Visible terminal pixels and native keyboard text verified:", frame)
                 verify_workspace_shell(rpc, user32, windows[0], profile)
                 if args.codex_fixture:
-                    from managed_codex import verify as verify_managed
-                    verify_managed(rpc, profile, runtime_bundle / "cmux.exe", args.codex_fixture.resolve(), model)
+                    from process_input import verify as verify_process_input
+                    verify_process_input(rpc, profile, args.codex_fixture.resolve(), model)
                 if args.actor_client:
                     import sys
                     from windows_actor_binding import verify
-                    verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable))
+                    def submit_composer():
+                        """Submit the CMUX editor through a real Windows key event, not its RPC."""
+                        scan = user32.MapVirtualKeyW(0x0D, 4)
+                        flags = 1 | ((scan & 0xff) << 16)
+                        for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
+                            if not user32.PostMessageW(windows[0], message, 0x0D, detail):
+                                raise ctypes.WinError(ctypes.get_last_error())
+                    verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable), submit_composer)
                 (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "native_keyboard_text": True, "visible_terminal_pixels": True, "workspace_working_directory": True, "native_up_arrow_history": True, "actor_peers": bool(args.actor_client), "frame": frame, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
             finally:
                 if app.poll() is None:

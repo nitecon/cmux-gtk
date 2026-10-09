@@ -133,14 +133,10 @@ def main():
                 (root/"peer.mode").write_text("busy")
                 app.wait_for(lambda:"esc to interrupt" in raw(app,"surface.read_text",id=surfaces["peer"])["text"],"busy peer")
                 completion=gateway.add(kind="task_completed",content="Native peer completed")
-                app.wait_for(lambda: any(r["event_id"]==str(completion) and r["outcome"]=="injected" for r in status(app)["receipts"])
-                    and any(r["event_id"]==str(completion) and r["outcome"]=="queued" for r in status(app)["receipts"]),
-                    "busy peer waits while ready peer progresses",20)
-                assert len(records(root)[native["peer"]]["model_prompts"])==1
-                (root/"peer.mode").write_text("idle")
                 wait_outcome(app,gateway,completion,"injected")
                 app.wait_for(lambda: all(len(records(root)[n]["model_prompts"])==2 for n in native.values()),
-                             "completion reaches waiting native peer",20)
+                             "completion reaches both peers even while busy",20)
+                (root/"peer.mode").write_text("idle")
                 before={k:len(v["model_prompts"]) for k,v in records(root).items()}
                 gateway.disconnect(replay=completion)
                 app.wait_for(lambda:len(gateway.subscriptions)>=2,"transport reconnect",20)
@@ -157,7 +153,7 @@ def main():
                              "ordinary tools continue after backend restart",20)
                 assert {r["actor"]["origin"]["session_id"] for r in records(root).values()}=={o["session_id"] for o in origins.values()}
                 assert all("cmux-session-enrollment" not in prompt for r in records(root).values() for prompt in r["model_prompts"])
-                print("ordinary registered tools: two peers, no enrollment input/blocking, busy gating and restart/reconnect PASS")
+                print("ordinary registered tools: two peers, no enrollment input/blocking, busy delivery and restart/reconnect PASS")
         finally:
             if executor is not None:
                 stop_process(executor)

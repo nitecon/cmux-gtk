@@ -326,6 +326,12 @@ pub fn create_surface(
     unsafe {
         gl_area.set_data("cmux-surface-cell", surface_cell.clone());
     }
+    if !matches!(
+        io_mode,
+        SurfaceIoMode::Remote { .. } | SurfaceIoMode::Manual { .. }
+    ) {
+        crate::terminal_input::attach(&gl_area, surface_cell.clone());
+    }
     let mut io_mode = match io_mode {
         SurfaceIoMode::Remote {
             bridge,
@@ -580,8 +586,6 @@ pub fn create_surface(
                 None => return gtk4::glib::Propagation::Proceed,
             };
 
-            super::registry::record_input(surface as usize);
-
             // Handle Linux clipboard shortcuts at the terminal, leaving entries alone.
             let modifiers = state
                 & (gtk4::gdk::ModifierType::CONTROL_MASK
@@ -604,6 +608,12 @@ pub fn create_surface(
                             action.len(),
                         );
                     }
+                    return gtk4::glib::Propagation::Stop;
+                }
+            }
+
+            if let Some(area) = ctrl.widget().and_downcast::<gtk4::GLArea>() {
+                if crate::terminal_input::redirect(&area, ctrl) {
                     return gtk4::glib::Propagation::Stop;
                 }
             }
@@ -879,7 +889,7 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
         display.clipboard()
     };
 
-    super::registry::clipboard_pending(surface_ptr, true);
+    let weak_area = area.downgrade();
     glib::MainContext::default().spawn_local(async move {
         let result = clipboard.read_text_future().await;
         // The requesting pane may have closed while the clipboard owner replied.
@@ -893,8 +903,11 @@ pub(crate) unsafe extern "C" fn read_clipboard_cb(
             .flatten()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        super::registry::clipboard_pending(surface_ptr, false);
-        let text = std::ffi::CString::new(text.replace('\0', "")).unwrap();
+        let text = text.replace('\0', "");
+        let edited = weak_area
+            .upgrade()
+            .is_some_and(|area| crate::terminal_input::insert(&area, &text));
+        let text = std::ffi::CString::new(if edited { String::new() } else { text }).unwrap();
         unsafe {
             ffi::ghostty_surface_complete_clipboard_request(
                 surface_ptr as ffi::ghostty_surface_t,
@@ -930,11 +943,17 @@ pub(crate) unsafe extern "C" fn confirm_read_clipboard_cb(
     let Some(surface_ptr) = clipboard_surface(userdata as usize) else {
         return;
     };
-    super::registry::record_input(surface_ptr);
+    // Registered userdata is a live GTK area; confirmation must use the same local paste path.
+    let area: glib::translate::Borrowed<gtk4::GLArea> =
+        unsafe { glib::translate::from_glib_borrow(userdata.cast::<gtk4::ffi::GtkGLArea>()) };
+    let edited = !value.is_null()
+        && crate::terminal_input::insert(&area, unsafe {
+            std::ffi::CStr::from_ptr(value).to_str().unwrap_or("")
+        });
     unsafe {
         crate::ghostty::ffi::ghostty_surface_complete_clipboard_request(
             surface_ptr as crate::ghostty::ffi::ghostty_surface_t,
-            value,
+            if edited { c"".as_ptr() } else { value },
             request,
             true,
         );

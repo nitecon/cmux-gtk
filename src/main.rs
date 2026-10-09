@@ -47,6 +47,7 @@ mod ssh;
 mod ssh_dialog;
 mod ssh_hosts;
 mod task;
+mod terminal_input;
 #[allow(dead_code)]
 mod updater;
 mod window_state;

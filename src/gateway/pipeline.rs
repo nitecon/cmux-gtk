@@ -165,53 +165,26 @@ fn matching_project<'a>(remote: &str, projects: &'a [Project]) -> Option<&'a str
 mod tests {
     use super::*;
 
-    /// Create a transport-independent verified session with a positive observation for routing tests.
-    fn session(surface: &str, input: InputState) -> Session {
-        let process = cmux_platform::process::Identity {
-            pid: 42,
-            start_ticks: 10,
-            client: "codex".into(),
-        };
+    /// Create a transport-independent verified session with a local executor for routing tests.
+    fn session(surface: &str, composer_active: bool) -> Session {
         Session {
             terminal: Terminal {
                 workspace_id: "workspace".into(),
                 surface_id: surface.into(),
                 directory: "/repo".into(),
                 foreground_pid: 42,
-                input_revision: 3,
-                input_pending: false,
-                screen: None,
-                captured_at: None,
-                observation: Some(Observation {
-                    process: process.clone(),
-                    input_revision: 3,
-                    input,
-                    observed_at: std::time::Instant::now(),
-                }),
+                composer_active,
             },
-            process,
+            process: cmux_platform::process::Identity {
+                pid: 42,
+                start_ticks: 10,
+                client: "codex".into(),
+            },
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, surface.as_bytes())
                 .to_string(),
             actor_origin: None,
-            codex_thread_id: None,
         }
-    }
-
-    /// Native provider queues preserve a real draft and do not depend on terminal prompt classification.
-    #[test]
-    fn managed_queue_preserves_draft_and_pins_exact_conversation() {
-        let mut managed = session("native", InputState::Unfinished);
-        managed.terminal.input_pending = true;
-        managed.terminal.observation = None;
-        managed.codex_thread_id = Some(uuid::Uuid::new_v4().to_string());
-        assert!(managed.ready());
-        let mut other = managed.clone();
-        other.codex_thread_id = Some(uuid::Uuid::new_v4().to_string());
-        assert!(!managed.same_target(&other));
-        other.codex_thread_id = None;
-        assert!(!managed.same_target(&other));
-        assert!(!other.ready());
     }
 
     /// Build representative lifecycle content without imposing a wire event format.
@@ -242,12 +215,12 @@ mod tests {
         )
     }
 
-    /// All task lifecycle events route by repository, deduplicate and wait for an empty agent prompt.
+    /// All task lifecycle events route by repository, deduplicate and wait only for a local executor.
     #[test]
-    fn lifecycle_waits_and_deduplicates() {
+    fn lifecycle_waits_for_executor_and_deduplicates() {
         let (mut journal, projects) = context();
         let mut pipeline = Pipeline::default();
-        let mut sessions = vec![session("surface", InputState::Busy)];
+        let mut sessions = vec![session("surface", false)];
         for (id, kind) in [
             ("new", Kind::Created),
             ("comment", Kind::Commented),
@@ -267,9 +240,9 @@ mod tests {
             );
         }
         assert!(pipeline.next(&projects, &sessions).is_none());
-        sessions[0].terminal.observation.as_mut().unwrap().input = InputState::Unfinished;
+        sessions[0].terminal.composer_active = false;
         assert!(pipeline.next(&projects, &sessions).is_none());
-        sessions[0].terminal.observation.as_mut().unwrap().input = InputState::EmptyReady;
+        sessions[0].terminal.composer_active = true;
         let (pending, ready) = pipeline.next(&projects, &sessions).unwrap();
         assert!(ready);
         assert_eq!(pending.message.event_id, "new");
@@ -291,8 +264,8 @@ mod tests {
                 .unwrap(),
             Admission::Duplicate
         );
-        // Even an unchanged ready observation expires on input before the next delivery.
-        sessions[0].terminal.input_revision += 1;
+        // Detaching the local executor delays input; losing the target retires it.
+        sessions[0].terminal.composer_active = false;
         assert!(pipeline.next(&projects, &sessions).is_none());
         assert!(!pipeline.next(&projects, &[]).unwrap().1);
     }
@@ -301,7 +274,7 @@ mod tests {
     #[test]
     fn skips_unroutable_events_and_preserves_agent_comments() {
         let (journal, projects) = context();
-        let s = session("one", InputState::EmptyReady);
+        let s = session("one", true);
         let scenarios = [vec![]];
         for sessions in scenarios {
             assert_eq!(
@@ -372,9 +345,9 @@ mod tests {
     #[test]
     fn broadcasts_to_peers_and_suppresses_only_exact_origin() {
         let (mut journal, projects) = context();
-        let own = session("own", InputState::EmptyReady);
-        let ready = session("ready", InputState::EmptyReady);
-        let busy = session("busy", InputState::Busy);
+        let own = session("own", true);
+        let ready = session("ready", true);
+        let busy = session("busy", false);
         let sessions = vec![own.clone(), ready.clone(), busy.clone()];
         let mut pipeline = Pipeline::default();
         for (event, kind) in [("comment", Kind::Commented), ("completed", Kind::Completed)] {
@@ -412,7 +385,7 @@ mod tests {
         }
         assert!(pipeline.next(&projects, &sessions).is_none());
         let mut idle = sessions;
-        idle[2].terminal.observation.as_mut().unwrap().input = InputState::EmptyReady;
+        idle[2].terminal.composer_active = true;
         for event in ["comment", "completed"] {
             let (pending, valid) = pipeline.next(&projects, &idle).unwrap();
             assert!(valid);
@@ -424,7 +397,7 @@ mod tests {
     /// Transport reconnection preserves identity; process replacement and another installation cannot share it.
     #[test]
     fn session_identity_follows_process_generation_and_instance() {
-        let original = session("surface", InputState::EmptyReady);
+        let original = session("surface", true);
         let instance = uuid::Uuid::new_v4().to_string();
         let identify = |process: cmux_platform::process::Identity, namespace: &str| {
             Session::identified(
@@ -452,7 +425,7 @@ mod tests {
     #[test]
     fn retires_changed_targets_and_metadata() {
         let (mut journal, projects) = context();
-        let mut sessions = vec![session("one", InputState::Busy)];
+        let mut sessions = vec![session("one", false)];
         let mut pipeline = Pipeline::default();
         pipeline
             .admit(
@@ -473,8 +446,8 @@ mod tests {
             )
             .unwrap();
         assert!(!pipeline.next(&[], &sessions).unwrap().1);
-        let mut ready = session("one", InputState::EmptyReady);
-        ready.terminal.input_pending = true;
+        let mut ready = session("one", true);
+        ready.terminal.composer_active = false;
         assert!(!ready.ready());
     }
 
@@ -482,7 +455,7 @@ mod tests {
     #[test]
     fn bounded_queue_and_receipts() {
         let (mut journal, projects) = context();
-        let sessions = [session("one", InputState::Unknown)];
+        let sessions = [session("one", false)];
         let mut pipeline = Pipeline::default();
         for i in 0..MAX_PENDING {
             pipeline
@@ -547,11 +520,10 @@ mod tests {
             m.text = bad.into();
             assert!(m.validate().is_err());
         }
-        let mut s = session("one", InputState::EmptyReady);
-        s.terminal.observation.as_mut().unwrap().observed_at -= std::time::Duration::from_secs(2);
-        assert!(!s.ready());
-        s.terminal.observation.as_mut().unwrap().observed_at = std::time::Instant::now();
-        s.process.start_ticks += 1;
-        assert!(!s.ready());
+        let s = session("one", true);
+        assert!(s.ready());
+        let mut changed = s.clone();
+        changed.process.start_ticks += 1;
+        assert!(!s.same_target(&changed));
     }
 }

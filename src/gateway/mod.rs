@@ -1,9 +1,7 @@
 //! Global lifecycle subscription and consent-guarded GTK terminal input.
 mod actor;
-mod codex;
 pub mod model;
 mod pipeline;
-mod readiness;
 mod storage;
 mod ui;
 mod wire;
@@ -16,7 +14,7 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 pub use ui::append_preferences;
 
-/// GTK owns native handles; the service owns transport, readiness observations and durable delivery.
+/// GTK owns composition/execution; the service owns transport, process metadata and durable delivery.
 pub struct Handle {
     requests: mpsc::Sender<worker::Request>,
     snapshots: watch::Sender<Vec<Terminal>>,
@@ -63,7 +61,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
             if !delivery.reply.is_closed() {
                 let _ = delivery
                     .reply
-                    .send(deliver(&state, &delivery.message, &delivery.session));
+                    .send(deliver(&state, &delivery.message, &delivery.session).await);
             }
         }
     });
@@ -71,7 +69,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
 }
 
 /// Capture local surface identity, current directory and input revision on GTK, without interpreting resume state.
-fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Terminal> {
+fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
     let mut result = Vec::new();
     for (index, engine) in state.split_engines.iter().enumerate() {
         let Some(workspace) = state.workspaces.get(index) else {
@@ -90,76 +88,81 @@ fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Te
                 continue;
             }
             // SAFETY: the engine owns this live pointer on GTK; getters neither transfer ownership nor iterate events.
-            let pid = unsafe {
-                if crate::ghostty::ffi::ghostty_surface_process_exited(pointer) {
-                    0
-                } else {
-                    #[cfg(windows)]
-                    {
-                        crate::ghostty::ffi::ghostty_surface_child_pid(pointer)
-                    }
-                    #[cfg(not(windows))]
-                    crate::ghostty::ffi::ghostty_surface_foreground_pid(pointer)
-                }
-            };
-            let capture = capture_screen
-                && state.gateway.as_ref().is_some_and(|g| {
-                    let view = g.view.borrow();
-                    view.config.enabled
-                        && view.config.injection_approved
-                        && !view
-                            .managed_codex
-                            .iter()
-                            .any(|managed| managed["surface_id"] == surface_id)
-                });
-            // SAFETY: engine keeps the native surface live; the bounded getter does not iterate GTK events.
-            let screen = if capture {
-                unsafe { crate::ghostty::text::read_prompt_grid(pointer) }
-            } else {
-                None
-            };
+            let pid = unsafe { crate::ghostty::tty::root_pid(pointer) };
+            let composer_active = engine
+                .gl_area_for_surface(&surface_id)
+                .is_some_and(|area| crate::terminal_input::is_active(&area));
             result.push(Terminal {
                 workspace_id: workspace.uuid.to_string(),
                 surface_id,
                 directory: directory.into(),
                 foreground_pid: pid,
-                input_revision: crate::ghostty::registry::input_revision(pointer as usize),
-                input_pending: crate::ghostty::registry::input_pending(pointer as usize),
-                observation: None,
-                screen,
-                captured_at: Some(std::time::Instant::now()),
+                composer_active,
             });
         }
     }
     result
 }
 
-/// Publish bounded metadata and retire observations for closed terminals; unknown readiness stays unknown.
+/// Attach the shared local composer to verified running processes and publish terminal ownership.
 fn snapshot(state: &AppStateRef) {
-    let current = terminals(&state.borrow(), true);
+    let (sessions, runtime) = {
+        let state = state.borrow();
+        let Some(gateway) = &state.gateway else {
+            return;
+        };
+        let sessions = gateway.view.borrow().sessions.clone();
+        (sessions, gateway.runtime.clone())
+    };
+    let areas: Vec<_> = {
+        let state = state.borrow();
+        state
+            .split_engines
+            .iter()
+            .flat_map(|engine| {
+                engine
+                    .all_panes()
+                    .into_iter()
+                    .filter_map(|(surface, _, _)| {
+                        let id = surface.to_string();
+                        engine.gl_area_for_surface(&id).map(|area| (id, area))
+                    })
+            })
+            .collect()
+    };
+    for (id, area) in areas {
+        crate::terminal_input::synchronize(
+            &area,
+            sessions
+                .iter()
+                .find(|session| session.terminal.surface_id == id)
+                .cloned(),
+            &runtime,
+        );
+    }
+    let current = terminals(&state.borrow());
     if let Some(gateway) = &mut state.borrow_mut().gateway {
         gateway.snapshots.send_replace(current);
     }
 }
 
-/// Recheck consent, pinned target and unchanged ready input immediately before typing on GTK.
-fn deliver(
+/// Admit a durable event to the same per-terminal executor as completed human input.
+async fn deliver(
     state: &AppStateRef,
     message: &Message,
     expected: &Session,
 ) -> Result<DeliveryOutcome, String> {
     message.validate()?;
-    let text = message.terminal_text();
-    let pointer = {
+    let area = {
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
         let view = gateway.view.borrow();
         if !view.config.enabled || !view.config.injection_approved {
             return Err("Gateway injection is disabled".into());
         }
-        let current = terminals(&state, true)
+        let current = terminals(&state)
             .into_iter()
-            .find(|t| t.surface_id == expected.terminal.surface_id)
+            .find(|terminal| terminal.surface_id == expected.terminal.surface_id)
             .ok_or("Agent terminal closed")?;
         if current.workspace_id != expected.terminal.workspace_id
             || current.directory != expected.terminal.directory
@@ -167,36 +170,34 @@ fn deliver(
         {
             return Err("Agent terminal changed before delivery".into());
         }
-        let checked = Session {
-            terminal: current,
-            process: expected.process.clone(),
-            repository: expected.repository.clone(),
-            session_id: expected.session_id.clone(),
-            actor_origin: expected.actor_origin.clone(),
-            codex_thread_id: None,
-        };
-        if checked.terminal.input_revision != expected.terminal.input_revision
-            || checked.terminal.input_pending
-            || !expected.ready()
-            || checked.terminal.screen.as_ref().is_none_or(|f| {
-                readiness::classify(&expected.process.client, f) != InputState::EmptyReady
-            })
-        {
-            return Ok(DeliveryOutcome::Deferred);
-        }
         state
             .split_engines
             .iter()
-            .find_map(|e| e.find_surface_by_uuid(&expected.terminal.surface_id))
+            .find_map(|engine| engine.gl_area_for_surface(&expected.terminal.surface_id))
             .ok_or("Terminal is no longer attached")?
     };
-    // SAFETY: GTK owns this exact live target; model borrows are released, with no event-loop iteration or teardown.
-    unsafe {
-        crate::ghostty::text::send_literal(pointer, &text).map_err(str::to_owned)?;
-        crate::ghostty::text::send_character(pointer, '\r').map_err(str::to_owned)?;
-    }
-    // The foreground agent owns terminal output and cursor state, including rendering the submitted message.
-    // Writing an extra annotation into its output stream would invalidate incremental TUI redraws.
+    let weak = std::rc::Rc::downgrade(state);
+    let allowed = Box::new(move || {
+        weak.upgrade().is_some_and(|state| {
+            state.borrow().gateway.as_ref().is_some_and(|gateway| {
+                let view = gateway.view.borrow();
+                view.config.enabled && view.config.injection_approved
+            })
+        })
+    });
+    let result = match crate::terminal_input::execute(
+        &area,
+        expected.clone(),
+        message.terminal_text(),
+        allowed,
+    ) {
+        Ok(result) => result,
+        Err(error) if error.contains("queue is full") => return Ok(DeliveryOutcome::Deferred),
+        Err(error) => return Err(error),
+    };
+    result
+        .await
+        .map_err(|_| "Terminal executor stopped".to_owned())??;
     snapshot(state);
     Ok(DeliveryOutcome::Injected)
 }
@@ -218,17 +219,16 @@ pub fn submit(
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
         let instance_id = gateway.view.borrow().instance_id.clone();
-        let managed = gateway.view.borrow().managed_codex.clone();
         if instance_id.is_empty() {
             return Err("Gateway identity is still loading".into());
         }
-        let terminals = terminals(&state, false);
+        let terminals = terminals(&state);
         let (reply, result) = oneshot::channel();
         // Identity queries must not wait behind network hydration or repository discovery.
         gateway.runtime.spawn(async move {
             let result = tokio::time::timeout(
                 std::time::Duration::from_secs(1),
-                worker::context(terminals, instance_id, surface_id, managed),
+                worker::context(terminals, instance_id, surface_id),
             )
             .await
             .unwrap_or_else(|_| Err("Agent identity lookup timed out".into()));
@@ -286,80 +286,6 @@ pub fn rpc(
 ) {
     if matches!(
         method,
-        "gateway.codex.start" | "gateway.codex.attach" | "gateway.codex.stop"
-    ) {
-        let result = (|| {
-            let pid = peer_pid.ok_or("Caller process is not kernel authenticated")?;
-            let surface = params["surface_id"].as_str().ok_or("Missing surface_id")?;
-            let state = state.borrow();
-            let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
-            let terminal = terminals(&state, false)
-                .into_iter()
-                .find(|t| t.surface_id == surface)
-                .ok_or("No local terminal on this surface")?;
-            let executable = params["executable"].as_str().unwrap_or("").into();
-            let (reply, result) = oneshot::channel();
-            let action = if method == "gateway.codex.start" {
-                worker::Action::CodexStart {
-                    terminal,
-                    peer_pid: pid,
-                    executable,
-                    options: params
-                        .get("thread_options")
-                        .cloned()
-                        .unwrap_or_else(|| json!({})),
-                }
-            } else if method == "gateway.codex.attach" {
-                let tui_pid = params["tui_pid"]
-                    .as_u64()
-                    .and_then(|pid| u32::try_from(pid).ok())
-                    .ok_or("Invalid TUI process")?;
-                worker::Action::CodexAttach {
-                    surface: surface.to_owned(),
-                    peer_pid: pid,
-                    tui_pid,
-                }
-            } else {
-                worker::Action::CodexStop {
-                    surface: surface.to_owned(),
-                    peer_pid: pid,
-                }
-            };
-            gateway
-                .requests
-                .try_send(worker::Request { action, reply })
-                .map_err(|_| "Gateway operation queue is full or stopped")?;
-            Ok::<_, String>(result)
-        })();
-        match result {
-            Ok(result) => {
-                glib::MainContext::default().spawn_local(async move {
-                    let response = match result.await {
-                        Ok(Ok(value)) => crate::socket::response::ok(req_id, value),
-                        Ok(Err(error)) => {
-                            crate::socket::response::err(req_id, "gateway_error", &error)
-                        }
-                        Err(_) => crate::socket::response::err(
-                            req_id,
-                            "gateway_error",
-                            "Gateway worker stopped",
-                        ),
-                    };
-                    let _ = resp_tx.send(response);
-                });
-            }
-            Err(error) => {
-                let _ = resp_tx.send(crate::socket::response::err(
-                    req_id,
-                    "invalid_params",
-                    &error,
-                ));
-            }
-        }
-        return;
-    }
-    if matches!(
-        method,
         "gateway.session.announce" | "gateway.session.resolve"
     ) {
         let prepared = (|| {
@@ -406,11 +332,7 @@ pub fn rpc(
                 let (reply, result) = oneshot::channel();
                 requests
                     .try_send(worker::Request {
-                        action: worker::Action::Actor {
-                            actor,
-                            peer_pid,
-                            repository,
-                        },
+                        action: worker::Action::Actor { actor, repository },
                         reply,
                     })
                     .map_err(|_| "Gateway operation queue is full or stopped")?;

@@ -36,7 +36,7 @@ def relay(client, native, prompt_file, record_file, directory):
     return 0
 
 
-def verify(rpc, profile, client, fixture, python):
+def verify(rpc, profile, client, fixture, python, submit):
     """Verify ordinary registration and native delivery without automatic identity prompt submission."""
     root = Path(profile) / "actors"
     root.mkdir()
@@ -100,12 +100,21 @@ def verify(rpc, profile, client, fixture, python):
             rows = [row for row in rpc("gateway.status")["receipts"] if str(row["event_id"]) == str(event)]
             return len(rows) == 2 and all(row["confirmed"] and row["outcome"] in ("injected", "skipped") for row in rows)
 
+        human = "local Windows draft λ\nsecond line"
+        rpc("surface.send_text", {"id": surfaces[0], "text": human})
+        assert rpc("surface.read_text", {"id": surfaces[0]})["input"]["draft"] == human
         comment = gateway.add(kind="task_commented", content="Windows peer research result")
         wait(lambda: delivered(comment), "comment delivery to native peers")
         wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 1 for record in records), "comment visible to both peers")
+        assert rpc("surface.read_text", {"id": surfaces[0]})["input"]["draft"] == human
+        assert all(human not in json.loads(record.read_text())["prompts"] for record in records)
+        workspace = next(s["workspace_uuid"] for s in rpc("surface.list")["surfaces"] if s["uuid"] == surfaces[0])
+        rpc("workspace.select", {"id": workspace})
+        submit()
+        wait(lambda: json.loads(records[0].read_text())["prompts"][-1] == human, "complete human input follows event")
         completion = gateway.add(kind="task_completed", content="Windows peer completed")
         wait(lambda: delivered(completion), "completion delivery to native peers")
-        wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 2 for record in records), "completion visible to both peers")
+        wait(lambda: [len(json.loads(record.read_text())["prompts"]) for record in records] == [3, 2], "completion visible to both peers")
         assert all("cmux-session-enrollment" not in prompt for record in records for prompt in json.loads(record.read_text())["prompts"])
         print("Native Windows ordinary SDK: two registrations, no enrollment input, native peer comment/completion PASS")
     finally:

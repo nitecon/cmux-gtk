@@ -2,7 +2,7 @@
 use super::{
     model::*,
     pipeline::{Pending, Pipeline},
-    readiness, storage, wire,
+    storage, wire,
 };
 use futures_util::StreamExt;
 use serde_json::{json, Value};
@@ -16,27 +16,11 @@ use tokio::sync::{mpsc, oneshot, watch};
 pub enum Action {
     Actor {
         actor: super::actor::Actor,
-        peer_pid: u32,
         repository: Option<String>,
     },
     Configure {
         config: Config,
         key: Option<String>,
-    },
-    CodexStart {
-        terminal: Terminal,
-        peer_pid: u32,
-        executable: std::path::PathBuf,
-        options: Value,
-    },
-    CodexAttach {
-        surface: String,
-        peer_pid: u32,
-        tui_pid: u32,
-    },
-    CodexStop {
-        surface: String,
-        peer_pid: u32,
     },
 }
 
@@ -64,14 +48,6 @@ struct Connection {
     sent: HashMap<i64, String>,
 }
 
-/// Readiness requires a stable recognized prompt in two observations after every input change.
-struct StablePrompt {
-    process: cmux_platform::process::Identity,
-    revision: u64,
-    frame: String,
-    since: Instant,
-}
-
 /// Serialized durable state; credentials and captured screen data never enter UI snapshots.
 struct Worker {
     journal: Journal,
@@ -84,68 +60,15 @@ struct Worker {
     storage_failed: bool,
     connection: String,
     agents: usize,
-    prompts: HashMap<String, StablePrompt>,
-    codex: HashMap<String, super::codex::Backend>,
+    local_sessions: Vec<Session>,
 }
 
 impl Worker {
-    /// The explicit launcher owns its native TUI even when a shell/group leader remains foreground.
+    /// Track owned running processes without any downstream UI, provider protocol or prompt observation.
     async fn sessions(&mut self, terminals: &[Terminal]) -> Vec<Session> {
-        let mut sessions = active(terminals, &self.journal.instance_id).await;
-        sessions.retain(|session| !self.codex.contains_key(&session.terminal.surface_id));
-        for terminal in terminals {
-            if sessions
-                .iter()
-                .any(|s| s.terminal.surface_id == terminal.surface_id)
-            {
-                continue;
-            }
-            if let Some(backend) = self.codex.get(&terminal.surface_id) {
-                if let Some(process) = backend.process() {
-                    sessions.push(Session::identified(
-                        terminal.clone(),
-                        process,
-                        String::new(),
-                        &self.journal.instance_id,
-                    ));
-                }
-            }
-        }
-        // Active identity lookup deliberately drops screen data; only legacy delivery restores
-        // the fresh GTK snapshot for its existing conservative prompt checks.
-        for session in &mut sessions {
-            if let Some(terminal) = terminals
-                .iter()
-                .find(|t| t.surface_id == session.terminal.surface_id)
-            {
-                session.terminal = terminal.clone();
-            }
-        }
-        self.decorate(&mut sessions);
+        let sessions = active(terminals, &self.journal.instance_id).await;
+        self.local_sessions = sessions.clone();
         sessions
-    }
-
-    /// Exact managed thread metadata follows the native TUI generation, never a provider/project guess.
-    fn decorate(&mut self, sessions: &mut [Session]) {
-        for session in sessions {
-            if session.process.client == "codex" {
-                if let Some(backend) = self.codex.get_mut(&session.terminal.surface_id) {
-                    if backend.terminal.workspace_id == session.terminal.workspace_id
-                        && backend.terminal.directory == session.terminal.directory
-                    {
-                        if backend
-                            .tui
-                            .as_ref()
-                            .is_some_and(|tui| tui != &session.process)
-                        {
-                            continue;
-                        }
-                        session.codex_thread_id = Some(backend.thread_id.clone());
-                        session.actor_origin = backend.actor_origin.clone();
-                    }
-                }
-            }
-        }
     }
 
     /// Publish bounded outcomes without task bodies, terminal screen contents or credentials.
@@ -170,11 +93,7 @@ impl Worker {
             projects: self.projects.len(),
             agents: self.agents,
             receipts,
-            managed_codex: self
-                .codex
-                .values()
-                .map(|backend| backend.context())
-                .collect(),
+            sessions: self.local_sessions.clone(),
         });
     }
 
@@ -194,81 +113,9 @@ impl Worker {
     async fn apply(&mut self, action: Action) -> Result<Value, String> {
         let (config, key) = match action {
             Action::Configure { config, key } => (config, key),
-            Action::Actor {
-                actor,
-                peer_pid,
-                repository,
-            } => {
-                let mut result = actor.announcement(repository.as_deref())?;
-                if let Some(backend) = self
-                    .codex
-                    .values_mut()
-                    .find(|backend| backend.accepts_actor(&actor, peer_pid))
-                {
-                    backend.actor_origin = Some(actor.origin.clone());
-                    result["binding_state"] = json!("bound");
-                    result["surface_id"] = json!(backend.terminal.surface_id);
-                    result["workspace_id"] = json!(backend.terminal.workspace_id);
-                    result["codex_thread_id"] = json!(backend.thread_id);
-                    result["delivery_transport"] = json!("codex_queue");
-                }
+            Action::Actor { actor, repository } => {
+                let result = actor.announcement(repository.as_deref())?;
                 return Ok(result);
-            }
-            Action::CodexStart {
-                terminal,
-                peer_pid,
-                executable,
-                options,
-            } => {
-                if self.codex.contains_key(&terminal.surface_id) {
-                    return Err("A managed Codex session already owns this pane".into());
-                }
-                if !executable.is_absolute() || !executable.is_file() {
-                    return Err("Codex executable must be an existing absolute path".into());
-                }
-                let root = cmux_platform::listeners::identity(
-                    u32::try_from(terminal.foreground_pid)
-                        .map_err(|_| "Invalid terminal process")?,
-                )
-                .map_err(|_| "Terminal process exited")?;
-                let launcher = cmux_platform::listeners::process_tree(root)
-                    .map_err(|_| "Cannot inspect terminal process tree")?
-                    .into_iter()
-                    .find(|p| p.pid == peer_pid)
-                    .ok_or("Caller does not own this terminal")?;
-                let backend =
-                    super::codex::Backend::start(terminal.clone(), launcher, &executable, options)
-                        .await?;
-                let context = backend.launch_context();
-                self.codex.insert(terminal.surface_id, backend);
-                return Ok(context);
-            }
-            Action::CodexAttach {
-                surface,
-                peer_pid,
-                tui_pid,
-            } => {
-                let backend = self
-                    .codex
-                    .get_mut(&surface)
-                    .ok_or("No managed launch on this pane")?;
-                backend.attach(peer_pid, tui_pid)?;
-                self.publish();
-                return Ok(json!({"attached":true}));
-            }
-            Action::CodexStop { surface, peer_pid } => {
-                let backend = self
-                    .codex
-                    .get(&surface)
-                    .ok_or("No managed Codex session on this pane")?;
-                if backend.launcher.pid != peer_pid
-                    || cmux_platform::listeners::identity(peer_pid).ok().as_ref()
-                        != Some(&backend.launcher)
-                {
-                    return Err("Caller does not own this managed launch".into());
-                }
-                self.codex.remove(&surface);
-                return Ok(json!({"stopped":true}));
             }
         };
         let mut candidate = self.journal.clone();
@@ -310,7 +157,6 @@ impl Worker {
         }
         if clear {
             self.pipeline.pending.clear();
-            self.prompts.clear();
         }
         self.projects.clear();
         self.journal = candidate;
@@ -398,7 +244,7 @@ impl Worker {
                 finalize(
                     &mut receipt,
                     "skipped",
-                    "No active local Claude/Codex process at event arrival",
+                    "No running local application at event arrival",
                 );
             }
         }
@@ -487,80 +333,21 @@ impl Worker {
         Ok(())
     }
 
-    /// Attach a fresh readiness observation only after native layout, process generation and input stay stable.
+    /// Pending events wait only for CMUX's local executor attachment, never a provider's prompt.
     async fn observe(&mut self, sessions: &mut [Session]) -> Result<(), String> {
         self.agents = sessions.len();
-        let mut live = HashSet::new();
-        for session in sessions.iter_mut() {
-            let terminal = &mut session.terminal;
-            let surface = terminal.surface_id.clone();
-            live.insert(surface.clone());
-            if session.codex_thread_id.is_some() {
-                self.prompts.remove(&surface);
-                continue;
-            }
-            let input = terminal
-                .screen
-                .as_ref()
-                .map(|f| readiness::classify(&session.process.client, f))
-                .unwrap_or_default();
-            if input != InputState::EmptyReady || terminal.input_pending {
-                self.prompts.remove(&surface);
-                continue;
-            }
-            let grid = terminal.screen.as_ref().unwrap();
-            let frame = json!({"cursor":grid["cursor"],"rows":grid["rows"],"columns":grid["columns"],
-                "row_spans":grid["row_spans"],"styles":grid["styles"],"active_screen":grid["active_screen"]}).to_string();
-            let prompt = self.prompts.entry(surface).or_insert_with(|| StablePrompt {
-                process: session.process.clone(),
-                revision: terminal.input_revision,
-                frame: frame.clone(),
-                since: Instant::now(),
-            });
-            if prompt.process != session.process
-                || prompt.revision != terminal.input_revision
-                || prompt.frame != frame
-            {
-                *prompt = StablePrompt {
-                    process: session.process.clone(),
-                    revision: terminal.input_revision,
-                    frame,
-                    since: Instant::now(),
-                };
-            }
-            if prompt.since.elapsed() >= Duration::from_millis(500) {
-                terminal.observation = Some(Observation {
-                    process: session.process.clone(),
-                    input_revision: terminal.input_revision,
-                    input,
-                    observed_at: terminal.captured_at.unwrap_or_else(Instant::now),
-                });
-            }
-        }
-        self.prompts.retain(|surface, _| live.contains(surface));
         for receipt in self
             .journal
             .receipts
             .iter_mut()
             .filter(|r| r.outcome == "queued")
         {
-            if let Some(current) = receipt
+            if receipt
                 .target
                 .as_ref()
-                .and_then(|target| sessions.iter().find(|s| target.same_target(s)))
+                .is_some_and(|target| sessions.iter().any(|s| target.same_target(s)))
             {
-                receipt.reason = if current.codex_thread_id.is_some() {
-                    "Waiting for Codex native queue submission"
-                } else if current.terminal.input_pending {
-                    "Clipboard input is pending; waiting"
-                } else {
-                    match current.terminal.screen.as_ref().map(|f| readiness::classify(&current.process.client, f)).unwrap_or_default() {
-                        InputState::Unknown => "Agent prompt layout is unrecognized; waiting for an editable empty prompt",
-                        InputState::Busy => "Agent is busy or awaiting permission; waiting",
-                        InputState::Unfinished => "User input is unfinished; waiting",
-                        InputState::EmptyReady => "Waiting for a stable empty agent prompt",
-                    }
-                }.into();
+                receipt.reason = "Waiting for CMUX input queue submission".into();
             }
         }
         Ok(())
@@ -609,32 +396,14 @@ impl Worker {
         self.journal.receipts[index].confirmed = false;
         self.save().await?;
         let surface = pending.target.terminal.surface_id.clone();
-        let native = pending.target.codex_thread_id.is_some();
-        let outcome = if native {
-            match self.codex.get(&surface) {
-                Some(backend)
-                    if pending.target.codex_thread_id.as_deref() == Some(&backend.thread_id) =>
-                {
-                    tokio::time::timeout(
-                        Duration::from_secs(15),
-                        backend.queue(&pending.message, &pending.target.session_id),
-                    )
-                    .await
-                    .ok()
-                    .and_then(Result::ok)
-                    .map(|()| DeliveryOutcome::Injected)
-                    .ok_or("uncertain")
-                }
-                _ => Err("skipped"),
-            }
-        } else {
+        let outcome = {
             let (reply, result) = oneshot::channel();
             let delivery = Delivery {
                 message: Box::new(pending.message.clone()),
                 session: pending.target.clone(),
                 reply,
             };
-            tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::time::timeout(Duration::from_secs(5), async {
                 self.deliveries
                     .send(delivery)
                     .await
@@ -653,35 +422,25 @@ impl Worker {
             Ok(DeliveryOutcome::Injected) => finalize(
                 &mut self.journal.receipts[index],
                 "injected",
-                if native {
-                    "Accepted by Codex native queue; model receipt is not yet confirmed"
-                } else {
-                    "Submitted to the active agent terminal"
-                },
+                "Submitted through CMUX input queue; model receipt is not yet confirmed",
             ),
             Ok(DeliveryOutcome::Deferred) => {
                 let receipt = &mut self.journal.receipts[index];
                 receipt.outcome = "queued".into();
                 receipt.confirmed = false;
-                receipt.reason =
-                    "Input changed before submission; waiting for an empty prompt".into();
+                receipt.reason = "CMUX input queue is unavailable; waiting".into();
                 self.pipeline.pending.push_front(pending);
             }
             Err(status) => finalize(
                 &mut self.journal.receipts[index],
                 status,
                 if status == "uncertain" {
-                    if native {
-                        "Codex queue acceptance could not be confirmed; automatic replay is disabled"
-                    } else {
-                        "Terminal submission could not be confirmed; automatic replay is disabled"
-                    }
+                    "Terminal submission could not be confirmed; automatic replay is disabled"
                 } else {
                     "Agent terminal changed before final delivery"
                 },
             ),
         }
-        self.prompts.remove(&surface);
         self.save().await?;
         self.publish();
         crate::diagnostics::record(
@@ -852,19 +611,13 @@ pub(super) async fn active(terminals: &[Terminal], instance_id: &str) -> Vec<Ses
     if terminals.len() > MAX_PENDING {
         return Vec::new();
     }
-    if terminals.len() > MAX_PENDING {
-        return Vec::new();
-    }
     let terminals = terminals.to_vec();
     let instance_id = instance_id.to_owned();
     tokio::task::spawn_blocking(move || {
         terminals
             .into_iter()
-            .filter_map(|mut terminal| {
-                let process = cmux_platform::process::agent_identity(terminal.foreground_pid)?;
-                terminal.screen = None;
-                terminal.captured_at = None;
-                terminal.observation = None;
+            .filter_map(|terminal| {
+                let process = cmux_platform::process::input_identity(terminal.foreground_pid)?;
                 Some(Session::identified(
                     terminal,
                     process,
@@ -883,70 +636,9 @@ pub async fn context(
     terminals: Vec<Terminal>,
     instance_id: String,
     surface_id: Option<String>,
-    managed: Vec<Value>,
 ) -> Result<Value, String> {
     let mut sessions = active(&terminals, &instance_id).await;
-    sessions.retain(|session| {
-        !managed
-            .iter()
-            .any(|record| record["surface_id"] == session.terminal.surface_id)
-    });
-    for record in &managed {
-        let Some(terminal) = terminals.iter().find(|t| {
-            record["surface_id"] == t.surface_id && record["workspace_id"] == t.workspace_id
-        }) else {
-            continue;
-        };
-        if sessions
-            .iter()
-            .any(|s| s.terminal.surface_id == terminal.surface_id)
-        {
-            continue;
-        }
-        let record = record.clone();
-        let process = tokio::task::spawn_blocking(move || {
-            let launcher = u32::try_from(record["launcher_pid"].as_u64()?).ok()?;
-            let root = cmux_platform::listeners::identity(launcher).ok()?;
-            if Some(root.start_ticks) != record["launcher_start_ticks"].as_u64() {
-                return None;
-            }
-            let pid = record["process_pid"].as_u64()?;
-            let ticks = record["process_start_ticks"].as_u64()?;
-            if !cmux_platform::listeners::process_tree(root)
-                .ok()?
-                .iter()
-                .any(|p| u64::from(p.pid) == pid && p.start_ticks == ticks)
-            {
-                return None;
-            }
-            Some(cmux_platform::process::Identity {
-                pid,
-                start_ticks: ticks,
-                client: "codex".into(),
-            })
-        })
-        .await
-        .ok()
-        .flatten();
-        if let Some(process) = process {
-            sessions.push(Session::identified(
-                terminal.clone(),
-                process,
-                String::new(),
-                &instance_id,
-            ));
-        }
-    }
     let metadata = |session: &mut Session| {
-        if let Some(backend) = managed.iter().find(|b| {
-            b["surface_id"] == session.terminal.surface_id
-                && b["workspace_id"] == session.terminal.workspace_id
-                && b["process_pid"] == session.process.pid
-                && b["process_start_ticks"] == session.process.start_ticks
-        }) {
-            session.codex_thread_id = backend["thread_id"].as_str().map(str::to_owned);
-            session.actor_origin = serde_json::from_value(backend["origin"].clone()).ok();
-        }
         let mut context = session.context(&instance_id);
         context["binding_state"] = json!(if session.actor_origin.is_some() {
             "bound"
@@ -1072,7 +764,7 @@ pub async fn run(
             }); }
         }
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new(),codex:HashMap::new()};
+            storage_failed:false,connection:"Disabled".into(),agents:0,local_sessions:Vec::new()};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -1108,7 +800,8 @@ pub async fn run(
                 }
                 _=tick.tick()=>{
                     let current_terminals=snapshots.borrow().clone();
-                    worker.codex.retain(|_, backend| backend.alive(&current_terminals));
+                    worker.sessions(&current_terminals).await;
+                    worker.publish();
                     if connection.is_none() && worker.journal.config.enabled && Instant::now()>=retry {
                         worker.connection="Connecting".into(); worker.publish();
                         let attempt=async {
@@ -1186,11 +879,7 @@ mod tests {
             surface_id: uuid::Uuid::new_v4().to_string(),
             directory: "/repo".into(),
             foreground_pid: 42,
-            input_revision: 0,
-            input_pending: false,
-            observation: None,
-            screen: None,
-            captured_at: None,
+            composer_active: true,
         };
         let process = cmux_platform::process::Identity {
             pid: 42,
@@ -1223,7 +912,7 @@ mod tests {
 
     /// Exercise real persistence and GTK-channel delivery after the platform/discovery boundary.
     #[tokio::test]
-    async fn fences_before_delivery_and_defers_input_races() {
+    async fn fences_before_delivery_and_defers_queue_saturation() {
         let root =
             std::env::temp_dir().join(format!("cmux-gateway-worker-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();
@@ -1248,22 +937,12 @@ mod tests {
                 surface_id: uuid::Uuid::new_v4().to_string(),
                 directory: "/repo".into(),
                 foreground_pid: 42,
-                input_revision: 3,
-                input_pending: false,
-                screen: None,
-                captured_at: None,
-                observation: Some(Observation {
-                    process: process.clone(),
-                    input_revision: 3,
-                    input: InputState::EmptyReady,
-                    observed_at: std::time::Instant::now(),
-                }),
+                composer_active: true,
             },
             process,
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v4().to_string(),
             actor_origin: None,
-            codex_thread_id: None,
         };
         let message = Message {
             event_id: "event".into(),
@@ -1286,8 +965,7 @@ mod tests {
             storage_failed: false,
             connection: "Connected".into(),
             agents: 1,
-            prompts: HashMap::new(),
-            codex: HashMap::new(),
+            local_sessions: Vec::new(),
         };
         worker
             .pipeline

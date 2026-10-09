@@ -155,11 +155,11 @@ jobs:
       - name: Test gateway lifecycle stream and native terminal injection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
 
-      - name: Fetch verified official Codex for native queue acceptance
+      - name: Fetch verified official Codex for ordinary TUI input acceptance
         run: python3 scripts/fetch-codex-fixture.py target/codex-fixture --platform linux
 
-      - name: Test managed Codex native TUI and queue delivery
-        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_managed_codex.py
+      - name: Test ordinary Codex with CMUX-owned composition
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_process_input.py
 
       - name: Build pinned legacy client for enrollment-removal regression
         env:

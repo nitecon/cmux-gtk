@@ -62,6 +62,9 @@ class Gateway:
         self.record_delay = 0
         self.server_heartbeats = True
         self.full_fetches = 0
+        self.detail_entered = threading.Event()
+        self.detail_release = threading.Event()
+        self.detail_release.set()
         self.replay = None
         self.sockets = set()
         self.maximum_connections = 0
@@ -88,6 +91,8 @@ class Gateway:
                     with fixture.lock:
                         fixture.full_fetches += 1
                         detail = fixture.details[self.path]
+                    fixture.detail_entered.set()
+                    assert fixture.detail_release.wait(15), "detail barrier timed out"
                     self.respond(detail)
                 elif self.path == "/v1/tasks/stream":
                     accept = base64.b64encode(hashlib.sha1((self.headers["Sec-WebSocket-Key"] +
@@ -220,6 +225,7 @@ class Gateway:
 
     def close(self):
         """Stop the listener and all upgraded peers before the test deletes its isolated directories."""
+        self.detail_release.set()
         self.disconnect()
         self.server.shutdown()
         self.server.server_close()

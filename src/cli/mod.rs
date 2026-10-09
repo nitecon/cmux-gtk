@@ -96,13 +96,8 @@ fn restore_terminal(
     )))
 }
 
-mod codex;
-
 /// Run the CLI with the parsed arguments.
 pub fn run(cli: Cli) -> Result<(), CliError> {
-    if let Commands::Codex { args } = &cli.command {
-        return codex::launch(args, cli.socket.as_deref());
-    }
     #[cfg(windows)]
     if let Commands::ApplyUpdate { install, staging } = &cli.command {
         return updater::windows::apply_update(install, staging)
@@ -545,9 +540,6 @@ fn command_to_rpc(cmd: &Commands) -> (&'static str, serde_json::Value) {
     use args::{ResumeCommands, SurfaceCommands};
     use serde_json::{json, Value};
     match cmd {
-        Commands::Codex { .. } => {
-            unreachable!("Managed Codex launches are handled before command dispatch")
-        }
         Commands::Gateway { command } => match command {
             args::GatewayCommands::Status => ("gateway.status", json!({})),
             args::GatewayCommands::Configure {

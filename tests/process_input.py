@@ -41,14 +41,14 @@ class Model:
                 assert model.hold.wait(60), "Model busy fixture exceeded bound"
                 response_id = "resp_" + uuid.uuid4().hex
                 item = {"type": "message", "id": "msg_" + uuid.uuid4().hex, "role": "assistant", "status": "completed",
-                        "content": [{"type": "output_text", "text": "CMUX_NATIVE_QUEUE_ACCEPTED", "annotations": []}]}
+                        "content": [{"type": "output_text", "text": "CMUX_INPUT_ACCEPTED", "annotations": []}]}
                 response = {"id": response_id, "object": "response", "status": "completed", "output": [item],
                             "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}}
                 events = [
                     {"type": "response.created", "response": {**response, "status": "in_progress", "output": []}},
                     {"type": "response.output_item.added", "output_index": 0, "item": {**item, "status": "in_progress", "content": []}},
                     {"type": "response.content_part.added", "item_id": item["id"], "output_index": 0, "content_index": 0, "part": {"type": "output_text", "text": "", "annotations": []}},
-                    {"type": "response.output_text.delta", "item_id": item["id"], "output_index": 0, "content_index": 0, "delta": "CMUX_NATIVE_QUEUE_ACCEPTED"},
+                    {"type": "response.output_text.delta", "item_id": item["id"], "output_index": 0, "content_index": 0, "delta": "CMUX_INPUT_ACCEPTED"},
                     {"type": "response.output_item.done", "output_index": 0, "item": item},
                     {"type": "response.completed", "response": response},
                 ]
@@ -74,7 +74,7 @@ name = "CMUX Actions model fixture"
 base_url = "http://127.0.0.1:{self.server.server_port}/v1"
 wire_api = "responses"
 requires_openai_auth = false
-[projects.{json.dumps(str(home.parent / "managed" / "first"))}]
+[projects.{json.dumps(str(home.parent / "process-input" / "first"))}]
 trust_level = "trusted"
 ''', encoding="utf-8")
 
@@ -85,15 +85,16 @@ trust_level = "trusted"
         self.thread.join(5)
 
 
-def verify(rpc, root, cmux, codex, model):
-    """Launch two real native provider peers, retain drafts, queue while busy and fence replacements."""
-    root = Path(root) / "managed"
+def verify(rpc, root, codex, model):
+    """Use ordinary official Codex TUIs, with local drafts and provider-independent process input."""
+    root = Path(root) / "process-input"
     root.mkdir()
     directory = root / "first"
     directory.mkdir()
     subprocess.run(["git", "init", "-q", str(directory)], check=True, capture_output=True)
     subprocess.run(["git", "-C", str(directory), "remote", "add", "origin", "git@github.com:fixture/first.git"], check=True)
-    gateway = Gateway("managed-codex-gateway")
+    gateway = Gateway("process-input-gateway")
+    surfaces, workspaces = [], []
 
     def wait(predicate, description, seconds=60):
         deadline = time.monotonic() + seconds
@@ -101,69 +102,58 @@ def verify(rpc, root, cmux, codex, model):
             if predicate():
                 return
             time.sleep(0.5)
-        print("Managed provider status:", json.dumps(rpc("gateway.status"), indent=2))
+        print("Process input status:", json.dumps(rpc("gateway.status"), indent=2))
         for surface in surfaces:
-            print("Managed provider screen:", rpc("surface.read_text", {"id": surface})["text"])
+            print("Process input screen:", rpc("surface.read_text", {"id": surface}))
         raise AssertionError(description)
 
-    surfaces = []
-    workspaces = []
+    def editor(surface):
+        return rpc("surface.read_text", {"id": surface})["input"]
+
     try:
-        rpc("gateway.configure", {"enabled": True, "url": gateway.url, "injection_approved": True, "api_key": gateway.key})
+        rpc("gateway.configure", dict(enabled=True, url=gateway.url, injection_approved=True, api_key=gateway.key))
         wait(lambda: rpc("gateway.status")["connection"] == "Connected", "gateway connected")
-        for name in ("managed-first", "managed-peer"):
-            workspace = rpc("workspace.create", {"name": name, "working_directory": str(directory)})
+        for name in ("first", "peer"):
+            workspace = rpc("workspace.create", dict(name=name, working_directory=str(directory)))
             workspaces.append(workspace["uuid"])
             rpc("workspace.select", {"id": workspace["uuid"]})
             surface = next(s["uuid"] for s in rpc("surface.list")["surfaces"] if s["workspace_uuid"] == workspace["uuid"])
             surfaces.append(surface)
             wait(lambda: rpc("surface.read_text", {"id": surface})["text"].strip(), "native shell ready")
-            args = [str(cmux), "codex", "--", "-a", "never", "--sandbox", "read-only"]
-            if os.name == "nt":
-                command = f'set "PATH={codex.parent};%PATH%" && ' + subprocess.list2cmdline(args)
-            else:
-                command = "PATH=" + shlex.quote(str(codex.parent)) + ':"$PATH" ' + shlex.join(args)
+            args = [str(codex), "--no-daemon", "-a", "never", "--sandbox", "read-only"]
+            command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
             rpc("surface.send_text", {"id": surface, "text": command})
             rpc("surface.send_key", {"id": surface, "key": "\r"})
-            wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"], "real native Codex TUI startup")
-        wait(lambda: len(rpc("gateway.status")["managed_codex"]) == 2 and all(m["process_pid"] for m in rpc("gateway.status")["managed_codex"]), "two tracked native TUI generations")
-        # A same-user caller outside the pane cannot claim another terminal's managed launch.
-        try:
-            rpc("gateway.codex.start", {"surface_id": surfaces[0], "executable": str(codex)})
-        except (RuntimeError, subprocess.CalledProcessError):
-            pass
-        else:
-            raise AssertionError("Foreign launcher must not acquire a pane")
+            wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"] and editor(surface)["active"], "ordinary native Codex and local editor")
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
-        assert all(s["delivery_transport"] == "codex_queue" for s in sessions)
-        assert len({s["codex_thread_id"] for s in sessions}) == 2
+        assert all(s["delivery_transport"] == "cmux_input_queue" for s in sessions)
         assert len({s["recipient_session_id"] for s in sessions}) == 2
-        assert not model.inputs, "Managed bootstrap must not send synthetic model input"
-        # This genuine draft deliberately makes terminal injection unsafe, but must not block native queuing.
-        rpc("surface.send_text", {"id": surfaces[0], "text": "KEEP_THIS_DRAFT"})
+        assert not model.inputs, "Startup must not submit synthetic model input"
+        human = "KEEP_THIS_LOCAL_DRAFT λ\nsecond human line"
+        rpc("surface.send_text", {"id": surfaces[0], "text": human})
         model.hold.clear()
-        event = gateway.add(content="Managed native queue first event", project="first")
-        wait(lambda: gateway.outcome(event) == "injected", "native queue accepted for both peers despite draft")
-        wait(lambda: len(model.inputs) >= 2, "queued input reached the real provider/model request")
-        assert "KEEP_THIS_DRAFT" in rpc("surface.read_text", {"id": surfaces[0]})["text"]
-        busy_event = gateway.add(content="Managed native queue busy followup", project="first")
-        wait(lambda: gateway.outcome(busy_event) == "injected", "native queue accepted while both providers busy")
-        assert "KEEP_THIS_DRAFT" in rpc("surface.read_text", {"id": surfaces[0]})["text"]
-        receipts = rpc("gateway.status")["receipts"]
-        native_receipts = [r for r in receipts if r["event_id"] in (str(event), str(busy_event))]
-        assert len(native_receipts) == 4
-        assert all("model receipt is not yet confirmed" in r["reason"] for r in native_receipts)
-        # Public snapshots must not contain the per-launch endpoint/capability.
-        public = json.dumps(rpc("gateway.status"))
-        assert "token" not in public and "endpoint" not in public
+        event = gateway.add(content="First ordinary process event")
+        wait(lambda: gateway.outcome(event) == "injected", "complete event submitted while human draft stays local")
+        wait(lambda: len(model.inputs) >= 2, "both real providers received first message")
+        assert editor(surfaces[0])["draft"] == human
+        assert "KEEP_THIS_LOCAL_DRAFT" not in json.dumps(model.inputs)
+        busy = gateway.add(content="Ordinary process event while busy")
+        wait(lambda: gateway.outcome(busy) == "injected", "input submitted to both busy processes")
+        assert editor(surfaces[0])["draft"] == human
+        rows = [r for r in rpc("gateway.status")["receipts"] if r["event_id"] in (str(event), str(busy))]
+        assert len(rows) == 4 and all("model receipt is not yet confirmed" in r["reason"] for r in rows)
         model.hold.set()
-        wait(lambda: len(model.inputs) >= 4, "provider autonomously drains busy followups")
-        wait(lambda: all("CMUX_NATIVE_QUEUE_ACCEPTED" in rpc("surface.read_text", {"id": surface})["text"] for surface in surfaces), "native TUI renders actual model response")
+        wait(lambda: len(model.inputs) >= 4, "provider drains complete busy messages")
+        wait(lambda: all("CMUX_INPUT_ACCEPTED" in rpc("surface.read_text", {"id": s})["text"] for s in surfaces), "real TUI renders model output")
+        rpc("surface.send_key", {"id": surfaces[0], "key": "\r"})
+        wait(lambda: "KEEP_THIS_LOCAL_DRAFT" in json.dumps(model.inputs), "plain Enter submits whole human message")
+        assert editor(surfaces[0])["draft"] == ""
+        assert any("KEEP_THIS_LOCAL_DRAFT" in json.dumps(request) and "second human line" in json.dumps(request) for request in model.inputs)
         for workspace in workspaces:
             rpc("workspace.close", {"id": workspace})
-        wait(lambda: not rpc("gateway.status")["managed_codex"], "pane retirement reaps managed backend lifetimes")
+        wait(lambda: all(s["surface_id"] not in surfaces for s in rpc("gateway.sessions")["sessions"]), "pane retirement retires input recipients")
         assert not gateway.errors, gateway.errors
-        print("Real Codex managed queue PASS: two native TUIs, exact threads, draft preservation, busy queue, visible response and retirement")
+        print("Ordinary Codex PASS: two native TUIs, local multiline draft, busy message delivery, human Enter and visible response")
     finally:
         model.hold.set()
         gateway.close()

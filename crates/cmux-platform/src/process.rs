@@ -210,15 +210,47 @@ mod tests {
     }
 }
 
-/// A live foreground agent generation; start ticks prevent PID reuse from reusing readiness.
+/// A live application generation; start ticks prevent PID reuse from reusing a target.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
     /// Kernel PID of the verified foreground executable.
     pub pid: u64,
     /// Kernel start time in ticks since boot, used to identify this process generation.
     pub start_ticks: u64,
-    /// Verified provider name: claude or codex.
+    /// Application name; provider names are display context only.
     pub client: String,
+}
+
+/// Observe the terminal's running application without interpreting its UI or its input protocol.
+/// Shells retain raw terminal editing; ordinary foreground subprocesses use CMUX composition.
+/// Call on a blocking worker. Rechecking the kernel start time fences exit and PID reuse.
+pub fn input_identity(pid: u64) -> Option<Identity> {
+    if pid == 0 || pid > i32::MAX as u64 {
+        return None;
+    }
+    let root = std::path::PathBuf::from(format!("/proc/{pid}"));
+    let before = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+    let start_ticks = process_start(&before)?;
+    let executable = std::fs::read_link(root.join("exe")).ok()?;
+    let name = executable
+        .file_name()?
+        .to_str()?
+        .trim_end_matches(" (deleted)");
+    if matches!(
+        name,
+        "bash" | "zsh" | "fish" | "sh" | "dash" | "ksh" | "csh" | "tcsh"
+    ) {
+        return None;
+    }
+    let after = crate::filesystem::read_text_bounded(&root.join("stat"), 4096).ok()?;
+    if process_start(&after)? != start_ticks {
+        return None;
+    }
+    Some(Identity {
+        pid,
+        start_ticks,
+        client: native_agent(&executable).unwrap_or(name).into(),
+    })
 }
 
 /// Verify a foreground Claude/Codex executable from bounded procfs metadata on a blocking worker.
