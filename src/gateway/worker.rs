@@ -104,6 +104,16 @@ impl Worker {
                 }
             }
         }
+        // Active identity lookup deliberately drops screen data; only legacy delivery restores
+        // the fresh GTK snapshot for its existing conservative prompt checks.
+        for session in &mut sessions {
+            if let Some(terminal) = terminals
+                .iter()
+                .find(|t| t.surface_id == session.terminal.surface_id)
+            {
+                session.terminal = terminal.clone();
+            }
+        }
         self.decorate(&mut sessions);
         sessions
     }

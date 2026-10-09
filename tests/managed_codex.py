@@ -74,6 +74,8 @@ name = "CMUX Actions model fixture"
 base_url = "http://127.0.0.1:{self.server.server_port}/v1"
 wire_api = "responses"
 requires_openai_auth = false
+[projects.{json.dumps(str(home.parent / "managed" / "first"))}]
+trust_level = "trusted"
 ''', encoding="utf-8")
 
     def close(self):
