@@ -148,6 +148,7 @@ def main():
     parser.add_argument("--software-gl-dir", type=Path)
     parser.add_argument("--actor-client", type=Path)
     parser.add_argument("--actor-fixture", type=Path)
+    parser.add_argument("--codex-fixture", type=Path)
     args = parser.parse_args()
     bundle = args.bundle.resolve()
     for name in ("smoke-result.json", "smoke-terminal.bmp"):
@@ -182,6 +183,12 @@ def main():
             env["XDG_DATA_DIRS"] = str(runtime_bundle / "share")
             env.update(GALLIUM_DRIVER="llvmpipe", LIBGL_ALWAYS_SOFTWARE="1", CMUX_SMOKE_GRAPHICS="software-opengl")
             env["GDK_DISABLE"] = env.get("GDK_DISABLE", "") + ",egl"
+        model = None
+        if args.codex_fixture:
+            from managed_codex import Model
+            model = Model()
+            model.configure(Path(profile) / "codex-home")
+            env["CODEX_HOME"] = str(Path(profile) / "codex-home")
         subprocess.run([str(runtime_bundle / "cmux.exe"), "--version"], env=env, check=True, timeout=20)
         with (bundle / "smoke.log").open("w", encoding="utf-8") as log:
             app = subprocess.Popen([str(runtime_bundle / "cmux-app.exe")], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -285,6 +292,9 @@ def main():
                     raise RuntimeError("GTK OpenGL ownership failed; see smoke.log")
                 print("Visible terminal pixels and native keyboard text verified:", frame)
                 verify_workspace_shell(rpc, user32, windows[0], profile)
+                if args.codex_fixture:
+                    from managed_codex import verify as verify_managed
+                    verify_managed(rpc, profile, runtime_bundle / "cmux.exe", args.codex_fixture.resolve(), model)
                 if args.actor_client:
                     import sys
                     from windows_actor_binding import verify
@@ -294,6 +304,8 @@ def main():
                 if app.poll() is None:
                     subprocess.run(["taskkill", "/PID", str(app.pid), "/T", "/F"], env=env, capture_output=True, timeout=15)
                 app.wait(timeout=15)
+                if model:
+                    model.close()
 
 
 if __name__ == "__main__":

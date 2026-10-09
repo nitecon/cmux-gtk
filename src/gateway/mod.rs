@@ -1,5 +1,6 @@
 //! Global lifecycle subscription and consent-guarded GTK terminal input.
 mod actor;
+mod codex;
 pub mod model;
 mod pipeline;
 mod readiness;
@@ -104,7 +105,12 @@ fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Te
             let capture = capture_screen
                 && state.gateway.as_ref().is_some_and(|g| {
                     let view = g.view.borrow();
-                    view.config.enabled && view.config.injection_approved
+                    view.config.enabled
+                        && view.config.injection_approved
+                        && !view
+                            .managed_codex
+                            .iter()
+                            .any(|managed| managed["surface_id"] == surface_id)
                 });
             // SAFETY: engine keeps the native surface live; the bounded getter does not iterate GTK events.
             let screen = if capture {
@@ -167,6 +173,7 @@ fn deliver(
             repository: expected.repository.clone(),
             session_id: expected.session_id.clone(),
             actor_origin: expected.actor_origin.clone(),
+            codex_thread_id: None,
         };
         if checked.terminal.input_revision != expected.terminal.input_revision
             || checked.terminal.input_pending
@@ -211,6 +218,7 @@ pub fn submit(
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
         let instance_id = gateway.view.borrow().instance_id.clone();
+        let managed = gateway.view.borrow().managed_codex.clone();
         if instance_id.is_empty() {
             return Err("Gateway identity is still loading".into());
         }
@@ -220,7 +228,7 @@ pub fn submit(
         gateway.runtime.spawn(async move {
             let result = tokio::time::timeout(
                 std::time::Duration::from_secs(1),
-                worker::context(terminals, instance_id, surface_id),
+                worker::context(terminals, instance_id, surface_id, managed),
             )
             .await
             .unwrap_or_else(|_| Err("Agent identity lookup timed out".into()));
@@ -276,6 +284,63 @@ pub fn rpc(
     req_id: Value,
     resp_tx: crate::socket::commands::RespTx,
 ) {
+    if matches!(method, "gateway.codex.start" | "gateway.codex.stop") {
+        let result = (|| {
+            let pid = peer_pid.ok_or("Caller process is not kernel authenticated")?;
+            let surface = params["surface_id"].as_str().ok_or("Missing surface_id")?;
+            let state = state.borrow();
+            let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
+            let terminal = terminals(&state, false)
+                .into_iter()
+                .find(|t| t.surface_id == surface)
+                .ok_or("No local terminal on this surface")?;
+            let executable = params["executable"].as_str().unwrap_or("").into();
+            let (reply, result) = oneshot::channel();
+            let action = if method == "gateway.codex.start" {
+                worker::Action::CodexStart {
+                    terminal,
+                    peer_pid: pid,
+                    executable,
+                }
+            } else {
+                worker::Action::CodexStop {
+                    surface: surface.to_owned(),
+                    peer_pid: pid,
+                }
+            };
+            gateway
+                .requests
+                .try_send(worker::Request { action, reply })
+                .map_err(|_| "Gateway operation queue is full or stopped")?;
+            Ok::<_, String>(result)
+        })();
+        match result {
+            Ok(result) => {
+                glib::MainContext::default().spawn_local(async move {
+                    let response = match result.await {
+                        Ok(Ok(value)) => crate::socket::response::ok(req_id, value),
+                        Ok(Err(error)) => {
+                            crate::socket::response::err(req_id, "gateway_error", &error)
+                        }
+                        Err(_) => crate::socket::response::err(
+                            req_id,
+                            "gateway_error",
+                            "Gateway worker stopped",
+                        ),
+                    };
+                    let _ = resp_tx.send(response);
+                });
+            }
+            Err(error) => {
+                let _ = resp_tx.send(crate::socket::response::err(
+                    req_id,
+                    "invalid_params",
+                    &error,
+                ));
+            }
+        }
+        return;
+    }
     if matches!(
         method,
         "gateway.session.announce" | "gateway.session.resolve"
@@ -299,9 +364,15 @@ pub fn rpc(
             };
             let state = state.borrow();
             let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
-            Ok((actor, peer_pid, repository, gateway.runtime.clone()))
+            Ok((
+                actor,
+                peer_pid,
+                repository,
+                gateway.runtime.clone(),
+                gateway.requests.clone(),
+            ))
         })();
-        let Ok((actor, peer_pid, repository, runtime)) = prepared else {
+        let Ok((actor, peer_pid, repository, runtime, requests)) = prepared else {
             let _ = resp_tx.send(crate::socket::response::err(
                 req_id,
                 "invalid_params",
@@ -310,15 +381,28 @@ pub fn rpc(
             return;
         };
         runtime.spawn(async move {
-            let checked = tokio::task::spawn_blocking(move || {
-                actor.verify_peer(peer_pid)?;
-                actor.announcement(repository.as_deref())
-            })
+            let checked_actor = actor.clone();
+            let result = async {
+                tokio::task::spawn_blocking(move || checked_actor.verify_peer(peer_pid))
+                    .await
+                    .map_err(|_| "Caller identity worker stopped")??;
+                let (reply, result) = oneshot::channel();
+                requests
+                    .try_send(worker::Request {
+                        action: worker::Action::Actor {
+                            actor,
+                            peer_pid,
+                            repository,
+                        },
+                        reply,
+                    })
+                    .map_err(|_| "Gateway operation queue is full or stopped")?;
+                tokio::time::timeout(std::time::Duration::from_secs(2), result)
+                    .await
+                    .map_err(|_| "Actor registration timed out")?
+                    .map_err(|_| "Gateway worker stopped")?
+            }
             .await;
-            let result = match checked {
-                Ok(result) => result,
-                Err(_) => Err("Caller identity worker stopped".into()),
-            };
             let response = match result {
                 Ok(value) => crate::socket::response::ok(req_id, value),
                 Err(error) => crate::socket::response::err(req_id, "identity_unverified", &error),

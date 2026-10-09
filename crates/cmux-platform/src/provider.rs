@@ -58,7 +58,10 @@ pub(crate) fn executor_role(provider: &str, command: &[u8]) -> bool {
                     )
                 }),
                 b"exec" | b"e" | b"review" => true,
-                b"resume" | b"fork" => args.contains(&b"--no-daemon".as_slice()),
+                b"resume" | b"fork" => {
+                    args.contains(&b"--no-daemon".as_slice())
+                        || args.contains(&b"--remote".as_slice())
+                }
                 _ => false,
             };
         }

@@ -138,7 +138,9 @@ async fn dispatch_request(
         | "gateway.session"
         | "gateway.sessions"
         | "gateway.session.announce"
-        | "gateway.session.resolve" => {
+        | "gateway.session.resolve"
+        | "gateway.codex.start"
+        | "gateway.codex.stop" => {
             if params.to_string().len() > 65536 {
                 return err(req_id, "invalid_params", "gateway request exceeds limit");
             }

@@ -4,6 +4,17 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-10-08
+
+### Added
+
+- `cmux codex` starts the native Codex TUI against a CMUX-owned backend for its pane. Gateway events go directly to the exact conversation's native queue, including while the agent is busy or the composer contains a draft.
+- Managed conversation and process metadata appear in gateway status/session queries. Ordinary SDK registration can correlate an exact known conversation from its owned backend; no prompt enrollment, hooks or provider configuration changes are involved.
+
+### Changed
+
+- Native queue acceptance is reported separately from model receipt and task completion. Backend/pane/process replacement retires the existing delivery target; uncertain submissions remain nonreplayable. Claude and ordinarily launched terminals retain their existing transport.
+
 ## [0.6.9] - 2026-10-08
 
 ### Removed

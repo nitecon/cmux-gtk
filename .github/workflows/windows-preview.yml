@@ -140,6 +140,9 @@ jobs:
       - name: Compile native provider fixture
         run: gcc -Wall -Wextra -Werror -O2 tests/fixtures/windows_actor_agent.c -o target/actor-client/codex.exe
 
+      - name: Fetch verified official Codex for native queue acceptance
+        run: python scripts/fetch-codex-fixture.py target/codex-fixture --platform windows
+
       - name: Bundle portable preview
         id: bundle
         run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)" --archive dist/cmux-gtk-windows-x86_64.zip
@@ -149,7 +152,7 @@ jobs:
           pacman -S --noconfirm mingw-w64-ucrt-x86_64-mesa
           actor_client=target/actor-client-build/release/agent-tools.exe
           test -f "$actor_client"
-          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)"
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)" --codex-fixture "$(cat target/codex-fixture/executable.txt)"
 
       - name: Test portable Windows updater
         run: |

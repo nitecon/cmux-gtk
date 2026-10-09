@@ -170,6 +170,9 @@ pub struct Session {
     /// Logical actor provenance is independent of this terminal's durable delivery fence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_origin: Option<Origin>,
+    /// Exact conversation created by the explicitly managed backend; not inferred from the screen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_thread_id: Option<String>,
 }
 
 impl Session {
@@ -200,6 +203,7 @@ impl Session {
             repository,
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes()).to_string(),
             actor_origin: None,
+            codex_thread_id: None,
         }
     }
 
@@ -210,6 +214,8 @@ impl Session {
             "instance_id": self.actor_origin.as_ref().map(|o|o.instance_id.as_str()).unwrap_or(instance_id),
             "recipient_session_id": self.session_id,
             "provider": self.process.client,
+            "codex_thread_id": self.codex_thread_id,
+            "delivery_transport": if self.codex_thread_id.is_some() { "codex_queue" } else { "terminal" },
             "os": std::env::consts::OS,
             "surface_id": self.terminal.surface_id,
             "workspace_id": self.terminal.workspace_id,
@@ -227,13 +233,14 @@ impl Session {
 
     /// Require a fresh positive observation for this process and unchanged input revision.
     pub fn ready(&self) -> bool {
-        !self.terminal.input_pending
-            && self.terminal.observation.as_ref().is_some_and(|o| {
-                o.process == self.process
-                    && o.input_revision == self.terminal.input_revision
-                    && o.input == InputState::EmptyReady
-                    && o.observed_at.elapsed() < std::time::Duration::from_secs(1)
-            })
+        self.codex_thread_id.is_some()
+            || !self.terminal.input_pending
+                && self.terminal.observation.as_ref().is_some_and(|o| {
+                    o.process == self.process
+                        && o.input_revision == self.terminal.input_revision
+                        && o.input == InputState::EmptyReady
+                        && o.observed_at.elapsed() < std::time::Duration::from_secs(1)
+                })
     }
 
     /// Pin queued messages to one workspace, surface, process generation and repository.
@@ -254,6 +261,7 @@ impl Session {
             && self.terminal.foreground_pid == other.terminal.foreground_pid
             && self.process == other.process
             && self.session_id == other.session_id
+            && self.codex_thread_id == other.codex_thread_id
     }
 }
 
@@ -361,6 +369,8 @@ pub struct View {
     pub projects: usize,
     pub agents: usize,
     pub receipts: VecDeque<Receipt>,
+    /// Credential-free explicitly managed provider lifetimes.
+    pub managed_codex: Vec<serde_json::Value>,
 }
 
 /// Validate bounded nonempty identifiers without exposing their contents in errors.

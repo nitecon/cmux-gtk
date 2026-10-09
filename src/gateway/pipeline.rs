@@ -194,7 +194,24 @@ mod tests {
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, surface.as_bytes())
                 .to_string(),
             actor_origin: None,
+            codex_thread_id: None,
         }
+    }
+
+    /// Native provider queues preserve a real draft and do not depend on terminal prompt classification.
+    #[test]
+    fn managed_queue_preserves_draft_and_pins_exact_conversation() {
+        let mut managed = session("native", InputState::Unfinished);
+        managed.terminal.input_pending = true;
+        managed.terminal.observation = None;
+        managed.codex_thread_id = Some(uuid::Uuid::new_v4().to_string());
+        assert!(managed.ready());
+        let mut other = managed.clone();
+        other.codex_thread_id = Some(uuid::Uuid::new_v4().to_string());
+        assert!(!managed.same_target(&other));
+        other.codex_thread_id = None;
+        assert!(!managed.same_target(&other));
+        assert!(!other.ready());
     }
 
     /// Build representative lifecycle content without imposing a wire event format.

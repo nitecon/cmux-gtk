@@ -98,16 +98,30 @@ completion notifications use the same stream. Outgoing delegation tracking
 tickets are skipped. Progress and canonical task completion use agent-tools;
 stream receipts describe message delivery only.
 
-Messages stay pinned to the original agent process and terminal. Busy agents,
-unfinished input, clipboard pastes and unrecognized prompt layouts wait. Empty
-prompts require a visible caret, a recognized Claude/Codex prompt and shortcuts
-footer, and stable input. Unsupported provider layouts remain queued with a
-visible reason. Absent or ambiguous recipients receive nothing, and CMUX never
-launches an agent or changes focus to deliver a message.
+For Codex, run **`cmux codex`** inside the project's CMUX terminal. This explicit
+launch keeps the native Codex TUI and starts a private backend owned by the pane.
+Requires Codex **0.161.0 or newer** with app-server queue and remote TUI support.
+Native options can be passed explicitly, for example `cmux codex -- --model MODEL`.
+Existing Codex authentication and configuration are reused; CMUX installs no hooks
+and changes no provider settings. An already-running plain `codex` session must
+be exited before starting this managed path.
 
-Input uses `<Start Agent Gateway Message Injection>` and
-`</Stop AgentGateway Message injection>` delimiters with a cyan local terminal
-annotation. ANSI styling is excluded from agent input. Receipt IDs, queued
+Gateway messages go to that exact conversation's **native queue**, even while
+Codex is busy or the composer contains a draft. CMUX does not inspect the managed
+Codex composer or type messages/Enter into it. Codex decides when to process the
+queue. A receipt saying **Accepted by Codex native queue** confirms submission,
+not model receipt or task completion. `cmux gateway status` exposes managed
+conversation/process metadata without its private endpoint or capability.
+Each managed launch has one conversation; exit and launch `cmux codex` again
+instead of switching conversations through `/new`, `/resume` or `/fork`.
+
+Claude and plain Codex launches retain terminal injection and its conservative
+busy/draft/clipboard/prompt-layout checks. No agent is launched or focused in
+response to a gateway event. Messages remain pinned to the original process,
+pane and repository; changed targets retire rather than moving queued work.
+
+Messages retain `<Start Agent Gateway Message Injection>` and
+`</Stop AgentGateway Message injection>` delimiters. Receipt IDs, queued
 messages and the reconnect cursor are saved before acknowledgment; interrupted
 submissions become **uncertain** and are never blindly replayed. Preferences and
 `cmux gateway status` show connection, queue and recent delivery outcomes.

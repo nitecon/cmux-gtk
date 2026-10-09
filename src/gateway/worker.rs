@@ -14,7 +14,24 @@ use tokio::sync::{mpsc, oneshot, watch};
 
 /// Global preference changes invalidate the owned connection before further delivery.
 pub enum Action {
-    Configure { config: Config, key: Option<String> },
+    Actor {
+        actor: super::actor::Actor,
+        peer_pid: u32,
+        repository: Option<String>,
+    },
+    Configure {
+        config: Config,
+        key: Option<String>,
+    },
+    CodexStart {
+        terminal: Terminal,
+        peer_pid: u32,
+        executable: std::path::PathBuf,
+    },
+    CodexStop {
+        surface: String,
+        peer_pid: u32,
+    },
 }
 
 /// A bounded settings operation with an explicit persistence result.
@@ -62,9 +79,59 @@ struct Worker {
     connection: String,
     agents: usize,
     prompts: HashMap<String, StablePrompt>,
+    codex: HashMap<String, super::codex::Backend>,
 }
 
 impl Worker {
+    /// The explicit launcher owns its native TUI even when a shell/group leader remains foreground.
+    async fn sessions(&mut self, terminals: &[Terminal]) -> Vec<Session> {
+        let mut sessions = active(terminals, &self.journal.instance_id).await;
+        for terminal in terminals {
+            if sessions
+                .iter()
+                .any(|s| s.terminal.surface_id == terminal.surface_id)
+            {
+                continue;
+            }
+            if let Some(backend) = self.codex.get(&terminal.surface_id) {
+                if let Some(process) = backend.process() {
+                    sessions.push(Session::identified(
+                        terminal.clone(),
+                        process,
+                        String::new(),
+                        &self.journal.instance_id,
+                    ));
+                }
+            }
+        }
+        self.decorate(&mut sessions);
+        sessions
+    }
+
+    /// Exact managed thread metadata follows the native TUI generation, never a provider/project guess.
+    fn decorate(&mut self, sessions: &mut [Session]) {
+        for session in sessions {
+            if session.process.client == "codex" {
+                if let Some(backend) = self.codex.get_mut(&session.terminal.surface_id) {
+                    if backend.terminal.workspace_id == session.terminal.workspace_id
+                        && backend.terminal.directory == session.terminal.directory
+                    {
+                        if backend
+                            .tui
+                            .as_ref()
+                            .is_some_and(|tui| tui != &session.process)
+                        {
+                            continue;
+                        }
+                        backend.tui = Some(session.process.clone());
+                        session.codex_thread_id = Some(backend.thread_id.clone());
+                        session.actor_origin = backend.actor_origin.clone();
+                    }
+                }
+            }
+        }
+    }
+
     /// Publish bounded outcomes without task bodies, terminal screen contents or credentials.
     fn publish(&self) {
         let mut receipts = self.journal.receipts.clone();
@@ -87,6 +154,11 @@ impl Worker {
             projects: self.projects.len(),
             agents: self.agents,
             receipts,
+            managed_codex: self
+                .codex
+                .values()
+                .map(|backend| backend.context())
+                .collect(),
         });
     }
 
@@ -104,7 +176,70 @@ impl Worker {
 
     /// Apply explicit global consent and retire pending input on disable, key or endpoint changes.
     async fn apply(&mut self, action: Action) -> Result<Value, String> {
-        let Action::Configure { config, key } = action;
+        let (config, key) = match action {
+            Action::Configure { config, key } => (config, key),
+            Action::Actor {
+                actor,
+                peer_pid,
+                repository,
+            } => {
+                let mut result = actor.announcement(repository.as_deref())?;
+                if let Some(backend) = self
+                    .codex
+                    .values_mut()
+                    .find(|backend| backend.accepts_actor(&actor, peer_pid))
+                {
+                    backend.actor_origin = Some(actor.origin.clone());
+                    result["binding_state"] = json!("bound");
+                    result["surface_id"] = json!(backend.terminal.surface_id);
+                    result["workspace_id"] = json!(backend.terminal.workspace_id);
+                    result["codex_thread_id"] = json!(backend.thread_id);
+                    result["delivery_transport"] = json!("codex_queue");
+                }
+                return Ok(result);
+            }
+            Action::CodexStart {
+                terminal,
+                peer_pid,
+                executable,
+            } => {
+                if self.codex.contains_key(&terminal.surface_id) {
+                    return Err("A managed Codex session already owns this pane".into());
+                }
+                if !executable.is_absolute() || !executable.is_file() {
+                    return Err("Codex executable must be an existing absolute path".into());
+                }
+                let root = cmux_platform::listeners::identity(
+                    u32::try_from(terminal.foreground_pid)
+                        .map_err(|_| "Invalid terminal process")?,
+                )
+                .map_err(|_| "Terminal process exited")?;
+                let launcher = cmux_platform::listeners::process_tree(root)
+                    .map_err(|_| "Cannot inspect terminal process tree")?
+                    .into_iter()
+                    .find(|p| p.pid == peer_pid)
+                    .ok_or("Caller does not own this terminal")?;
+                let backend =
+                    super::codex::Backend::start(terminal.clone(), launcher, &executable).await?;
+                let context = backend.launch_context();
+                self.codex.insert(terminal.surface_id, backend);
+                return Ok(context);
+            }
+            Action::CodexStop { surface, peer_pid } => {
+                let backend = self
+                    .codex
+                    .get(&surface)
+                    .ok_or("No managed Codex session on this pane")?;
+                if backend.launcher.pid != peer_pid
+                    || cmux_platform::listeners::identity(peer_pid).ok().as_ref()
+                        != Some(&backend.launcher)
+                {
+                    return Err("Caller does not own this managed launch".into());
+                }
+                self.codex.remove(&surface);
+                return Ok(json!({"stopped":true}));
+            }
+        };
         let mut candidate = self.journal.clone();
         let changed_endpoint = config.url != candidate.config.url;
         let clear =
@@ -227,7 +362,7 @@ impl Worker {
         {
             finalize(&mut receipt, "failed", "Gateway message queue is full");
         } else {
-            receipt.candidates = active(terminals, &self.journal.instance_id).await;
+            receipt.candidates = self.sessions(terminals).await;
             if receipt.candidates.is_empty() {
                 finalize(
                     &mut receipt,
@@ -329,6 +464,10 @@ impl Worker {
             let terminal = &mut session.terminal;
             let surface = terminal.surface_id.clone();
             live.insert(surface.clone());
+            if session.codex_thread_id.is_some() {
+                self.prompts.remove(&surface);
+                continue;
+            }
             let input = terminal
                 .screen
                 .as_ref()
@@ -379,7 +518,9 @@ impl Worker {
                 .as_ref()
                 .and_then(|target| sessions.iter().find(|s| target.same_target(s)))
             {
-                receipt.reason = if current.terminal.input_pending {
+                receipt.reason = if current.codex_thread_id.is_some() {
+                    "Waiting for Codex native queue submission"
+                } else if current.terminal.input_pending {
                     "Clipboard input is pending; waiting"
                 } else {
                     match current.terminal.screen.as_ref().map(|f| readiness::classify(&current.process.client, f)).unwrap_or_default() {
@@ -436,32 +577,56 @@ impl Worker {
         self.journal.receipts[index].outcome = "submitting".into();
         self.journal.receipts[index].confirmed = false;
         self.save().await?;
-        let (reply, result) = oneshot::channel();
         let surface = pending.target.terminal.surface_id.clone();
-        let delivery = Delivery {
-            message: Box::new(pending.message.clone()),
-            session: pending.target.clone(),
-            reply,
-        };
-        let outcome = tokio::time::timeout(Duration::from_secs(2), async {
-            self.deliveries
-                .send(delivery)
-                .await
-                .map_err(|_| "uncertain")?;
-            match result.await {
-                Ok(Ok(DeliveryOutcome::Injected)) => Ok(DeliveryOutcome::Injected),
-                Ok(Ok(DeliveryOutcome::Deferred)) => Ok(DeliveryOutcome::Deferred),
-                Ok(Err(_)) => Err("skipped"),
-                Err(_) => Err("uncertain"),
+        let native = pending.target.codex_thread_id.is_some();
+        let outcome = if native {
+            match self.codex.get(&surface) {
+                Some(backend)
+                    if pending.target.codex_thread_id.as_deref() == Some(&backend.thread_id) =>
+                {
+                    tokio::time::timeout(
+                        Duration::from_secs(15),
+                        backend.queue(&pending.message, &pending.target.session_id),
+                    )
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .map(|()| DeliveryOutcome::Injected)
+                    .ok_or("uncertain")
+                }
+                _ => Err("skipped"),
             }
-        })
-        .await
-        .unwrap_or(Err("uncertain"));
+        } else {
+            let (reply, result) = oneshot::channel();
+            let delivery = Delivery {
+                message: Box::new(pending.message.clone()),
+                session: pending.target.clone(),
+                reply,
+            };
+            tokio::time::timeout(Duration::from_secs(2), async {
+                self.deliveries
+                    .send(delivery)
+                    .await
+                    .map_err(|_| "uncertain")?;
+                match result.await {
+                    Ok(Ok(DeliveryOutcome::Injected)) => Ok(DeliveryOutcome::Injected),
+                    Ok(Ok(DeliveryOutcome::Deferred)) => Ok(DeliveryOutcome::Deferred),
+                    Ok(Err(_)) => Err("skipped"),
+                    Err(_) => Err("uncertain"),
+                }
+            })
+            .await
+            .unwrap_or(Err("uncertain"))
+        };
         match outcome {
             Ok(DeliveryOutcome::Injected) => finalize(
                 &mut self.journal.receipts[index],
                 "injected",
-                "Submitted to the active agent terminal",
+                if native {
+                    "Accepted by Codex native queue; model receipt is not yet confirmed"
+                } else {
+                    "Submitted to the active agent terminal"
+                },
             ),
             Ok(DeliveryOutcome::Deferred) => {
                 let receipt = &mut self.journal.receipts[index];
@@ -475,7 +640,11 @@ impl Worker {
                 &mut self.journal.receipts[index],
                 status,
                 if status == "uncertain" {
-                    "Terminal submission could not be confirmed; automatic replay is disabled"
+                    if native {
+                        "Codex queue acceptance could not be confirmed; automatic replay is disabled"
+                    } else {
+                        "Terminal submission could not be confirmed; automatic replay is disabled"
+                    }
                 } else {
                     "Agent terminal changed before final delivery"
                 },
@@ -683,11 +852,71 @@ pub async fn context(
     terminals: Vec<Terminal>,
     instance_id: String,
     surface_id: Option<String>,
+    managed: Vec<Value>,
 ) -> Result<Value, String> {
     let mut sessions = active(&terminals, &instance_id).await;
+    for record in &managed {
+        let Some(terminal) = terminals.iter().find(|t| {
+            record["surface_id"] == t.surface_id && record["workspace_id"] == t.workspace_id
+        }) else {
+            continue;
+        };
+        if sessions
+            .iter()
+            .any(|s| s.terminal.surface_id == terminal.surface_id)
+        {
+            continue;
+        }
+        let record = record.clone();
+        let process = tokio::task::spawn_blocking(move || {
+            let launcher = u32::try_from(record["launcher_pid"].as_u64()?).ok()?;
+            let root = cmux_platform::listeners::identity(launcher).ok()?;
+            if Some(root.start_ticks) != record["launcher_start_ticks"].as_u64() {
+                return None;
+            }
+            let pid = record["process_pid"].as_u64()?;
+            let ticks = record["process_start_ticks"].as_u64()?;
+            if !cmux_platform::listeners::process_tree(root)
+                .ok()?
+                .iter()
+                .any(|p| u64::from(p.pid) == pid && p.start_ticks == ticks)
+            {
+                return None;
+            }
+            Some(cmux_platform::process::Identity {
+                pid,
+                start_ticks: ticks,
+                client: "codex".into(),
+            })
+        })
+        .await
+        .ok()
+        .flatten();
+        if let Some(process) = process {
+            sessions.push(Session::identified(
+                terminal.clone(),
+                process,
+                String::new(),
+                &instance_id,
+            ));
+        }
+    }
     let metadata = |session: &mut Session| {
+        if let Some(backend) = managed.iter().find(|b| {
+            b["surface_id"] == session.terminal.surface_id
+                && b["workspace_id"] == session.terminal.workspace_id
+                && b["process_pid"] == session.process.pid
+                && b["process_start_ticks"] == session.process.start_ticks
+        }) {
+            session.codex_thread_id = backend["thread_id"].as_str().map(str::to_owned);
+            session.actor_origin = serde_json::from_value(backend["origin"].clone()).ok();
+        }
         let mut context = session.context(&instance_id);
-        context["binding_state"] = json!("unbound");
+        context["binding_state"] = json!(if session.actor_origin.is_some() {
+            "bound"
+        } else {
+            "unbound"
+        });
         context
     };
     if let Some(surface_id) = surface_id {
@@ -702,34 +931,20 @@ pub async fn context(
 }
 
 /// Resolve foreground executable identities and selected Git upstreams within a bounded scan budget.
-async fn discover(terminals: &[Terminal], instance_id: &str) -> Vec<Session> {
-    if terminals.len() > MAX_PENDING {
+async fn discover(candidates: Vec<Session>) -> Vec<Session> {
+    if candidates.len() > MAX_PENDING {
         return Vec::new();
     }
-    let mut sessions = Vec::new();
     let started = Instant::now();
-    for terminal in terminals {
+    let mut sessions = Vec::new();
+    for mut session in candidates {
         if started.elapsed() >= Duration::from_secs(5) {
             return Vec::new();
         }
-        let pid = terminal.foreground_pid;
-        let process =
-            tokio::task::spawn_blocking(move || cmux_platform::process::agent_identity(pid))
-                .await
-                .ok()
-                .flatten();
-        let Some(process) = process else {
-            continue;
-        };
-        let Some(repository) = upstream(terminal).await else {
-            continue;
-        };
-        sessions.push(Session::identified(
-            terminal.clone(),
-            process,
-            repository,
-            instance_id,
-        ));
+        if let Some(repository) = upstream(&session.terminal).await {
+            session.repository = repository;
+            sessions.push(session);
+        }
     }
     sessions
 }
@@ -821,7 +1036,7 @@ pub async fn run(
             }); }
         }
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new()};
+            storage_failed:false,connection:"Disabled".into(),agents:0,prompts:HashMap::new(),codex:HashMap::new()};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -831,7 +1046,7 @@ pub async fn run(
                 biased;
                 request=requests.recv()=>{
                     let Some(request)=request else { return Ok::<_,String>(()); };
-                    connection=None;
+                    if matches!(&request.action, Action::Configure { .. }) { connection=None; }
                     let result=worker.apply(request.action).await; let _=request.reply.send(result);
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     retry=Instant::now();
@@ -856,6 +1071,8 @@ pub async fn run(
                     worker.publish();
                 }
                 _=tick.tick()=>{
+                    let current_terminals=snapshots.borrow().clone();
+                    worker.codex.retain(|_, backend| backend.alive(&current_terminals));
                     if connection.is_none() && worker.journal.config.enabled && Instant::now()>=retry {
                         worker.connection="Connecting".into(); worker.publish();
                         let attempt=async {
@@ -880,13 +1097,13 @@ pub async fn run(
                             if c.projects_at.elapsed()>=Duration::from_secs(30) { worker.projects=c.client.projects().await?; c.projects_at=Instant::now(); }
                             heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
-                            let mut sessions=discover(&terminals,&worker.journal.instance_id).await; worker.observe(&mut sessions).await?;
+                            let candidates=worker.sessions(&terminals).await; let mut sessions=discover(candidates).await; worker.observe(&mut sessions).await?;
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
                             heartbeat(c).await?;
                             // Full-task hydration may have taken time: verify foreground generations again before fencing input.
                             let terminals=snapshots.borrow().clone();
-                            let current=active(&terminals,&worker.journal.instance_id).await;
+                            let current=worker.sessions(&terminals).await;
                             sessions.retain(|s| current.iter().any(|now| now.process==s.process && now.terminal.surface_id==s.terminal.surface_id));
                             worker.drain_verified(sessions).await?; worker.acknowledge(c).await?;
                             Ok::<_,String>(())
@@ -1010,6 +1227,7 @@ mod tests {
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v4().to_string(),
             actor_origin: None,
+            codex_thread_id: None,
         };
         let message = Message {
             event_id: "event".into(),
@@ -1033,6 +1251,7 @@ mod tests {
             connection: "Connected".into(),
             agents: 1,
             prompts: HashMap::new(),
+            codex: HashMap::new(),
         };
         worker
             .pipeline

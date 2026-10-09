@@ -107,6 +107,12 @@ pub enum GatewayCommands {
 /// Supported CLI operations, independent of socket transport and desktop state.
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Start native Codex with an owned backend and gateway queue delivery in this pane
+    Codex {
+        /// Explicit native TUI options, for example: cmux codex -- --model MODEL
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     /// Configure automatic gateway lifecycle message delivery
     Gateway {
         #[command(subcommand)]
