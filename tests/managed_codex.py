@@ -107,11 +107,13 @@ def verify(rpc, root, cmux, codex, model):
         raise AssertionError(description)
 
     surfaces = []
+    workspaces = []
     try:
         rpc("gateway.configure", {"enabled": True, "url": gateway.url, "injection_approved": True, "api_key": gateway.key})
         wait(lambda: rpc("gateway.status")["connection"] == "Connected", "gateway connected")
         for name in ("managed-first", "managed-peer"):
             workspace = rpc("workspace.create", {"name": name, "working_directory": str(directory)})
+            workspaces.append(workspace["uuid"])
             rpc("workspace.select", {"id": workspace["uuid"]})
             surface = next(s["uuid"] for s in rpc("surface.list")["surfaces"] if s["workspace_uuid"] == workspace["uuid"])
             surfaces.append(surface)
@@ -157,8 +159,8 @@ def verify(rpc, root, cmux, codex, model):
         model.hold.set()
         wait(lambda: len(model.inputs) >= 4, "provider autonomously drains busy followups")
         wait(lambda: all("CMUX_NATIVE_QUEUE_ACCEPTED" in rpc("surface.read_text", {"id": surface})["text"] for surface in surfaces), "native TUI renders actual model response")
-        for surface in surfaces:
-            rpc("surface.close", {"id": surface})
+        for workspace in workspaces:
+            rpc("workspace.close", {"id": workspace})
         wait(lambda: not rpc("gateway.status")["managed_codex"], "pane retirement reaps managed backend lifetimes")
         assert not gateway.errors, gateway.errors
         print("Real Codex managed queue PASS: two native TUIs, exact threads, draft preservation, busy queue, visible response and retirement")
