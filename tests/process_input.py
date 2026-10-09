@@ -154,11 +154,11 @@ def verify(rpc, root, codex, model):
         event = gateway.add(content="First ordinary process event")
         wait(lambda: gateway.outcome(event) == "injected", "complete event submitted while human draft stays local")
         wait(lambda: len(model.inputs) >= 2, "both real providers received first message")
-        assert editor(surfaces[0])["draft"] == human, (repr(human), repr(editor(surfaces[0])["draft"]))
+        assert editor(surfaces[0])["draft"] == human, (ascii(human), ascii(editor(surfaces[0])["draft"]))
         assert "KEEP_THIS_LOCAL_DRAFT" not in json.dumps(model.inputs)
         busy = gateway.add(content="Ordinary process event while busy")
         wait(lambda: gateway.outcome(busy) == "injected", "input submitted to both busy processes")
-        assert editor(surfaces[0])["draft"] == human, (repr(human), repr(editor(surfaces[0])["draft"]))
+        assert editor(surfaces[0])["draft"] == human, (ascii(human), ascii(editor(surfaces[0])["draft"]))
         rows = [r for r in rpc("gateway.status")["receipts"] if r["event_id"] in (str(event), str(busy))]
         assert len(rows) == 4 and all("model receipt is not yet confirmed" in r["reason"] for r in rows)
         model.hold.set()

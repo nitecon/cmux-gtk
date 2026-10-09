@@ -195,7 +195,7 @@ def main():
             try:
                 def rpc(method, params=None):
                     """Call the production CLI and decode its JSON response."""
-                    result = subprocess.run([str(runtime_bundle / "cmux.exe"), "--json", "raw", method, "--params", json.dumps(params or {})], env=env, capture_output=True, text=True, timeout=10)
+                    result = subprocess.run([str(runtime_bundle / "cmux.exe"), "--json", "raw", method, "--params", json.dumps(params or {})], env=env, capture_output=True, text=True, encoding="utf-8", timeout=10)
                     if result.returncode:
                         raise RuntimeError(result.stderr)
                     return json.loads(result.stdout)
