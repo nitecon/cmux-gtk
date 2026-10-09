@@ -136,6 +136,7 @@ def verify(rpc, root, cmux, codex, model):
         assert all(s["delivery_transport"] == "codex_queue" for s in sessions)
         assert len({s["codex_thread_id"] for s in sessions}) == 2
         assert len({s["recipient_session_id"] for s in sessions}) == 2
+        assert not model.inputs, "Managed bootstrap must not send synthetic model input"
         # This genuine draft deliberately makes terminal injection unsafe, but must not block native queuing.
         rpc("surface.send_text", {"id": surfaces[0], "text": "KEEP_THIS_DRAFT"})
         model.hold.clear()

@@ -284,7 +284,10 @@ pub fn rpc(
     req_id: Value,
     resp_tx: crate::socket::commands::RespTx,
 ) {
-    if matches!(method, "gateway.codex.start" | "gateway.codex.stop") {
+    if matches!(
+        method,
+        "gateway.codex.start" | "gateway.codex.attach" | "gateway.codex.stop"
+    ) {
         let result = (|| {
             let pid = peer_pid.ok_or("Caller process is not kernel authenticated")?;
             let surface = params["surface_id"].as_str().ok_or("Missing surface_id")?;
@@ -305,6 +308,16 @@ pub fn rpc(
                         .get("thread_options")
                         .cloned()
                         .unwrap_or_else(|| json!({})),
+                }
+            } else if method == "gateway.codex.attach" {
+                let tui_pid = params["tui_pid"]
+                    .as_u64()
+                    .and_then(|pid| u32::try_from(pid).ok())
+                    .ok_or("Invalid TUI process")?;
+                worker::Action::CodexAttach {
+                    surface: surface.to_owned(),
+                    peer_pid: pid,
+                    tui_pid,
                 }
             } else {
                 worker::Action::CodexStop {

@@ -29,6 +29,11 @@ pub enum Action {
         executable: std::path::PathBuf,
         options: Value,
     },
+    CodexAttach {
+        surface: String,
+        peer_pid: u32,
+        tui_pid: u32,
+    },
     CodexStop {
         surface: String,
         peer_pid: u32,
@@ -87,6 +92,7 @@ impl Worker {
     /// The explicit launcher owns its native TUI even when a shell/group leader remains foreground.
     async fn sessions(&mut self, terminals: &[Terminal]) -> Vec<Session> {
         let mut sessions = active(terminals, &self.journal.instance_id).await;
+        sessions.retain(|session| !self.codex.contains_key(&session.terminal.surface_id));
         for terminal in terminals {
             if sessions
                 .iter()
@@ -134,7 +140,6 @@ impl Worker {
                         {
                             continue;
                         }
-                        backend.tui = Some(session.process.clone());
                         session.codex_thread_id = Some(backend.thread_id.clone());
                         session.actor_origin = backend.actor_origin.clone();
                     }
@@ -237,6 +242,19 @@ impl Worker {
                 let context = backend.launch_context();
                 self.codex.insert(terminal.surface_id, backend);
                 return Ok(context);
+            }
+            Action::CodexAttach {
+                surface,
+                peer_pid,
+                tui_pid,
+            } => {
+                let backend = self
+                    .codex
+                    .get_mut(&surface)
+                    .ok_or("No managed launch on this pane")?;
+                backend.attach(peer_pid, tui_pid)?;
+                self.publish();
+                return Ok(json!({"attached":true}));
             }
             Action::CodexStop { surface, peer_pid } => {
                 let backend = self
@@ -868,6 +886,11 @@ pub async fn context(
     managed: Vec<Value>,
 ) -> Result<Value, String> {
     let mut sessions = active(&terminals, &instance_id).await;
+    sessions.retain(|session| {
+        !managed
+            .iter()
+            .any(|record| record["surface_id"] == session.terminal.surface_id)
+    });
     for record in &managed {
         let Some(terminal) = terminals.iter().find(|t| {
             record["surface_id"] == t.surface_id && record["workspace_id"] == t.workspace_id

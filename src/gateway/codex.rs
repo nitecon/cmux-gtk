@@ -50,6 +50,7 @@ impl Backend {
             return Err("Unsupported Codex permission option".into());
         }
         options["cwd"] = json!(terminal.directory);
+        options["historyMode"] = json!("paginated");
         let listener = std::net::TcpListener::bind("127.0.0.1:0")
             .map_err(|_| "Cannot allocate Codex endpoint")?;
         let endpoint = format!(
@@ -127,31 +128,48 @@ impl Backend {
         backend.thread_id = uuid::Uuid::parse_str(id)
             .map_err(|_| "Invalid Codex conversation ID")?
             .to_string();
+        // Codex stages a zero-turn thread in memory. Its documented history read
+        // materializes paginated persistence so native remote resume can find it,
+        // without sending a synthetic prompt or starting a model turn.
+        call(
+            &mut socket,
+            3,
+            "thread/read",
+            json!({"threadId":backend.thread_id,"includeTurns":true}),
+        )
+        .await?;
         Ok(backend)
     }
 
-    /// Inspect only descendants of the known launcher, independent of the terminal's screen or foreground group leader.
+    /// The frontend PID comes from the launcher's actual spawn, never process/provider recognition.
     pub fn process(&self) -> Option<cmux_platform::process::Identity> {
-        let root = cmux_platform::listeners::identity(self.launcher.pid).ok()?;
-        if root != self.launcher {
+        let tui = self.tui.as_ref()?;
+        if cmux_platform::listeners::identity(self.launcher.pid).ok()? != self.launcher {
             return None;
         }
-        let tree = cmux_platform::listeners::process_tree(root).ok()?;
-        if let Some(tui) = &self.tui {
-            return tree
-                .iter()
-                .any(|p| u64::from(p.pid) == tui.pid && p.start_ticks == tui.start_ticks)
-                .then(|| tui.clone());
+        let current = cmux_platform::listeners::identity(u32::try_from(tui.pid).ok()?).ok()?;
+        (current.start_ticks == tui.start_ticks).then(|| tui.clone())
+    }
+
+    /// Only the original launcher can register its actual still-live child generation.
+    pub fn attach(&mut self, peer_pid: u32, tui_pid: u32) -> Result<(), String> {
+        if self.launcher.pid != peer_pid
+            || cmux_platform::listeners::identity(peer_pid).ok() != Some(self.launcher)
+            || self.tui.is_some()
+        {
+            return Err("Caller does not own an unattached managed launch".into());
         }
-        let mut candidates = tree
+        let tui = cmux_platform::listeners::process_tree(self.launcher)
+            .map_err(|_| "Cannot verify launcher child")?
             .into_iter()
-            .filter_map(|p| cmux_platform::process::agent_identity(u64::from(p.pid)))
-            .filter(|p| p.client == "codex");
-        let first = candidates.next()?;
-        if candidates.any(|p| p != first) {
-            return None;
-        }
-        Some(first)
+            .find(|p| p.pid == tui_pid && p.pid != peer_pid)
+            .ok_or("TUI is not a live child of this launcher")?;
+        self.tui = Some(cmux_platform::process::Identity {
+            pid: u64::from(tui.pid),
+            start_ticks: tui.start_ticks,
+            client: "codex".into(),
+        });
+        Ok(())
     }
 
     /// Correlate ordinary SDK registration only with this exact known conversation and owned backend child.

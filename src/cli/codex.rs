@@ -54,7 +54,7 @@ pub(super) fn launch(args: &[String], socket: Option<&str>) -> Result<(), CliErr
         let token = context["token"]
             .as_str()
             .ok_or_else(|| CliError::Protocol("Missing Codex capability".into()))?;
-        let status = Command::new(&executable)
+        let mut child = Command::new(&executable)
             .args([
                 "resume",
                 thread,
@@ -65,8 +65,19 @@ pub(super) fn launch(args: &[String], socket: Option<&str>) -> Result<(), CliErr
             ])
             .args(tui_args)
             .env("CMUX_CODEX_AUTH_TOKEN", token)
-            .status()
+            .spawn()
             .map_err(|error| CliError::Command(format!("Cannot start Codex TUI: {error}")))?;
+        if let Err(error) = client.call(
+            "gateway.codex.attach",
+            json!({"surface_id":surface,"tui_pid":child.id()}),
+        ) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(error);
+        }
+        let status = child
+            .wait()
+            .map_err(|error| CliError::Command(format!("Cannot wait for Codex TUI: {error}")))?;
         if status.success() {
             Ok(())
         } else {
