@@ -59,6 +59,20 @@ pub(crate) unsafe fn send_character(
     Ok(())
 }
 
+/// Submit with an unmodified native Enter pair, allowing Ghostty to encode the active keyboard protocol.
+///
+/// # Safety
+/// The caller must keep the surface live on its GTK thread throughout both synchronous calls.
+pub(crate) unsafe fn submit(surface: ffi::ghostty_surface_t) {
+    let mut key: ffi::ghostty_input_key_s = unsafe { std::mem::zeroed() };
+    key.keycode = cmux_platform::terminal::enter_keycode();
+    key.unshifted_codepoint = '\r' as u32;
+    key.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_PRESS;
+    unsafe { ffi::ghostty_surface_key(surface, key) };
+    key.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
+    unsafe { ffi::ghostty_surface_key(surface, key) };
+}
+
 /// Copy up to 256 KiB of clipboard-formatted text from the current viewport.
 /// Does not focus, scroll or alter selection. Concurrent terminal output may move
 /// rows between the scrollbar snapshot and extraction; this is a best-effort read.

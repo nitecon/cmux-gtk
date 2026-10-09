@@ -5,6 +5,11 @@ pub fn physical_keycode(hardware: u32, _keypad_enter: bool) -> u32 {
     hardware
 }
 
+/// XKB physical Return code for complete-message submission.
+pub fn enter_keycode() -> u32 {
+    36
+}
+
 /// Return the first terminal attached to stdin, stdout or stderr, without spawning a helper.
 /// Pipes and closed descriptors are skipped. No controlling terminal means no TTY evidence.
 pub fn caller_tty() -> Option<String> {

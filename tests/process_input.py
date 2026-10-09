@@ -124,7 +124,8 @@ def verify(rpc, root, codex, model):
             surface = next(s["uuid"] for s in rpc("surface.list")["surfaces"] if s["workspace_uuid"] == workspace["uuid"])
             surfaces.append(surface)
             wait(lambda: rpc("surface.read_text", {"id": surface})["text"].strip(), "native shell ready")
-            args = [str(codex), "--no-daemon", "-a", "never", "--sandbox", "read-only"]
+            # This isolated model emits text only; avoid the Windows first-run sandbox setup dialog.
+            args = [str(codex), "--no-daemon", "-a", "never", "--sandbox", "danger-full-access"]
             command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
             rpc("surface.send_text", {"id": surface, "text": command})
             rpc("surface.send_key", {"id": surface, "key": "\r"})

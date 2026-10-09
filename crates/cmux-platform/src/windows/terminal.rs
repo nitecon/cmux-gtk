@@ -5,6 +5,11 @@ pub fn caller_tty() -> Option<String> {
     None
 }
 
+/// Native Return scan code for complete-message submission.
+pub fn enter_keycode() -> u32 {
+    physical_keycode(0x0d, false)
+}
+
 /// Convert GDK's Windows virtual key to the renderer's native scan code, retaining extended keys.
 pub fn physical_keycode(hardware: u32, keypad_enter: bool) -> u32 {
     if keypad_enter {

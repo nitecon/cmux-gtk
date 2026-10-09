@@ -437,7 +437,7 @@ impl Composer {
                 return Err("Terminal process changed".into());
             }
             crate::ghostty::text::send_literal(surface, &message.text).map_err(str::to_owned)?;
-            crate::ghostty::text::send_character(surface, '\r').map_err(str::to_owned)?;
+            crate::ghostty::text::submit(surface);
         }
         self.status
             .set_text("Enter to send · Shift+Enter for a newline");
