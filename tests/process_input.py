@@ -128,7 +128,16 @@ def verify(rpc, root, codex, model):
             command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
             rpc("surface.send_text", {"id": surface, "text": command})
             rpc("surface.send_key", {"id": surface, "key": "\r"})
-            wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"] and editor(surface)["active"], "ordinary native Codex and local editor")
+            def startup_ready():
+                """Observe test UI only; production execution never inspects provider screens."""
+                screen = rpc("surface.read_text", {"id": surface})
+                return screen["input"]["active"] and any(marker in screen["text"]
+                    for marker in ("OpenAI Codex", "Trust this folder?"))
+            wait(startup_ready, "ordinary native Codex and local editor")
+            if "Trust this folder?" in rpc("surface.read_text", {"id": surface})["text"]:
+                # The fixture owns this empty temporary Git project; normal Enter confirms its access.
+                rpc("surface.send_key", {"id": surface, "key": "\r"})
+                wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"], "normal empty Enter confirms fixture folder access")
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
         assert all(s["delivery_transport"] == "cmux_input_queue" for s in sessions)
         assert len({s["recipient_session_id"] for s in sessions}) == 2
