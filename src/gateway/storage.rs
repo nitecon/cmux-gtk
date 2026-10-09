@@ -63,7 +63,9 @@ pub fn load(path: &Path) -> Result<Journal, String> {
             uuid::Uuid::parse_str(&target.terminal.surface_id)
                 .map_err(|_| "Invalid gateway target surface")?;
             if !target.terminal.directory.is_absolute()
-                || !matches!(target.process.client.as_str(), "claude" | "codex")
+                || target.process.client.is_empty()
+                || target.process.client.len() > 256
+                || target.process.client.contains('\0')
             {
                 return Err("Invalid gateway terminal target".into());
             }

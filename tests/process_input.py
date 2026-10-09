@@ -2,6 +2,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import ntpath
 from pathlib import Path
 import shlex
 import subprocess
@@ -66,6 +67,9 @@ class Model:
     def configure(self, home):
         """Only caller-owned CI configuration is written; production launch uses existing user configuration."""
         home.mkdir(parents=True, exist_ok=True)
+        project = str(home.parent / "process-input" / "first")
+        # Native Codex uses Windows path separators even when the CI Python exposes slash paths.
+        project = ntpath.normpath(project) if ntpath.splitdrive(project)[0] else project
         (home / "config.toml").write_text(f'''model = "cmux-test"
 model_provider = "cmux_fixture"
 cli_auth_credentials_store = "file"
@@ -74,7 +78,7 @@ name = "CMUX Actions model fixture"
 base_url = "http://127.0.0.1:{self.server.server_port}/v1"
 wire_api = "responses"
 requires_openai_auth = false
-[projects.{json.dumps(str(home.parent / "process-input" / "first"))}]
+[projects.{json.dumps(project)}]
 trust_level = "trusted"
 ''', encoding="utf-8")
 

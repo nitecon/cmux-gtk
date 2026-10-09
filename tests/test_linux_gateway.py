@@ -99,7 +99,7 @@ def main():
                 app.wait_for(lambda: status(app)["connection"] == "Disabled", "global preferences loaded")
                 view = status(app)
                 assert not view["config"]["injection_approved"] and "mappings" not in view["config"]
-                for method in ("gateway.bind", "gateway.accept", "gateway.report", "gateway.agent_event"):
+                for method in ("gateway.bind", "gateway.accept", "gateway.report", "gateway.agent_event", "gateway.codex.start", "gateway.codex.attach", "gateway.codex.stop"):
                     rejects(app, method)
                 rejects(app, "gateway.configure", enabled=True, url=gateway.url)
                 rejects(app, "gateway.configure", enabled=True, url="http://gateway.example", injection_approved=True)
@@ -284,6 +284,8 @@ def main():
                     heartbeat_count = gateway.heartbeats
                 app.wait_for(lambda: gateway.heartbeats > heartbeat_count, "client-owned periodic heartbeat", timeout=15)
                 # Retire a pinned process while its REST detail request is in flight.
+                retained = "retain human draft when process exits"
+                raw(app, "surface.send_text", id=surfaces["first"], text=retained)
                 gateway.detail_entered.clear()
                 gateway.detail_release.clear()
                 changed = gateway.add(content="Never send to the replacement shell", truncated=True)
@@ -295,6 +297,8 @@ def main():
                 app.wait_for(lambda: all(s["surface_id"] != surfaces["first"] for s in raw(app, "gateway.sessions")["sessions"]), "process exec replacement")
                 gateway.detail_release.set()
                 wait_outcome(app, gateway, changed, "injected")
+                app.wait_for(lambda: not raw(app, "surface.read_text", id=surfaces["first"])["input"]["active"], "retired editor stops input")
+                assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == retained
                 recorded = json.loads(gateway.receipts[changed]["summary"])["recipients"]
                 assert next(entry["status"] for entry in recorded if entry["session_id"] == contexts["first"]["session_id"]) == "skipped"
                 assert all("replacement shell" not in entry for entry in submissions(root / "first.input"))

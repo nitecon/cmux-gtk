@@ -30,7 +30,6 @@ struct Composer {
     queue: RefCell<VecDeque<Message>>,
     draining: Cell<bool>,
     forwarding_control: Cell<bool>,
-    human_pending: Cell<bool>,
     history: RefCell<VecDeque<String>>,
     history_index: Cell<Option<usize>>,
     history_draft: RefCell<String>,
@@ -72,7 +71,6 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
         queue: RefCell::new(VecDeque::new()),
         draining: Cell::new(false),
         forwarding_control: Cell::new(false),
-        human_pending: Cell::new(false),
         history: RefCell::new(VecDeque::new()),
         history_index: Cell::new(None),
         history_draft: RefCell::new(String::new()),
@@ -320,9 +318,6 @@ impl Composer {
 
     /// Clear a draft only after FIFO admission; a failed submission remains visible for explicit retry.
     fn submit_draft(self: &Rc<Self>) {
-        if self.human_pending.get() {
-            return; // Keep the next draft intact until the prior submission completes.
-        }
         let Some(target) = self.target.borrow().clone() else {
             return;
         };
@@ -330,33 +325,19 @@ impl Composer {
         let text = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .to_string();
-        if text.is_empty() {
-            return;
-        }
         match self.enqueue(target, text.clone(), None) {
             Ok(result) => {
-                self.human_pending.set(true);
-                self.history.borrow_mut().push_back(text.clone());
-                if self.history.borrow().len() > MAX_MESSAGES {
-                    self.history.borrow_mut().pop_front();
+                if !text.is_empty() {
+                    self.history.borrow_mut().push_back(text.clone());
+                    if self.history.borrow().len() > MAX_MESSAGES {
+                        self.history.borrow_mut().pop_front();
+                    }
                 }
                 self.history_index.set(None);
                 buffer.set_text("");
-                let weak = Rc::downgrade(self);
+                // Keep the completion receiver alive; recovery is performed in FIFO order by the executor.
                 glib::MainContext::default().spawn_local(async move {
-                    let result = result.await;
-                    if let Some(composer) = weak.upgrade() {
-                        composer.human_pending.set(false);
-                        if let Ok(Err(error)) = result {
-                            let buffer = composer.editor.buffer();
-                            let mut start = buffer.start_iter();
-                            buffer.insert(&mut start, &text);
-                            composer.container.set_visible(true);
-                            composer
-                                .status
-                                .set_text(&format!("Not sent: {error} · draft retained"));
-                        }
-                    }
+                    let _ = result.await;
                 });
             }
             Err(error) => self.status.set_text(&format!("Not sent: {error}")),
@@ -424,6 +405,20 @@ impl Composer {
                     } else {
                         composer.write(&message)
                     };
+                    if message.allowed.is_none() {
+                        if let Err(error) = &result {
+                            let buffer = composer.editor.buffer();
+                            let mut end = buffer.end_iter();
+                            if buffer.char_count() > 0 && !message.text.is_empty() {
+                                buffer.insert(&mut end, "\n");
+                            }
+                            buffer.insert(&mut end, &message.text);
+                            composer.container.set_visible(true);
+                            composer
+                                .status
+                                .set_text(&format!("Not sent: {error} · draft retained"));
+                        }
+                    }
                     let _ = message.reply.send(result);
                 }
             });

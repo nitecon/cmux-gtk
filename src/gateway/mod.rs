@@ -24,7 +24,7 @@ pub struct Handle {
 }
 
 impl Drop for Handle {
-    /// Cancel the service before native state retires; cancelled delivery replies cannot type later.
+    /// Cancel the transport before native state retires; execution separately rechecks its live target.
     fn drop(&mut self) {
         self.task.abort();
     }
@@ -68,7 +68,7 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
     snapshot(state);
 }
 
-/// Capture local surface identity, current directory and input revision on GTK, without interpreting resume state.
+/// Capture local surface identity, directory and composer attachment on GTK, without reading app prompts.
 fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
     let mut result = Vec::new();
     for (index, engine) in state.split_engines.iter().enumerate() {
