@@ -159,7 +159,7 @@ def main():
     env["XDG_DATA_DIRS"] = str(bundle / "share")
     env["CMUX_NO_UPDATE"] = "1"
     env["CMUX_SMOKE"] = "CONPTY_OK"
-    if args.actor_client:
+    if args.actor_client or args.codex_fixture:
         git_directory = Path(os.environ["ProgramFiles"]) / "Git" / "cmd"
         if not (git_directory / "git.exe").is_file():
             raise RuntimeError("Native Git is required for the actor project fixture")
