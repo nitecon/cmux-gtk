@@ -3,7 +3,7 @@ use crate::{gateway::model::Session, ghostty::ffi};
 use gtk4::{glib, prelude::*};
 use std::{
     cell::{Cell, RefCell},
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     rc::Rc,
 };
 use tokio::sync::oneshot;
@@ -30,6 +30,7 @@ struct Composer {
     queue: RefCell<VecDeque<Message>>,
     draining: Cell<bool>,
     forwarding_control: Cell<bool>,
+    forwarded_keys: RefCell<HashSet<u32>>,
     history: RefCell<VecDeque<String>>,
     history_index: Cell<Option<usize>>,
     history_draft: RefCell<String>,
@@ -71,6 +72,7 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
         queue: RefCell::new(VecDeque::new()),
         draining: Cell::new(false),
         forwarding_control: Cell::new(false),
+        forwarded_keys: RefCell::new(HashSet::new()),
         history: RefCell::new(VecDeque::new()),
         history_index: Cell::new(None),
         history_draft: RefCell::new(String::new()),
@@ -78,7 +80,7 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
     let keys = gtk4::EventControllerKey::new();
     keys.set_propagation_phase(gtk4::PropagationPhase::Capture);
     let weak = Rc::downgrade(&composer);
-    keys.connect_key_pressed(move |controller, key, _, modifiers| {
+    keys.connect_key_pressed(move |controller, key, keycode, modifiers| {
         let Some(composer) = weak.upgrade() else {
             return glib::Propagation::Proceed;
         };
@@ -118,24 +120,14 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
         if process_control(key, modifiers) {
             if let Some(area) = composer.area.upgrade() {
                 composer.forwarding_control.set(true);
-                controller.forward(&area);
+                if controller.forward(&area) {
+                    composer.forwarded_keys.borrow_mut().insert(keycode);
+                }
                 composer.forwarding_control.set(false);
                 return glib::Propagation::Stop;
             }
         }
         glib::Propagation::Proceed
-    });
-    let weak = Rc::downgrade(&composer);
-    keys.connect_key_released(move |controller, key, _, modifiers| {
-        if process_control(key, modifiers) {
-            if let Some(composer) = weak.upgrade() {
-                if let Some(area) = composer.area.upgrade() {
-                    composer.forwarding_control.set(true);
-                    controller.forward(&area);
-                    composer.forwarding_control.set(false);
-                }
-            }
-        }
     });
     editor.add_controller(keys);
     // SAFETY: these private keys store a weak GLArea and Rc<Composer>; all access stays on GTK.
@@ -176,6 +168,9 @@ pub fn synchronize(area: &gtk4::GLArea, target: Option<Session>, runtime: &tokio
     let changed = composer.target.borrow().as_ref().map(|s| &s.process)
         != target.as_ref().map(|s| &s.process);
     *composer.target.borrow_mut() = target;
+    if changed {
+        composer.forwarded_keys.borrow_mut().clear();
+    }
     *composer.runtime.borrow_mut() = Some(runtime.clone());
     composer
         .container
@@ -237,16 +232,47 @@ pub fn owns_process_shortcut(
     if !process_control(key, modifiers) {
         return false;
     }
-    let Some(editor) = focused.ancestor(gtk4::TextView::static_type()) else {
-        return false;
+    composer_for_widget(focused).is_some_and(|composer| composer.target.borrow().is_some())
+}
+
+/// Deliver a forwarded key's paired release at window capture, before editor handlers can consume it.
+/// Track the physical key so releasing a modifier first still releases the process key. GTK-thread only.
+pub fn release_process_shortcut(
+    focused: &gtk4::Widget,
+    controller: &gtk4::EventControllerKey,
+    key: gtk4::gdk::Key,
+    keycode: u32,
+    modifiers: gtk4::gdk::ModifierType,
+) {
+    let Some(composer) = composer_for_widget(focused) else {
+        return;
     };
-    // SAFETY: attach is the only writer of this weak GLArea reference, confined to GTK.
-    unsafe {
-        editor
-            .data::<glib::WeakRef<gtk4::GLArea>>("cmux-composer-area")
-            .and_then(|area| area.as_ref().upgrade())
-            .is_some_and(|area| is_active(&area))
+    if !composer.forwarded_keys.borrow_mut().remove(&keycode) {
+        return;
     }
+    let Some(_area) = composer.area.upgrade() else {
+        return;
+    };
+    let Some(surface) = *composer.surface.borrow() else {
+        return;
+    };
+    // SAFETY: the area and live surface cell are GTK-owned; delivery does not yield.
+    unsafe {
+        crate::ghostty::input::send_key_release(controller, key, keycode, modifiers, surface, true);
+    }
+}
+
+/// Resolve a composer's private weak area reference from its focused editor or descendant on GTK.
+fn composer_for_widget(focused: &gtk4::Widget) -> Option<Rc<Composer>> {
+    let editor = focused.ancestor(gtk4::TextView::static_type())?;
+    // SAFETY: attach is the only writer of this weak GLArea reference, confined to GTK.
+    let area = unsafe {
+        editor
+            .data::<glib::WeakRef<gtk4::GLArea>>("cmux-composer-area")?
+            .as_ref()
+            .upgrade()?
+    };
+    composer(&area)
 }
 
 /// Use the same local editing path for public human-input RPCs as for keyboard/clipboard input.
@@ -483,7 +509,7 @@ fn shortcut_modifiers(modifiers: gtk4::gdk::ModifierType) -> gtk4::gdk::Modifier
 }
 
 /// Forward process shortcuts immediately, retaining printable Shift text, clipboard and Enter locally.
-/// Both press/release handlers and window shortcut precedence use this same policy.
+/// Press routing and window shortcut precedence share this policy; releases follow the recorded keycode.
 fn process_control(key: gtk4::gdk::Key, modifiers: gtk4::gdk::ModifierType) -> bool {
     use gtk4::gdk::{Key, ModifierType as M};
     let modifiers = shortcut_modifiers(modifiers);

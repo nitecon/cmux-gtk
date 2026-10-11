@@ -253,6 +253,19 @@ pub fn install_shortcuts(
         }
     });
 
+    key_ctrl.connect_key_released({
+        let window = window.downgrade();
+        move |controller, key, keycode, modifiers| {
+            if let Some(focused) = window
+                .upgrade()
+                .and_then(|window| gtk4::prelude::GtkWindowExt::focus(&window))
+            {
+                crate::terminal_input::release_process_shortcut(
+                    &focused, controller, key, keycode, modifiers,
+                );
+            }
+        }
+    });
     window.add_controller(key_ctrl);
 }
 

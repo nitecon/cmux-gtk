@@ -72,6 +72,38 @@ pub fn key_event_details(
     (unshifted, map_mods(event.consumed_modifiers()))
 }
 
+/// Encode one native release through the same Ghostty protocol as its press.
+/// Process-directed releases bypass host bindings; ordinary terminal releases retain them.
+///
+/// # Safety
+/// Call on GTK with a live borrowed surface; the controller must be handling this key event.
+pub(crate) unsafe fn send_key_release(
+    controller: &gtk4::EventControllerKey,
+    key: gtk4::gdk::Key,
+    keycode: u32,
+    modifiers: gtk4::gdk::ModifierType,
+    surface: ffi::ghostty_surface_t,
+    process_shortcut: bool,
+) {
+    let mut input = unsafe { std::mem::zeroed::<ffi::ghostty_input_key_s>() };
+    input.keycode =
+        cmux_platform::terminal::physical_keycode(keycode, key == gtk4::gdk::Key::KP_Enter);
+    input.mods = map_mods(modifiers);
+    input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
+    input.text = std::ptr::null();
+    let (unshifted, consumed) = key_event_details(controller, keycode);
+    input.unshifted_codepoint = unshifted;
+    input.consumed_mods = consumed;
+    // SAFETY: the caller retains the live surface on GTK throughout this synchronous borrow.
+    unsafe {
+        if process_shortcut {
+            ffi::ghostty_surface_key_to_process(surface, input);
+        } else {
+            ffi::ghostty_surface_key(surface, input);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

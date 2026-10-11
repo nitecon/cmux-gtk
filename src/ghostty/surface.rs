@@ -673,25 +673,11 @@ pub fn create_surface(
     key_controller.connect_key_released({
         let cell = surface_cell.clone();
         move |ctrl, keyval, keycode, state| {
-            use crate::ghostty::input::{key_event_details, map_mods};
-
             let surface = match *cell.borrow() {
                 Some(s) => s,
                 None => return,
             };
 
-            let mut input = unsafe { std::mem::zeroed::<ffi::ghostty_input_key_s>() };
-            input.keycode = cmux_platform::terminal::physical_keycode(
-                keycode,
-                keyval == gtk4::gdk::Key::KP_Enter,
-            );
-            input.mods = map_mods(state);
-            input.action = ffi::ghostty_input_action_e_GHOSTTY_ACTION_RELEASE;
-            input.text = std::ptr::null();
-            // Same unshifted key as the press, so Ghostty matches the pair.
-            let (unshifted, consumed) = key_event_details(ctrl, keycode);
-            input.unshifted_codepoint = unshifted;
-            input.consumed_mods = consumed;
             unsafe {
                 let process_shortcut =
                     ctrl.widget()
@@ -699,11 +685,14 @@ pub fn create_surface(
                         .is_some_and(|area| {
                             crate::terminal_input::is_forwarding_process_shortcut(&area)
                         });
-                if process_shortcut {
-                    ffi::ghostty_surface_key_to_process(surface, input);
-                } else {
-                    ffi::ghostty_surface_key(surface, input);
-                }
+                crate::ghostty::input::send_key_release(
+                    ctrl,
+                    keyval,
+                    keycode,
+                    state,
+                    surface,
+                    process_shortcut,
+                );
             }
         }
     });

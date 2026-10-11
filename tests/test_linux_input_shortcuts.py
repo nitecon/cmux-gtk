@@ -89,6 +89,12 @@ def main():
                     assert screen()["input"]["draft"] == draft, shortcut
                     assert len(app.surfaces()) == 1, "composer shortcut triggered a window action"
             assert b"LOCAL draft" not in log.read_bytes(), "unfinished draft leaked to the process"
+            # A modifier can be released before its key; release ownership follows the physical key.
+            start = log.stat().st_size
+            subprocess.run([
+                "xdotool", "keydown", "ctrl", "keydown", "Tab", "keyup", "ctrl", "keyup", "Tab",
+            ], check=True, timeout=10)
+            app.wait_for(lambda: b"\x1b[9;1:3u" in log.read_bytes()[start:], "release after modifier key-up")
             # A further ordinary keystroke proves shortcuts retained the editor's focus and caret.
             subprocess.run(["xdotool", "type", "--clearmodifiers", "--", "!"], check=True, timeout=10)
             app.wait_for(lambda: screen()["input"]["draft"] == "LOCAL draft!", "composer keeps focus and caret")
