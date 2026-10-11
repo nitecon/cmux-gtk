@@ -164,8 +164,9 @@ def verify(rpc, root, codex, model):
         rows = [r for r in rpc("gateway.status")["receipts"] if r["event_id"] in (str(event), str(busy))]
         assert len(rows) == 4 and all("model receipt is not yet confirmed" in r["reason"] for r in rows)
         model.hold.set()
-        wait(lambda: len(model.inputs) >= 4, "provider drains complete busy messages")
-        assert f"<Gateway message>New delegated task received: task-{busy}</Gateway message>" in json.dumps(model.inputs)
+        busy_notification = f"<Gateway message>New delegated task received: task-{busy}</Gateway message>"
+        wait(lambda: len(model.inputs) >= 4 and busy_notification in json.dumps(model.inputs),
+             "provider drains the compact busy notification")
         assert "Ordinary process event while busy" not in json.dumps(model.inputs)
         wait(lambda: all("CMUX_INPUT_ACCEPTED" in rpc("surface.read_text", {"id": s})["text"] for s in surfaces), "real TUI renders model output")
         rpc("surface.send_key", {"id": surfaces[0], "key": "\r"})
