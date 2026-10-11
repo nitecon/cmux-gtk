@@ -117,15 +117,8 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
                 _ => {}
             }
         }
-        if process_control(key, modifiers) {
-            if let Some(area) = composer.area.upgrade() {
-                composer.forwarding_control.set(true);
-                if controller.forward(&area) {
-                    composer.forwarded_keys.borrow_mut().insert(keycode);
-                }
-                composer.forwarding_control.set(false);
-                return glib::Propagation::Stop;
-            }
+        if process_control(key, modifiers) && composer.forward_control(controller, keycode) {
+            return glib::Propagation::Stop;
         }
         glib::Propagation::Proceed
     });
@@ -222,17 +215,21 @@ pub fn is_forwarding_process_shortcut(area: &gtk4::GLArea) -> bool {
     composer(area).is_some_and(|composer| composer.forwarding_control.get())
 }
 
-/// Let a focused, active composer handle process shortcuts before window actions capture them.
+/// Forward focused composer shortcuts at window capture, before GTK menu accelerators run.
 /// The editor stores only a weak native-area reference; call on the GTK thread.
-pub fn owns_process_shortcut(
+pub fn forward_process_shortcut(
     focused: &gtk4::Widget,
+    controller: &gtk4::EventControllerKey,
     key: gtk4::gdk::Key,
+    keycode: u32,
     modifiers: gtk4::gdk::ModifierType,
 ) -> bool {
     if !process_control(key, modifiers) {
         return false;
     }
-    composer_for_widget(focused).is_some_and(|composer| composer.target.borrow().is_some())
+    composer_for_widget(focused).is_some_and(|composer| {
+        composer.target.borrow().is_some() && composer.forward_control(controller, keycode)
+    })
 }
 
 /// Deliver a forwarded key's paired release at window capture, before editor handlers can consume it.
@@ -330,6 +327,20 @@ fn composer(area: &gtk4::GLArea) -> Option<Rc<Composer>> {
 }
 
 impl Composer {
+    /// Borrow the native area for one process press and retain its physical release ownership.
+    fn forward_control(&self, controller: &gtk4::EventControllerKey, keycode: u32) -> bool {
+        let Some(area) = self.area.upgrade() else {
+            return false;
+        };
+        self.forwarding_control.set(true);
+        let forwarded = controller.forward(&area);
+        self.forwarding_control.set(false);
+        if forwarded {
+            self.forwarded_keys.borrow_mut().insert(keycode);
+        }
+        forwarded
+    }
+
     /// Recall only CMUX-submitted human messages, never a downstream application's editable line.
     fn recall(&self, previous: bool) {
         let history = self.history.borrow();
