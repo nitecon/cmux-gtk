@@ -155,6 +155,9 @@ jobs:
       - name: Test gateway lifecycle stream and native terminal injection
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
 
+      - name: Test physical process shortcuts from the input composer
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_input_shortcuts.py
+
       - name: Fetch verified official Codex for ordinary TUI input acceptance
         run: python3 scripts/fetch-codex-fixture.py target/codex-fixture --platform linux
 

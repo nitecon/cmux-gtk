@@ -82,14 +82,8 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
         let Some(composer) = weak.upgrade() else {
             return glib::Propagation::Proceed;
         };
+        let modifiers = shortcut_modifiers(modifiers);
         if matches!(key, gtk4::gdk::Key::Return | gtk4::gdk::Key::KP_Enter) {
-            let modifiers = modifiers
-                & (gtk4::gdk::ModifierType::SHIFT_MASK
-                    | gtk4::gdk::ModifierType::CONTROL_MASK
-                    | gtk4::gdk::ModifierType::ALT_MASK
-                    | gtk4::gdk::ModifierType::SUPER_MASK
-                    | gtk4::gdk::ModifierType::META_MASK
-                    | gtk4::gdk::ModifierType::HYPER_MASK);
             if modifiers.is_empty() {
                 composer.submit_draft();
             } else {
@@ -97,7 +91,7 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
             }
             return glib::Propagation::Stop;
         }
-        // History and all text editing remain local; only explicit non-text controls reach the app.
+        // Plain text and history stay local; process shortcuts bypass the unfinished draft.
         let buffer = composer.editor.buffer();
         if modifiers.is_empty()
             && matches!(key, gtk4::gdk::Key::Up | gtk4::gdk::Key::Down)
@@ -106,9 +100,9 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
             composer.recall(key == gtk4::gdk::Key::Up);
             return glib::Propagation::Stop;
         }
-        let control = modifiers.intersects(gtk4::gdk::ModifierType::CONTROL_MASK)
-            && !modifiers.intersects(gtk4::gdk::ModifierType::ALT_MASK);
-        if control && modifiers.intersects(gtk4::gdk::ModifierType::SHIFT_MASK) {
+        if modifiers
+            == (gtk4::gdk::ModifierType::CONTROL_MASK | gtk4::gdk::ModifierType::SHIFT_MASK)
+        {
             match key.to_lower() {
                 gtk4::gdk::Key::v => {
                     composer.editor.emit_by_name::<()>("paste-clipboard", &[]);
@@ -144,8 +138,9 @@ pub fn attach(area: &gtk4::GLArea, surface: Rc<RefCell<Option<ffi::ghostty_surfa
         }
     });
     editor.add_controller(keys);
-    // SAFETY: this key always owns Rc<Composer>; callbacks and its destructor run on GTK.
+    // SAFETY: these private keys store a weak GLArea and Rc<Composer>; all access stays on GTK.
     unsafe {
+        editor.set_data("cmux-composer-area", area.downgrade());
         area.set_data("cmux-composer", composer);
     }
 }
@@ -202,7 +197,7 @@ pub fn redirect(area: &gtk4::GLArea, controller: &gtk4::EventControllerKey) -> b
     if composer.target.borrow().is_none() {
         return false;
     }
-    // Events explicitly forwarded from the empty composer are controls, not human composition.
+    // Explicit process shortcuts bypass composition even when the local draft is nonempty.
     if composer.forwarding_control.get() {
         return false;
     }
@@ -225,6 +220,28 @@ pub fn execute(
 /// Inspect attachment without copying a potentially large user draft into periodic snapshots.
 pub fn is_active(area: &gtk4::GLArea) -> bool {
     composer(area).is_some_and(|composer| composer.target.borrow().is_some())
+}
+
+/// Let a focused, active composer handle process shortcuts before window actions capture them.
+/// The editor stores only a weak native-area reference; call on the GTK thread.
+pub fn owns_process_shortcut(
+    focused: &gtk4::Widget,
+    key: gtk4::gdk::Key,
+    modifiers: gtk4::gdk::ModifierType,
+) -> bool {
+    if !process_control(key, modifiers) {
+        return false;
+    }
+    let Some(editor) = focused.ancestor(gtk4::TextView::static_type()) else {
+        return false;
+    };
+    // SAFETY: attach is the only writer of this weak GLArea reference, confined to GTK.
+    unsafe {
+        editor
+            .data::<glib::WeakRef<gtk4::GLArea>>("cmux-composer-area")
+            .and_then(|area| area.as_ref().upgrade())
+            .is_some_and(|area| is_active(&area))
+    }
 }
 
 /// Use the same local editing path for public human-input RPCs as for keyboard/clipboard input.
@@ -448,10 +465,66 @@ impl Composer {
     }
 }
 
-/// These controls interrupt or inspect the process without creating an unfinished downstream draft.
+/// Ignore lock and pointer state when deciding whether a key is a composer shortcut.
+fn shortcut_modifiers(modifiers: gtk4::gdk::ModifierType) -> gtk4::gdk::ModifierType {
+    use gtk4::gdk::ModifierType as M;
+    modifiers
+        & (M::SHIFT_MASK
+            | M::CONTROL_MASK
+            | M::ALT_MASK
+            | M::SUPER_MASK
+            | M::META_MASK
+            | M::HYPER_MASK)
+}
+
+/// Forward process shortcuts immediately, retaining printable Shift text, clipboard and Enter locally.
+/// Both press/release handlers and window shortcut precedence use this same policy.
 fn process_control(key: gtk4::gdk::Key, modifiers: gtk4::gdk::ModifierType) -> bool {
-    key == gtk4::gdk::Key::Escape
-        || (gtk4::gdk::Key::F1..=gtk4::gdk::Key::F12).contains(&key)
-        || modifiers == gtk4::gdk::ModifierType::CONTROL_MASK
-            && matches!(key.to_lower(), gtk4::gdk::Key::c | gtk4::gdk::Key::d)
+    use gtk4::gdk::{Key, ModifierType as M};
+    let modifiers = shortcut_modifiers(modifiers);
+    if matches!(
+        key,
+        Key::Return
+            | Key::KP_Enter
+            | Key::Shift_L
+            | Key::Shift_R
+            | Key::Control_L
+            | Key::Control_R
+            | Key::Alt_L
+            | Key::Alt_R
+            | Key::Super_L
+            | Key::Super_R
+            | Key::Meta_L
+            | Key::Meta_R
+            | Key::Hyper_L
+            | Key::Hyper_R
+            | Key::ISO_Level3_Shift
+    ) || (modifiers == M::CONTROL_MASK && matches!(key.to_lower(), Key::v | Key::x))
+        || (modifiers == (M::CONTROL_MASK | M::SHIFT_MASK)
+            && matches!(key.to_lower(), Key::c | Key::v))
+    {
+        return false;
+    }
+    key == Key::Escape
+        || (Key::F1..=Key::F12).contains(&key)
+        || key == Key::ISO_Left_Tab
+        || modifiers.intersects(
+            M::CONTROL_MASK | M::ALT_MASK | M::SUPER_MASK | M::META_MASK | M::HYPER_MASK,
+        )
+        || (modifiers.contains(M::SHIFT_MASK)
+            && matches!(
+                key,
+                Key::Tab
+                    | Key::Left
+                    | Key::Right
+                    | Key::Up
+                    | Key::Down
+                    | Key::Home
+                    | Key::End
+                    | Key::Page_Up
+                    | Key::Page_Down
+                    | Key::Insert
+                    | Key::Delete
+                    | Key::BackSpace
+            ))
 }
