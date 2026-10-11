@@ -4,6 +4,15 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.12] - 2026-10-11
+
+### Added
+- Codex and Claude launch buttons beside each pane's ordinary terminal button.
+- A per-agent-tab **Resume last** checkbox in the tab context menu. Restored tabs run `codex resume --last` or `claude --continue` when enabled; unchecked tabs start fresh agents. Agent tabs also start in background workspaces, while ordinary terminals retain their existing behavior.
+
+### Fixed
+- Gateway input skips notifications older than five minutes and delivers compact task-ID notifications instead of replaying offline history or full task bodies into agent sessions.
+
 ## [0.6.11] - 2026-10-09
 
 ### Changed
