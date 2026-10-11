@@ -80,7 +80,8 @@ def main():
                 for shortcut, code, final in shortcuts:
                     start = log.stat().st_size
                     send_shortcut(shortcut)
-                    press = b"\x1b[" + code + final
+                    # Ghostty omits the press event for CSI-u but includes it for cursor keys.
+                    press = b"\x1b[" + code + (b"" if final == b"u" else b":1") + final
                     release = b"\x1b[" + code + b":3" + final
 
                     def delivered():
