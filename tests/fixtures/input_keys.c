@@ -8,13 +8,15 @@ int main(int argc, char **argv) {
     if (argc != 2) return 2;
     FILE *log = fopen(argv[1], "wb");
     if (!log) return 3;
+    char directory[4096];
+    if (!getcwd(directory, sizeof(directory))) { fclose(log); return 4; }
     struct termios original, raw;
     if (tcgetattr(STDIN_FILENO, &original) != 0) { fclose(log); return 4; }
     raw = original;
     cfmakeraw(&raw);
     if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) { fclose(log); return 5; }
     /* Disambiguate keys, report releases and encode all keys, as requested by a TUI. */
-    printf("\033[>11uCMUX key recorder ready\r\n");
+    printf("\033]7;file://localhost%s\007\033[>11uCMUX key recorder ready\r\n", directory);
     fflush(stdout);
     char bytes[4096];
     ssize_t count;

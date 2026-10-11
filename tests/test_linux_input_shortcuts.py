@@ -33,8 +33,12 @@ def main():
             app.wait_for(lambda: bool(screen()["text"].strip()), "initial shell")
             rpc("surface.send_text", id=surface, text=shlex.join([str(executable), str(log)]))
             rpc("surface.send_key", id=surface, key="\r")
-            app.wait_for(lambda: "CMUX key recorder ready" in screen()["text"]
-                         and screen()["input"]["active"], "foreground recorder and composer")
+            try:
+                app.wait_for(lambda: "CMUX key recorder ready" in screen()["text"]
+                             and screen()["input"]["active"], "foreground recorder and composer")
+            except AssertionError:
+                print("Recorder startup:", json.dumps(screen()))
+                raise
             windows = subprocess.check_output([
                 "xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid),
             ], text=True, timeout=10).split()
