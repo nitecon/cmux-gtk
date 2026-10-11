@@ -9,6 +9,17 @@ import tempfile
 from linux_app import running_app
 
 
+def send_shortcut(shortcut):
+    """Keep modifiers held until the main key is released, without xdotool key's chord cleanup order."""
+    keys = shortcut.split("+")
+    arguments = ["xdotool"]
+    for key in keys:
+        arguments.extend(("keydown", key))
+    for key in reversed(keys):
+        arguments.extend(("keyup", key))
+    subprocess.run(arguments, check=True, timeout=10)
+
+
 def main():
     """Require immediate press/release delivery without submission, draft edits or window actions."""
     with tempfile.TemporaryDirectory(prefix="cmux-input-keys-") as directory:
@@ -68,9 +79,7 @@ def main():
                     app.wait_for(lambda: screen()["input"]["draft"] == draft, "plain Shift text stays local")
                 for shortcut, code, final in shortcuts:
                     start = log.stat().st_size
-                    subprocess.run([
-                        "xdotool", "key", "--clearmodifiers", shortcut,
-                    ], check=True, timeout=10)
+                    send_shortcut(shortcut)
                     press = b"\x1b[" + code + final
                     release = b"\x1b[" + code + b":3" + final
 
