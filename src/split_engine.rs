@@ -38,6 +38,7 @@ pub enum PaneSurface {
         gl_area: gtk4::GLArea,
         uuid: Uuid,
         resume: Option<crate::resume::ResumeBinding>,
+        agent: Option<crate::agent_terminal::AgentTerminal>,
     },
     Git {
         widget: gtk4::Widget,
@@ -78,6 +79,9 @@ impl PaneSurface {
     /// Select the default notebook title for a terminal or browser tab.
     fn tab_title(&self) -> &'static str {
         match self {
+            Self::Terminal {
+                agent: Some(agent), ..
+            } => agent.kind.label(),
             Self::Terminal { .. } => "Terminal",
             Self::Browser { .. } => "Browser",
             Self::Files { .. } => "Files",
@@ -233,7 +237,31 @@ fn surface_tab_label(surface: &PaneSurface) -> gtk4::Box {
             }
         }
     });
-    popover.set_child(Some(&close_item));
+    let items = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+    if let PaneSurface::Terminal {
+        agent: Some(agent), ..
+    } = surface
+    {
+        let resume_last = gtk4::CheckButton::with_label("Resume last");
+        resume_last.set_active(agent.resume_last);
+        resume_last.set_tooltip_text(Some(
+            "Resume the agent's most recent conversation when cmux next starts",
+        ));
+        resume_last.connect_toggled({
+            let tab = tab.downgrade();
+            move |checkbox| {
+                if let Some(tab) = tab.upgrade() {
+                    let _ = tab.activate_action(
+                        "win.agent-resume-last",
+                        Some(&(uuid.to_string(), checkbox.is_active()).to_variant()),
+                    );
+                }
+            }
+        });
+        items.append(&resume_last);
+    }
+    items.append(&close_item);
+    popover.set_child(Some(&items));
     let gesture = gtk4::GestureClick::new();
     gesture.set_button(3);
     gesture.connect_released({
@@ -300,6 +328,17 @@ fn create_pane(pane_id: u64, initial_surface: PaneSurface) -> SplitNode {
     browser_btn.set_action_name(Some("win.new-browser-tab"));
     browser_btn.add_css_class("surface-tab-action");
     actions.append(&terminal_btn);
+    for (label, action) in [
+        ("Codex", "win.new-codex-tab"),
+        ("Claude", "win.new-claude-tab"),
+    ] {
+        let button = gtk4::Button::with_label(label);
+        button.set_tooltip_text(Some(&format!("Launch {label}")));
+        button.set_action_name(Some(action));
+        button.set_action_target_value(Some(&pane_id.to_variant()));
+        button.add_css_class("surface-tab-action");
+        actions.append(&button);
+    }
     actions.append(&browser_btn);
     notebook.set_action_widget(&actions, gtk4::PackType::End);
 
@@ -766,6 +805,7 @@ impl SplitEngine {
                 gl_area: initial_gl_area,
                 uuid: Uuid::new_v4(),
                 resume: None,
+                agent: None,
             },
         );
         root.update_focus_css(pane_id);
@@ -913,7 +953,7 @@ impl SplitEngine {
                     ffi::ghostty_surface_context_e_GHOSTTY_SURFACE_CONTEXT_SPLIT,
                 )
             });
-        let new_gl_area = self.create_terminal_widget(new_pane_id, inherited_config);
+        let new_gl_area = self.create_terminal_widget(new_pane_id, inherited_config, None);
 
         // Replace the active leaf in the tree with a Split node.
         let new_leaf = create_pane(
@@ -922,6 +962,7 @@ impl SplitEngine {
                 gl_area: new_gl_area.clone(),
                 uuid: Uuid::new_v4(),
                 resume: None,
+                agent: None,
             },
         );
 
@@ -951,21 +992,35 @@ impl SplitEngine {
         &self,
         pane_id: u64,
         inherited: Option<crate::ghostty::inherited::InheritedConfig>,
+        agent: Option<crate::agent_terminal::AgentTerminal>,
     ) -> gtk4::GLArea {
         let (gl_area, _surface_cell) = crate::ghostty::surface::create_surface(
             self.ghostty_app,
             inherited,
             self.working_directory.clone(),
             pane_id,
-            self.remote_launch.clone().unwrap_or_else(|| {
-                crate::ghostty::surface::SurfaceIoMode::Configured {
-                    initial_input: None,
+            self.remote_launch
+                .clone()
+                .map(|mut launch| {
+                    if let crate::ghostty::surface::SurfaceIoMode::Remote {
+                        initial_input, ..
+                    } = &mut launch
+                    {
+                        *initial_input =
+                            agent.map(|agent| format!("{}\r", agent.command()).into_bytes());
+                    }
+                    launch
+                })
+                .unwrap_or_else(|| crate::ghostty::surface::SurfaceIoMode::Configured {
+                    initial_input: agent.map(|agent| agent.command().to_owned()),
                     command: self.launch_command.clone(),
                     environment: self.launch_environment.clone(),
-                }
-            }),
+                }),
         );
         attach_terminal_context_menu(&gl_area);
+        if agent.is_some() {
+            crate::ghostty::surface::prepare_agent_start(&gl_area);
+        }
         gl_area
     }
 
@@ -994,6 +1049,19 @@ impl SplitEngine {
 
     /// Create and select a terminal surface tab in the focused pane.
     pub fn new_terminal_tab(&mut self) -> Option<Uuid> {
+        self.new_terminal_tab_with_agent(None)
+    }
+
+    /// Create an agent tab using ordinary terminal directory, shell and transport settings.
+    pub(crate) fn new_agent_tab(&mut self, kind: crate::agent_terminal::AgentKind) -> Option<Uuid> {
+        self.new_terminal_tab_with_agent(Some(crate::agent_terminal::AgentTerminal::new(kind)))
+    }
+
+    /// Shared terminal creation; each new tab owns its launch choice and never inherits agent metadata.
+    fn new_terminal_tab_with_agent(
+        &mut self,
+        agent: Option<crate::agent_terminal::AgentTerminal>,
+    ) -> Option<Uuid> {
         let pane_id = self.active_pane_id;
         // SAFETY: the pane lookup returns a live GTK-owned native surface. The
         // non-copying result owns its directory independently of that source.
@@ -1006,7 +1074,7 @@ impl SplitEngine {
         if let Some(surface) = self.find_surface(pane_id) {
             unsafe { ffi::ghostty_surface_set_focus(surface, false) };
         }
-        let gl_area = self.create_terminal_widget(pane_id, inherited);
+        let gl_area = self.create_terminal_widget(pane_id, inherited, agent);
         let uuid = Uuid::new_v4();
         let (notebook, surfaces) = find_pane_tabs(&self.root, pane_id)?;
         append_pane_surface(
@@ -1016,12 +1084,32 @@ impl SplitEngine {
                 gl_area: gl_area.clone(),
                 uuid,
                 resume: None,
+                agent,
             },
             true,
         );
         self.root.update_focus_css(pane_id);
         gl_area.grab_focus();
         Some(uuid)
+    }
+
+    /// Update the exact agent terminal's next-start choice, including inactive or moved tabs.
+    pub(crate) fn set_agent_resume_last(&mut self, uuid: Uuid, enabled: bool) -> bool {
+        let Some(pane_id) = self.find_pane_id_by_uuid(&uuid.to_string()) else {
+            return false;
+        };
+        let Some((_, surfaces)) = find_pane_tabs(&self.root, pane_id) else {
+            return false;
+        };
+        let mut surfaces = surfaces.borrow_mut();
+        let Some(PaneSurface::Terminal {
+            agent: Some(agent), ..
+        }) = surfaces.iter_mut().find(|surface| surface.uuid() == uuid)
+        else {
+            return false;
+        };
+        agent.resume_last = enabled;
+        true
     }
 
     /// Select a pane and create a terminal tab there (used by Ghostty actions).
@@ -1847,6 +1935,7 @@ where
                             gl_area: gtk4::GLArea::new(),
                             uuid: Uuid::new_v4(),
                             resume: None,
+                            agent: None,
                         },
                     ),
                 );
@@ -2222,6 +2311,9 @@ pub enum PaneSurfaceData {
         initial_input: Option<String>,
         #[serde(default)]
         resume: Option<crate::resume::ResumeBinding>,
+        /// Fixed agent launch and next-start choice; older terminals remain ordinary shells.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agent: Option<crate::agent_terminal::AgentTerminal>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         scrollback: Option<std::sync::Arc<str>>,
     },
@@ -2282,8 +2374,10 @@ impl SplitNode {
                             gl_area,
                             uuid,
                             resume,
+                            agent,
                         } => PaneSurfaceData::Terminal {
                             resume: resume.clone(),
+                            agent: *agent,
                             environment: unsafe {
                                 gl_area.data::<std::collections::BTreeMap<String, String>>(
                                     "cmux-launch-environment",
@@ -2373,6 +2467,121 @@ impl SplitNode {
 mod tests {
     use super::*;
 
+    /// Exercise real button/action and checkbox wiring, preserving per-tab state through moves and restore.
+    #[test]
+    #[ignore = "requires GTK display; run in GitHub Actions under Xvfb"]
+    fn agent_terminal_buttons_and_resume_setting() {
+        gtk4::init().unwrap();
+        let app = gtk4::Application::new(None::<&str>, gtk4::gio::ApplicationFlags::NON_UNIQUE);
+        app.register(None::<&gtk4::gio::Cancellable>).unwrap();
+        let stack = gtk4::Stack::new();
+        let state = crate::app_state::AppState::new(
+            stack.clone(),
+            gtk4::ListBox::new(),
+            std::ptr::null_mut(),
+            app.clone(),
+        );
+        state.borrow_mut().create_workspace();
+        let window = gtk4::ApplicationWindow::builder()
+            .application(&app)
+            .child(&stack)
+            .build();
+        crate::menus::register_actions(
+            &window,
+            state.clone(),
+            &gtk4::Box::new(gtk4::Orientation::Vertical, 0),
+            &app,
+        );
+        let left = state.borrow().split_engines[0].active_pane_id;
+        let right = state.borrow_mut().split_engines[0].split_right().unwrap();
+        let (notebook, surfaces) =
+            find_pane_tabs(&state.borrow().split_engines[0].root, left).unwrap();
+        let toolbar = notebook.action_widget(gtk4::PackType::End).unwrap();
+        let terminal = toolbar
+            .first_child()
+            .unwrap()
+            .downcast::<gtk4::Button>()
+            .unwrap();
+        let codex = terminal
+            .next_sibling()
+            .unwrap()
+            .downcast::<gtk4::Button>()
+            .unwrap();
+        let claude = codex
+            .next_sibling()
+            .unwrap()
+            .downcast::<gtk4::Button>()
+            .unwrap();
+        assert_eq!(codex.label().as_deref(), Some("Codex"));
+        assert_eq!(claude.label().as_deref(), Some("Claude"));
+        codex.emit_clicked();
+        let codex_id = surfaces.borrow().last().unwrap().uuid();
+        assert_eq!(state.borrow().split_engines[0].active_pane_id, left);
+        assert_eq!(surfaces.borrow().last().unwrap().tab_title(), "Codex");
+        let tab = notebook
+            .tab_label(&surfaces.borrow().last().unwrap().widget())
+            .unwrap();
+        let mut child = tab.first_child();
+        let popover = loop {
+            let widget = child.expect("agent tab has a context popover");
+            if let Ok(popover) = widget.clone().downcast::<gtk4::Popover>() {
+                break popover;
+            }
+            child = widget.next_sibling();
+        };
+        let checkbox = popover
+            .child()
+            .unwrap()
+            .first_child()
+            .unwrap()
+            .downcast::<gtk4::CheckButton>()
+            .unwrap();
+        assert!(!checkbox.is_active());
+        claude.emit_clicked();
+        terminal.emit_clicked();
+        checkbox.set_active(true);
+        assert_eq!(surfaces.borrow().len(), 4);
+        let snapshot = state.borrow().split_engines[0].root.to_data();
+        let serialized = serde_json::to_string(&snapshot).unwrap();
+        assert!(serialized.contains("\"resume_last\":true"));
+        assert!(
+            matches!(&surfaces.borrow()[1], PaneSurface::Terminal { agent: Some(agent), .. } if agent.resume_last)
+        );
+        assert!(
+            matches!(&surfaces.borrow()[2], PaneSurface::Terminal { agent: Some(agent), .. } if !agent.resume_last)
+        );
+        assert!(matches!(
+            &surfaces.borrow()[3],
+            PaneSurface::Terminal { agent: None, .. }
+        ));
+        state.borrow_mut().split_engines[0]
+            .move_surface(codex_id, right, None, false)
+            .unwrap();
+        // The tab was reparented and its new checkbox must still target the same session.
+        assert!(state.borrow_mut().split_engines[0].set_agent_resume_last(codex_id, false));
+        let restored = SplitEngine::from_data_with_command(
+            std::ptr::null_mut(),
+            &serde_json::from_str(&serialized).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let restored_id = restored
+            .find_pane_id_by_uuid(&codex_id.to_string())
+            .unwrap();
+        let (_, restored_surfaces) = find_pane_tabs(&restored.root, restored_id).unwrap();
+        assert!(
+            matches!(&restored_surfaces.borrow()[1], PaneSurface::Terminal { agent: Some(agent), .. } if agent.resume_last)
+        );
+        assert_eq!(restored_surfaces.borrow()[1].tab_title(), "Codex");
+        window.destroy();
+    }
+
     /// Git shares the right column with Files, reuses its tab, and survives snapshot restoration.
     #[test]
     #[ignore = "requires GTK display; run in GitHub Actions under Xvfb"]
@@ -2451,6 +2660,7 @@ mod tests {
                 gl_area: gtk4::GLArea::new(),
                 uuid: Uuid::new_v4(),
                 resume: None,
+                agent: None,
             },
             false,
         );
@@ -2513,6 +2723,7 @@ mod tests {
                 gl_area: gtk4::GLArea::new(),
                 uuid: Uuid::new_v4(),
                 resume: None,
+                agent: None,
             },
         );
         vertical.next_pane_id = 3;
@@ -2607,6 +2818,7 @@ mod tests {
             surfaces: vec![
                 PaneSurfaceData::Terminal {
                     resume: None,
+                    agent: None,
                     environment: std::collections::BTreeMap::from([(
                         "PROJECT_VALUE".into(),
                         "literal".into(),

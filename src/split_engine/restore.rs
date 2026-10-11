@@ -49,6 +49,7 @@ impl RestoreContext<'_> {
         scrollback: Option<&std::sync::Arc<str>>,
         environment: Option<&std::collections::BTreeMap<String, String>>,
         initial_input: Option<&str>,
+        agent: Option<crate::agent_terminal::AgentTerminal>,
     ) -> PaneSurface {
         let saved_directory = (!saved_cwd.is_empty()).then(|| std::path::PathBuf::from(saved_cwd));
         let workspace_directory = self.working_directory.map(std::path::Path::to_path_buf);
@@ -64,14 +65,19 @@ impl RestoreContext<'_> {
             if let crate::ghostty::surface::SurfaceIoMode::Remote { initial_input, .. } =
                 &mut remote
             {
-                *initial_input =
-                    resume.and_then(|binding| self.resume_policy.remote_shell_input(binding));
+                *initial_input = agent
+                    .map(|agent| format!("{}\r", agent.command()).into_bytes())
+                    .or_else(|| {
+                        resume.and_then(|binding| self.resume_policy.remote_shell_input(binding))
+                    });
             }
             remote
         } else if let Some(mosh) = self.remote_mosh {
-            let remote_resume = resume.and_then(|binding| {
-                self.resume_policy
-                    .remote_shell_command(binding, "remote_mosh")
+            let remote_resume = agent.map(|agent| agent.command().to_owned()).or_else(|| {
+                resume.and_then(|binding| {
+                    self.resume_policy
+                        .remote_shell_command(binding, "remote_mosh")
+                })
             });
             crate::ghostty::surface::SurfaceIoMode::Configured {
                 initial_input: None,
@@ -90,8 +96,11 @@ impl RestoreContext<'_> {
                     .map(|(key, value)| (key.clone(), value.clone())),
             );
             crate::ghostty::surface::SurfaceIoMode::Configured {
-                initial_input: initial_input.map(str::to_owned),
+                initial_input: agent
+                    .map(|agent| agent.command().to_owned())
+                    .or_else(|| initial_input.map(str::to_owned)),
                 command: resume
+                    .filter(|_| agent.is_none())
                     .and_then(|binding| self.resume_policy.launch_command(binding))
                     .or_else(|| self.launch_command.map(str::to_owned)),
                 environment: launch_environment,
@@ -106,9 +115,13 @@ impl RestoreContext<'_> {
         );
         crate::scrollback::prepare(&gl_area, scrollback);
         attach_terminal_context_menu(&gl_area);
+        if agent.is_some() {
+            crate::ghostty::surface::prepare_agent_start(&gl_area);
+        }
         PaneSurface::Terminal {
             gl_area,
             uuid,
+            agent,
             resume: resume
                 .filter(|binding| binding.validate().is_ok())
                 .cloned()
@@ -197,7 +210,7 @@ impl SplitEngine {
                 *next_pane_id += 1;
                 Some(create_pane(
                     pane_id,
-                    context.terminal(pane_id, *surface_uuid, cwd, None, None, None, None),
+                    context.terminal(pane_id, *surface_uuid, cwd, None, None, None, None, None),
                 ))
             }
             SplitNodeData::Pane {
@@ -214,6 +227,7 @@ impl SplitEngine {
                         scrollback,
                         environment,
                         initial_input,
+                        agent,
                         ..
                     } => context.terminal(
                         pane_id,
@@ -223,6 +237,7 @@ impl SplitEngine {
                         scrollback.as_ref(),
                         Some(environment),
                         initial_input.as_deref(),
+                        *agent,
                     ),
                     PaneSurfaceData::Git {
                         surface_uuid,
@@ -258,7 +273,7 @@ impl SplitEngine {
                     }
                 });
                 let initial = restored.next().unwrap_or_else(|| {
-                    context.terminal(pane_id, Uuid::new_v4(), "", None, None, None, None)
+                    context.terminal(pane_id, Uuid::new_v4(), "", None, None, None, None, None)
                 });
                 let node = create_pane(pane_id, initial);
                 if let SplitNode::Leaf {

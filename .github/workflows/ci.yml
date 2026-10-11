@@ -210,6 +210,11 @@ jobs:
       - name: Test manual resume in its owning terminal
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_resume.py
 
+      - name: Test agent terminal buttons and per-session resume settings
+        run: |
+          dbus-run-session -- xvfb-run -a cargo test --bin cmux-app agent_terminal_buttons_and_resume_setting -- --ignored --test-threads=1
+          dbus-run-session -- xvfb-run -a python3 tests/test_linux_agent_terminals.py
+
       - name: Test installed Claude session hook lifecycle
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_claude_hooks.py
 

@@ -51,6 +51,62 @@ pub fn register_actions(
     });
     window.add_action(&action);
 
+    // Agent buttons target their own pane, including when another pane has keyboard focus.
+    for (name, kind) in [
+        ("new-codex-tab", crate::agent_terminal::AgentKind::Codex),
+        ("new-claude-tab", crate::agent_terminal::AgentKind::Claude),
+    ] {
+        let action = gio::SimpleAction::new(name, Some(&u64::static_variant_type()));
+        action.connect_activate({
+            let state = state.clone();
+            move |_, parameter| {
+                let Some(pane_id) = parameter.and_then(|value| value.get::<u64>()) else {
+                    return;
+                };
+                let created = state
+                    .borrow_mut()
+                    .active_split_engine_mut()
+                    .and_then(|engine| {
+                        engine
+                            .activate_pane(pane_id)
+                            .then(|| engine.new_agent_tab(kind))
+                            .flatten()
+                    })
+                    .is_some();
+                if created {
+                    state.borrow().trigger_session_save();
+                }
+            }
+        });
+        window.add_action(&action);
+    }
+
+    let action = gio::SimpleAction::new(
+        "agent-resume-last",
+        Some(&<(String, bool)>::static_variant_type()),
+    );
+    action.connect_activate({
+        let state = state.clone();
+        move |_, parameter| {
+            let Some((uuid, enabled)) = parameter.and_then(|value| value.get::<(String, bool)>())
+            else {
+                return;
+            };
+            let Ok(uuid) = uuid::Uuid::parse_str(&uuid) else {
+                return;
+            };
+            let changed = state
+                .borrow_mut()
+                .split_engines
+                .iter_mut()
+                .any(|engine| engine.set_agent_resume_last(uuid, enabled));
+            if changed {
+                state.borrow().trigger_session_save();
+            }
+        }
+    });
+    window.add_action(&action);
+
     // win.focus-pane — keep pointer-selected pane state aligned with GTK focus.
     let action = gio::SimpleAction::new("focus-pane", Some(&u64::static_variant_type()));
     action.connect_activate({

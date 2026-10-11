@@ -59,6 +59,7 @@ fn pane_tree(
                         environment,
                         initial_input,
                         resume: None,
+                        agent: None,
                         scrollback: None,
                     },
                     PreparedSurface::Browser { uuid, url, profile } => {

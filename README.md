@@ -46,6 +46,15 @@ exported variables and directory changes are inherited by the shell. Leave the
 script empty for a normal terminal. A script can also launch a custom remote
 session, for example with `exec ssh -t my-host`.
 
+The **Codex** and **Claude** buttons next to each pane's terminal button open a
+terminal tab and run `codex` or `claude`. Right-click the agent tab and check
+**Resume last** to run `codex resume --last` or `claude --continue` after restarting
+cmux. The choice is saved separately for each tab and defaults to off; unchecked
+agent tabs start fresh. Restored agent tabs also start in background workspaces.
+“Last” follows the agent CLI's own session selection; Claude continues the most
+recent conversation in the current directory ([CLI reference](https://code.claude.com/docs/en/cli-reference)).
+The ordinary terminal button still opens a regular shell.
+
 Use **New SSH Workspace** (`Ctrl+Shift+S`) for a daemon-backed SSH workspace.
 Enter an SSH config alias or `user@host`, with an optional absolute remote
 folder. SSH key/agent authentication must already work without prompts. Prepare

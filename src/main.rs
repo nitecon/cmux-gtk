@@ -2,6 +2,7 @@ use gtk4::prelude::*;
 use gtk4::{gio, Application, ApplicationWindow, CssProvider};
 use std::ffi::CString;
 
+mod agent_terminal;
 mod app_state;
 mod bounded_json;
 mod browser;

@@ -33,6 +33,7 @@ struct SurfaceInit {
     io_mode: SurfaceIoMode,
     initial_input: RefCell<Option<String>>,
     retired: Rc<std::cell::Cell<bool>>,
+    background_start: std::cell::Cell<bool>,
 }
 
 /// Initialize Ghostty only after GTK has assigned a non-zero GLArea size.
@@ -229,7 +230,7 @@ fn initialize_surface(
         let phys_height = (logical_height as f64 * scale) as u32;
         ffi::ghostty_surface_set_size(surface, phys_width, phys_height);
         ffi::ghostty_surface_set_content_scale(surface, scale, scale);
-        ffi::ghostty_surface_set_focus(surface, true);
+        ffi::ghostty_surface_set_focus(surface, !init.background_start.get() || area.is_mapped());
         surface
     };
 
@@ -250,7 +251,9 @@ fn initialize_surface(
             serde_json::json!({"outcome":if delivered.is_ok(){"submitted"}else{"error"},"pane_id":init.pane_id}),
         );
     }
-    area.grab_focus();
+    if !init.background_start.get() || area.is_mapped() {
+        area.grab_focus();
+    }
     if let Ok(mut registry) = crate::ghostty::callbacks::GL_TO_SURFACE.lock() {
         registry.insert(area.as_ptr() as usize, surface as usize);
     }
@@ -378,7 +381,10 @@ pub fn create_surface(
         pane_id,
         io_mode,
         retired,
+        background_start: std::cell::Cell::new(false),
     });
+    // SAFETY: this private key owns the same initialization state as the GTK callbacks.
+    unsafe { gl_area.set_data("cmux-surface-init", surface_init.clone()) };
 
     // ── GtkGLArea::realize ───────────────────────────────────────────────────
     // The GL context is valid after realize. If GTK has already allocated a
@@ -852,6 +858,61 @@ pub fn create_surface(
     gl_area.add_controller(scroll_controller);
 
     (gl_area, surface_cell)
+}
+
+/// Start an agent's PTY even in an unselected tab/workspace once its window is realized.
+/// Uses the window's initial dimensions until GTK allocates the page; preserves background focus.
+/// Weak widget ownership and a ten-second deadline bound startup work after close or failed mapping.
+pub(crate) fn prepare_agent_start(area: &gtk4::GLArea) {
+    use gtk4::prelude::*;
+    // SAFETY: create_surface stores these exact Rc types under private keys on GTK.
+    let (Some(init), Some(cell)) = (
+        unsafe { area.data::<Rc<SurfaceInit>>("cmux-surface-init") },
+        unsafe { area.data::<Rc<RefCell<Option<ffi::ghostty_surface_t>>>>("cmux-surface-cell") },
+    ) else {
+        return;
+    };
+    let init = unsafe { init.as_ref().clone() };
+    let cell = unsafe { cell.as_ref().clone() };
+    init.background_start.set(true);
+    let area = area.downgrade();
+    let started = std::time::Instant::now();
+    glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+        let Some(area) = area.upgrade() else {
+            return glib::ControlFlow::Break;
+        };
+        if init.retired.get() || cell.borrow().is_some() {
+            return glib::ControlFlow::Break;
+        }
+        if let Some(root) = area
+            .root()
+            .and_downcast::<gtk4::Window>()
+            .filter(|root| root.is_realized())
+        {
+            area.realize();
+            let width = if area.width() > 0 {
+                area.width()
+            } else {
+                root.width().max(1)
+            };
+            let height = if area.height() > 0 {
+                area.height()
+            } else {
+                root.height().max(1)
+            };
+            if initialize_surface(&area, &cell, &init, width, height).is_some() {
+                return glib::ControlFlow::Break;
+            }
+        }
+        if started.elapsed() >= std::time::Duration::from_secs(10) {
+            crate::diagnostics::record(
+                "agent.launch",
+                serde_json::json!({"pane_id": init.pane_id, "outcome": "initialization_timeout"}),
+            );
+            return glib::ControlFlow::Break;
+        }
+        glib::ControlFlow::Continue
+    });
 }
 
 // ── Clipboard callbacks ──────────────────────────────────────────────────────
