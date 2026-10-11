@@ -12,8 +12,8 @@ import uuid
 from gateway_fixture import Gateway
 from linux_app import running_app
 
-START = "<Start Agent Gateway Message Injection>"
-STOP = "</Stop AgentGateway Message injection>"
+START = "<Gateway message>"
+STOP = "</Gateway message>"
 
 
 def status(app):
@@ -148,7 +148,7 @@ def main():
                 wait_outcome(app, gateway, created, "injected")
                 received = submissions(root / "first.input")
                 assert len(received) == 1 and received[0].startswith(START) and received[0].endswith(STOP)
-                assert "Task specification" in received[0]
+                assert received[0] == f"{START}New delegated task received: task-{created}{STOP}"
                 assert len(submissions(root / "peer.input")) == 1
                 assert next(row["uuid"] for row in app.surfaces() if row["active"]) == selected
                 # Shared author/machine IDs do not suppress another Codex terminal's coordination context.
@@ -186,7 +186,8 @@ def main():
                     content = f"Incremental display check {index}\n" + ("Long wrapped message " * 100 + "\n") * 3
                     event_id = gateway.add(content=content)
                     wait_outcome(app, gateway, event_id, "injected")
-                    app.wait_for(lambda: content in submissions(root / "first.input")[-1], "incremental submission")
+                    app.wait_for(lambda: f"task-{event_id}" in submissions(root / "first.input")[-1], "incremental submission")
+                    assert content not in submissions(root / "first.input")[-1]
                     app.wait_for(lambda: "submission received" in raw(app, "surface.read_text", id=surfaces["first"])["text"],
                                  "incremental response")
                     assert raw(app, "surface.read_text", id=surfaces["first"])["text"] == expected_screen
@@ -196,9 +197,10 @@ def main():
                                    author_type=role, content="Context from " + role)
                     event_id = gateway.add(kind="task_commented", comment=comment)
                     wait_outcome(app, gateway, event_id, "injected")
+                    assert submissions(root / "first.input")[-1] == f"{START}New comment on task: task-{event_id}{STOP}"
                 completed = gateway.add(kind="task_completed", content="Completion notification")
                 wait_outcome(app, gateway, completed, "injected")
-                assert "already done" in submissions(root / "first.input")[-1]
+                assert submissions(root / "first.input")[-1] == f"{START}Task completed: task-{completed}{STOP}"
                 tracking = gateway.add(task=dict(id="tracking", title="Outgoing tracking record", kind="delegated",
                                                 delegated_to_task_id="target-task"))
                 wait_outcome(app, gateway, tracking, "skipped")
@@ -215,7 +217,7 @@ def main():
                 assert raw(app, "gateway.session", surface_id=surfaces["absent"])["provider"] == "tralala"
                 generic = gateway.add(project="absent", content="Provider-independent delivery")
                 wait_outcome(app, gateway, generic, "injected")
-                app.wait_for(lambda: any("Provider-independent delivery" in message for message in submissions(root / "absent.input")), "generic app actual input")
+                app.wait_for(lambda: any(f"task-{generic}" in message for message in submissions(root / "absent.input")), "generic app actual input")
                 # Downstream busy/dialog/draft layouts never gate CMUX-owned complete input.
                 for name in ("first", "peer"):
                     (root / (name + ".mode")).write_text("busy")
@@ -251,7 +253,7 @@ def main():
                 assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == human
                 raw(app, "surface.send_key", id=surfaces["first"], key="\r")
                 app.wait_for(lambda: submissions(root / "first.input")[-1] == human, "whole human message follows event")
-                assert "Event bypasses" in submissions(root / "first.input")[-2]
+                assert f"task-{draft}" in submissions(root / "first.input")[-2]
                 for mode, visible in (("multiline", "second draft line"), ("permission", "Allow once")):
                     (root / "first.mode").write_text(mode)
                     app.wait_for(lambda: visible in raw(app, "surface.read_text", id=surfaces["first"])["text"], mode + " screen")
@@ -259,21 +261,23 @@ def main():
                     wait_outcome(app, gateway, event, "injected")
                 (root / "first.mode").write_text("idle")
                 (root / "peer.mode").write_text("idle")
-                # Full details are fetched before a truncated task becomes agent input; bearer text is redacted.
+                # Truncated and large/private bodies still produce only task references; no REST detail fetch.
                 truncated = gateway.add(content="Preview", truncated=True)
                 with gateway.lock:
                     gateway.details[f"/v1/projects/first/tasks/task-{truncated}"] = dict(
                         id=f"task-{truncated}", title="Hydrated task", description="Full context", details="FULL_SPEC " + key)
                 wait_outcome(app, gateway, truncated, "injected")
-                assert gateway.full_fetches == 1
-                assert "FULL_SPEC [redacted]" in submissions(root / "first.input")[-1]
+                assert gateway.full_fetches == 0
+                assert submissions(root / "first.input")[-1] == f"{START}New delegated task received: task-{truncated}{STOP}"
                 # Existing IDs reconcile after reconnect without a second PTY submission.
                 before = len(submissions(root / "first.input"))
                 app.wait_for(lambda: json.loads(journal_path.read_text())["cursor"] >= truncated, "saved reconnect cursor")
                 subscription_count = len(gateway.subscriptions)
                 gateway.disconnect(replay=truncated)
+                offline = gateway.add(content="Do not replay an event from the connection gap")
                 app.wait_for(lambda: len(gateway.subscriptions) > subscription_count and status(app)["connection"] == "Connected",
                              "saved-cursor reconnect", timeout=20)
+                wait_outcome(app, gateway, offline, "skipped")
                 time.sleep(2)
                 assert len(submissions(root / "first.input")) == before
                 assert gateway.subscriptions[-1]["consumer_id"] == instance
@@ -283,25 +287,22 @@ def main():
                     gateway.server_heartbeats = False
                     heartbeat_count = gateway.heartbeats
                 app.wait_for(lambda: gateway.heartbeats > heartbeat_count, "client-owned periodic heartbeat", timeout=15)
-                # Retire a pinned process while its REST detail request is in flight.
+                # Expired and undated events advance receipt/cursor without any process input.
+                before = len(submissions(root / "first.input"))
+                for timestamp in (int(time.time() * 1000) - 300_001, 0, None):
+                    expired = gateway.add(created_at=timestamp, content="Never inject historical content")
+                    wait_outcome(app, gateway, expired, "skipped")
+                assert len(submissions(root / "first.input")) == before
+                # A retired process keeps its human draft and never receives later notifications.
                 retained = "retain human draft when process exits"
                 raw(app, "surface.send_text", id=surfaces["first"], text=retained)
-                gateway.detail_entered.clear()
-                gateway.detail_release.clear()
-                changed = gateway.add(content="Never send to the replacement shell", truncated=True)
-                with gateway.lock:
-                    gateway.details[f"/v1/projects/first/tasks/task-{changed}"] = dict(
-                        id=f"task-{changed}", title="Never send to the replacement shell", details="retirement check")
-                app.wait_for(gateway.detail_entered.is_set, "detail fetch started")
                 (root / "first.mode").write_text("shell")
                 app.wait_for(lambda: all(s["surface_id"] != surfaces["first"] for s in raw(app, "gateway.sessions")["sessions"]), "process exec replacement")
-                gateway.detail_release.set()
-                wait_outcome(app, gateway, changed, "injected")
                 app.wait_for(lambda: not raw(app, "surface.read_text", id=surfaces["first"])["input"]["active"], "retired editor stops input")
+                changed = gateway.add(content="Never send to the replacement shell", truncated=True)
+                wait_outcome(app, gateway, changed, "injected")
                 assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == retained
-                recorded = json.loads(gateway.receipts[changed]["summary"])["recipients"]
-                assert next(entry["status"] for entry in recorded if entry["session_id"] == contexts["first"]["session_id"]) == "skipped"
-                assert all("replacement shell" not in entry for entry in submissions(root / "first.input"))
+                assert len(submissions(root / "first.input")) == before
                 view = status(app)
                 assert key not in json.dumps(view) and "Historical task" not in json.dumps(view)
                 assert all(key not in entry for entry in submissions(root / "first.input"))

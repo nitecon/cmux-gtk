@@ -55,11 +55,17 @@ impl Pipeline {
                     == Some(message.project_ident.as_str())
             })
             .collect();
-        if !journal.config.enabled || !journal.config.injection_approved || candidates.is_empty() {
+        if !fresh_at(message.created_at, now_millis())
+            || !journal.config.enabled
+            || !journal.config.injection_approved
+            || candidates.is_empty()
+        {
             journal.receipts.push_back(Receipt {
                 event_id: message.event_id,
                 outcome: "skipped".into(),
-                reason: if !journal.config.injection_approved {
+                reason: if !fresh_at(message.created_at, now_millis()) {
+                    "Gateway event is older than five minutes or has no timestamp"
+                } else if !journal.config.injection_approved {
                     "Experimental injection approval is off"
                 } else if candidates.is_empty() {
                     "No active agent in a matching repository"
@@ -93,7 +99,7 @@ impl Pipeline {
                 reason: if own {
                     "Event originated in this exact agent session"
                 } else {
-                    "Waiting for an empty, idle agent prompt"
+                    "Waiting for CMUX input queue submission"
                 }
                 .into(),
                 payload: (!own).then(|| message.clone()),
@@ -118,6 +124,9 @@ impl Pipeline {
     pub fn next(&mut self, projects: &[Project], sessions: &[Session]) -> Option<(Pending, bool)> {
         for index in 0..self.pending.len() {
             let pending = &self.pending[index];
+            if !fresh_at(pending.message.created_at, now_millis()) {
+                return self.pending.remove(index).map(|p| (p, false));
+            }
             let current = sessions.iter().find(|s| {
                 pending.target.same_target(s)
                     && matching_project(&s.repository, projects)
@@ -194,6 +203,7 @@ mod tests {
             project_ident: "project".into(),
             task_id: "task".into(),
             kind,
+            created_at: now_millis(),
             text: "Please inspect the task".into(),
             author_id: Some("human".into()),
             source_instance: None,
@@ -213,6 +223,37 @@ mod tests {
                 upstream_urls: vec!["git@github.com:org/repo.git".into()],
             }],
         )
+    }
+
+    /// Stale events never queue, and live events expire even while their executor is unavailable.
+    #[test]
+    fn skips_stale_events_and_expires_queued_input() {
+        let (mut journal, projects) = context();
+        let sessions = vec![session("surface", false)];
+        let mut pipeline = Pipeline::default();
+        let mut old = message("old", Kind::Commented);
+        old.created_at = now_millis() - MAX_EVENT_AGE_MS - 1;
+        assert_eq!(
+            pipeline
+                .admit(&mut journal, &projects, &sessions, old)
+                .unwrap(),
+            Admission::Skipped
+        );
+        assert!(pipeline.pending.is_empty());
+        assert_eq!(
+            pipeline
+                .admit(
+                    &mut journal,
+                    &projects,
+                    &sessions,
+                    message("live", Kind::Created)
+                )
+                .unwrap(),
+            Admission::Queued
+        );
+        pipeline.pending[0].message.created_at = now_millis() - MAX_EVENT_AGE_MS - 1;
+        assert!(!pipeline.next(&projects, &sessions).unwrap().1);
+        assert!(pipeline.pending.is_empty());
     }
 
     /// All task lifecycle events route by repository, deduplicate and wait only for a local executor.

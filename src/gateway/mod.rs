@@ -158,6 +158,9 @@ async fn deliver(
     expected: &Session,
 ) -> Result<DeliveryOutcome, String> {
     message.validate()?;
+    if !fresh_at(message.created_at, now_millis()) {
+        return Err("Gateway event expired before delivery".into());
+    }
     let area = {
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
@@ -182,13 +185,15 @@ async fn deliver(
             .ok_or("Terminal is no longer attached")?
     };
     let weak = std::rc::Rc::downgrade(state);
+    let created_at = message.created_at;
     let allowed = Box::new(move || {
-        weak.upgrade().is_some_and(|state| {
-            state.borrow().gateway.as_ref().is_some_and(|gateway| {
-                let view = gateway.view.borrow();
-                view.config.enabled && view.config.injection_approved
+        fresh_at(created_at, now_millis())
+            && weak.upgrade().is_some_and(|state| {
+                state.borrow().gateway.as_ref().is_some_and(|gateway| {
+                    let view = gateway.view.borrow();
+                    view.config.enabled && view.config.injection_approved
+                })
             })
-        })
     });
     let result = match crate::terminal_input::execute(
         &area,

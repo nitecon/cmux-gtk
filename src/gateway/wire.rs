@@ -147,7 +147,7 @@ impl Client {
         Ok(socket)
     }
 
-    /// Recover shortened task context before routing; oversized context is explicitly reported as failed.
+    /// Normalize a compact task reference without fetching descriptions, specifications or comment bodies.
     pub async fn message(&self, event: &Value) -> Result<Option<Message>, String> {
         let id = event_id(event)?;
         let project = event["project_ident"]
@@ -168,27 +168,14 @@ impl Client {
         {
             return Ok(None);
         }
-        let full;
-        let task = if event["truncated"] == true {
-            full = self
-                .get(&["v1", "projects", project, "tasks", task_id])
-                .await?;
-            if full["id"].as_str() != Some(task_id) {
-                return Err("Task detail identity changed".into());
-            }
-            &full
-        } else {
-            &event["task"]
-        };
-        let comment = if kind == Kind::Commented && event["truncated"] == true {
-            task["comments"]
-                .as_array()
-                .and_then(|comments| comments.iter().find(|c| c["id"] == event["comment"]["id"]))
-                .ok_or("Full event comment is unavailable")?
-        } else {
-            &event["comment"]
-        };
-        let mut message = normalize(id, project, task_id, kind, task, comment)?;
+        let mut message = normalize(
+            id,
+            project,
+            task_id,
+            kind,
+            &event["comment"],
+            event["created_at"].as_i64().unwrap_or(0),
+        )?;
         if let Some(origin) = event.get("origin").filter(|value| !value.is_null()) {
             let origin: Origin =
                 serde_json::from_value(origin.clone()).map_err(|_| "Invalid event agent origin")?;
@@ -233,59 +220,27 @@ pub fn redact(value: &mut Value, key: &str) {
     }
 }
 
-/// Render assignments, attributed comments and completion notifications as bounded plain text.
+/// Keep comment attribution for routing while excluding all task and comment content from input.
 fn normalize(
     id: i64,
     project: &str,
     task_id: &str,
     kind: Kind,
-    task: &Value,
     comment: &Value,
+    created_at: i64,
 ) -> Result<Option<Message>, String> {
-    let title = task["title"].as_str().ok_or("Missing task title")?;
-    let mut text = format!("Task: {title}\n");
-    let mut author = None;
-    match kind {
-        Kind::Created => {
-            for (label, field) in [("Description", "description"), ("Specification", "details")] {
-                if let Some(value) = task[field].as_str().filter(|s| !s.is_empty()) {
-                    text.push_str(&format!("{label}:\n{value}\n"));
-                }
-            }
-        }
-        Kind::Commented => {
-            let name = comment["author"].as_str().ok_or("Missing comment author")?;
-            let role = comment["author_type"]
-                .as_str()
-                .ok_or("Missing comment author type")?;
-            let body = comment["content"]
-                .as_str()
-                .ok_or("Missing comment content")?;
-            author = Some(name.into());
-            text.push_str(&format!("Comment from {name} ({role}):\n{body}"));
-        }
-        Kind::Completed => {
-            text.push_str("Completion notification: this task is already done. This event does not assign new work.\n");
-            if let Some(body) = comment["content"].as_str() {
-                text.push_str(&format!(
-                    "Latest task comment (not a guaranteed completion summary):\n{body}"
-                ));
-            }
-        }
-    }
     let message = Message {
         event_id: id.to_string(),
         project_ident: project.into(),
         task_id: task_id.into(),
         kind,
-        text,
-        author_id: author,
+        created_at,
+        text: task_id.into(),
+        author_id: comment["author"].as_str().map(str::to_owned),
         source_instance: None,
         origin: None,
     };
-    message.validate().map_err(|_| {
-        "Task content is unsafe or exceeds 48 KiB; fetch the full task through agent-tools"
-    })?;
+    message.validate()?;
     Ok(Some(message))
 }
 
@@ -293,35 +248,60 @@ fn normalize(
 mod tests {
     use super::*;
 
-    /// Preserve all comment author roles, exact delimiters and notification semantics without control bytes.
+    /// Task notifications expose only kind and ID, regardless of author role or event body size.
     #[test]
-    fn lifecycle_content_and_redaction() {
-        let task = json!({"title":"Inspect", "description":"Context", "details":"Specification"});
+    fn compact_lifecycle_content_and_redaction() {
         for role in ["user", "agent", "system"] {
-            let comment =
-                json!({"author":"writer","author_type":role,"content":"Ordinary comment"});
-            let message = normalize(1, "project", "task", Kind::Commented, &task, &comment)
-                .unwrap()
-                .unwrap();
-            assert!(message.text.contains(role));
-            assert!(message.terminal_text().starts_with(START));
-            assert!(message.terminal_text().ends_with(STOP));
-        }
-        let done = normalize(2, "project", "task", Kind::Completed, &task, &Value::Null)
+            let comment = json!({"author":"writer","author_type":role,"content":"Private comment"});
+            let message = normalize(
+                1,
+                "project",
+                "task",
+                Kind::Commented,
+                &comment,
+                now_millis(),
+            )
             .unwrap()
             .unwrap();
-        assert!(done.text.contains("already done"));
+            assert_eq!(
+                message.terminal_text(),
+                "<Gateway message>New comment on task: task</Gateway message>"
+            );
+            assert_eq!(message.author_id.as_deref(), Some("writer"));
+            assert!(!message.text.contains("Private"));
+        }
+        for (kind, label) in [
+            (Kind::Created, "New delegated task received"),
+            (Kind::Completed, "Task completed"),
+        ] {
+            let message = normalize(2, "project", "task", kind, &Value::Null, now_millis())
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                message.terminal_text(),
+                format!("{START}{label}: task{STOP}")
+            );
+        }
         assert!(normalize(
             3,
             "project",
-            "task",
+            "task<spoof>",
             Kind::Created,
-            &json!({"title":"\u{001b}"}),
-            &Value::Null
+            &Value::Null,
+            now_millis()
         )
         .is_err());
         let mut value = json!({"content":"private-secret", "nested":["secret"]});
         redact(&mut value, "secret");
         assert!(!value.to_string().contains("secret"));
+    }
+
+    /// Five minutes is inclusive; older and legacy undated events cannot be delivered.
+    #[test]
+    fn event_age_boundary() {
+        let now = 1_800_000_000_000;
+        assert!(fresh_at(now - MAX_EVENT_AGE_MS, now));
+        assert!(!fresh_at(now - MAX_EVENT_AGE_MS - 1, now));
+        assert!(!fresh_at(0, now));
     }
 }

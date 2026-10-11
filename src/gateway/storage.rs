@@ -98,6 +98,14 @@ pub fn load(path: &Path) -> Result<Journal, String> {
             receipt.event = None;
             receipt.candidates.clear();
         }
+        if matches!(receipt.outcome.as_str(), "received" | "queued") {
+            receipt.outcome = "skipped".into();
+            receipt.reason = "Gateway connection ended before delivery; replay disabled".into();
+            receipt.confirmed = false;
+            receipt.payload = None;
+            receipt.event = None;
+            receipt.candidates.clear();
+        }
     }
     Ok(journal)
 }

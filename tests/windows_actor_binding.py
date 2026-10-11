@@ -106,6 +106,8 @@ def verify(rpc, profile, client, fixture, python, submit):
         comment = gateway.add(kind="task_commented", content="Windows peer research result")
         wait(lambda: delivered(comment), "comment delivery to native peers")
         wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 1 for record in records), "comment visible to both peers")
+        assert all(json.loads(record.read_text())["prompts"][0] ==
+                   f"<Gateway message>New comment on task: task-{comment}</Gateway message>" for record in records)
         assert rpc("surface.read_text", {"id": surfaces[0]})["input"]["draft"] == human
         assert all(human not in json.loads(record.read_text())["prompts"] for record in records)
         workspace = next(s["workspace_uuid"] for s in rpc("surface.list")["surfaces"] if s["uuid"] == surfaces[0])
@@ -115,6 +117,10 @@ def verify(rpc, profile, client, fixture, python, submit):
         completion = gateway.add(kind="task_completed", content="Windows peer completed")
         wait(lambda: delivered(completion), "completion delivery to native peers")
         wait(lambda: [len(json.loads(record.read_text())["prompts"]) for record in records] == [3, 2], "completion visible to both peers")
+        for timestamp in (int(time.time() * 1000) - 300_001, None):
+            expired = gateway.add(created_at=timestamp, content="Never replay an old Windows event")
+            wait(lambda: gateway.outcome(expired) == "skipped", "expired Windows event skipped")
+        assert [len(json.loads(record.read_text())["prompts"]) for record in records] == [3, 2]
         assert all("cmux-session-enrollment" not in prompt for record in records for prompt in json.loads(record.read_text())["prompts"])
         print("Native Windows ordinary SDK: two registrations, no enrollment input, native peer comment/completion PASS")
     finally:

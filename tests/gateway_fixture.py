@@ -203,7 +203,7 @@ class Gateway:
                            content=content, task_id=task["id"])
             event = dict(id=event_id, kind=kind, project_ident=project, canonical_remote="github.com/fixture/" + project,
                          task=task, comment=comment if kind != "task_created" else None,
-                         delegation=None, created_at=0, truncated=False, deliveries=[])
+                         delegation=None, created_at=int(time.time() * 1000), truncated=False, deliveries=[])
             event.update(changes)
             self.events.append(event)
             return event_id

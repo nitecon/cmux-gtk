@@ -4,8 +4,22 @@ use std::collections::VecDeque;
 
 pub const MAX_PENDING: usize = 64;
 pub const MAX_RECEIPTS: usize = 2048;
-pub const START: &str = "<Start Agent Gateway Message Injection>";
-pub const STOP: &str = "</Stop AgentGateway Message injection>";
+pub const START: &str = "<Gateway message>";
+pub const STOP: &str = "</Gateway message>";
+pub const MAX_EVENT_AGE_MS: i64 = 5 * 60 * 1000;
+
+/// Read Unix milliseconds, matching the gateway lifecycle event timestamp.
+pub fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Missing timestamps and events older than five minutes never authorize input.
+pub fn fresh_at(created_at: i64, now: i64) -> bool {
+    created_at > 0 && now.saturating_sub(created_at) <= MAX_EVENT_AGE_MS
+}
 
 /// Global preferences; injection approval is separate from enabling the connection.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -61,6 +75,8 @@ pub struct Message {
     pub project_ident: String,
     pub task_id: String,
     pub kind: Kind,
+    #[serde(default)]
+    pub created_at: i64,
     pub text: String,
     pub author_id: Option<String>,
     pub source_instance: Option<String>,
@@ -100,24 +116,14 @@ impl Message {
         Ok(())
     }
 
-    /// Wrap literal input with the user's visible delimiters; task state remains owned by agent-tools.
+    /// Inject only a task reference; agents fetch current authoritative context through agent-tools.
     pub fn terminal_text(&self) -> String {
         let kind = match self.kind {
-            Kind::Created => "New task",
-            Kind::Commented => "Task commented",
+            Kind::Created => "New delegated task received",
+            Kind::Commented => "New comment on task",
             Kind::Completed => "Task completed",
         };
-        let origin = self
-            .origin
-            .as_ref()
-            .map(|o| {
-                format!(
-                    "Origin: {} on {} · session {}\n",
-                    o.provider, o.os, o.session_id
-                )
-            })
-            .unwrap_or_default();
-        format!("{START}\nGateway event {} · {} · {kind}: {}\n{origin}{}\nDo not post task comments solely to acknowledge this injected message.\n{STOP}", self.event_id, self.project_ident, self.task_id, self.text)
+        format!("{START}{kind}: {}{STOP}", self.task_id)
     }
 }
 
@@ -346,6 +352,7 @@ pub fn identity(value: &str) -> Result<(), String> {
         || value.chars().any(char::is_control)
         || value.contains(START)
         || value.contains(STOP)
+        || value.contains(['<', '>'])
     {
         return Err("Invalid gateway identity".into());
     }

@@ -1,9 +1,5 @@
 //! One owned lifecycle connection and fsynced delivery queue; GTK alone owns native terminal input.
-use super::{
-    model::*,
-    pipeline::{Pending, Pipeline},
-    storage, wire,
-};
+use super::{model::*, pipeline::Pipeline, storage, wire};
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 use std::{
@@ -42,6 +38,8 @@ struct Connection {
     client: wire::Client,
     socket: wire::Socket,
     subscribed: bool,
+    /// Events already present at subscription belong to an offline backlog, never live input.
+    replay_through: i64,
     last_input: Instant,
     heartbeat: Instant,
     projects_at: Instant,
@@ -109,6 +107,21 @@ impl Worker {
         result
     }
 
+    /// End live delivery with the connection; retained receipts reconcile without replaying input.
+    async fn retire_pending(&mut self) -> Result<(), String> {
+        self.pipeline.pending.clear();
+        for receipt in &mut self.journal.receipts {
+            if matches!(receipt.outcome.as_str(), "received" | "queued") {
+                finalize(
+                    receipt,
+                    "skipped",
+                    "Gateway connection ended before delivery; replay disabled",
+                );
+            }
+        }
+        self.save().await
+    }
+
     /// Apply explicit global consent and retire pending input on disable, key or endpoint changes.
     async fn apply(&mut self, action: Action) -> Result<Value, String> {
         let (config, key) = match action {
@@ -171,7 +184,12 @@ impl Worker {
     }
 
     /// Persist a newly offered event and its arrival-time process identities before acknowledging receipt.
-    async fn receive(&mut self, mut event: Value, terminals: &[Terminal]) -> Result<(), String> {
+    async fn receive(
+        &mut self,
+        mut event: Value,
+        terminals: &[Terminal],
+        replay_through: i64,
+    ) -> Result<(), String> {
         let id = wire::event_id(&event)?;
         let event_id = id.to_string();
         if self.journal.receipts.iter().any(|r| r.event_id == event_id) {
@@ -223,6 +241,25 @@ impl Worker {
                 "uncertain",
                 "Previously acknowledged event has no retained delivery fence; replay disabled",
             );
+        } else if id <= replay_through {
+            finalize(
+                &mut receipt,
+                "skipped",
+                "Event predates the current gateway connection; replay disabled",
+            );
+        } else if !fresh_at(
+            receipt
+                .event
+                .as_ref()
+                .and_then(|e| e["created_at"].as_i64())
+                .unwrap_or(0),
+            now_millis(),
+        ) {
+            finalize(
+                &mut receipt,
+                "skipped",
+                "Gateway event is older than five minutes or has no timestamp",
+            );
         } else if !self.journal.config.injection_approved {
             finalize(
                 &mut receipt,
@@ -273,6 +310,16 @@ impl Worker {
             .event
             .as_ref()
             .ok_or("Missing persisted lifecycle event")?;
+        if !fresh_at(event["created_at"].as_i64().unwrap_or(0), now_millis()) {
+            finalize(
+                &mut self.journal.receipts[index],
+                "skipped",
+                "Gateway event is older than five minutes or has no timestamp",
+            );
+            self.save().await?;
+            self.publish();
+            return Ok(());
+        }
         let project = event["project_ident"].as_str();
         let canonical = event["canonical_remote"].as_str().and_then(repository);
         if self
@@ -371,7 +418,11 @@ impl Worker {
             finalize(
                 &mut self.journal.receipts[index],
                 "skipped",
-                "Pinned agent process, repository or terminal changed",
+                if !fresh_at(pending.message.created_at, now_millis()) {
+                    "Gateway event is older than five minutes or has no timestamp"
+                } else {
+                    "Pinned agent process, repository or terminal changed"
+                },
             );
             self.save().await?;
             self.publish();
@@ -498,6 +549,10 @@ impl Worker {
                     .as_i64()
                     .filter(|c| *c >= 0)
                     .ok_or("Invalid subscribed cursor")?;
+                let latest = value["latest_event_id"]
+                    .as_i64()
+                    .filter(|id| *id >= cursor)
+                    .ok_or("Invalid subscription tail")?;
                 if value["protocol_version"] != 1
                     || value["consumer_id"] != self.journal.instance_id
                     || self.journal.cursor.is_some_and(|c| cursor < c)
@@ -507,13 +562,15 @@ impl Worker {
                 self.journal.cursor = Some(cursor);
                 self.save().await?;
                 connection.subscribed = true;
+                connection.replay_through = latest;
                 self.connection = "Connected".into();
                 self.publish();
                 self.acknowledge(connection).await?;
             }
             Some("event") if connection.subscribed => {
                 let id = wire::event_id(&value["event"])?;
-                self.receive(value["event"].clone(), terminals).await?;
+                self.receive(value["event"].clone(), terminals, connection.replay_through)
+                    .await?;
                 connection.sent.remove(&id);
                 self.acknowledge(connection).await?;
             }
@@ -761,12 +818,7 @@ pub async fn run(
     .await;
     let result=async {
         let (journal,key)=loaded.map_err(|_| "Gateway storage worker stopped")??;
-        let mut pipeline=Pipeline::default();
-        for receipt in &journal.receipts {
-            if receipt.outcome=="queued" { pipeline.pending.push_back(Pending {
-                message:receipt.payload.clone().ok_or("Missing queued message")?,target:receipt.target.clone().ok_or("Missing queued recipient")?
-            }); }
-        }
+        let pipeline=Pipeline::default();
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
             storage_failed:false,connection:"Disabled".into(),agents:0,local_sessions:Vec::new()};
         worker.save().await?; worker.publish();
@@ -778,7 +830,7 @@ pub async fn run(
                 biased;
                 request=requests.recv()=>{
                     let Some(request)=request else { return Ok::<_,String>(()); };
-                    if matches!(&request.action, Action::Configure { .. }) { connection=None; }
+                    if matches!(&request.action, Action::Configure { .. }) { connection=None; worker.retire_pending().await?; }
                     let result=worker.apply(request.action).await; let _=request.reply.send(result);
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     retry=Instant::now();
@@ -798,7 +850,7 @@ pub async fn run(
                         Some(Ok(tokio_tungstenite::tungstenite::Message::Ping(_)|tokio_tungstenite::tungstenite::Message::Pong(_)))=>Ok(()),
                         _=>Err("Gateway disconnected; reconnecting".into()),
                     };
-                    if let Err(error)=result { worker.connection=error; connection=None; retry=Instant::now()+Duration::from_secs(5); }
+                    if let Err(error)=result { worker.connection=error; connection=None; worker.retire_pending().await?; retry=Instant::now()+Duration::from_secs(5); }
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     worker.publish();
                 }
@@ -816,7 +868,7 @@ pub async fn run(
                         }.await;
                         match attempt {
                             Ok((client,projects,socket))=>{
-                                worker.projects=projects; connection=Some(Connection {client,socket,subscribed:false,
+                                worker.projects=projects; connection=Some(Connection {client,socket,subscribed:false,replay_through:0,
                                     last_input:Instant::now(),heartbeat:Instant::now(),projects_at:Instant::now(),sent:HashMap::new()});
                             }
                             Err(error)=>{ worker.connection=error; retry=Instant::now()+Duration::from_secs(5); }
@@ -834,14 +886,14 @@ pub async fn run(
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
                             heartbeat(c).await?;
-                            // Full-task hydration may have taken time: verify foreground generations again before fencing input.
+                            // Routing may have taken time: verify foreground generations again before fencing input.
                             let terminals=snapshots.borrow().clone();
                             let current=worker.sessions(&terminals).await;
                             sessions.retain(|s| current.iter().any(|now| now.process==s.process && now.terminal.surface_id==s.terminal.surface_id));
                             worker.drain_verified(sessions).await?; worker.acknowledge(c).await?;
                             Ok::<_,String>(())
                         }.await;
-                        if let Err(error)=result { worker.connection=error; connection=None; retry=Instant::now()+Duration::from_secs(5); }
+                        if let Err(error)=result { worker.connection=error; connection=None; worker.retire_pending().await?; retry=Instant::now()+Duration::from_secs(5); }
                     }
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     worker.publish();
@@ -953,6 +1005,7 @@ mod tests {
             project_ident: "project".into(),
             task_id: "task".into(),
             kind: Kind::Created,
+            created_at: now_millis(),
             text: "Please inspect the task".into(),
             author_id: None,
             source_instance: None,
@@ -980,6 +1033,10 @@ mod tests {
                 message.clone(),
             )
             .unwrap();
+        worker.save().await.unwrap();
+        let restarted = storage::load(&path).unwrap();
+        assert_eq!(restarted.receipts[0].outcome, "skipped");
+        assert!(restarted.receipts[0].payload.is_none());
         let inspecting = path.clone();
         let gtk = tokio::spawn(async move {
             for outcome in [DeliveryOutcome::Deferred, DeliveryOutcome::Injected] {
@@ -1010,6 +1067,7 @@ mod tests {
             project_ident: "project".into(),
             task_id: "task".into(),
             kind: Kind::Created,
+            created_at: now_millis(),
             text: "Replay".into(),
             author_id: None,
             source_instance: None,
@@ -1039,6 +1097,7 @@ mod tests {
             project_ident: "project".into(),
             task_id: "task".into(),
             kind: Kind::Commented,
+            created_at: now_millis(),
             text: "Own comment".into(),
             author_id: Some("worker".into()),
             source_instance: None,
