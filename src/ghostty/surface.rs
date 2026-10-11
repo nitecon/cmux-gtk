@@ -618,11 +618,15 @@ pub fn create_surface(
                 }
             }
 
-            if let Some(area) = ctrl.widget().and_downcast::<gtk4::GLArea>() {
+            let process_shortcut = if let Some(area) = ctrl.widget().and_downcast::<gtk4::GLArea>()
+            {
                 if crate::terminal_input::redirect(&area, ctrl) {
                     return gtk4::glib::Propagation::Stop;
                 }
-            }
+                crate::terminal_input::is_forwarding_process_shortcut(&area)
+            } else {
+                false
+            };
 
             // text field: UTF-8 from the keyval (what the key produces with modifiers applied).
             // Must be a C string. Use a stack-allocated buffer to avoid heap allocation.
@@ -657,7 +661,11 @@ pub fn create_surface(
             input.consumed_mods = consumed;
 
             unsafe {
-                ffi::ghostty_surface_key(surface, input);
+                if process_shortcut {
+                    ffi::ghostty_surface_key_to_process(surface, input);
+                } else {
+                    ffi::ghostty_surface_key(surface, input);
+                }
             }
             gtk4::glib::Propagation::Stop // Inhibit: prevent GTK from handling the key
         }
@@ -685,7 +693,17 @@ pub fn create_surface(
             input.unshifted_codepoint = unshifted;
             input.consumed_mods = consumed;
             unsafe {
-                ffi::ghostty_surface_key(surface, input);
+                let process_shortcut =
+                    ctrl.widget()
+                        .and_downcast::<gtk4::GLArea>()
+                        .is_some_and(|area| {
+                            crate::terminal_input::is_forwarding_process_shortcut(&area)
+                        });
+                if process_shortcut {
+                    ffi::ghostty_surface_key_to_process(surface, input);
+                } else {
+                    ffi::ghostty_surface_key(surface, input);
+                }
             }
         }
     });

@@ -222,6 +222,11 @@ pub fn is_active(area: &gtk4::GLArea) -> bool {
     composer(area).is_some_and(|composer| composer.target.borrow().is_some())
 }
 
+/// Identify an explicitly forwarded native key so Ghostty bypasses its host bindings on GTK.
+pub fn is_forwarding_process_shortcut(area: &gtk4::GLArea) -> bool {
+    composer(area).is_some_and(|composer| composer.forwarding_control.get())
+}
+
 /// Let a focused, active composer handle process shortcuts before window actions capture them.
 /// The editor stores only a weak native-area reference; call on the GTK thread.
 pub fn owns_process_shortcut(

@@ -47,12 +47,14 @@ def main():
                 ("ctrl+space", b"32;5", b"u"),
                 ("shift+Left", b"1;2", b"D"),
                 ("shift+Right", b"1;2", b"C"),
+                ("shift+Home", b"1;2", b"H"),
                 ("shift+Tab", b"9;2", b"u"),
                 ("ctrl+shift+Tab", b"9;6", b"u"),
                 ("ctrl+shift+Left", b"1;6", b"D"),
                 ("alt+Left", b"1;3", b"D"),
                 ("ctrl+n", b"110;5", b"u"),
                 ("ctrl+d", b"100;5", b"u"),
+                ("ctrl+shift+t", b"116;6", b"u"),
             )
             for draft in ("", "LOCAL draft"):
                 if draft:

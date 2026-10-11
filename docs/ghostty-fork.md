@@ -117,6 +117,15 @@ newer font-resolution series must be re-evaluated before advancing this pointer;
 at the time of the Linux stabilization pass it did not compile the embedded
 FreeType surface path.
 
+### 9) Process shortcuts bypass terminal keybindings
+
+`ghostty_surface_key_to_process` accepts the same native event as
+`ghostty_surface_key` and uses the current terminal keyboard protocol, including
+Kitty key releases. It bypasses Ghostty bindings so a focused CMUX input composer
+can send Ctrl+Tab and Shift+Left directly to its process. Ordinary terminal
+input keeps the existing binding path. Both entry points share event handling,
+encoding and PTY delivery; callers retain surface and event-text ownership.
+
 ## Upstreamed fork changes
 
 ### cursor-click-to-move respects OSC 133 click-to-move
