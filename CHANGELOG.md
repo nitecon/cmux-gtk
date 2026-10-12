@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.13] - 2026-10-12
+
+### Fixed
+- Forward Ctrl+Tab, Ctrl+Space, Shift navigation and other process shortcuts immediately from the input composer, bypassing window, menu and terminal bindings while preserving local drafts and clipboard behavior. Paired key releases reach the process even when modifiers are released first.
+- Normalize local Git remotes and gateway repository identities to lowercase so casing differences no longer prevent delegated-task notifications from reaching matching agent sessions.
+
 ## [0.6.12] - 2026-10-11
 
 ### Added
