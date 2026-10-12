@@ -534,16 +534,24 @@ mod tests {
             .is_err());
     }
 
-    /// SSH/HTTPS normalization retains repository case and refuses unsafe terminal text.
+    /// SSH/HTTPS normalization folds repository case and refuses unsafe terminal text.
     #[test]
     fn remote_and_message_boundaries() {
         assert_eq!(
             repository("git@GitHub.com:org/Repo.git"),
             repository("https://github.com/org/Repo/")
         );
-        assert_ne!(
+        assert_eq!(
             repository("https://github.com/org/Repo"),
             repository("https://github.com/org/repo")
+        );
+        assert_eq!(
+            repository("git@GitHub.com:NiTeCoN/SRE.GIT"),
+            Some("github.com/nitecon/sre".into())
+        );
+        assert_eq!(
+            repository("https://GitHub.com/NiTeCoN/XLauncher/"),
+            Some("github.com/nitecon/xlauncher".into())
         );
         assert_ne!(
             repository("ssh://git@host:2222/org/repo"),

@@ -41,7 +41,7 @@ def submissions(path):
 
 
 def setup(root):
-    """Create isolated projects, including two same-provider agents sharing one repository."""
+    """Create mixed-case Git remotes, including two same-provider agents sharing one repository."""
     executable = root / "codex"
     subprocess.check_call(["cc", "-Wall", "-Wextra", "-O2", str(Path(__file__).parent / "fixtures/gateway_agent.c"),
                            "-o", str(executable)], timeout=20)
@@ -56,7 +56,7 @@ def setup(root):
         project.mkdir()
         subprocess.check_call(["git", "init", "-q", str(project)], timeout=5)
         subprocess.check_call(["git", "-C", str(project), "remote", "add", "origin",
-                               "git@github.com:fixture/" + ("first" if name == "peer" else name) + ".git"], timeout=5)
+                               "git@GitHub.com:FiXtUrE/" + ("first" if name == "peer" else name).upper() + ".GiT"], timeout=5)
         mode = root / (name + ".mode")
         mode.write_text("idle")
         workspaces.append(dict(uuid=str(uuid.uuid4()), name=name, working_directory=str(project),

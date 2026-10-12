@@ -377,7 +377,7 @@ pub fn endpoint(value: &str) -> Result<url::Url, String> {
     Ok(url)
 }
 
-/// Match SSH/scp and HTTPS Git remotes by host and case-sensitive repository path, preserving custom ports.
+/// Normalize SSH/scp and HTTPS Git remotes to lowercase repository identities, preserving custom ports.
 pub fn repository(value: &str) -> Option<String> {
     if value.len() > 4096 || value.chars().any(char::is_control) {
         return None;
@@ -405,7 +405,8 @@ pub fn repository(value: &str) -> Option<String> {
         return None;
     }
     let host = url.host_str()?.to_ascii_lowercase();
-    let path = url.path().trim_matches('/');
+    let path = url.path().trim_matches('/').to_ascii_lowercase();
+    let path = path.as_str();
     let path = path.strip_suffix(".git").unwrap_or(path);
     if path.is_empty() {
         return None;
