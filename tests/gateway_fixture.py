@@ -54,6 +54,9 @@ class Gateway:
         """Allocate shared journal-like server state before launching its owned HTTP listener."""
         self.key = key
         self.events = []
+        self.projects = {name: "github.com/fixture/" + name for name in ("first", "second", "absent")}
+        self.registrations = []
+        self.registration_status = 200
         self.details = {}
         self.consumers = {}
         self.receipts = {}
@@ -85,8 +88,10 @@ class Gateway:
                     self.send_error(401)
                     return
                 if self.path == "/v1/projects":
-                    self.respond([{"ident": name, "canonical_remote": "github.com/fixture/" + name}
-                                  for name in ("first", "second", "absent")])
+                    with fixture.lock:
+                        projects = [{"ident": name, "canonical_remote": remote}
+                                    for name, remote in fixture.projects.items()]
+                    self.respond(projects)
                 elif self.path.startswith("/v1/projects/"):
                     with fixture.lock:
                         fixture.full_fetches += 1
@@ -112,6 +117,31 @@ class Gateway:
                             fixture.errors.append(repr(error))
                 else:
                     self.send_error(404)
+
+            def do_POST(self):
+                """Register verified remotes idempotently, with controlled temporary metadata failures."""
+                if self.headers.get("Authorization") != "Bearer " + fixture.key:
+                    self.send_error(401)
+                    return
+                if self.path != "/v1/projects":
+                    self.send_error(404)
+                    return
+                length = int(self.headers.get("Content-Length", 0))
+                assert 0 < length < 16384
+                body = json.loads(self.rfile.read(length))
+                remote = body["repo_url"].removeprefix("https://")
+                assert body["ident"] == remote
+                ident = remote.rsplit("/", 1)[-1]
+                with fixture.lock:
+                    fixture.registrations.append((time.monotonic(), remote))
+                    status = fixture.registration_status
+                    if status == 200:
+                        if not fixture.projects.get(ident):
+                            fixture.projects[ident] = remote
+                if status != 200:
+                    self.send_error(status)
+                    return
+                self.respond(dict(ident=ident, kind="repo", repo_full_name="fixture/" + ident))
 
             def respond(self, value):
                 """Return a known-length REST JSON body without redirect behavior."""

@@ -43,6 +43,8 @@ struct Connection {
     last_input: Instant,
     heartbeat: Instant,
     projects_at: Instant,
+    registration_attempts: HashMap<String, Instant>,
+    metadata_error: Option<String>,
     sent: HashMap<i64, String>,
 }
 
@@ -291,59 +293,126 @@ impl Worker {
         Ok(())
     }
 
-    /// Route one durable received event without delaying receipt of events for other projects.
+    /// Refresh and heal metadata from verified local remotes, with one registration per tick and
+    /// a thirty-second retry per repository. Metadata failures retain live input and socket ownership.
+    async fn refresh_projects(
+        &mut self,
+        connection: &mut Connection,
+        sessions: &[Session],
+    ) -> Result<(), String> {
+        if connection.projects_at.elapsed() >= Duration::from_secs(30) {
+            connection.projects_at = Instant::now();
+            match connection.client.projects().await {
+                Ok(projects) => {
+                    self.projects = projects;
+                    connection.metadata_error = None;
+                }
+                Err(error) => connection.metadata_error = Some(error),
+            }
+            heartbeat(connection).await?;
+        }
+        connection
+            .registration_attempts
+            .retain(|remote, _| sessions.iter().any(|s| &s.repository == remote));
+        if !self.journal.config.injection_approved {
+            return Ok(());
+        }
+        let remote = sessions.iter().map(|s| &s.repository).find(|remote| {
+            !self
+                .projects
+                .iter()
+                .any(|p| p.upstream_urls.contains(remote))
+                && connection
+                    .registration_attempts
+                    .get(*remote)
+                    .is_none_or(|last| last.elapsed() >= Duration::from_secs(30))
+        });
+        if let Some(remote) = remote {
+            connection
+                .registration_attempts
+                .insert(remote.clone(), Instant::now());
+            heartbeat(connection).await?;
+            match connection.client.register_repository(remote).await {
+                Ok(()) => {
+                    heartbeat(connection).await?;
+                    match connection.client.projects().await {
+                        Ok(projects) => {
+                            self.projects = projects;
+                            connection.metadata_error = None;
+                        }
+                        Err(error) => connection.metadata_error = Some(error),
+                    }
+                }
+                Err(error) => connection.metadata_error = Some(error),
+            }
+        }
+        Ok(())
+    }
+
+    /// Retry all fresh received events in arrival order; unresolved metadata never blocks peers.
     async fn route(
         &mut self,
         connection: &mut Connection,
         sessions: &[Session],
     ) -> Result<(), String> {
-        let Some(index) = self
+        let events: Vec<String> = self
             .journal
             .receipts
             .iter()
-            .position(|r| r.outcome == "received")
-        else {
-            return Ok(());
-        };
+            .filter(|r| r.outcome == "received")
+            .map(|r| r.event_id.clone())
+            .collect();
+        let mut changed = false;
+        for event_id in events {
+            let index = self
+                .journal
+                .receipts
+                .iter()
+                .position(|r| r.event_id == event_id && r.outcome == "received")
+                .ok_or("Received gateway event changed during routing")?;
+            let event = self.journal.receipts[index]
+                .event
+                .as_ref()
+                .ok_or("Missing persisted lifecycle event")?;
+            let result = connection.client.message(event).await;
+            changed |= self.route_received(
+                index,
+                result,
+                sessions,
+                connection.metadata_error.as_deref(),
+            );
+        }
+        if changed {
+            self.save().await?;
+            self.publish();
+        }
+        Ok(())
+    }
+
+    /// Preserve arrival-time attachments while metadata is unresolved; return whether persistence changed.
+    fn route_received(
+        &mut self,
+        index: usize,
+        result: Result<Option<Message>, String>,
+        sessions: &[Session],
+        metadata_error: Option<&str>,
+    ) -> bool {
         let received = self.journal.receipts[index].clone();
-        let event = received
-            .event
-            .as_ref()
-            .ok_or("Missing persisted lifecycle event")?;
-        if !fresh_at(event["created_at"].as_i64().unwrap_or(0), now_millis()) {
+        if !fresh_at(
+            received
+                .event
+                .as_ref()
+                .and_then(|e| e["created_at"].as_i64())
+                .unwrap_or(0),
+            now_millis(),
+        ) {
             finalize(
                 &mut self.journal.receipts[index],
                 "skipped",
                 "Gateway event is older than five minutes or has no timestamp",
             );
-            self.save().await?;
-            self.publish();
-            return Ok(());
+            return true;
         }
-        let project = event["project_ident"].as_str();
-        let canonical = event["canonical_remote"].as_str().and_then(repository);
-        if self
-            .projects
-            .iter()
-            .find(|p| Some(p.ident.as_str()) == project)
-            .is_none_or(|p| {
-                canonical
-                    .as_ref()
-                    .is_some_and(|remote| !p.upstream_urls.contains(remote))
-            })
-        {
-            self.projects = connection.client.projects().await?;
-        }
-        heartbeat(connection).await?;
-        let result = connection
-            .client
-            .message(
-                received
-                    .event
-                    .as_ref()
-                    .ok_or("Missing persisted lifecycle event")?,
-            )
-            .await;
         match result {
             Ok(Some(message)) => {
                 let eligible: Vec<Session> = sessions
@@ -351,6 +420,7 @@ impl Worker {
                     .filter(|s| {
                         received.candidates.iter().any(|c| {
                             c.same_attachment(s)
+                                && (c.repository.is_empty() || c.repository == s.repository)
                                 && c.actor_origin
                                     .as_ref()
                                     .is_none_or(|origin| s.actor_origin.as_ref() == Some(origin))
@@ -358,6 +428,35 @@ impl Worker {
                     })
                     .cloned()
                     .collect();
+                let event_remote = received
+                    .event
+                    .as_ref()
+                    .and_then(|e| e["canonical_remote"].as_str())
+                    .and_then(repository);
+                if !eligible.is_empty()
+                    && self
+                        .projects
+                        .iter()
+                        .find(|p| p.ident == message.project_ident)
+                        .is_none_or(|p| {
+                            p.upstream_urls.is_empty()
+                                || event_remote
+                                    .as_ref()
+                                    .is_some_and(|remote| !p.upstream_urls.contains(remote))
+                        })
+                {
+                    let reason = match metadata_error {
+                        Some(error) => format!("Waiting for gateway repository metadata; retrying automatically: {error}"),
+                        None => "Waiting for gateway repository metadata; retrying automatically".into(),
+                    };
+                    if self.journal.receipts[index].reason == reason {
+                        return false;
+                    }
+                    self.journal.receipts[index].reason = reason;
+                    self.journal.receipts[index].candidates = eligible;
+                    self.journal.receipts[index].confirmed = false;
+                    return true;
+                }
                 self.journal.receipts.remove(index);
                 if let Err(error) =
                     self.pipeline
@@ -375,9 +474,7 @@ impl Worker {
             ),
             Err(error) => finalize(&mut self.journal.receipts[index], "failed", &error),
         }
-        self.save().await?;
-        self.publish();
-        Ok(())
+        true
     }
 
     /// Pending events wait only for CMUX's local executor attachment, never a provider's prompt.
@@ -869,7 +966,8 @@ pub async fn run(
                         match attempt {
                             Ok((client,projects,socket))=>{
                                 worker.projects=projects; connection=Some(Connection {client,socket,subscribed:false,replay_through:0,
-                                    last_input:Instant::now(),heartbeat:Instant::now(),projects_at:Instant::now(),sent:HashMap::new()});
+                                    last_input:Instant::now(),heartbeat:Instant::now(),projects_at:Instant::now(),
+                                    registration_attempts:HashMap::new(),metadata_error:None,sent:HashMap::new()});
                             }
                             Err(error)=>{ worker.connection=error; retry=Instant::now()+Duration::from_secs(5); }
                         }
@@ -879,10 +977,9 @@ pub async fn run(
                             if c.last_input.elapsed()>Duration::from_secs(if c.subscribed {60} else {10}) { return Err("Gateway stream timed out; reconnecting".into()); }
                             if !c.subscribed { return Ok(()); }
                             heartbeat(c).await?;
-                            if c.projects_at.elapsed()>=Duration::from_secs(30) { worker.projects=c.client.projects().await?; c.projects_at=Instant::now(); }
-                            heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
                             let candidates=worker.sessions(&terminals).await; let mut sessions=discover(candidates).await; worker.observe(&mut sessions).await?;
+                            worker.refresh_projects(c,&sessions).await?;
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
                             heartbeat(c).await?;
@@ -1024,6 +1121,86 @@ mod tests {
             agents: 1,
             local_sessions: Vec::new(),
         };
+        // Metadata retries preserve the original process set and never adopt a later peer.
+        let received = Receipt {
+            event_id: "metadata".into(),
+            outcome: "received".into(),
+            event: Some(json!({"created_at":now_millis(), "canonical_remote":null})),
+            candidates: vec![session.clone()],
+            ..Default::default()
+        };
+        let metadata_message = Message {
+            event_id: "metadata".into(),
+            ..message.clone()
+        };
+        let mapped = worker.projects.clone();
+        worker.projects[0].upstream_urls.clear();
+        worker.journal.receipts.push_back(received.clone());
+        assert!(worker.route_received(
+            0,
+            Ok(Some(metadata_message.clone())),
+            std::slice::from_ref(&session),
+            Some("Gateway metadata returned HTTP 503")
+        ));
+        assert_eq!(worker.journal.receipts[0].outcome, "received");
+        assert!(worker.pipeline.pending.is_empty());
+        assert!(worker.journal.receipts[0].reason.contains("503"));
+        assert!(!worker.route_received(
+            0,
+            Ok(Some(metadata_message.clone())),
+            std::slice::from_ref(&session),
+            Some("Gateway metadata returned HTTP 503")
+        ));
+        worker.projects = mapped;
+        let mut later = session.clone();
+        later.terminal.surface_id = uuid::Uuid::new_v4().to_string();
+        later.session_id = uuid::Uuid::new_v4().to_string();
+        worker.route_received(
+            0,
+            Ok(Some(metadata_message.clone())),
+            &[session.clone(), later],
+            None,
+        );
+        assert_eq!(worker.pipeline.pending.len(), 1);
+        assert_eq!(
+            worker.pipeline.pending[0].target.session_id,
+            session.session_id
+        );
+        worker.pipeline.pending.clear();
+        worker.journal.receipts.clear();
+        // A process replacement ends the wait, even if metadata resolves at the same time.
+        worker.journal.receipts.push_back(received.clone());
+        let mut replaced = session.clone();
+        replaced.process.start_ticks += 1;
+        worker.route_received(0, Ok(Some(metadata_message.clone())), &[replaced], None);
+        assert_eq!(worker.journal.receipts[0].outcome, "skipped");
+        assert!(worker.pipeline.pending.is_empty());
+        worker.journal.receipts.clear();
+        worker.journal.receipts.push_back(received.clone());
+        let mut changed_remote = session.clone();
+        changed_remote.repository = "github.com/other/repo".into();
+        worker.route_received(
+            0,
+            Ok(Some(metadata_message.clone())),
+            &[changed_remote],
+            None,
+        );
+        assert_eq!(worker.journal.receipts[0].outcome, "skipped");
+        assert!(worker.pipeline.pending.is_empty());
+        worker.journal.receipts.clear();
+        // A repaired mapping cannot resurrect expired input.
+        let mut expired = received;
+        expired.event = Some(json!({"created_at":now_millis() - MAX_EVENT_AGE_MS - 1}));
+        worker.journal.receipts.push_back(expired);
+        worker.route_received(
+            0,
+            Ok(Some(metadata_message)),
+            std::slice::from_ref(&session),
+            None,
+        );
+        assert_eq!(worker.journal.receipts[0].outcome, "skipped");
+        assert!(worker.pipeline.pending.is_empty());
+        worker.journal.receipts.clear();
         worker
             .pipeline
             .admit(

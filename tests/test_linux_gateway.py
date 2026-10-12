@@ -69,11 +69,11 @@ def setup(root):
     return workspaces
 
 
-def wait_outcome(app, gateway, event_id, expected):
+def wait_outcome(app, gateway, event_id, expected, timeout=20):
     """Wait for actual gateway-recorded delivery and show credential-free client evidence on failure."""
     try:
         app.wait_for(lambda: gateway.outcome(event_id) == expected,
-                     f"event {event_id} delivery {expected}", timeout=20)
+                     f"event {event_id} delivery {expected}", timeout=timeout)
     except BaseException:
         print(json.dumps(status(app), indent=2))
         raise
@@ -86,6 +86,8 @@ def main():
         workspaces = setup(root)
         key = "isolated-gateway-secret"
         gateway = Gateway(key)
+        gateway.projects["first"] = None
+        gateway.registration_status = 503
         try:
             gateway.add(content="Historical task must not replay on first enable")
             config = root / "config/cmux"
@@ -144,8 +146,26 @@ def main():
                     print(json.dumps(status(app), indent=2))
                     raise
                 selected = next(row["uuid"] for row in app.surfaces() if row["active"])
-                created = gateway.add(content="Incoming delegated target assignment")
-                wait_outcome(app, gateway, created, "injected")
+                # Legacy project metadata heals without agent-tools, a config edit or a new task.
+                created = gateway.add(content="Incoming delegated target assignment", canonical_remote=None)
+                wait_outcome(app, gateway, created, "received")
+                assert not submissions(root / "first.input") and not submissions(root / "peer.input")
+                app.wait_for(lambda: any("retrying automatically" in row["reason"]
+                    for row in status(app)["receipts"] if row["event_id"] == str(created)), "visible metadata retry")
+                independent = gateway.add(project="second", content="Metadata retries must not block another project")
+                wait_outcome(app, gateway, independent, "injected")
+                app.wait_for(lambda: f"task-{independent}" in submissions(root / "second.input")[-1], "other project actual input")
+                expires = gateway.add(canonical_remote=None, created_at=int(time.time() * 1000) - 298_000)
+                wait_outcome(app, gateway, expires, "skipped")
+                assert not submissions(root / "first.input")
+                with gateway.lock:
+                    assert gateway.registrations and gateway.registrations[0][1] == "github.com/fixture/first"
+                    gateway.registration_status = 200
+                wait_outcome(app, gateway, created, "injected", timeout=45)
+                assert gateway.projects["first"] == "github.com/fixture/first"
+                assert gateway.events[created - 1]["canonical_remote"] is None
+                attempts = [timestamp for timestamp, remote in gateway.registrations if remote == "github.com/fixture/first"]
+                assert len(attempts) == 2 and attempts[1] - attempts[0] >= 29
                 received = submissions(root / "first.input")
                 assert len(received) == 1 and received[0].startswith(START) and received[0].endswith(STOP)
                 assert received[0] == f"{START}New delegated task received: task-{created}{STOP}"

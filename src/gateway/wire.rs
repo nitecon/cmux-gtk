@@ -40,17 +40,25 @@ impl Client {
         })
     }
 
-    /// Read bounded JSON without retaining raw network errors or API-key text.
-    async fn get(&self, segments: &[&str]) -> Result<Value, String> {
+    /// Exchange bounded JSON without redirects, raw network errors or API-key text.
+    async fn request(
+        &self,
+        method: reqwest::Method,
+        segments: &[&str],
+        body: Option<Value>,
+    ) -> Result<Value, String> {
         let mut url = self.base.clone();
         url.path_segments_mut()
             .map_err(|_| "Invalid gateway address")?
             .clear()
             .extend(segments);
-        let mut response = self
-            .http
-            .get(url)
-            .bearer_auth(&self.key)
+        let mut request = self.http.request(method, url).bearer_auth(&self.key);
+        if let Some(body) = body {
+            request = request
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(body.to_string());
+        }
+        let mut response = request
             .send()
             .await
             .map_err(|_| "Gateway metadata request failed")?;
@@ -79,7 +87,9 @@ impl Client {
 
     /// Discover canonical repository identities; projects without repository metadata cannot match.
     pub async fn projects(&self) -> Result<Vec<Project>, String> {
-        let value = self.get(&["v1", "projects"]).await?;
+        let value = self
+            .request(reqwest::Method::GET, &["v1", "projects"], None)
+            .await?;
         let entries = value
             .as_array()
             .filter(|p| p.len() <= 4096)
@@ -103,6 +113,27 @@ impl Client {
             });
         }
         Ok(result)
+    }
+
+    /// Let the gateway derive project identity from a verified Git remote and heal empty mappings.
+    /// Existing mappings are preserved by the registration API; callers must reread and match them.
+    pub async fn register_repository(&self, remote: &str) -> Result<(), String> {
+        let remote_url = format!("https://{remote}");
+        if repository(&remote_url).as_deref() != Some(remote) {
+            return Err("Invalid local repository identity".into());
+        }
+        let value = self
+            .request(
+                reqwest::Method::POST,
+                &["v1", "projects"],
+                Some(json!({"ident":remote, "repo_url":remote_url})),
+            )
+            .await?;
+        identity(
+            value["ident"]
+                .as_str()
+                .ok_or("Missing registered project identity")?,
+        )
     }
 
     /// Own one authenticated upgrade with the protocol's frame/message bounds and handshake deadline.
