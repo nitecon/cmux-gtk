@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.14] - 2026-10-13
+
+### Fixed
+- Automatically register verified active Git repositories with the gateway and validate the resulting mappings, including projects with missing legacy repository metadata.
+- Retain fresh task notifications while repository metadata is unavailable and retry registration every 30 seconds without blocking other projects. Original process and repository fences, the five-minute expiry and offline replay protection remain enforced.
+
 ## [0.6.13] - 2026-10-12
 
 ### Fixed
