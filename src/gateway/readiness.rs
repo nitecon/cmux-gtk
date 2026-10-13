@@ -61,6 +61,59 @@ fn horizontal_rule(line: &str) -> bool {
 /// Classify supported editable provider layouts with a visible caret and recognized footer.
 /// Unknown layouts, dialogs, multiline drafts and dim disabled prompts remain blocked.
 pub fn classify(frame: &Value) -> InputState {
+    let result = classify_grid(frame);
+    diagnose(frame, result);
+    result
+}
+
+/// Capture four opt-in structural observations for CI without retaining terminal text or links.
+fn diagnose(frame: &Value, result: InputState) {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        LazyLock,
+    };
+    static ENABLED: LazyLock<bool> =
+        LazyLock::new(|| std::env::var_os("CMUX_GATEWAY_READINESS_DIAGNOSTICS").is_some());
+    static COUNT: AtomicUsize = AtomicUsize::new(0);
+    if !*ENABLED
+        || result == InputState::EmptyReady
+        || !frame["row_spans"].as_array().is_some_and(|spans| {
+            spans.iter().any(|span| {
+                span["text"]
+                    .as_str()
+                    .is_some_and(|text| text.contains("for shortcuts"))
+            })
+        })
+    {
+        return;
+    }
+    if COUNT.fetch_add(1, Ordering::Relaxed) >= 4 {
+        return;
+    }
+    let spans: Vec<_> = frame["row_spans"].as_array().into_iter().flatten().map(|span|
+        serde_json::json!({"row":span["row"], "column":span["column"], "style_id":span["style_id"],
+            "cell_width":span["cell_width"], "nonblank_chars":span["text"].as_str().unwrap_or("").trim().chars().count()})).collect();
+    let styles: Vec<_> = frame["styles"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|style| {
+            serde_json::json!({"id":style["id"], "faint":style["faint"], "bold":style["bold"],
+            "foreground":style["foreground"], "foreground_source":style["foreground_source"],
+            "background":style["background"], "background_source":style["background_source"]})
+        })
+        .collect();
+    eprintln!(
+        "cmux: native readiness {result:?} {}",
+        serde_json::json!({
+        "anchor":frame["anchor"], "rows":frame["rows"], "columns":frame["columns"],
+        "cursor":{"row":frame["cursor"]["row"], "column":frame["cursor"]["column"], "visible":frame["cursor"]["visible"]},
+        "styles":styles, "row_spans":spans})
+    );
+}
+
+/// Keep classification independent of diagnostic state and native surface ownership.
+fn classify_grid(frame: &Value) -> InputState {
     let Some(row) = frame["cursor"]["row"].as_u64() else {
         return InputState::Unknown;
     };

@@ -145,9 +145,19 @@ def verify(rpc, root, codex, model, native_key):
             rpc("surface.send_text", {"id": surface, "text": command})
             native_key("Return")
             wait(lambda: any(marker in screen(surface) for marker in ("OpenAI Codex", "Trust this folder?")), "ordinary native Codex")
-            if "Trust this folder?" in screen(surface):
-                native_key("Return")
-            wait(lambda: "? for shortcuts" in screen(surface), "ordinary editable prompt")
+            stable_prompt = 0
+            def prompt_ready():
+                """Accept the fixture-owned folder dialog even when it arrives after the startup title."""
+                nonlocal stable_prompt
+                text = screen(surface)
+                if "Trust this folder?" in text:
+                    stable_prompt = 0
+                    rpc("surface.focus", {"id": surface})
+                    native_key("Return")
+                    return False
+                stable_prompt = stable_prompt + 1 if "? for shortcuts" in text else 0
+                return stable_prompt >= 3
+            wait(prompt_ready, "ordinary editable prompt")
             assert rpc("surface.read_text", {"id": surface})["input"] is None
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
         assert all(not session["composer_active"] for session in sessions)
