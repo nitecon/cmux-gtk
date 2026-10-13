@@ -61,59 +61,6 @@ fn horizontal_rule(line: &str) -> bool {
 /// Classify supported editable provider layouts with a visible caret and recognized footer.
 /// Unknown layouts, dialogs, multiline drafts and dim disabled prompts remain blocked.
 pub fn classify(frame: &Value) -> InputState {
-    let result = classify_grid(frame);
-    diagnose(frame, result);
-    result
-}
-
-/// Capture four opt-in structural observations for CI without retaining terminal text or links.
-fn diagnose(frame: &Value, result: InputState) {
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        LazyLock,
-    };
-    static ENABLED: LazyLock<bool> =
-        LazyLock::new(|| std::env::var_os("CMUX_GATEWAY_READINESS_DIAGNOSTICS").is_some());
-    static COUNT: AtomicUsize = AtomicUsize::new(0);
-    if !*ENABLED
-        || result == InputState::EmptyReady
-        || !frame["row_spans"].as_array().is_some_and(|spans| {
-            spans.iter().any(|span| {
-                span["text"]
-                    .as_str()
-                    .is_some_and(|text| text.contains("for shortcuts"))
-            })
-        })
-    {
-        return;
-    }
-    if COUNT.fetch_add(1, Ordering::Relaxed) >= 4 {
-        return;
-    }
-    let spans: Vec<_> = frame["row_spans"].as_array().into_iter().flatten().map(|span|
-        serde_json::json!({"row":span["row"], "column":span["column"], "style_id":span["style_id"],
-            "cell_width":span["cell_width"], "nonblank_chars":span["text"].as_str().unwrap_or("").trim().chars().count()})).collect();
-    let styles: Vec<_> = frame["styles"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|style| {
-            serde_json::json!({"id":style["id"], "faint":style["faint"], "bold":style["bold"],
-            "foreground":style["foreground"], "foreground_source":style["foreground_source"],
-            "background":style["background"], "background_source":style["background_source"]})
-        })
-        .collect();
-    eprintln!(
-        "cmux: native readiness {result:?} {}",
-        serde_json::json!({
-        "anchor":frame["anchor"], "rows":frame["rows"], "columns":frame["columns"],
-        "cursor":{"row":frame["cursor"]["row"], "column":frame["cursor"]["column"], "visible":frame["cursor"]["visible"]},
-        "styles":styles, "row_spans":spans})
-    );
-}
-
-/// Keep classification independent of diagnostic state and native surface ownership.
-fn classify_grid(frame: &Value) -> InputState {
     let Some(row) = frame["cursor"]["row"].as_u64() else {
         return InputState::Unknown;
     };
@@ -223,7 +170,17 @@ fn classify_grid(frame: &Value) -> InputState {
     if !footer_text.to_lowercase().contains("for shortcuts") && closing_rule.is_none() {
         return InputState::Unknown;
     }
-    let input = composer.unwrap_or(row as usize..closing_rule.map_or(footer_row, |y| y + 1));
+    // ConPTY's unshaded Codex layout still separates input from its model/path status
+    // with blank padding. Exclude only the status row immediately above the live footer;
+    // every preceding input row, including padding above the caret, must remain empty.
+    let plain_codex = (client == "codex"
+        && footer_row >= row as usize + 3
+        && lines[footer_row - 2].trim().is_empty()
+        && lines[footer_row - 1].contains(" · "))
+    .then_some((row as usize).saturating_sub(1)..footer_row.saturating_sub(1));
+    let input = composer
+        .or(plain_codex)
+        .unwrap_or(row as usize..closing_rule.map_or(footer_row, |y| y + 1));
     if input.end > footer_row {
         return InputState::Unknown;
     }
@@ -361,6 +318,48 @@ mod tests {
         changed["styles"][1]["background"] = "#EEEEEE".into();
         changed["styles"][2]["background"] = "#EEEEEE".into();
         assert_eq!(classify(&changed), InputState::EmptyReady);
+    }
+
+    /// ConPTY exposes Codex 0.161.0 without shading, with blank padding and a model/path status row.
+    #[test]
+    fn unshaded_codex_separates_input_from_status() {
+        let frame = json!({"anchor":"screen","rows":24,"columns":63,
+            "cursor":{"row":20,"column":2,"visible":true},
+            "styles":[
+                {"id":0,"background_source":"default","background":"#282C34","faint":false},
+                {"id":1,"background_source":"default","background":"#282C34","faint":true}],
+            "row_spans":[
+                {"row":19,"column":0,"style_id":0,"text":" "},
+                {"row":20,"column":0,"style_id":0,"text":"› "},
+                {"row":20,"column":2,"style_id":1,"text":"Ask Codex to do anything"},
+                {"row":21,"column":0,"style_id":0,"text":" "},
+                {"row":22,"column":2,"style_id":0,"text":"GPT-6.1-Sol default · D:\\project"},
+                {"row":23,"column":0,"style_id":0,"text":"  ? for shortcuts"}]});
+        assert_eq!(classify(&frame), InputState::EmptyReady);
+        let mut changed = frame.clone();
+        changed["row_spans"][2]["style_id"] = 0.into();
+        assert_eq!(classify(&changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["row_spans"][0]["text"] = "[Image #1]".into();
+        assert_eq!(classify(&changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["row_spans"][3]["text"] = "a second draft line · keep it".into();
+        assert_eq!(classify(&changed), InputState::Unfinished);
+        let mut changed = frame.clone();
+        changed["row_spans"][0]["text"] = "Working · esc to interrupt".into();
+        assert_eq!(classify(&changed), InputState::Busy);
+        let mut changed = frame.clone();
+        changed["row_spans"][4]["text"] = "Allow once · ? for shortcuts".into();
+        assert_eq!(classify(&changed), InputState::Busy);
+        let mut changed = frame.clone();
+        changed["cursor"]["visible"] = false.into();
+        assert_eq!(classify(&changed), InputState::Unknown);
+        let mut changed = frame.clone();
+        changed["row_spans"][4]["text"] = "unknown status".into();
+        assert_ne!(classify(&changed), InputState::EmptyReady);
+        let mut changed = frame;
+        changed["row_spans"][5]["text"] = "enter select · esc back".into();
+        assert_eq!(classify(&changed), InputState::Unknown);
     }
 
     /// Match the reported Claude 2.1.294 custom status line and auto-mode footer;

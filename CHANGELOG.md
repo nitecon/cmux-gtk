@@ -11,6 +11,7 @@ All notable changes to cmux GTK are documented here.
 - Retain gateway notifications in the existing queue until the native prompt is empty and editable. Drafts, menus, dialogs and busy work defer delivery; input generations and prompt state are rechecked before paste and native Enter. Repository recovery, freshness and recipient fences remain enforced.
 
 ### Fixed
+- Recognize Codex's unshaded Windows prompt without treating its model/path status line as a user draft; native drafts, menus and busy work still defer gateway delivery.
 - Accept current SDK actor snapshots without obsolete optional membership metadata in the native Windows acceptance fixture, while still checking native unbound context and absence of enrollment prompts.
 
 ## [0.6.14] - 2026-10-13

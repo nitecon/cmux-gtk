@@ -189,7 +189,6 @@ def main():
             model = Model()
             model.configure(Path(profile) / "codex-home")
             env["CODEX_HOME"] = str(Path(profile) / "codex-home")
-            env["CMUX_GATEWAY_READINESS_DIAGNOSTICS"] = "1"
         subprocess.run([str(runtime_bundle / "cmux.exe"), "--version"], env=env, check=True, timeout=20)
         with (bundle / "smoke.log").open("w", encoding="utf-8") as log:
             app = subprocess.Popen([str(runtime_bundle / "cmux-app.exe")], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -316,12 +315,6 @@ def main():
                                 raise ctypes.WinError(ctypes.get_last_error())
                     verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable), submit_native)
                 (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "native_keyboard_text": True, "visible_terminal_pixels": True, "workspace_working_directory": True, "native_up_arrow_history": True, "actor_peers": bool(args.actor_client), "frame": frame, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
-            except Exception:
-                log.flush()
-                for line in (bundle / "smoke.log").read_text(encoding="utf-8", errors="replace").splitlines():
-                    if line.startswith("cmux: native readiness "):
-                        print(line)
-                raise
             finally:
                 if app.poll() is None:
                     subprocess.run(["taskkill", "/PID", str(app.pid), "/T", "/F"], env=env, capture_output=True, timeout=15)
