@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 from linux_app import running_app
 from process_input import Model, verify
 
@@ -17,7 +18,11 @@ def main():
             with running_app(root, {"CODEX_HOME": str(root / "codex-home"), "SHELL": "/bin/bash"}) as app:
                 def rpc(method, params=None):
                     return json.loads(app.cli("raw", method, "--params", json.dumps(params or {}), "--json", timeout=45))
-                verify(rpc, root, Path(codex), model)
+                def native_key(key):
+                    """Deliver physical unmodified keys through the real GTK window."""
+                    windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid)], text=True).split()
+                    subprocess.run(["xdotool", "windowfocus", "--sync", windows[-1], "key", "--clearmodifiers", key], check=True, timeout=10)
+                verify(rpc, root, Path(codex), model, native_key)
         finally:
             model.close()
 

@@ -99,7 +99,7 @@ impl Pipeline {
                 reason: if own {
                     "Event originated in this exact agent session"
                 } else {
-                    "Waiting for CMUX input queue submission"
+                    "Waiting for an empty native prompt"
                 }
                 .into(),
                 payload: (!own).then(|| message.clone()),
@@ -182,7 +182,9 @@ mod tests {
                 surface_id: surface.into(),
                 directory: "/repo".into(),
                 foreground_pid: 42,
-                composer_active,
+                composer_active: false,
+                input_revision: 0,
+                screen: composer_active.then(ready_screen),
             },
             process: cmux_platform::process::Identity {
                 pid: 42,
@@ -281,9 +283,9 @@ mod tests {
             );
         }
         assert!(pipeline.next(&projects, &sessions).is_none());
-        sessions[0].terminal.composer_active = false;
+        sessions[0].terminal.screen = None;
         assert!(pipeline.next(&projects, &sessions).is_none());
-        sessions[0].terminal.composer_active = true;
+        sessions[0].terminal.screen = Some(ready_screen());
         let (pending, ready) = pipeline.next(&projects, &sessions).unwrap();
         assert!(ready);
         assert_eq!(pending.message.event_id, "new");
@@ -306,7 +308,7 @@ mod tests {
             Admission::Duplicate
         );
         // Detaching the local executor delays input; losing the target retires it.
-        sessions[0].terminal.composer_active = false;
+        sessions[0].terminal.screen = None;
         assert!(pipeline.next(&projects, &sessions).is_none());
         assert!(!pipeline.next(&projects, &[]).unwrap().1);
     }
@@ -426,7 +428,7 @@ mod tests {
         }
         assert!(pipeline.next(&projects, &sessions).is_none());
         let mut idle = sessions;
-        idle[2].terminal.composer_active = true;
+        idle[2].terminal.screen = Some(ready_screen());
         for event in ["comment", "completed"] {
             let (pending, valid) = pipeline.next(&projects, &idle).unwrap();
             assert!(valid);
@@ -488,7 +490,7 @@ mod tests {
             .unwrap();
         assert!(!pipeline.next(&[], &sessions).unwrap().1);
         let mut ready = session("one", true);
-        ready.terminal.composer_active = false;
+        ready.terminal.screen = None;
         assert!(!ready.ready());
     }
 

@@ -294,18 +294,26 @@ def main():
                 verify_workspace_shell(rpc, user32, windows[0], profile)
                 if args.codex_fixture:
                     from process_input import verify as verify_process_input
-                    verify_process_input(rpc, profile, args.codex_fixture.resolve(), model)
+                    def native_key(name):
+                        """Deliver real unmodified menu keys with Win32 extended scan codes."""
+                        key = {"Return":0x0D, "Escape":0x1B, "Up":0x26, "Down":0x28}[name]
+                        scan = user32.MapVirtualKeyW(key, 4)
+                        flags = 1 | ((scan & 0xff) << 16) | (0x01000000 if key in (0x26,0x28) else 0)
+                        for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
+                            if not user32.PostMessageW(windows[0], message, key, detail):
+                                raise ctypes.WinError(ctypes.get_last_error())
+                    verify_process_input(rpc, profile, args.codex_fixture.resolve(), model, native_key)
                 if args.actor_client:
                     import sys
                     from windows_actor_binding import verify
-                    def submit_composer():
-                        """Submit the CMUX editor through a real Windows key event, not its RPC."""
+                    def submit_native():
+                        """Submit the native provider prompt through a real Windows key event."""
                         scan = user32.MapVirtualKeyW(0x0D, 4)
                         flags = 1 | ((scan & 0xff) << 16)
                         for message, detail in ((0x100, flags), (0x101, flags | 0xC0000000)):
                             if not user32.PostMessageW(windows[0], message, 0x0D, detail):
                                 raise ctypes.WinError(ctypes.get_last_error())
-                    verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable), submit_composer)
+                    verify(rpc, profile, args.actor_client.resolve(), args.actor_fixture.resolve(), Path(sys.executable), submit_native)
                 (bundle / "smoke-result.json").write_text(json.dumps({"startup": True, "visible_window": True, "local_rpc": True, "conpty_shell": True, "native_enter_key": True, "native_keyboard_text": True, "visible_terminal_pixels": True, "workspace_working_directory": True, "native_up_arrow_history": True, "actor_peers": bool(args.actor_client), "frame": frame, "graphics": env.get("CMUX_SMOKE_GRAPHICS", "system-opengl")}, indent=2) + "\n")
             finally:
                 if app.poll() is None:

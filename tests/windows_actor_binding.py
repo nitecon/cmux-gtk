@@ -93,27 +93,28 @@ def verify(rpc, profile, client, fixture, python, submit):
         for surface, record in zip(surfaces, records):
             assert rpc("gateway.session", {"surface_id": surface})["binding_state"] == "unbound"
             snapshot = json.loads(record.read_text())
-            assert snapshot["actor"]["membership"]["binding_state"] == "unbound" and not snapshot["prompts"]
+            membership = snapshot["actor"].get("membership")
+            assert membership is None or membership["binding_state"] == "unbound"
+            assert not snapshot["prompts"]
 
         def delivered(event):
             """Require a terminal ACK for the complete two-recipient event group."""
             rows = [row for row in rpc("gateway.status")["receipts"] if str(row["event_id"]) == str(event)]
             return len(rows) == 2 and all(row["confirmed"] and row["outcome"] in ("injected", "skipped") for row in rows)
 
-        human = "local Windows draft λ\nsecond line"
+        human = "native Windows draft λ"
         rpc("surface.send_text", {"id": surfaces[0], "text": human})
-        assert rpc("surface.read_text", {"id": surfaces[0]})["input"]["draft"] == human
+        wait(lambda: human in rpc("surface.read_text", {"id": surfaces[0]})["text"], "provider-owned draft")
         comment = gateway.add(kind="task_commented", content="Windows peer research result")
-        wait(lambda: delivered(comment), "comment delivery to native peers")
-        wait(lambda: all(len(json.loads(record.read_text())["prompts"]) == 1 for record in records), "comment visible to both peers")
-        assert all(json.loads(record.read_text())["prompts"][0] ==
-                   f"<Gateway message>New comment on task: task-{comment}</Gateway message>" for record in records)
-        assert rpc("surface.read_text", {"id": surfaces[0]})["input"]["draft"] == human
+        wait(lambda: gateway.outcome(comment) == "queued" and len(json.loads(records[1].read_text())["prompts"]) == 1, "draft defers one recipient while peer proceeds")
+        assert not json.loads(records[0].read_text())["prompts"]
+        wait(lambda: human in rpc("surface.read_text", {"id": surfaces[0]})["text"], "provider-owned draft")
         assert all(human not in json.loads(record.read_text())["prompts"] for record in records)
         workspace = next(s["workspace_uuid"] for s in rpc("surface.list")["surfaces"] if s["uuid"] == surfaces[0])
         rpc("workspace.select", {"id": workspace})
         submit()
-        wait(lambda: json.loads(records[0].read_text())["prompts"][-1] == human, "complete human input follows event")
+        wait(lambda: human in json.loads(records[0].read_text())["prompts"], "native human input precedes the deferred event")
+        wait(lambda: delivered(comment), "comment drains after draft submission")
         completion = gateway.add(kind="task_completed", content="Windows peer completed")
         wait(lambda: delivered(completion), "completion delivery to native peers")
         wait(lambda: [len(json.loads(record.read_text())["prompts"]) for record in records] == [3, 2], "completion visible to both peers")

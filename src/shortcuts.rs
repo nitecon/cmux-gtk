@@ -33,18 +33,7 @@ pub fn install_shortcuts(
     key_ctrl.connect_key_pressed({
         let state = state.clone();
         let window = window.downgrade();
-        move |controller, keyval, keycode, mods| {
-            if window
-                .upgrade()
-                .and_then(|window| gtk4::prelude::GtkWindowExt::focus(&window))
-                .is_some_and(|focused| {
-                    crate::terminal_input::forward_process_shortcut(
-                        &focused, controller, keyval, keycode, mods,
-                    )
-                })
-            {
-                return gtk4::glib::Propagation::Stop;
-            }
+        move |_controller, keyval, _keycode, mods| {
             match shortcut_map.lookup(mods, keyval) {
                 // -- Workspace shortcuts --
                 Some(ShortcutAction::NewWorkspace) => {
@@ -255,19 +244,6 @@ pub fn install_shortcuts(
         }
     });
 
-    key_ctrl.connect_key_released({
-        let window = window.downgrade();
-        move |controller, key, keycode, modifiers| {
-            if let Some(focused) = window
-                .upgrade()
-                .and_then(|window| gtk4::prelude::GtkWindowExt::focus(&window))
-            {
-                crate::terminal_input::release_process_shortcut(
-                    &focused, controller, key, keycode, modifiers,
-                );
-            }
-        }
-    });
     window.add_controller(key_ctrl);
 }
 

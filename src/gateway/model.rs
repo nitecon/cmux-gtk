@@ -135,9 +135,34 @@ pub struct Terminal {
     pub directory: std::path::PathBuf,
     /// POSIX foreground PID, or the ConPTY root used for conservative Windows agent discovery.
     pub foreground_pid: u64,
-    /// Human drafts stay in CMUX; the GTK-owned executor is attached to this process.
+    /// Compatibility metadata: native terminal input has no separate composer.
     #[serde(default)]
     pub composer_active: bool,
+    /// Human input generation used to reject a stale prompt observation before delivery.
+    #[serde(default)]
+    pub input_revision: u64,
+    /// Live native grid; never persisted or exposed in session metadata.
+    #[serde(skip)]
+    pub screen: Option<serde_json::Value>,
+}
+
+/// Native prompt observations authorize only empty editable input; all other states defer delivery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputState {
+    Unknown,
+    Unfinished,
+    Busy,
+    EmptyReady,
+}
+
+/// Build an empty editable native grid for transport-independent routing tests.
+#[cfg(test)]
+pub(super) fn ready_screen() -> serde_json::Value {
+    serde_json::json!({"anchor":"screen", "rows":4,
+        "cursor":{"row":1,"column":2,"visible":true},
+        "styles":[{"id":0,"faint":false}],
+        "row_spans":[{"row":1,"column":0,"style_id":0,"text":"› "},
+            {"row":2,"column":0,"style_id":0,"text":"? for shortcuts"}]})
 }
 
 /// A verified running application process and upstream repository, independent of resume hooks.
@@ -209,9 +234,12 @@ impl Session {
         }) || self.session_id == origin.session_id && legacy_instance == origin.instance_id
     }
 
-    /// Complete messages can run independently of downstream UI and unfinished local human text.
+    /// Require an empty native prompt; busy work, menus, dialogs and drafts keep messages queued.
     pub fn ready(&self) -> bool {
-        self.terminal.composer_active
+        self.terminal
+            .screen
+            .as_ref()
+            .is_some_and(|frame| super::readiness::classify(frame) == InputState::EmptyReady)
     }
 
     /// Pin queued messages to one workspace, surface, process generation and repository.
@@ -340,9 +368,6 @@ pub struct View {
     pub projects: usize,
     pub agents: usize,
     pub receipts: VecDeque<Receipt>,
-    /// Verified local process metadata used by GTK to attach each input composer, even with gateway disabled.
-    #[serde(skip)]
-    pub sessions: Vec<Session>,
 }
 
 /// Validate bounded nonempty identifiers without exposing their contents in errors.

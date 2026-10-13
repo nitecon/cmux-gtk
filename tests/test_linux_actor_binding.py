@@ -133,9 +133,11 @@ def main():
                 (root/"peer.mode").write_text("busy")
                 app.wait_for(lambda:"esc to interrupt" in raw(app,"surface.read_text",id=surfaces["peer"])["text"],"busy peer")
                 completion=gateway.add(kind="task_completed",content="Native peer completed")
+                wait_outcome(app,gateway,completion,"queued")
+                (root/"peer.mode").write_text("idle")
                 wait_outcome(app,gateway,completion,"injected")
                 app.wait_for(lambda: all(len(records(root)[n]["model_prompts"])==2 for n in native.values()),
-                             "completion reaches both peers even while busy",20)
+                             "completion waits for busy peer",20)
                 (root/"peer.mode").write_text("idle")
                 before={k:len(v["model_prompts"]) for k,v in records(root).items()}
                 gateway.disconnect(replay=completion)
@@ -153,7 +155,7 @@ def main():
                              "ordinary tools continue after backend restart",20)
                 assert {r["actor"]["origin"]["session_id"] for r in records(root).values()}=={o["session_id"] for o in origins.values()}
                 assert all("cmux-session-enrollment" not in prompt for r in records(root).values() for prompt in r["model_prompts"])
-                print("ordinary registered tools: two peers, no enrollment input/blocking, busy delivery and restart/reconnect PASS")
+                print("ordinary registered tools: two peers, no enrollment input/blocking, deferred busy delivery and restart/reconnect PASS")
         finally:
             if executor is not None:
                 stop_process(executor)

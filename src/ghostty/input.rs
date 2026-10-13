@@ -63,9 +63,13 @@ pub fn key_event_details(
     let entries = event.display().and_then(|d| d.map_keycode(keycode));
     let unshifted = entries.map_or(0, |entries| {
         unshifted_codepoint(
-            entries
-                .iter()
-                .map(|(k, kv)| (k.group(), k.level(), kv.to_unicode().map_or(0, |c| c as u32))),
+            entries.iter().map(|(k, kv)| {
+                (
+                    k.group(),
+                    k.level(),
+                    kv.to_unicode().map_or(0, |c| c as u32),
+                )
+            }),
             event.layout(),
         )
     });
@@ -83,7 +87,6 @@ pub(crate) unsafe fn send_key_release(
     keycode: u32,
     modifiers: gtk4::gdk::ModifierType,
     surface: ffi::ghostty_surface_t,
-    process_shortcut: bool,
 ) {
     let mut input = unsafe { std::mem::zeroed::<ffi::ghostty_input_key_s>() };
     input.keycode =
@@ -96,11 +99,7 @@ pub(crate) unsafe fn send_key_release(
     input.consumed_mods = consumed;
     // SAFETY: the caller retains the live surface on GTK throughout this synchronous borrow.
     unsafe {
-        if process_shortcut {
-            ffi::ghostty_surface_key_to_process(surface, input);
-        } else {
-            ffi::ghostty_surface_key(surface, input);
-        }
+        ffi::ghostty_surface_key(surface, input);
     }
 }
 
@@ -118,7 +117,12 @@ mod tests {
     // Two layouts (US + Russian): level 0 of the active layout wins.
     #[test]
     fn test_unshifted_codepoint_uses_active_layout() {
-        let entries = [(0, 0, 'c' as u32), (0, 1, 'C' as u32), (1, 0, 0x0441), (1, 1, 0x0421)];
+        let entries = [
+            (0, 0, 'c' as u32),
+            (0, 1, 'C' as u32),
+            (1, 0, 0x0441),
+            (1, 1, 0x0421),
+        ];
         assert_eq!(unshifted_codepoint(entries, 0), 'c' as u32);
         assert_eq!(unshifted_codepoint(entries, 1), 0x0441);
     }

@@ -60,15 +60,12 @@ struct Worker {
     storage_failed: bool,
     connection: String,
     agents: usize,
-    local_sessions: Vec<Session>,
 }
 
 impl Worker {
     /// Track owned running processes without any downstream UI, provider protocol or prompt observation.
     async fn sessions(&mut self, terminals: &[Terminal]) -> Vec<Session> {
-        let sessions = active(terminals, &self.journal.instance_id).await;
-        self.local_sessions = sessions.clone();
-        sessions
+        active(terminals, &self.journal.instance_id).await
     }
 
     /// Publish bounded outcomes without task bodies, terminal screen contents or credentials.
@@ -93,7 +90,6 @@ impl Worker {
             projects: self.projects.len(),
             agents: self.agents,
             receipts,
-            sessions: self.local_sessions.clone(),
         });
     }
 
@@ -477,7 +473,7 @@ impl Worker {
         true
     }
 
-    /// Pending events wait only for CMUX's local executor attachment, never a provider's prompt.
+    /// Report why native input is deferred without changing canonical task state.
     async fn observe(&mut self, sessions: &mut [Session]) -> Result<(), String> {
         self.agents = sessions.len();
         for receipt in self
@@ -491,7 +487,7 @@ impl Worker {
                 .as_ref()
                 .is_some_and(|target| sessions.iter().any(|s| target.same_target(s)))
             {
-                receipt.reason = "Waiting for CMUX input queue submission".into();
+                receipt.reason = "Waiting for an empty native prompt; drafts, menus and busy work defer delivery".into();
             }
         }
         Ok(())
@@ -571,13 +567,13 @@ impl Worker {
             Ok(DeliveryOutcome::Injected) => finalize(
                 &mut self.journal.receipts[index],
                 "injected",
-                "Submitted through CMUX input queue; model receipt is not yet confirmed",
+                "Submitted through native terminal input; model receipt is not yet confirmed",
             ),
             Ok(DeliveryOutcome::Deferred) => {
                 let receipt = &mut self.journal.receipts[index];
                 receipt.outcome = "queued".into();
                 receipt.confirmed = false;
-                receipt.reason = "CMUX input queue is unavailable; waiting".into();
+                receipt.reason = "Native prompt changed before submission; waiting".into();
                 self.pipeline.pending.push_front(pending);
             }
             Ok(DeliveryOutcome::Uncertain) => {
@@ -917,7 +913,7 @@ pub async fn run(
         let (journal,key)=loaded.map_err(|_| "Gateway storage worker stopped")??;
         let pipeline=Pipeline::default();
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0,local_sessions:Vec::new()};
+            storage_failed:false,connection:"Disabled".into(),agents:0};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -1032,7 +1028,9 @@ mod tests {
             surface_id: uuid::Uuid::new_v4().to_string(),
             directory: "/repo".into(),
             foreground_pid: 42,
-            composer_active: true,
+            composer_active: false,
+            input_revision: 0,
+            screen: Some(ready_screen()),
         };
         let process = cmux_platform::process::Identity {
             pid: 42,
@@ -1090,7 +1088,9 @@ mod tests {
                 surface_id: uuid::Uuid::new_v4().to_string(),
                 directory: "/repo".into(),
                 foreground_pid: 42,
-                composer_active: true,
+                composer_active: false,
+                input_revision: 0,
+                screen: Some(ready_screen()),
             },
             process,
             repository: "github.com/org/repo".into(),
@@ -1119,7 +1119,6 @@ mod tests {
             storage_failed: false,
             connection: "Connected".into(),
             agents: 1,
-            local_sessions: Vec::new(),
         };
         // Metadata retries preserve the original process set and never adopt a later peer.
         let received = Receipt {

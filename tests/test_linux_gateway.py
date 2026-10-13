@@ -119,8 +119,7 @@ def main():
                 app.wait_for(lambda: len(app.surfaces()) == 4, "all native surfaces")
                 surfaces = {workspace["name"]: next(row["uuid"] for row in app.surfaces()
                             if row["workspace_uuid"] == workspace["uuid"]) for workspace in workspaces}
-                app.wait_for(lambda: all(raw(app, "surface.read_text", id=surface)["input"]["active"]
-                    for name, surface in surfaces.items() if name != "absent"), "local editors attached")
+                assert all(raw(app, "surface.read_text", id=surface)["input"] is None for surface in surfaces.values())
                 # Identity is available with transport disabled and is exact to each running agent.
                 contexts = {name: raw(app, "gateway.session", surface_id=surface)
                             for name, surface in surfaces.items() if name != "absent"}
@@ -233,54 +232,42 @@ def main():
                 command = shlex.join([str(root / "tralala"), str(root / "absent.mode"), str(root / "absent.input"), str(root / "absent")])
                 raw(app, "surface.send_text", id=surfaces["absent"], text=command)
                 raw(app, "surface.send_key", id=surfaces["absent"], key="\r")
-                app.wait_for(lambda: raw(app, "surface.read_text", id=surfaces["absent"])["input"]["active"], "generic application editor")
+                app.wait_for(lambda: "Gateway fixture" in raw(app, "surface.read_text", id=surfaces["absent"])["text"], "generic application prompt")
                 assert raw(app, "gateway.session", surface_id=surfaces["absent"])["provider"] == "tralala"
                 generic = gateway.add(project="absent", content="Provider-independent delivery")
                 wait_outcome(app, gateway, generic, "injected")
                 app.wait_for(lambda: any(f"task-{generic}" in message for message in submissions(root / "absent.input")), "generic app actual input")
-                # Downstream busy/dialog/draft layouts never gate CMUX-owned complete input.
+                # Native busy work and drafts defer only their original recipient; other projects proceed.
                 for name in ("first", "peer"):
                     (root / (name + ".mode")).write_text("busy")
                     app.wait_for(lambda: "esc to interrupt" in raw(app, "surface.read_text", id=surfaces[name])["text"], "busy process")
-                busy = gateway.add(content="Deliver while both processes are busy")
-                wait_outcome(app, gateway, busy, "injected")
+                busy = gateway.add(content="Wait until both native prompts are safe")
+                wait_outcome(app, gateway, busy, "queued")
                 independent = gateway.add(project="second", kind="task_commented", content="Other project proceeds")
                 wait_outcome(app, gateway, independent, "injected")
-                # Physical keys edit CMUX, modified Enter adds lines, plain Enter alone submits.
-                app.cli("select-workspace", workspaces[0]["uuid"])
-                windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid)], text=True).split()
-                subprocess.check_call(["xdotool", "windowfocus", "--sync", windows[-1]])
-                before_keys = len(submissions(root / "first.input"))
-                subprocess.check_call(["xdotool", "type", "--clearmodifiers", "--delay", "1", "--", "keyboard draft"])
-                subprocess.check_call(["xdotool", "key", "--clearmodifiers", "shift+Return", "alt+Return"])
-                app.wait_for(lambda: raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == "keyboard draft\n\n", "physical modified Enter remains local")
-                assert len(submissions(root / "first.input")) == before_keys
-                subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Return"])
-                app.wait_for(lambda: submissions(root / "first.input")[-1] == "keyboard draft\n\n", "physical Enter submits whole buffer")
-                subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Up"])
-                app.wait_for(lambda: raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == "keyboard draft\n\n", "CMUX human history recall")
-                subprocess.check_call(["xdotool", "key", "--clearmodifiers", "Down"])
-                app.wait_for(lambda: raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == "", "history returns to local draft")
-                # Multiline human text stays local until explicit Enter, even while an event arrives.
-                human = "unfinished human draft λ\nsecond line"
+                for name in ("first", "peer"):
+                    (root / (name + ".mode")).write_text("idle")
+                wait_outcome(app, gateway, busy, "injected")
+                human = "unfinished native draft"
                 before = len(submissions(root / "first.input"))
                 raw(app, "surface.send_text", id=surfaces["first"], text=human)
-                assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == human
-                draft = gateway.add(content="Event bypasses unfinished local draft")
-                wait_outcome(app, gateway, draft, "injected")
-                app.wait_for(lambda: len(submissions(root / "first.input")) == before + 1, "event reached process")
-                assert human not in submissions(root / "first.input")
-                assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == human
+                app.wait_for(lambda: human in raw(app, "surface.read_text", id=surfaces["first"])["text"], "draft belongs to the provider")
+                draft = gateway.add(content="Do not overwrite the provider draft")
+                wait_outcome(app, gateway, draft, "queued")
+                assert len(submissions(root / "first.input")) == before
+                assert human in raw(app, "surface.read_text", id=surfaces["first"])["text"]
                 raw(app, "surface.send_key", id=surfaces["first"], key="\r")
-                app.wait_for(lambda: submissions(root / "first.input")[-1] == human, "whole human message follows event")
-                assert f"task-{draft}" in submissions(root / "first.input")[-2]
+                app.wait_for(lambda: human in submissions(root / "first.input"), "human Enter reaches provider")
+                wait_outcome(app, gateway, draft, "injected")
+                assert submissions(root / "first.input")[-2] == human
+                assert f"task-{draft}" in submissions(root / "first.input")[-1]
                 for mode, visible in (("multiline", "second draft line"), ("permission", "Allow once")):
                     (root / "first.mode").write_text(mode)
                     app.wait_for(lambda: visible in raw(app, "surface.read_text", id=surfaces["first"])["text"], mode + " screen")
-                    event = gateway.add(content="Deliver independently of " + mode)
+                    event = gateway.add(content="Wait for native " + mode)
+                    wait_outcome(app, gateway, event, "queued")
+                    (root / "first.mode").write_text("idle")
                     wait_outcome(app, gateway, event, "injected")
-                (root / "first.mode").write_text("idle")
-                (root / "peer.mode").write_text("idle")
                 # Truncated and large/private bodies still produce only task references; no REST detail fetch.
                 truncated = gateway.add(content="Preview", truncated=True)
                 with gateway.lock:
@@ -313,15 +300,12 @@ def main():
                     expired = gateway.add(created_at=timestamp, content="Never inject historical content")
                     wait_outcome(app, gateway, expired, "skipped")
                 assert len(submissions(root / "first.input")) == before
-                # A retired process keeps its human draft and never receives later notifications.
-                retained = "retain human draft when process exits"
-                raw(app, "surface.send_text", id=surfaces["first"], text=retained)
+                # A retired process receives no late notification; its surviving peer still does.
                 (root / "first.mode").write_text("shell")
                 app.wait_for(lambda: all(s["surface_id"] != surfaces["first"] for s in raw(app, "gateway.sessions")["sessions"]), "process exec replacement")
-                app.wait_for(lambda: not raw(app, "surface.read_text", id=surfaces["first"])["input"]["active"], "retired editor stops input")
+                before = len(submissions(root / "first.input"))
                 changed = gateway.add(content="Never send to the replacement shell", truncated=True)
                 wait_outcome(app, gateway, changed, "injected")
-                assert raw(app, "surface.read_text", id=surfaces["first"])["input"]["draft"] == retained
                 assert len(submissions(root / "first.input")) == before
                 view = status(app)
                 assert key not in json.dumps(view) and "Historical task" not in json.dumps(view)
@@ -346,7 +330,7 @@ def main():
                 app.wait_for(lambda: any(row["outcome"] == "uncertain" for row in status(app)["receipts"]), "visible uncertain receipt")
                 app.cli("gateway", "configure", "--url", gateway.url)
                 assert status(app)["connection"] == "Disabled"
-            print("gateway lifecycle matching, native injection, busy delivery/local draft isolation, reconnect and uncertain restart passed")
+            print("gateway lifecycle matching, native injection, native draft/busy isolation, reconnect and uncertain restart passed")
         finally:
             gateway.close()
 

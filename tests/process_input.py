@@ -70,7 +70,7 @@ class Model:
         project = str(home.parent / "process-input" / "first")
         # Native Codex uses Windows path separators even when the CI Python exposes slash paths.
         project = ntpath.normpath(project) if ntpath.splitdrive(project)[0] else project
-        (home / "config.toml").write_text(f'''model = "cmux-test"
+        (home / "config.toml").write_text(f'''model = "gpt-6.1-sol"
 model_provider = "cmux_fixture"
 cli_auth_credentials_store = "file"
 [model_providers.cmux_fixture]
@@ -89,8 +89,8 @@ trust_level = "trusted"
         self.thread.join(5)
 
 
-def verify(rpc, root, codex, model):
-    """Use ordinary official Codex TUIs, with local drafts and provider-independent process input."""
+def verify(rpc, root, codex, model, native_key):
+    """Exercise real native Codex menus and defer notifications around provider-owned drafts and work."""
     root = Path(root) / "process-input"
     root.mkdir()
     directory = root / "first"
@@ -110,11 +110,15 @@ def verify(rpc, root, codex, model):
         print("Observed model requests:", len(model.inputs))
         for surface in surfaces:
             print("Process input screen:", rpc("surface.read_text", {"id": surface}))
-            print("Process input scrollback:", rpc("surface.read_scrollback", {"id": surface})["text"])
         raise AssertionError(description)
 
-    def editor(surface):
-        return rpc("surface.read_text", {"id": surface})["input"]
+    def screen(surface):
+        return rpc("surface.read_text", {"id": surface})["text"]
+
+    def selected():
+        """Observe the model menu's actual selection marker, not just successful key submission."""
+        rows = [line.strip() for line in screen(surfaces[0]).splitlines() if line.strip().startswith("›")]
+        return rows[-1] if rows else ""
 
     try:
         rpc("gateway.configure", dict(enabled=True, url=gateway.url, injection_approved=True, api_key=gateway.key))
@@ -125,59 +129,61 @@ def verify(rpc, root, codex, model):
             rpc("workspace.select", {"id": workspace["uuid"]})
             surface = next(s["uuid"] for s in rpc("surface.list")["surfaces"] if s["workspace_uuid"] == workspace["uuid"])
             surfaces.append(surface)
-            wait(lambda: rpc("surface.read_text", {"id": surface})["text"].strip(), "native shell ready")
-            # This isolated model emits text only; avoid the Windows first-run sandbox setup dialog.
+            wait(lambda: screen(surface).strip(), "native shell ready")
             args = [str(codex), "--no-daemon", "-a", "never", "--sandbox", "danger-full-access"]
             command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
             rpc("surface.send_text", {"id": surface, "text": command})
-            rpc("surface.send_key", {"id": surface, "key": "\r"})
-            def startup_ready():
-                """Observe test UI only; production execution never inspects provider screens."""
-                screen = rpc("surface.read_text", {"id": surface})
-                return screen["input"]["active"] and any(marker in screen["text"]
-                    for marker in ("OpenAI Codex", "Trust this folder?"))
-            wait(startup_ready, "ordinary native Codex and local editor")
-            if "Trust this folder?" in rpc("surface.read_text", {"id": surface})["text"]:
-                # The fixture owns this empty temporary Git project; normal Enter confirms its access.
-                rpc("surface.send_key", {"id": surface, "key": "\r"})
-                wait(lambda: "OpenAI Codex" in rpc("surface.read_text", {"id": surface})["text"], "normal empty Enter confirms fixture folder access")
-            # Startup may initialize native sandbox state asynchronously; observe only this isolated test UI.
-            wait(lambda: "? for shortcuts" in rpc("surface.read_text", {"id": surface})["text"], "fixture reaches its ordinary TUI")
-            time.sleep(1)
+            native_key("Return")
+            wait(lambda: any(marker in screen(surface) for marker in ("OpenAI Codex", "Trust this folder?")), "ordinary native Codex")
+            if "Trust this folder?" in screen(surface):
+                native_key("Return")
+            wait(lambda: "? for shortcuts" in screen(surface), "ordinary editable prompt")
+            assert rpc("surface.read_text", {"id": surface})["input"] is None
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
-        assert all(s["delivery_transport"] == "cmux_input_queue" for s in sessions)
+        assert all(not session["composer_active"] for session in sessions)
         assert len({s["recipient_session_id"] for s in sessions}) == 2
         assert not model.inputs, "Startup must not submit synthetic model input"
-        human = "KEEP_THIS_LOCAL_DRAFT λ\nsecond human line"
+        rpc("workspace.select", {"id": workspaces[0]})
+        rpc("surface.focus", {"id": surfaces[0]})
+        rpc("surface.send_text", {"id": surfaces[0], "text": "/model"})
+        native_key("Return")
+        wait(lambda: "select model" in screen(surfaces[0]).lower(), "real /model menu opened")
+        initial = selected()
+        assert initial
+        native_key("Down")
+        wait(lambda: selected() and selected() != initial, "plain Down changes the model selection")
+        native_key("Up")
+        wait(lambda: selected() == initial, "plain Up restores the model selection")
+        menu_event = gateway.add(content="Never submit into a model-selection menu")
+        wait(lambda: gateway.outcome(menu_event) == "queued" and len(model.inputs) == 1, "menu holds its recipient while peer proceeds")
+        assert "select model" in screen(surfaces[0]).lower()
+        native_key("Escape")
+        wait(lambda: gateway.outcome(menu_event) == "injected" and len(model.inputs) >= 2, "closing the menu drains its original notification")
+        human = "KEEP_NATIVE_DRAFT λ\nsecond human line"
         rpc("surface.send_text", {"id": surfaces[0], "text": human})
+        wait(lambda: "KEEP_NATIVE_DRAFT" in screen(surfaces[0]), "draft stays in Codex's own input")
+        before = len(model.inputs)
         model.hold.clear()
-        event = gateway.add(content="First ordinary process event")
-        wait(lambda: gateway.outcome(event) == "injected", "complete event submitted while human draft stays local")
-        wait(lambda: len(model.inputs) >= 2, "both real providers received first message")
-        assert f"<Gateway message>New delegated task received: task-{event}</Gateway message>" in json.dumps(model.inputs)
-        assert "First ordinary process event" not in json.dumps(model.inputs)
-        assert editor(surfaces[0])["draft"] == human, (ascii(human), ascii(editor(surfaces[0])["draft"]))
-        assert "KEEP_THIS_LOCAL_DRAFT" not in json.dumps(model.inputs)
-        busy = gateway.add(content="Ordinary process event while busy")
-        wait(lambda: gateway.outcome(busy) == "injected", "input submitted to both busy processes")
-        assert editor(surfaces[0])["draft"] == human, (ascii(human), ascii(editor(surfaces[0])["draft"]))
-        rows = [r for r in rpc("gateway.status")["receipts"] if r["event_id"] in (str(event), str(busy))]
-        assert len(rows) == 4 and all("model receipt is not yet confirmed" in r["reason"] for r in rows)
+        event = gateway.add(content="Preserve the native draft")
+        wait(lambda: gateway.outcome(event) == "queued" and len(model.inputs) == before + 1, "draft defers only its own notification")
+        assert "KEEP_NATIVE_DRAFT" not in json.dumps(model.inputs)
+        assert "KEEP_NATIVE_DRAFT" in screen(surfaces[0])
+        busy = gateway.add(content="Wait until native work finishes")
+        wait(lambda: gateway.outcome(busy) == "queued", "busy notification retained")
+        native_key("Return")
+        wait(lambda: "KEEP_NATIVE_DRAFT" in json.dumps(model.inputs), "native Enter submits the user's own draft")
         model.hold.set()
-        busy_notification = f"<Gateway message>New delegated task received: task-{busy}</Gateway message>"
-        wait(lambda: len(model.inputs) >= 4 and busy_notification in json.dumps(model.inputs),
-             "provider drains the compact busy notification")
-        assert "Ordinary process event while busy" not in json.dumps(model.inputs)
-        wait(lambda: all("CMUX_INPUT_ACCEPTED" in rpc("surface.read_text", {"id": s})["text"] for s in surfaces), "real TUI renders model output")
-        rpc("surface.send_key", {"id": surfaces[0], "key": "\r"})
-        wait(lambda: "KEEP_THIS_LOCAL_DRAFT" in json.dumps(model.inputs), "plain Enter submits whole human message")
-        assert editor(surfaces[0])["draft"] == ""
-        assert any("KEEP_THIS_LOCAL_DRAFT" in json.dumps(request) and "second human line" in json.dumps(request) for request in model.inputs)
+        wait(lambda: gateway.outcome(event) == gateway.outcome(busy) == "injected", "native prompts drain queued notifications after work")
+        for event_id in (menu_event, event, busy):
+            notification = f"<Gateway message>New delegated task received: task-{event_id}</Gateway message>"
+            wait(lambda: notification in json.dumps(model.inputs), "compact notification received by real model")
+        assert "Preserve the native draft" not in json.dumps(model.inputs)
+        assert any("KEEP_NATIVE_DRAFT" in json.dumps(request) and "second human line" in json.dumps(request) for request in model.inputs)
         for workspace in workspaces:
             rpc("workspace.close", {"id": workspace})
-        wait(lambda: all(s["surface_id"] not in surfaces for s in rpc("gateway.sessions")["sessions"]), "pane retirement retires input recipients")
+        wait(lambda: all(s["surface_id"] not in surfaces for s in rpc("gateway.sessions")["sessions"]), "pane retirement retires recipients")
         assert not gateway.errors, gateway.errors
-        print("Ordinary Codex PASS: two native TUIs, local multiline draft, busy message delivery, human Enter and visible response")
+        print("Ordinary Codex PASS: native /model arrows, native multiline draft, deferred menus/work and real model delivery")
     finally:
         model.hold.set()
         gateway.close()

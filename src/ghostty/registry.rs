@@ -7,6 +7,7 @@ use std::sync::{LazyLock, Mutex};
 struct Surface {
     pane_id: u64,
     working_directory: String,
+    input_revision: u64,
 }
 
 static SURFACES: LazyLock<Mutex<HashMap<usize, Surface>>> =
@@ -27,6 +28,7 @@ pub(crate) fn register(surface: usize, pane_id: u64, directory: Option<&std::pat
                 working_directory: directory
                     .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_default(),
+                input_revision: 0,
             },
         );
     }
@@ -71,6 +73,24 @@ pub(crate) fn set_working_directory(surface: usize, directory: &str) {
     }
 }
 
+/// Invalidate a prompt snapshot before human input or programmatic paste; GTK serializes submission.
+pub(crate) fn record_input(surface: usize) {
+    if let Ok(mut surfaces) = SURFACES.lock() {
+        if let Some(surface) = surfaces.get_mut(&surface) {
+            surface.input_revision = surface.input_revision.wrapping_add(1);
+        }
+    }
+}
+
+/// Read the input generation without accessing the native handle.
+pub(crate) fn input_revision(surface: usize) -> u64 {
+    SURFACES
+        .lock()
+        .ok()
+        .and_then(|surfaces| surfaces.get(&surface).map(|surface| surface.input_revision))
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -84,6 +104,10 @@ mod tests {
         register(second, u64::MAX - 1, None);
         assert_eq!(working_directory(first), "/launch");
         assert_eq!(working_directory(second), "");
+        record_input(first);
+        record_input(first);
+        assert_eq!(input_revision(first), 2);
+        assert_eq!(input_revision(second), 0);
         set_working_directory(first, "/first");
         set_working_directory(second, "/second");
         assert_eq!(working_directory(first), "/first");
@@ -92,6 +116,7 @@ mod tests {
         unregister(first);
         set_working_directory(first, "/late");
         assert_eq!(working_directory(first), "");
+        assert_eq!(input_revision(first), 0);
         assert_eq!(pane_id(first), None);
         register(first, u64::MAX, None);
         assert_eq!(working_directory(first), "");

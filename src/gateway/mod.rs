@@ -2,6 +2,7 @@
 mod actor;
 pub mod model;
 mod pipeline;
+mod readiness;
 mod storage;
 mod ui;
 mod wire;
@@ -73,8 +74,8 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
     snapshot(state);
 }
 
-/// Capture local surface identity, directory and composer attachment on GTK, without reading app prompts.
-fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
+/// Capture native surface identity, input generation and optional bounded prompt grids on GTK.
+fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Terminal> {
     let mut result = Vec::new();
     for (index, engine) in state.split_engines.iter().enumerate() {
         let Some(workspace) = state.workspaces.get(index) else {
@@ -94,81 +95,76 @@ fn terminals(state: &crate::app_state::AppState) -> Vec<Terminal> {
             }
             // SAFETY: the engine owns this live pointer on GTK; getters neither transfer ownership nor iterate events.
             let pid = unsafe { crate::ghostty::tty::root_pid(pointer) };
-            let composer_active = engine
-                .gl_area_for_surface(&surface_id)
-                .is_some_and(|area| crate::terminal_input::is_active(&area));
+            let capture = capture_screen
+                && state.gateway.as_ref().is_some_and(|gateway| {
+                    let view = gateway.view.borrow();
+                    view.config.enabled && view.config.injection_approved
+                });
+            // SAFETY: the engine owns this live surface on GTK; bounded capture does not yield.
+            let screen = if capture {
+                unsafe { crate::ghostty::text::read_prompt_grid(pointer) }
+            } else {
+                None
+            };
             result.push(Terminal {
                 workspace_id: workspace.uuid.to_string(),
                 surface_id,
                 directory: directory.into(),
                 foreground_pid: pid,
-                composer_active,
+                composer_active: false,
+                input_revision: crate::ghostty::registry::input_revision(pointer as usize),
+                screen,
             });
         }
     }
     result
 }
 
-/// Attach the shared local composer to verified running processes and publish terminal ownership.
+/// Publish native process metadata and bounded prompt observations without intercepting human input.
 fn snapshot(state: &AppStateRef) {
-    let (sessions, runtime) = {
-        let state = state.borrow();
-        let Some(gateway) = &state.gateway else {
-            return;
-        };
-        let sessions = gateway.view.borrow().sessions.clone();
-        (sessions, gateway.runtime.clone())
-    };
-    let areas: Vec<_> = {
-        let state = state.borrow();
-        state
-            .split_engines
-            .iter()
-            .flat_map(|engine| {
-                engine
-                    .all_panes()
-                    .into_iter()
-                    .filter_map(|(surface, _, _)| {
-                        let id = surface.to_string();
-                        engine.gl_area_for_surface(&id).map(|area| (id, area))
-                    })
-            })
-            .collect()
-    };
-    for (id, area) in areas {
-        crate::terminal_input::synchronize(
-            &area,
-            sessions
-                .iter()
-                .find(|session| session.terminal.surface_id == id)
-                .cloned(),
-            &runtime,
-        );
-    }
-    let current = terminals(&state.borrow());
+    let current = terminals(&state.borrow(), true);
     if let Some(gateway) = &mut state.borrow_mut().gateway {
         gateway.snapshots.send_replace(current);
     }
 }
 
-/// Admit a durable event to the same per-terminal executor as completed human input.
+/// Reverify the process, human input generation and empty native prompt before one atomic paste/Enter.
+/// GTK owns native handles; a closed worker reply cancels submission after asynchronous process inspection.
 async fn deliver(
     state: &AppStateRef,
     message: &Message,
     expected: &Session,
 ) -> Result<DeliveryOutcome, String> {
     message.validate()?;
-    if !fresh_at(message.created_at, now_millis()) {
-        return Err("Gateway event expired before delivery".into());
+    let runtime = state
+        .borrow()
+        .gateway
+        .as_ref()
+        .ok_or("Gateway unavailable")?
+        .runtime
+        .clone();
+    let process = expected.process.clone();
+    let root = expected.terminal.foreground_pid;
+    let verified = runtime
+        .spawn_blocking(move || {
+            cmux_platform::process::input_identity(root).as_ref() == Some(&process)
+        })
+        .await
+        .unwrap_or(false);
+    if !verified {
+        return Err("Agent process changed".into());
     }
-    let area = {
+    let pointer = {
         let state = state.borrow();
         let gateway = state.gateway.as_ref().ok_or("Gateway unavailable")?;
         let view = gateway.view.borrow();
         if !view.config.enabled || !view.config.injection_approved {
             return Err("Gateway injection is disabled".into());
         }
-        let current = terminals(&state)
+        if !fresh_at(message.created_at, now_millis()) {
+            return Err("Gateway event expired before delivery".into());
+        }
+        let current = terminals(&state, true)
             .into_iter()
             .find(|terminal| terminal.surface_id == expected.terminal.surface_id)
             .ok_or("Agent terminal closed")?;
@@ -178,42 +174,27 @@ async fn deliver(
         {
             return Err("Agent terminal changed before delivery".into());
         }
+        if current.input_revision != expected.terminal.input_revision
+            || current
+                .screen
+                .as_ref()
+                .is_none_or(|frame| readiness::classify(frame) != InputState::EmptyReady)
+        {
+            return Ok(DeliveryOutcome::Deferred);
+        }
         state
             .split_engines
             .iter()
-            .find_map(|engine| engine.gl_area_for_surface(&expected.terminal.surface_id))
+            .find_map(|engine| engine.find_surface_by_uuid(&expected.terminal.surface_id))
             .ok_or("Terminal is no longer attached")?
     };
-    let weak = std::rc::Rc::downgrade(state);
-    let created_at = message.created_at;
-    let allowed = Box::new(move || {
-        fresh_at(created_at, now_millis())
-            && weak.upgrade().is_some_and(|state| {
-                state.borrow().gateway.as_ref().is_some_and(|gateway| {
-                    let view = gateway.view.borrow();
-                    view.config.enabled && view.config.injection_approved
-                })
-            })
-    });
-    let result = match crate::terminal_input::execute(
-        &area,
-        expected.clone(),
-        message.terminal_text(),
-        allowed,
-    ) {
-        Ok(result) => result,
-        Err(error) if error.contains("queue is full") => return Ok(DeliveryOutcome::Deferred),
-        Err(error) => return Err(error),
-    };
-    match result
-        .await
-        .map_err(|_| "Terminal executor stopped".to_owned())?
-    {
-        Err(error) if error.starts_with("Input submission incomplete:") => {
-            return Ok(DeliveryOutcome::Uncertain)
+    // SAFETY: GTK keeps this exact surface live; no yield occurs between literal paste and native Enter.
+    unsafe {
+        crate::ghostty::text::send_literal(pointer, &message.terminal_text())
+            .map_err(str::to_owned)?;
+        if !crate::ghostty::text::submit(pointer, true) {
+            return Ok(DeliveryOutcome::Uncertain);
         }
-        Err(error) => return Err(error),
-        Ok(()) => {}
     }
     snapshot(state);
     Ok(DeliveryOutcome::Injected)
@@ -239,7 +220,7 @@ pub fn submit(
         if instance_id.is_empty() {
             return Err("Gateway identity is still loading".into());
         }
-        let terminals = terminals(&state);
+        let terminals = terminals(&state, false);
         let (reply, result) = oneshot::channel();
         // Identity queries must not wait behind network hydration or repository discovery.
         gateway.runtime.spawn(async move {
