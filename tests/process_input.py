@@ -70,6 +70,8 @@ class Model:
         project = str(home.parent / "process-input" / "first")
         # Native Codex uses Windows path separators even when the CI Python exposes slash paths.
         project = ntpath.normpath(project) if ntpath.splitdrive(project)[0] else project
+        # Preselect the non-admin CI mode before Codex's first-interaction onboarding.
+        windows = '[windows]\nsandbox = "unelevated"\n' if os.name == "nt" else ""
         (home / "config.toml").write_text(f'''model = "gpt-6.1-sol"
 model_provider = "cmux_fixture"
 cli_auth_credentials_store = "file"
@@ -78,6 +80,7 @@ name = "CMUX Actions model fixture"
 base_url = "http://127.0.0.1:{self.server.server_port}/v1"
 wire_api = "responses"
 requires_openai_auth = false
+{windows}
 [projects.{json.dumps(project)}]
 trust_level = "trusted"
 ''', encoding="utf-8")

@@ -234,6 +234,7 @@ def main():
                 raw(app, "surface.send_key", id=surfaces["absent"], key="\r")
                 app.wait_for(lambda: "Gateway fixture" in raw(app, "surface.read_text", id=surfaces["absent"])["text"], "generic application prompt")
                 assert raw(app, "gateway.session", surface_id=surfaces["absent"])["provider"] == "tralala"
+                app.wait_for(lambda: status(app)["agents"] == 4, "generic process included in background discovery")
                 generic = gateway.add(project="absent", content="Provider-independent delivery")
                 wait_outcome(app, gateway, generic, "injected")
                 app.wait_for(lambda: any(f"task-{generic}" in message for message in submissions(root / "absent.input")), "generic app actual input")
