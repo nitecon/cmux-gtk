@@ -4,6 +4,7 @@ import json
 import os
 import ntpath
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import threading
@@ -120,8 +121,9 @@ def verify(rpc, root, codex, model, native_key):
 
     def selected():
         """Observe the model menu's actual selection marker, not just successful key submission."""
-        rows = [line.strip() for line in screen(surfaces[0]).splitlines() if line.strip().startswith("›")]
-        return rows[-1] if rows else ""
+        # ConPTY clipboard text can join soft-wrapped rows, including the selection marker.
+        rows = re.findall(r"›\s*(\d+)\.\s", screen(surfaces[0]))
+        return int(rows[-1]) if rows else None
 
     def received(event):
         """Codex may also request a title; observe the task notification rather than request counts."""
@@ -150,6 +152,7 @@ def verify(rpc, root, codex, model, native_key):
         sessions = [rpc("gateway.session", {"surface_id": surface}) for surface in surfaces]
         assert all(not session["composer_active"] for session in sessions)
         assert len({s["recipient_session_id"] for s in sessions}) == 2
+        wait(lambda: rpc("gateway.status")["agents"] == 2, "both native recipients included in background discovery")
         assert not model.inputs, "Startup must not submit synthetic model input"
         rpc("workspace.select", {"id": workspaces[0]})
         rpc("surface.focus", {"id": surfaces[0]})
