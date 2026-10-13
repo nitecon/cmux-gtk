@@ -109,7 +109,7 @@ def verify(rpc, root, codex, model, native_key):
         print("Process input status:", json.dumps(rpc("gateway.status"), indent=2))
         print("Observed model requests:", len(model.inputs))
         for surface in surfaces:
-            print("Process input screen:", rpc("surface.read_text", {"id": surface}))
+            print("Process input screen:", json.dumps(rpc("surface.read_text", {"id": surface})))
         raise AssertionError(description)
 
     def screen(surface):
@@ -119,6 +119,11 @@ def verify(rpc, root, codex, model, native_key):
         """Observe the model menu's actual selection marker, not just successful key submission."""
         rows = [line.strip() for line in screen(surfaces[0]).splitlines() if line.strip().startswith("›")]
         return rows[-1] if rows else ""
+
+    def received(event):
+        """Codex may also request a title; observe the task notification rather than request counts."""
+        notification = f"<Gateway message>New delegated task received: task-{event}</Gateway message>"
+        return notification in json.dumps(model.inputs)
 
     try:
         rpc("gateway.configure", dict(enabled=True, url=gateway.url, injection_approved=True, api_key=gateway.key))
@@ -146,6 +151,7 @@ def verify(rpc, root, codex, model, native_key):
         rpc("workspace.select", {"id": workspaces[0]})
         rpc("surface.focus", {"id": surfaces[0]})
         rpc("surface.send_text", {"id": surfaces[0], "text": "/model"})
+        wait(lambda: "/model" in screen(surfaces[0]), "native slash command received before Enter")
         native_key("Return")
         wait(lambda: "select model" in screen(surfaces[0]).lower(), "real /model menu opened")
         initial = selected()
@@ -155,17 +161,18 @@ def verify(rpc, root, codex, model, native_key):
         native_key("Up")
         wait(lambda: selected() == initial, "plain Up restores the model selection")
         menu_event = gateway.add(content="Never submit into a model-selection menu")
-        wait(lambda: gateway.outcome(menu_event) == "queued" and len(model.inputs) == 1, "menu holds its recipient while peer proceeds")
+        wait(lambda: gateway.outcome(menu_event) == "queued" and received(menu_event), "menu holds its recipient while peer proceeds")
         assert "select model" in screen(surfaces[0]).lower()
         native_key("Escape")
-        wait(lambda: gateway.outcome(menu_event) == "injected" and len(model.inputs) >= 2, "closing the menu drains its original notification")
+        wait(lambda: gateway.outcome(menu_event) == "injected", "closing the menu drains its original notification")
+        wait(lambda: all("CMUX_INPUT_ACCEPTED" in screen(surface) and "esc to interrupt" not in screen(surface).lower()
+                         for surface in surfaces), "both native model responses finish")
         human = "KEEP_NATIVE_DRAFT λ\nsecond human line"
         rpc("surface.send_text", {"id": surfaces[0], "text": human})
         wait(lambda: "KEEP_NATIVE_DRAFT" in screen(surfaces[0]), "draft stays in Codex's own input")
-        before = len(model.inputs)
         model.hold.clear()
         event = gateway.add(content="Preserve the native draft")
-        wait(lambda: gateway.outcome(event) == "queued" and len(model.inputs) == before + 1, "draft defers only its own notification")
+        wait(lambda: gateway.outcome(event) == "queued" and received(event), "draft defers only its own notification")
         assert "KEEP_NATIVE_DRAFT" not in json.dumps(model.inputs)
         assert "KEEP_NATIVE_DRAFT" in screen(surfaces[0])
         busy = gateway.add(content="Wait until native work finishes")
@@ -175,8 +182,7 @@ def verify(rpc, root, codex, model, native_key):
         model.hold.set()
         wait(lambda: gateway.outcome(event) == gateway.outcome(busy) == "injected", "native prompts drain queued notifications after work")
         for event_id in (menu_event, event, busy):
-            notification = f"<Gateway message>New delegated task received: task-{event_id}</Gateway message>"
-            wait(lambda: notification in json.dumps(model.inputs), "compact notification received by real model")
+            wait(lambda: received(event_id), "compact notification received by real model")
         assert "Preserve the native draft" not in json.dumps(model.inputs)
         assert any("KEEP_NATIVE_DRAFT" in json.dumps(request) and "second human line" in json.dumps(request) for request in model.inputs)
         for workspace in workspaces:

@@ -29,11 +29,15 @@ static int relay(char **args, const char *prompt) {
 }
 
 /** Render the same bounded Codex composer used by the Linux native readiness fixture. */
-static void render(void) {
+static void render(const char *draft) {
     printf("\033[2J\033[HWindows actor fixture\r\n\033[48;2;65;69;76m\033[K\r\n"
-           "\033[1m\xe2\x80\xba \033[22m\033[2mAsk Codex to do anything\033[22m\033[K\r\n"
+           "\033[1m\xe2\x80\xba \033[22m\033[2m%s\033[22m\033[K\r\n"
            "\033[K\033[0m\r\n  GPT-6 · project · Context 77%% left\r\n"
-           "  ? for shortcuts\r\n\033[?25h\033[3;3H");
+           "  ? for shortcuts\r\n\033[?25h\033[3;3H\033[48;2;65;69;76m",
+           *draft ? "" : "Ask Codex to do anything");
+    /* The native provider owns its draft and leaves the caret at its actual tail. */
+    fputs(draft, stdout);
+    fputs("\033[0m", stdout);
     fflush(stdout);
 }
 
@@ -53,7 +57,7 @@ int main(int argc, char **argv) {
     size_t length = 0, sequence_length = 0;
     int paste = 0;
     for (;;) {
-        render();
+        render(text);
         DWORD count = 0;
         if (!ReadFile(input, bytes, sizeof(bytes), &count, NULL) || !count) break;
         for (DWORD i = 0; i < count; ++i) {
