@@ -21,6 +21,8 @@ def verify_app_icons(window, executable):
     shell32 = ctypes.WinDLL("shell32", use_last_error=True)
     user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.SendMessageW.restype = wintypes.LPARAM
+    user32.GetClassLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.GetClassLongPtrW.restype = ctypes.c_void_p
     user32.DrawIconEx.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.UINT, wintypes.HANDLE, wintypes.UINT]
     user32.DestroyIcon.argtypes = [wintypes.HANDLE]
     shell32.ExtractIconExW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(wintypes.HANDLE), ctypes.POINTER(wintypes.HANDLE), wintypes.UINT]
@@ -36,9 +38,10 @@ def verify_app_icons(window, executable):
     if shell32.ExtractIconExW(str(executable), 0, ctypes.byref(executable_icon), None, 1) != 1:
         raise RuntimeError("Windows executable has no embedded CX icon")
     try:
-        # WM_GETICON returns borrowed handles owned by GTK; only the extracted icon is ours.
-        icons = {"window_large": user32.SendMessageW(window, 0x7F, 1, 0),
-                 "window_small": user32.SendMessageW(window, 0x7F, 0, 0),
+        # Windows uses the class icon when WM_GETICON has no per-window override.
+        # Both are borrowed GTK handles; only the separately extracted icon is ours.
+        icons = {"window_large": user32.SendMessageW(window, 0x7F, 1, 0) or user32.GetClassLongPtrW(window, -14),
+                 "window_small": user32.SendMessageW(window, 0x7F, 0, 0) or user32.GetClassLongPtrW(window, -34),
                  "executable": executable_icon.value}
         for name, icon in icons.items():
             if not icon:
