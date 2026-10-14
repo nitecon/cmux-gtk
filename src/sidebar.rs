@@ -262,7 +262,7 @@ pub fn rebuild_grouped_sidebar(state: &crate::app_state::AppStateRef) {
 ///
 /// Per UI-SPEC:
 /// - Width: 160px (set_size_request(160, -1))
-/// - Background: #242424 (applied via global CssProvider in main.rs)
+/// - Background: #242424 (applied via the shared appearance stylesheet)
 /// - Row height: 36px min-height (CSS)
 /// - Row padding: 8px top/bottom, 16px left/right
 /// - Active row: #5b8dd9 background, #ffffff text, font-weight 600

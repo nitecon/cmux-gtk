@@ -5,6 +5,7 @@ These boundaries describe the current implementation. Requirement and verificati
 | Component | Responsibility | Current source |
 | --- | --- | --- |
 | Desktop composition | Construct GTK application, connect events, own application lifetime | `src/main.rs`, header/menu/dialog modules |
+| Desktop appearance | Shared dark native base, UI font rules and widget/menu palette; GTK display owns the installed stylesheet, Ghostty owns terminal fonts | `src/appearance.rs`, `src/appearance.css` |
 | Workspace model | Workspace identity, launch settings, order and attention | `src/workspace.rs`, `src/app_state.rs` |
 | Pane tree | Splits, sibling tabs, selection and surface lifecycle; saved layouts rebuild through a dedicated GTK restoration module | `src/split_engine.rs`, `src/split_engine/{restore,recovery}.rs` |
 | Agent terminal launches | Fixed Codex/Claude commands, per-tab Resume last setting, and background PTY initialization through the terminal adapter | `src/agent_terminal.rs`, `src/split_engine.rs`, `src/ghostty/surface.rs` |

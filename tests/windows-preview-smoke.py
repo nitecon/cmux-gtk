@@ -81,7 +81,17 @@ def capture_terminal(window, destination):
             color = raw[offset:offset + 3]
             if min(color) >= 160 and max(color) - min(color) < 35 and (is_green(offset - 20) or is_green(offset + 20)):
                 glyph_pixels += 1
-    return {"width": width, "height": height, "green_fraction": green_fraction, "glyph_pixels": glyph_pixels}
+
+    def light_fraction(left, top, right, bottom):
+        """Allow sparse light glyphs while detecting broad light-theme panels in the dark chrome."""
+        offsets = [4 * (y * width + x) for y in range(top, bottom, 2) for x in range(left, right, 2)]
+        return sum(min(raw[offset:offset + 3]) >= 180 and
+                   max(raw[offset:offset + 3]) - min(raw[offset:offset + 3]) < 35
+                   for offset in offsets) / len(offsets)
+
+    return {"width": width, "height": height, "green_fraction": green_fraction, "glyph_pixels": glyph_pixels,
+            "light_header_fraction": light_fraction(0, 0, width, min(height, 80)),
+            "light_sidebar_fraction": light_fraction(0, max(0, height - 50), min(width, 155), height)}
 
 
 def verify_workspace_shell(rpc, user32, window, profile):
@@ -286,11 +296,13 @@ def main():
                     if time.monotonic() >= deadline:
                         raise RuntimeError(f"No visible terminal background/glyphs: {frame}")
                     time.sleep(0.5)
+                if frame["light_header_fraction"] > 0.12 or frame["light_sidebar_fraction"] > 0.12:
+                    raise RuntimeError(f"Light GTK panels remain in the dark application chrome; see smoke-terminal.bmp: {frame}")
                 log.flush()
                 messages = (bundle / "smoke.log").read_text(encoding="utf-8", errors="replace")
                 if "gdk_gl_context_make_current() failed" in messages or "outside GTK owner thread" in messages:
                     raise RuntimeError("GTK OpenGL ownership failed; see smoke.log")
-                print("Visible terminal pixels and native keyboard text verified:", frame)
+                print("Visible terminal pixels, dark application chrome and native keyboard text verified:", frame)
                 verify_workspace_shell(rpc, user32, windows[0], profile)
                 if args.codex_fixture:
                     from process_input import verify as verify_process_input

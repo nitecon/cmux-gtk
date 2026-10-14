@@ -1,9 +1,10 @@
 use gtk4::prelude::*;
-use gtk4::{gio, Application, ApplicationWindow, CssProvider};
+use gtk4::{gio, Application, ApplicationWindow};
 use std::ffi::CString;
 
 mod agent_terminal;
 mod app_state;
+mod appearance;
 mod bounded_json;
 mod browser;
 mod browser_address;
@@ -57,87 +58,6 @@ mod workspace_group;
 mod workspace_metadata;
 
 const APP_ID: &str = "io.cmux.App";
-
-const APP_CSS: &str = "
-/* cmux Phase 2 styles — per UI-SPEC.md */
-window { background-color: #1a1a1a; }
-.sidebar { background-color: #242424; }
-.workspace-list { background-color: #242424; }
-.workspace-list row { min-height: 36px; padding: 8px 16px; }
-.workspace-list row label { color: #cccccc; font-size: 14px; font-weight: 400; }
-.workspace-list row:hover:not(.active-workspace) { background-color: #2e2e2e; }
-.workspace-list row.active-workspace { background-color: #5b8dd9; }
-.workspace-list row.active-workspace label { color: #ffffff; font-weight: 600; }
-.workspace-list row.workspace-group { min-height: 28px; padding: 2px 6px; background: #202020; }
-.workspace-list row.workspace-group button { padding: 3px 6px; }
-.workspace-list .group-unread { background: #5b8dd9; color: #ffffff; border-radius: 8px; padding: 0 5px; }
-.notification-unread { box-shadow: inset 0 0 0 2px #5b8dd9; }
-.active-pane { border: 1px solid #5b8dd9; }
-.rename-entry { font-size: 14px; padding: 2px 4px; }
-/* GtkPaned separator styling — makes divider visible on dark backgrounds.
-   wide-handle is set programmatically; separator gets min-width/height for draggability. */
-paned > separator { background-color: #3a3a3a; min-width: 4px; min-height: 4px; }
-paned > separator:hover { background-color: #5b8dd9; }
-/* Phase 4: Attention dot for bell notifications (NOTF-02) */
-.attention-dot {
-    background-color: #e8a444;
-    border-radius: 50%;
-    min-width: 8px;
-    min-height: 8px;
-    margin: 0 4px;
-}
-/* Phase 4: SSH connection state subtitle (SSH-01, SSH-04) */
-.connection-state {
-    font-size: 11px;
-    font-weight: 400;
-    color: #888888;
-}
-.connection-state.connected { color: #5b8dd9; }
-.connection-state.disconnected { color: #888888; }
-.connection-state.reconnecting { color: #e8a444; }
-/* Phase 7.1: SSH connect dialog (SSH-01) */
-.ssh-dialog { background-color: #242424; }
-.ssh-dialog entry { font-size: 14px; padding: 8px 16px; }
-/* Phase 8: Browser preview pane */
-.browser-preview { background-color: #1a1a1a; }
-.browser-url-bar { font-size: 13px; padding: 4px 8px; background-color: #2a2a2a; color: #e0e0e0; border-bottom: 1px solid #444; }
-.preview-container { background-color: #1a1a1a; }
-.preview-empty, .preview-error { color: #888888; font-size: 14px; font-weight: 400; padding: 32px; }
-.preview-error { color: #cc4444; }
-.stream-indicator { font-size: 9px; font-weight: 600; color: #5b8dd9; margin: 0 4px; padding: 1px 4px; border-radius: 2px; background-color: rgba(91, 141, 217, 0.15); }
-/* Phase 8 Plan 05: Navigation bar */
-.browser-nav-bar { background-color: #242424; padding: 4px 8px; border-bottom: 1px solid #3a3a3a; }
-.browser-nav-btn { min-width: 28px; min-height: 28px; padding: 4px; margin: 0 2px; border-radius: 4px; background-color: transparent; color: #cccccc; border: none; font-size: 14px; }
-.browser-nav-btn:hover { background-color: rgba(255, 255, 255, 0.08); }
-.browser-nav-btn:active { background-color: rgba(255, 255, 255, 0.12); }
-.browser-nav-btn:disabled { color: #555555; }
-.browser-nav-go { color: #5b8dd9; font-weight: 600; }
-.browser-nav-devtools:checked { background-color: rgba(91, 141, 217, 0.2); color: #5b8dd9; }
-/* Phase 8 Plan 06: DevTools overlay */
-.devtools-overlay { background-color: rgba(26, 26, 26, 0.92); }
-.devtools-snapshot { color: #cccccc; font-family: monospace; font-size: 12px; padding: 16px; }
-/* Phase 9: Header bar (D-04) */
-.cmux-headerbar { background-color: #242424; }
-.headerbar-btn { min-width: 28px; min-height: 28px; padding: 4px; margin: 0 2px; border-radius: 4px; background-color: transparent; color: #cccccc; border: none; }
-.headerbar-btn:hover { background-color: rgba(255, 255, 255, 0.08); }
-.headerbar-btn:active { background-color: rgba(255, 255, 255, 0.12); }
-/* Phase 9: Sidebar add button (D-01) */
-.sidebar-add-btn { min-height: 36px; padding: 8px 16px; background-color: transparent; color: #cccccc; border: none; border-top: 1px solid #3a3a3a; font-size: 16px; }
-.sidebar-add-btn:hover { background-color: #2e2e2e; }
-/* Phase 9: Sidebar close button (D-02) */
-.sidebar-close-btn { min-width: 20px; min-height: 20px; padding: 0; margin: 0; background-color: transparent; color: #888888; border: none; font-size: 14px; opacity: 0; }
-.workspace-list row:hover .sidebar-close-btn { opacity: 1; }
-.sidebar-close-btn:hover { color: #cccccc; }
-/* Surface tabs: reveal a compact close affordance on hover/focus. */
-.surface-tab-close { min-width: 18px; min-height: 18px; padding: 0; margin: 0; background: transparent; border: none; opacity: 0; }
-.surface-tab-label:hover .surface-tab-close, .surface-tab-close:focus { opacity: 1; }
-.surface-tab-close:hover { color: #cccccc; background-color: rgba(255, 255, 255, 0.08); }
-/* Phase 9: Context menu popover */
-popover.menu { background-color: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 8px; }
-popover.menu modelbutton { padding: 8px 16px; color: #cccccc; font-size: 14px; }
-popover.menu modelbutton:hover { background-color: #3a3a3a; }
-popover.menu accelerator { color: #5b8dd9; font-size: 12px; }
-";
 
 /// Own logging, background workers and the GTK application through orderly exit.
 fn main() {
@@ -342,14 +262,8 @@ fn build_ui(
         ghostty_app
     };
 
-    // 2. Load CSS
-    let provider = CssProvider::new();
-    provider.load_from_data(APP_CSS);
-    gtk4::style_context_add_provider_for_display(
-        &gtk4::gdk::Display::default().expect("no display"),
-        &provider,
-        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
+    // 2. Apply the shared GTK appearance before constructing widgets.
+    crate::appearance::install();
 
     // 3. Build the window layout
     let window = ApplicationWindow::builder()
