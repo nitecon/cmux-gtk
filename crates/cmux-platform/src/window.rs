@@ -3,7 +3,7 @@
 use gtk4::prelude::*;
 
 extern "C" {
-    /// Read or restore coordinates for a live GDK X11 surface on the GTK thread.
+    /// Read or restore coordinates for a live native GDK surface on the GTK thread.
     fn cmux_window_position(
         surface: *mut gtk4::gdk::ffi::GdkSurface,
         x: *mut i32,
@@ -12,7 +12,7 @@ extern "C" {
     ) -> i32;
 }
 
-/// Read root-window coordinates, returning None for Wayland or native failure.
+/// Read desktop coordinates, returning None for Wayland or native failure.
 /// Call on the GTK main thread with a live surface.
 pub fn position(surface: &gtk4::gdk::Surface) -> Option<(i32, i32)> {
     let (mut x, mut y) = (0, 0);
@@ -22,11 +22,11 @@ pub fn position(surface: &gtk4::gdk::Surface) -> Option<(i32, i32)> {
     (success != 0).then_some((x, y))
 }
 
-/// Request root-window coordinates; return false when placement is unsupported.
+/// Request desktop coordinates; return false when placement is unsupported.
 /// Call on the GTK main thread. The window manager may override the request.
 pub fn restore_position(surface: &gtk4::gdk::Surface, x: i32, y: i32) -> bool {
     let (mut x, mut y) = (x, y);
     // SAFETY: the borrowed GDK surface and exclusive coordinate values remain
-    // valid for the call. The bridge checks X11 before accessing native handles.
+    // valid for the call. The selected bridge validates its native surface backend.
     unsafe { cmux_window_position(surface.as_ptr(), &mut x, &mut y, 1) != 0 }
 }

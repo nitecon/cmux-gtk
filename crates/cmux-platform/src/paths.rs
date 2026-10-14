@@ -1,57 +1,23 @@
-//! Shared Linux application locations and command search paths.
+//! Shared application locations and command discovery over native OS path policy.
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-/// Present canonical local drive paths to shells using ordinary DOS syntax.
-/// File operations retain their canonical paths; other Windows namespaces are preserved.
-pub fn terminal_working_directory(path: &std::path::Path) -> std::borrow::Cow<'_, std::path::Path> {
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::{OsStrExt, OsStringExt};
-        use std::path::{Component, Prefix};
+#[cfg_attr(target_os = "linux", path = "linux/paths.rs")]
+#[cfg_attr(windows, path = "windows/paths.rs")]
+mod native;
 
-        if matches!(path.components().next(), Some(Component::Prefix(prefix))
-            if matches!(prefix.kind(), Prefix::VerbatimDisk(_)))
-        {
-            let ordinary: Vec<u16> = path.as_os_str().encode_wide().skip(4).collect();
-            return std::borrow::Cow::Owned(PathBuf::from(std::ffi::OsString::from_wide(
-                &ordinary,
-            )));
-        }
-    }
-    std::borrow::Cow::Borrowed(path)
-}
+pub use native::{socket_path, terminal_working_directory};
 
-/// Resolve an XDG application directory, using the home-relative default.
+/// Resolve an XDG application directory, using the native storage fallback.
 ///
 /// Empty or relative XDG overrides are ignored, as required by XDG. Missing
-/// HOME preserves the existing relative-directory fallback used by the app.
+/// home information preserves the existing relative-directory fallback used by the app.
 fn application_directory(variable: &str, fallback: &str) -> PathBuf {
     std::env::var_os(variable)
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| {
-            #[cfg(windows)]
-            {
-                let _ = fallback;
-                PathBuf::from(
-                    std::env::var_os("LOCALAPPDATA")
-                        .or_else(|| std::env::var_os("USERPROFILE"))
-                        .unwrap_or_else(|| ".".into()),
-                )
-                .join(match variable {
-                    "XDG_CONFIG_HOME" => "config",
-                    "XDG_DATA_HOME" => "data",
-                    "XDG_STATE_HOME" => "state",
-                    _ => "cache",
-                })
-            }
-            #[cfg(not(windows))]
-            {
-                PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| ".".into())).join(fallback)
-            }
-        })
+        .unwrap_or_else(|| native::application_directory(variable, fallback))
         .join("cmux")
 }
 
@@ -80,28 +46,8 @@ pub fn runtime_dir() -> PathBuf {
     std::env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| {
-            #[cfg(windows)]
-            {
-                return std::env::temp_dir();
-            }
-            #[cfg(not(windows))]
-            // SAFETY: getuid takes no arguments and has no caller preconditions.
-            PathBuf::from(format!("/run/user/{}", unsafe { libc::getuid() }))
-        })
+        .unwrap_or_else(native::runtime_directory)
         .join("cmux")
-}
-
-/// Return the default control socket path shared by desktop and CLI discovery.
-pub fn socket_path() -> PathBuf {
-    #[cfg(windows)]
-    {
-        // A SID-qualified local pipe prevents different users from sharing a control endpoint.
-        let user = crate::windows::current_sid().expect("Cannot identify current Windows user");
-        return PathBuf::from(format!(r"\\.\pipe\cmux-{user}-control"));
-    }
-    #[cfg(not(windows))]
-    runtime_dir().join("cmux.sock")
 }
 
 /// Return the runtime discovery marker path shared by the listener and CLI.
@@ -118,22 +64,8 @@ pub fn find_command_on_path(name: &str) -> Option<PathBuf> {
 
 /// Search a supplied OS-native path list without reading or mutating process environment.
 fn find_command_in(name: &str, search_path: &OsStr) -> Option<PathBuf> {
-    for directory in std::env::split_paths(search_path) {
-        let candidate = directory.join(name);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-        #[cfg(windows)]
-        if std::path::Path::new(name).extension().is_none() {
-            for extension in ["exe", "cmd", "bat", "com"] {
-                let candidate = directory.join(format!("{name}.{extension}"));
-                if candidate.is_file() {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    None
+    std::env::split_paths(search_path)
+        .find_map(|directory| native::command_candidate(&directory, name))
 }
 
 #[cfg(all(test, not(windows)))]

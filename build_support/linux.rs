@@ -1,0 +1,218 @@
+//! Linux Ghostty archive preparation and system-library linking.
+
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+/// Link the private Linux archive and its platform libraries; missing tools fail the build.
+pub(super) fn build(root: &Path, release_build: &str) {
+    let ghostty_archive = root.join("ghostty/zig-out/lib/libghostty.a");
+    println!("cargo:rerun-if-changed={}", ghostty_archive.display());
+    let private_ghostty_archive = prepare_private_ghostty_archive(&ghostty_archive);
+    let ghostty_lib_path = private_ghostty_archive.parent().unwrap();
+
+    // Static link the namespaced libghostty archive prepared above.
+    println!(
+        "cargo:rustc-link-search=native={}",
+        ghostty_lib_path.display()
+    );
+    println!("cargo:rustc-link-lib=static=ghostty_private");
+
+    // Modern Ghostty archives bundle their third-party static dependencies.
+    // Only platform libraries are linked separately here.
+    println!("cargo:rustc-link-lib=dylib=c++");
+    println!("cargo:rustc-link-lib=dylib=c++abi");
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+    println!("cargo:rustc-link-lib=dylib=gcc_s"); // For __gxx_personality_v0
+    println!("cargo:rustc-link-lib=dylib=fontconfig");
+    println!("cargo:rustc-link-lib=dylib=freetype");
+    if release_build == "1" {
+        link_static_libxml2();
+    } else {
+        println!("cargo:rustc-link-lib=dylib=xml2");
+    }
+
+    // Try to link the versioned onig library if dev package isn't installed
+    if std::process::Command::new("pkg-config")
+        .args(["--exists", "oniguruma"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+    {
+        println!("cargo:rustc-link-lib=dylib=onig");
+    } else if std::path::Path::new("/usr/lib/x86_64-linux-gnu/libonig.so.5").exists() {
+        // Link to the versioned library file directly
+        println!("cargo:rustc-link-arg=/usr/lib/x86_64-linux-gnu/libonig.so.5");
+    }
+
+    // Use pkg-config for GTK4/GLib system libraries that libghostty.a needs
+    // at link time if they are not fully bundled in the static archive.
+    // This is a soft best-effort; link errors reveal which ones are needed.
+    if std::process::Command::new("pkg-config")
+        .args(["--exists", "gtk4"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+    {
+        // Emit link-search dirs from the .pc file location (handles extracted dev packages).
+        // pkg-config --variable=pcfiledir emits the directory containing the .pc file; the
+        // sibling directory (../lib or the pkgconfig parent) contains the .so linker stubs.
+        for pkg in &["gtk4", "graphene-gobject-1.0"] {
+            let pcdir_out = std::process::Command::new("pkg-config")
+                .args(["--variable=pcfiledir", pkg])
+                .output();
+            if let Ok(out) = pcdir_out {
+                let pcdir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !pcdir.is_empty() {
+                    // pkgconfig dir is typically .../lib/x86_64-linux-gnu/pkgconfig;
+                    // the parent contains the .so symlinks.
+                    let libdir = std::path::Path::new(&pcdir)
+                        .parent()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    if !libdir.is_empty() {
+                        println!("cargo:rustc-link-search=native={libdir}");
+                    }
+                }
+            }
+        }
+
+        let gtk4_libs = std::process::Command::new("pkg-config")
+            .args(["--libs", "gtk4"])
+            .output()
+            .expect("pkg-config gtk4 failed");
+        let flags = String::from_utf8_lossy(&gtk4_libs.stdout);
+        for flag in flags.split_whitespace() {
+            if let Some(lib) = flag.strip_prefix("-l") {
+                println!("cargo:rustc-link-lib=dylib={lib}");
+            } else if let Some(path) = flag.strip_prefix("-L") {
+                println!("cargo:rustc-link-search=native={path}");
+            }
+        }
+    }
+}
+
+/// Namespace bundled dependency symbols in an OUT_DIR copy while preserving Ghostty's public ABI.
+/// Panic when symbol discovery, map writing or LLVM archive rewriting fails.
+fn prepare_private_ghostty_archive(source: &std::path::Path) -> PathBuf {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let archive = out_dir.join("libghostty_private.a");
+    let symbol_map = out_dir.join("ghostty-private-symbols.map");
+
+    // Ghostty's archive bundles its third-party libraries. Namespace every
+    // definition except the public C API, and rewrite matching references in
+    // every archive member. This prevents GTK/Pango's shared libraries from
+    // binding to Ghostty's private HarfBuzz and FreeType implementations.
+    let nm = env::var("NM").unwrap_or_else(|_| "nm".into());
+    let output = Command::new(&nm)
+        .args(["-g", "--defined-only", "--format=posix"])
+        .arg(source)
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run {nm} for {}: {error}", source.display()));
+    assert!(
+        output.status.success(),
+        "{nm} failed for {}: {}",
+        source.display(),
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+
+    let nm_stdout = String::from_utf8_lossy(&output.stdout);
+    let mut symbols: Vec<&str> = nm_stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let symbol = fields.next()?;
+            let kind = fields.next()?;
+            (kind.len() == 1 && !symbol.starts_with("ghostty_")).then_some(symbol)
+        })
+        .collect();
+    symbols.sort_unstable();
+    symbols.dedup();
+    assert!(
+        !symbols.is_empty(),
+        "no private symbols found in {}",
+        source.display()
+    );
+
+    let mappings: String = symbols
+        .into_iter()
+        .map(|symbol| format!("{symbol} cmux_ghostty_private_{symbol}\n"))
+        .collect();
+    fs::write(&symbol_map, mappings).expect("failed to write Ghostty symbol map");
+
+    // GNU objcopy cannot rewrite this archive because Zig preserves member
+    // paths; LLVM objcopy supports both those paths and --redefine-syms.
+    let objcopy = env::var("OBJCOPY").unwrap_or_else(|_| "llvm-objcopy".into());
+    let status = Command::new(&objcopy)
+        .arg(format!("--redefine-syms={}", symbol_map.display()))
+        .arg(source)
+        .arg(&archive)
+        .status()
+        .unwrap_or_else(|error| panic!("failed to run {objcopy}: {error}"));
+    assert!(
+        status.success(),
+        "{objcopy} failed to namespace libghostty symbols"
+    );
+
+    archive
+}
+
+/// Emit static libxml2 dependency flags followed by the required GNU C++ runtime.
+/// Fail the release build if pkg-config or the compiler cannot resolve those inputs.
+fn link_static_libxml2() {
+    let output = std::process::Command::new("pkg-config")
+        .args(["--libs", "--static", "libxml-2.0"])
+        .output()
+        .expect("pkg-config is required to statically link libxml2 for release builds");
+    if !output.status.success() {
+        panic!(
+            "pkg-config could not resolve static libxml2 dependencies: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let flags = String::from_utf8_lossy(&output.stdout);
+    let mut linked_xml2 = false;
+    for flag in flags.split_whitespace() {
+        if flag == "-lxml2" {
+            if !linked_xml2 {
+                println!("cargo:rustc-link-lib=static=xml2");
+                linked_xml2 = true;
+            }
+        } else if let Some(lib) = flag.strip_prefix("-l") {
+            if matches!(lib, "m" | "dl" | "pthread" | "rt") {
+                println!("cargo:rustc-link-lib=dylib={lib}");
+            } else {
+                println!("cargo:rustc-link-lib=static={lib}");
+            }
+        } else if let Some(path) = flag.strip_prefix("-L") {
+            println!("cargo:rustc-link-search=native={path}");
+        } else {
+            println!("cargo:rustc-link-arg={flag}");
+        }
+    }
+    assert!(linked_xml2, "pkg-config did not return -lxml2");
+
+    // Debian's static ICU archives use GNU libstdc++. Zig handles -lstdc++ as
+    // a C++ driver request, so pass the compiler-resolved shared object
+    // directly after the archives to satisfy ICU's symbols.
+    let libstdcpp = std::process::Command::new("c++")
+        .args(["-print-file-name=libstdc++.so.6"])
+        .output()
+        .expect("a C++ compiler is required to resolve libstdc++.so.6");
+    assert!(
+        libstdcpp.status.success(),
+        "the C++ compiler could not resolve libstdc++.so.6"
+    );
+    let libstdcpp_path = String::from_utf8_lossy(&libstdcpp.stdout)
+        .trim()
+        .to_string();
+    assert!(
+        libstdcpp_path != "libstdc++.so.6" && std::path::Path::new(&libstdcpp_path).is_file(),
+        "the C++ compiler returned an invalid libstdc++.so.6 path: {libstdcpp_path}"
+    );
+    println!("cargo:rustc-link-arg={libstdcpp_path}");
+    println!("cargo:rustc-link-lib=dylib=gcc_s");
+}

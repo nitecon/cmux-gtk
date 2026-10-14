@@ -2,6 +2,16 @@
 
 Status: complete for the full-refactor scope. [Cumulative CI 34015489261](https://github.com/nitecon/cmux-gtk/actions/runs/34015489261) passed every step at `226ddb31`. Local end-to-end user validation precedes any new release tag.
 
+## Linux and Windows platform isolation (2026-10-13)
+
+This cleanup reviewed native boundaries across the desktop, CLI, socket protocol, terminal adapter, browser service, SSH/Go daemon, updater, Python tooling and distribution. The shared application already routes most OS services through `cmux-platform`; the main structural gap was Linux implementations mixed with shared modules while Windows had its own directory.
+
+Linux native services now live in `crates/cmux-platform/src/linux/`, matching the Windows directory. Shared paths, discovery and OpenGL callbacks retain override precedence, GTK ownership and diagnostics while selecting private native path/pipe/GL helpers. The C placement bridges follow the same directory split. Root build metadata and Ghostty binding generation are shared; archive/DLL linking lives in `build_support/{linux,windows}.rs`.
+
+Public service paths and native behavior are preserved, including Linux bounded marker/debug discovery, Windows SID-qualified pipes, storage permissions and locking, native keycodes, WGL owner-thread rejection and GTK presentation. Existing production unit and integration scenarios remain the verification gates. Workspace/pane models, socket framing/admission, browser and SSH lifetimes, startup-script availability and updater policy remain with their existing owners. Upstream Ghostty is retained intact.
+
+Remaining Windows issues and additional core features are subsequent work. Keep Linux and Windows filesystem differences explicit; do not merge their transaction or permission implementations merely because their signatures match. Verification for this change uses the main-push Linux CI and Windows native storage/pipe, terminal/input/lifecycle and updater workflows. No local tests or release tag are part of this cleanup.
+
 ## Current requirement status
 
 This table supersedes the historical checkpoint notes below. Inventory refreshed from tracked, existing unique owned source through `226ddb31` on 2026-09-06 UTC. Ghostty and two Python entry symlinks are excluded from owned declaration counts. Static scans support discovery and documentation checks; they do not prove runtime correctness.

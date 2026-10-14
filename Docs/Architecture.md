@@ -32,13 +32,17 @@ flowchart LR
     Model --> Session[Session storage]
     Terminal --> SSH[SSH transport]
     SSH --> Go[Remote Go daemon]
-    CLI --> Platform[Linux component library]
+    CLI --> Platform[Native platform services]
     UI --> Platform
     RPC --> Platform
     Session --> Platform
 ```
 
 GTK objects and model mutations stay on the GTK main thread. Parse, validate, deduplicate and coalesce telemetry on workers. Send only necessary mutations to GTK. Keep latest-value data bounded; give streams backpressure and explicit cancellation. Widgets must not retain themselves through callbacks. Free each terminal and remote PTY exactly once.
+
+`cmux-platform` selects native implementations at compile time from `src/linux/` and `src/windows/`, keeping its public service paths stable. Shared path override precedence, control-endpoint overrides, GTK context lifetime and renderer-label capture remain in the platform crate's root modules. Native storage, transport, process inspection, keycodes, path fallbacks and GL dispatch belong to the OS directories. Window placement shares a Rust wrapper over the selected `native/linux/` or `native/windows/` C bridge. Keep terminal-engine FFI ownership in `src/ghostty`; product availability decisions remain with the application.
+
+The root `build.rs` owns build metadata and generates Ghostty bindings once for both targets. `build_support/linux.rs` owns Linux archive symbol isolation and system-library linking; `build_support/windows.rs` owns Windows import-library preparation and DLL linking. Select these steps using Cargo's target OS, independently of the build host.
 
 Each browser surface owns a manager with a unique daemon session; CLI commands, preview metadata and shutdown use that same identity. Browser state from a crashed manager is not adopted automatically.
 
@@ -68,4 +72,4 @@ Use symbol-aware navigation (`agent-tools symbols`, `symbol`, `search`) for expl
 
 Windows builds run scripts/setup-windows.sh under MSYS2 UCRT64 and bundle the native runtime with scripts/package-windows.py. The Windows preview workflow runs on main and supplies a transferable artifact; native storage/pipe tests, real client session hooks and visible keyboard-caused terminal pixels run on GitHub Actions. Hosted software OpenGL does not prove destination hardware graphics.
 
-Local transport type selection is centralized in `cmux-platform::local_socket`. Its `async-io` feature exposes Tokio networking without GTK, while blocking CLI connections use the same Linux component. CI checks both minimal and asynchronous platform configurations independently of GTK. Native transport operations retain their existing semantics; application protocol ownership stays outside the platform crate.
+Local transport type selection is centralized in `cmux-platform::local_socket`. Its `async-io` feature exposes Tokio networking without GTK, while blocking CLI connections use the same platform component. CI checks both minimal and asynchronous platform configurations independently of GTK. Native transport operations retain their existing semantics; application protocol ownership stays outside the platform crate.
