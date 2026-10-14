@@ -44,6 +44,10 @@ def main():
         source = args.prefix / relative
         if source.is_dir():
             shutil.copytree(source, bundle / relative, dirs_exist_ok=True)
+    for size in (48, 128, 256):
+        relative = Path(f"share/icons/hicolor/{size}x{size}/apps/io.cmux.App.png")
+        (bundle / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / "packaging/icons/hicolor" / f"{size}x{size}/apps/io.cmux.App.png", bundle / relative)
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
     shutil.copy2(root / "Docs/WindowsPreview.md", bundle / "README.txt")
     (bundle / "launch-cmux.cmd").write_text('@echo off\nset "PATH=%~dp0;%PATH%"\nset "XDG_DATA_DIRS=%~dp0share"\nstart "" "%~dp0cmux-app.exe"\n', encoding="utf-8")

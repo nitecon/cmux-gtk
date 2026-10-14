@@ -17,6 +17,7 @@
   - crates/cmux-platform/Cargo.toml
   - crates/cmux-platform/src/discovery.rs
   - crates/cmux-platform/src/lib.rs
+  - build_support/windows.rs
 019df63f-9652-77d3-ad3c-fc585f4b1858:
   - Docs/Observability.md
   - src/cli/diff.rs

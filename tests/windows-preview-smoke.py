@@ -14,6 +14,65 @@ import tempfile
 import time
 
 
+def verify_app_icons(window, executable):
+    """Render the actual window and executable icons and reject the generic GTK artwork."""
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.SendMessageW.restype = wintypes.LPARAM
+    user32.DrawIconEx.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.UINT, wintypes.HANDLE, wintypes.UINT]
+    user32.DestroyIcon.argtypes = [wintypes.HANDLE]
+    shell32.ExtractIconExW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, ctypes.POINTER(wintypes.HANDLE), ctypes.POINTER(wintypes.HANDLE), wintypes.UINT]
+    gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    gdi32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.c_void_p, wintypes.UINT, ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+    gdi32.CreateDIBSection.restype = wintypes.HANDLE
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
+    gdi32.SelectObject.restype = wintypes.HANDLE
+    gdi32.DeleteObject.argtypes = [wintypes.HANDLE]
+    gdi32.DeleteDC.argtypes = [wintypes.HDC]
+    executable_icon = wintypes.HANDLE()
+    if shell32.ExtractIconExW(str(executable), 0, ctypes.byref(executable_icon), None, 1) != 1:
+        raise RuntimeError("Windows executable has no embedded CX icon")
+    try:
+        # WM_GETICON returns borrowed handles owned by GTK; only the extracted icon is ours.
+        icons = {"window_large": user32.SendMessageW(window, 0x7F, 1, 0),
+                 "window_small": user32.SendMessageW(window, 0x7F, 0, 0),
+                 "executable": executable_icon.value}
+        for name, icon in icons.items():
+            if not icon:
+                raise RuntimeError(f"Missing {name} CX icon")
+            header = struct.pack("<IiiHHIIiiII", 40, 48, -48, 1, 32, 0, 48 * 48 * 4, 0, 0, 0, 0)
+            pixels = ctypes.c_void_p()
+            memory = gdi32.CreateCompatibleDC(None)
+            bitmap = gdi32.CreateDIBSection(memory, ctypes.create_string_buffer(header), 0, ctypes.byref(pixels), None, 0)
+            previous = None
+            try:
+                if not memory or not bitmap or not pixels.value:
+                    raise ctypes.WinError(ctypes.get_last_error())
+                previous = gdi32.SelectObject(memory, bitmap)
+                ctypes.memset(pixels, 0, 48 * 48 * 4)
+                if not user32.DrawIconEx(memory, 0, 0, icon, 48, 48, 0, None, 3) or not gdi32.GdiFlush():
+                    raise ctypes.WinError(ctypes.get_last_error())
+                raw = ctypes.string_at(pixels, 48 * 48 * 4)
+                colors = [raw[offset:offset + 3] for offset in range(0, len(raw), 4)]
+                blue = sum(b > 100 and b > g + 30 and g > r + 15 for b, g, r in colors)
+                dark = sum(15 <= min(color) and max(color) < 70 for color in colors)
+                if blue < 100 or dark < 1000:
+                    raise RuntimeError(f"Unexpected {name} artwork: blue={blue}, dark={dark}")
+                print(f"CX {name} icon PASS: blue={blue}, dark={dark}")
+            finally:
+                if previous:
+                    gdi32.SelectObject(memory, previous)
+                if bitmap:
+                    gdi32.DeleteObject(bitmap)
+                if memory:
+                    gdi32.DeleteDC(memory)
+    finally:
+        user32.DestroyIcon(executable_icon)
+
+
 def capture_terminal(window, destination):
     """Capture the visible client and measure keyboard-updated green background and white glyphs."""
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -243,6 +302,7 @@ def main():
                     raise RuntimeError("CMUX has no visible native window")
                 user32.SetForegroundWindow.argtypes = [wintypes.HWND]
                 user32.SetForegroundWindow(windows[0])
+                verify_app_icons(windows[0], bundle / "cmux-app.exe")
                 deadline = time.monotonic() + 30
                 while True:
                     try:

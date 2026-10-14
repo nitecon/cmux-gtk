@@ -4,6 +4,16 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.16] - 2026-10-13
+
+### Changed
+- Isolate Linux and Windows native services and build helpers while preserving shared core behavior.
+- Centralize desktop typography and dark control styling across platforms.
+
+### Fixed
+- Correct Windows popup-menu contrast, light control backgrounds and inconsistent regular/bold UI fonts.
+- Bundle the CX window icon and embed it in the Windows GUI executable for taskbar and Explorer display.
+
 ## [0.6.15] - 2026-10-13
 
 ### Changed
