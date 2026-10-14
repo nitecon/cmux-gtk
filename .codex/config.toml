@@ -1,0 +1,8 @@
+# Review eligible approval requests automatically for this repository.
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "workspace-write"
+
+# Permit routine gateway, GitHub and dependency access without escalation.
+[sandbox_workspace_write]
+network_access = true
