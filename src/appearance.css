@@ -1,5 +1,6 @@
 /* Shared GTK palette and typography for Linux and Windows. */
-window, popover { font-family: sans-serif; font-size: 14px; color: #cccccc; }
+/* Named native UI families keep regular and bold text in a sans face on both Pango backends. */
+window, popover { font-family: "Segoe UI", "Noto Sans", "DejaVu Sans", Sans; font-size: 14px; color: #cccccc; }
 window { background-color: #1a1a1a; }
 .sidebar { background-color: #242424; }
 .workspace-list { background-color: #242424; }
