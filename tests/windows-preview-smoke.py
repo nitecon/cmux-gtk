@@ -222,27 +222,36 @@ def verify_desktop_launcher(bundle, environment, profile):
         env[key] = str(Path(profile) / "launcher" / key.lower())
     log = Path(env["XDG_STATE_HOME"]) / "cmux/cmux.log"
     pid = None
+    def launched_pid():
+        """Identify only the GUI whose diagnostics belong to this isolated launcher profile."""
+        if log.exists():
+            for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+                try:
+                    return json.loads(line)["pid"]
+                except (ValueError, KeyError):
+                    continue
+        return None
     try:
-        subprocess.run([str(bundle / "cmux.exe")], env=env, check=True, capture_output=True, timeout=10)
+        print("Checking bare cmux.exe desktop launch", flush=True)
+        # A desktop outlives its CLI. Use a file rather than waiting for EOF on inherited pipes.
+        with (Path(profile) / "launcher-output.log").open("w") as output:
+            subprocess.run([str(bundle / "cmux.exe")], env=env, check=True,
+                           stdout=output, stderr=subprocess.STDOUT, timeout=10)
+        print("Bare cmux.exe returned; checking desktop RPC", flush=True)
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
-            if log.exists():
-                for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-                    try:
-                        pid = json.loads(line)["pid"]
-                        break
-                    except (ValueError, KeyError):
-                        continue
+            pid = launched_pid()
             result = subprocess.run([str(bundle / "cmux.exe"), "--json", "raw", "system.diagnostics"],
                                     env=env, text=True, capture_output=True, timeout=10)
             if result.returncode == 0 and pid:
                 diagnostic = json.loads(result.stdout)
                 assert diagnostic["pid"] == pid, "Launcher connected to a different app"
-                print("Bare cmux.exe desktop launch PASS:", pid, diagnostic["version"])
+                print("Bare cmux.exe desktop launch PASS:", pid, diagnostic["version"], flush=True)
                 return
             time.sleep(0.25)
         raise RuntimeError("Bare cmux.exe did not start a responding desktop")
     finally:
+        pid = pid or launched_pid()
         if pid:
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], env=env, capture_output=True, timeout=15)
 
