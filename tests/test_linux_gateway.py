@@ -67,6 +67,8 @@ def setup(root):
     session = root / "data/cmux/session.json"
     session.parent.mkdir(parents=True)
     session.write_text(json.dumps(dict(version=3, active_index=0, workspaces=workspaces)))
+    # Use the supported geometry restore path; external X11 resizing can select a GTK helper window.
+    session.with_name("window-state.json").write_text(json.dumps(dict(width=3000, height=1800)))
     return workspaces
 
 
@@ -263,15 +265,17 @@ def main():
                 app.cli("select-workspace", workspaces[0]["uuid"])
                 window = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid),
                                                   "--name", "^cmux$"], text=True).splitlines()[0]
-                subprocess.run(["xdotool", "windowsize", "--sync", window, "3000", "1800"],
-                               check=True, timeout=10)
                 (root / "first.mode").write_text("dimensions")
                 def large_grid():
                     """Confirm actual PTY dimensions rather than assuming window pixels imply rows/columns."""
                     text = raw(app, "surface.read_text", id=surfaces["first"])["text"]
                     size = re.search(r"grid=(\d+)x(\d+)", text)
                     return size and int(size[1]) * int(size[2]) > 16384
-                app.wait_for(large_grid, "large native PTY grid")
+                try:
+                    app.wait_for(large_grid, "large native PTY grid")
+                except BaseException:
+                    print("Large-grid fixture:", raw(app, "surface.read_text", id=surfaces["first"])["text"][:250])
+                    raise
                 large = gateway.add(content="Large terminal still receives native input")
                 wait_outcome(app, gateway, large, "injected")
                 app.wait_for(lambda: any(f"task-{large}" in message for message in submissions(root / "first.input")),

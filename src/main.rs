@@ -75,6 +75,13 @@ fn main() {
         diagnostics::log_path().display(),
     ));
 
+    #[cfg(windows)]
+    if let Err(error) = updater::windows::ensure_launch_allowed() {
+        diagnostics::event(format_args!("desktop launch deferred: {error:#}"));
+        eprintln!("cmux: {error:#}");
+        return;
+    }
+
     updater::spawn_auto_update();
 
     crate::ghostty::gtk_environment::configure();

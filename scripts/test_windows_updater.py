@@ -60,7 +60,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     with tempfile.TemporaryDirectory(prefix="cmux updater ") as directory:
         root = Path(directory)
-        for case in ("complete", "transient-lock", "locked", "mapped-image", "invalid-manifest", "rollback"):
+        for case in ("complete", "transient-lock", "launch-during-update", "locked", "mapped-image", "invalid-manifest", "rollback"):
             install = root / case
             shutil.copytree(bundle, install)
             (install / "user-notes.txt").write_text("preserve this")
@@ -85,8 +85,9 @@ def main():
                                           ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_void_p]
             kernel.CreateFileW.restype = ctypes.c_void_p
             kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-            if case in ("locked", "transient-lock"):
-                locked_file = "vulkan-1.dll" if case == "transient-lock" else "ghostty-internal.dll"
+            if case in ("locked", "transient-lock", "launch-during-update"):
+                locked_file = {"transient-lock": "vulkan-1.dll", "launch-during-update": "README.txt",
+                               "locked": "ghostty-internal.dll"}[case]
                 handle = kernel.CreateFileW(str(install / locked_file), 0x80000000, 0, None, 3, 0, None)
                 assert handle not in (None, ctypes.c_void_p(-1).value), ctypes.get_last_error()
             if case == "mapped-image":
@@ -108,30 +109,38 @@ def main():
             if case == "rollback":
                 # A missing late staged file causes failure after replacement has started.
                 (new / managed[-1]).unlink()
+            process = None
             try:
                 command = [str(new / "cmux.exe"), "__apply-update", str(install), str(staging)]
-                if case == "transient-lock":
+                if case in ("transient-lock", "launch-during-update"):
                     process = subprocess.Popen(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                     first = process.stdout.readline()
+                    assert "Waiting for" in first and locked_file in first, first
+                    if case == "launch-during-update":
+                        launch = subprocess.run([str(install / "cmux.exe")], text=True, capture_output=True, timeout=10)
+                        assert launch.returncode != 0 and "update is still applying" in launch.stderr, launch
                     kernel.CloseHandle(handle)
                     handle = None
                     remaining, _ = process.communicate(timeout=30)
-                    assert "Waiting for" in first and "vulkan-1.dll" in first, first + remaining
                     result = subprocess.CompletedProcess(command, process.returncode, first + remaining, "")
                 else:
                     result = subprocess.run(command, text=True, capture_output=True, timeout=30)
             finally:
                 if handle:
                     kernel.CloseHandle(handle)
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=10)
                 if view:
                     kernel.UnmapViewOfFile(view)
                 if mapping:
                     kernel.CloseHandle(mapping)
             print(case, result.returncode, result.stdout, result.stderr)
-            assert (result.returncode == 0) == (case in ("complete", "transient-lock")), result
+            assert not (install / ".cmux-update.lock").exists(), "worker left the startup gate behind"
+            assert (result.returncode == 0) == (case in ("complete", "transient-lock", "launch-during-update")), result
             assert (install / "user-notes.txt").read_text() == "preserve this"
             assert (install / "session.json").read_text() == "user session file"
-            if case in ("complete", "transient-lock"):
+            if case in ("complete", "transient-lock", "launch-during-update"):
                 assert not (install / "obsolete-runtime.dll").exists()
                 assert all(digest(install / relative) == expected[relative] for relative in managed)
                 assert subprocess.check_output([str(install / "cmux.exe"), "--version"], text=True).startswith("cmux ")

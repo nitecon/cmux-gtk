@@ -153,7 +153,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Test gateway lifecycle stream and native terminal injection
-        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_gateway.py
+        run: dbus-run-session -- xvfb-run -a -s '-screen 0 3200x2000x24' python3 tests/test_linux_gateway.py
 
       - name: Test native process arrow keys and direct input
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_input_shortcuts.py

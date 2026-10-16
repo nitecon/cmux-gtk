@@ -9,6 +9,22 @@ use std::time::{Duration, Instant};
 
 const MANIFEST: &str = "managed-files.json";
 const LOG: &str = ".cmux-update.log";
+const APPLYING: &str = ".cmux-update.lock";
+
+/// Refuse desktop startup during replacement. Windows removes the worker-owned marker on exit.
+pub(crate) fn ensure_launch_allowed() -> Result<()> {
+    let executable = std::env::current_exe()?;
+    let install = executable
+        .parent()
+        .context("cannot locate CMUX installation")?;
+    if install.join(APPLYING).try_exists()? {
+        bail!(
+            "CMUX update is still applying; keep the app closed and check {} for completion",
+            install.join(LOG).display()
+        );
+    }
+    Ok(())
+}
 
 /// Resolve runtime modules from the staged bundle before the installed bundle on PATH.
 pub(super) fn runtime_path(directory: &Path) -> Result<std::ffi::OsString> {
@@ -151,7 +167,7 @@ pub(super) fn stage_update(source: impl Read, checksum: &str, version: &Version)
         }
         fs::remove_file(staging.join("bundle.zip"))?;
         let log = File::create(install.join(LOG))?;
-        std::process::Command::new(new.join("cmux.exe"))
+        let mut worker = std::process::Command::new(new.join("cmux.exe"))
             .current_dir(&new)
             .env("PATH", runtime_path(&new)?)
             .env("XDG_DATA_DIRS", new.join("share"))
@@ -164,6 +180,25 @@ pub(super) fn stage_update(source: impl Read, checksum: &str, version: &Version)
             .creation_flags(0x0800_0000) // CREATE_NO_WINDOW; worker owns no UI or terminal.
             .spawn()
             .context("cannot start Windows update worker")?;
+        // Do not hand the prompt back until the worker prevents a racing GUI launch.
+        let ready_by = Instant::now() + Duration::from_secs(5);
+        while !install.join(APPLYING).try_exists()? {
+            if worker.try_wait()?.is_some() {
+                bail!(
+                    "update worker stopped before replacement; check {}",
+                    install.join(LOG).display()
+                );
+            }
+            if Instant::now() >= ready_by {
+                let _ = worker.kill();
+                let _ = worker.wait();
+                bail!(
+                    "update worker did not become ready; installation unchanged; check {}",
+                    install.join(LOG).display()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
         eprintln!("cmux: staged and verified v{version} for {}. The installation has NOT been updated yet; replacement starts after this command exits. Keep CMUX closed until {} says Updated CMUX successfully. A locked file can still prevent replacement. No app was restarted.", install.display(), install.join(LOG).display());
         Ok(())
     })();
@@ -288,6 +323,14 @@ pub(crate) fn apply_update(install: &Path, staging: &Path) -> Result<()> {
     }
     // The staged process may move/delete its original working directory below.
     std::env::set_current_dir(&install)?;
+    // DELETE_ON_CLOSE makes the startup gate self-cleaning even if this worker exits unexpectedly.
+    let applying = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .share_mode(0)
+        .custom_flags(0x0400_0000)
+        .open(install.join(APPLYING))
+        .context("another CMUX update is already applying")?;
     let new = staging.join("new");
     let paths = manifest_paths(&new)?;
     let old_paths = if install.join(MANIFEST).exists() {
@@ -344,6 +387,7 @@ pub(crate) fn apply_update(install: &Path, staging: &Path) -> Result<()> {
         bail!("update failed: {error:#}; rollback errors: {failures:?}; recovery files retained in {}", staging.display());
     }
     fs::remove_dir_all(&backup)?;
+    drop(applying);
     println!("Updated CMUX successfully. Launch launch-cmux.cmd to use the new version. Settings and sessions were preserved.");
     // All mapped worker files have moved to the installation; only empty staging parents remain.
     let _ = fs::remove_dir_all(&staging);

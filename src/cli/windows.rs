@@ -6,6 +6,8 @@ use std::os::windows::process::CommandExt;
 /// Start the GUI from this installation without waiting for its application lifetime.
 /// The child owns its normal diagnostics; no terminal handles or process handles are retained.
 pub(crate) fn launch_desktop() -> Result<(), CliError> {
+    super::updater::windows::ensure_launch_allowed()
+        .map_err(|error| CliError::Command(format!("{error:#}")))?;
     let launch = || -> std::io::Result<()> {
         let executable = std::env::current_exe()?;
         let directory = executable
