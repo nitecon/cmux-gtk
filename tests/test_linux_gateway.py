@@ -261,7 +261,7 @@ def main():
                 wait_outcome(app, gateway, busy, "injected")
                 # Fullscreen-sized terminals exceeded the former 16,384-cell capture cap.
                 app.cli("select-workspace", workspaces[0]["uuid"])
-                window = subprocess.check_output(["xdotool", "search", "--pid", str(app.process.pid),
+                window = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid),
                                                   "--name", "^cmux$"], text=True).splitlines()[0]
                 subprocess.run(["xdotool", "windowsize", "--sync", window, "3000", "1800"],
                                check=True, timeout=10)

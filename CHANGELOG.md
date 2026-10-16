@@ -4,7 +4,13 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.17] - 2026-10-16
+
+### Changed
+- On Windows, bare `cmux.exe` opens the desktop from the same installation; explicit CLI commands and `--update` retain their behavior.
+
 ### Fixed
+- Isolate the staged Windows updater runtime from the installed DLL search path, wait for transient file locks, and distinguish staging from completed replacement.
 - Preserve native Linux UI font settings instead of applying the Windows font baseline globally.
 - Capture gateway prompt grids only for queued recipients, below native input priority, and release render grids from delivery history.
 - Allow bounded fullscreen prompt capture and preserve fresh, unsent gateway input through transient reconnects in the same app process.

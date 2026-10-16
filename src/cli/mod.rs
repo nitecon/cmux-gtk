@@ -24,6 +24,10 @@ mod teams;
 mod updater;
 
 pub use socket_client::CliError;
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub(crate) use windows::launch_desktop;
 
 mod args;
 mod diff;

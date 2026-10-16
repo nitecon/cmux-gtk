@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import json
 import io
+import os
 import shutil
 import subprocess
 import tempfile
@@ -59,7 +60,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     with tempfile.TemporaryDirectory(prefix="cmux updater ") as directory:
         root = Path(directory)
-        for case in ("complete", "locked", "mapped-image", "invalid-manifest", "rollback"):
+        for case in ("complete", "transient-lock", "locked", "mapped-image", "invalid-manifest", "rollback"):
             install = root / case
             shutil.copytree(bundle, install)
             (install / "user-notes.txt").write_text("preserve this")
@@ -84,8 +85,9 @@ def main():
                                           ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_void_p]
             kernel.CreateFileW.restype = ctypes.c_void_p
             kernel.CloseHandle.argtypes = [ctypes.c_void_p]
-            if case == "locked":
-                handle = kernel.CreateFileW(str(install / "ghostty-internal.dll"), 0x80000000, 0, None, 3, 0, None)
+            if case in ("locked", "transient-lock"):
+                locked_file = "vulkan-1.dll" if case == "transient-lock" else "ghostty-internal.dll"
+                handle = kernel.CreateFileW(str(install / locked_file), 0x80000000, 0, None, 3, 0, None)
                 assert handle not in (None, ctypes.c_void_p(-1).value), ctypes.get_last_error()
             if case == "mapped-image":
                 kernel.CreateFileMappingW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong,
@@ -107,8 +109,17 @@ def main():
                 # A missing late staged file causes failure after replacement has started.
                 (new / managed[-1]).unlink()
             try:
-                result = subprocess.run([str(new / "cmux.exe"), "__apply-update", str(install), str(staging)],
-                                        text=True, capture_output=True, timeout=30)
+                command = [str(new / "cmux.exe"), "__apply-update", str(install), str(staging)]
+                if case == "transient-lock":
+                    process = subprocess.Popen(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    first = process.stdout.readline()
+                    kernel.CloseHandle(handle)
+                    handle = None
+                    remaining, _ = process.communicate(timeout=30)
+                    assert "Waiting for" in first and "vulkan-1.dll" in first, first + remaining
+                    result = subprocess.CompletedProcess(command, process.returncode, first + remaining, "")
+                else:
+                    result = subprocess.run(command, text=True, capture_output=True, timeout=30)
             finally:
                 if handle:
                     kernel.CloseHandle(handle)
@@ -117,10 +128,10 @@ def main():
                 if mapping:
                     kernel.CloseHandle(mapping)
             print(case, result.returncode, result.stdout, result.stderr)
-            assert (result.returncode == 0) == (case == "complete"), result
+            assert (result.returncode == 0) == (case in ("complete", "transient-lock")), result
             assert (install / "user-notes.txt").read_text() == "preserve this"
             assert (install / "session.json").read_text() == "user session file"
-            if case == "complete":
+            if case in ("complete", "transient-lock"):
                 assert not (install / "obsolete-runtime.dll").exists()
                 assert all(digest(install / relative) == expected[relative] for relative in managed)
                 assert subprocess.check_output([str(install / "cmux.exe"), "--version"], text=True).startswith("cmux ")
@@ -149,10 +160,16 @@ def main():
             # Exercise both spellings against the no-update response.
             spellings = (["--update"], ["update"]) if case == "current" else (["--update"],)
             for spelling in spellings:
-                result = subprocess.run([str(install / "cmux.exe"), *spelling], text=True, capture_output=True, timeout=130)
+                # Match the portable launcher: installed DLLs precede everything
+                # else, and the updater must isolate its staged runtime itself.
+                environment = dict(os.environ, PATH=os.pathsep.join((str(install), str(Path(os.environ["SystemRoot"]) / "System32"))),
+                                   XDG_DATA_DIRS=str(install / "share"))
+                result = subprocess.run([str(install / "cmux.exe"), *spelling], cwd=install, env=environment,
+                                        text=True, capture_output=True, timeout=130)
                 print(case, result.returncode, result.stdout, result.stderr)
                 assert (result.returncode == 0) == (case in ("download", "current")), result
             if case == "download":
+                assert "NOT been updated yet" in result.stderr
                 deadline = time.monotonic() + 30
                 log = install / ".cmux-update.log"
                 while time.monotonic() < deadline and "Updated CMUX successfully" not in log.read_text(errors="replace"):

@@ -10,6 +10,15 @@ use std::time::{Duration, Instant};
 const MANIFEST: &str = "managed-files.json";
 const LOG: &str = ".cmux-update.log";
 
+/// Resolve runtime modules from the staged bundle before the installed bundle on PATH.
+pub(super) fn runtime_path(directory: &Path) -> Result<std::ffi::OsString> {
+    let existing = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(
+        std::iter::once(directory.to_path_buf()).chain(std::env::split_paths(&existing)),
+    )
+    .context("cannot prepare staged Windows runtime PATH")
+}
+
 /// Validate portable paths before using them in either a ZIP or installed ownership manifest.
 fn manifest_paths(root: &Path) -> Result<Vec<String>> {
     let data = read_metadata(File::open(root.join(MANIFEST))?, 1024 * 1024)?;
@@ -143,6 +152,9 @@ pub(super) fn stage_update(source: impl Read, checksum: &str, version: &Version)
         fs::remove_file(staging.join("bundle.zip"))?;
         let log = File::create(install.join(LOG))?;
         std::process::Command::new(new.join("cmux.exe"))
+            .current_dir(&new)
+            .env("PATH", runtime_path(&new)?)
+            .env("XDG_DATA_DIRS", new.join("share"))
             .arg("__apply-update")
             .arg(install)
             .arg(&staging)
@@ -152,7 +164,7 @@ pub(super) fn stage_update(source: impl Read, checksum: &str, version: &Version)
             .creation_flags(0x0800_0000) // CREATE_NO_WINDOW; worker owns no UI or terminal.
             .spawn()
             .context("cannot start Windows update worker")?;
-        eprintln!("cmux: verified v{version}; applying after this command exits. Check {} for completion, then launch CMUX. No app was restarted.", install.join(LOG).display());
+        eprintln!("cmux: staged and verified v{version} for {}. The installation has NOT been updated yet; replacement starts after this command exits. Keep CMUX closed until {} says Updated CMUX successfully. A locked file can still prevent replacement. No app was restarted.", install.display(), install.join(LOG).display());
         Ok(())
     })();
     if result.is_err() {
@@ -239,6 +251,26 @@ fn exclusive_file(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Wait briefly for process/DLL teardown before any installation files are moved.
+/// A persistent lock still aborts with the entire old installation intact.
+fn wait_exclusive(path: &Path, deadline: Instant) -> Result<()> {
+    let mut announced = false;
+    loop {
+        match exclusive_file(path) {
+            Ok(()) => return Ok(()),
+            Err(error) if Instant::now() >= deadline => return Err(error).with_context(||
+                format!("{} is locked; close CMUX and other CMUX commands, then retry cmux --update; installation unchanged", path.display())),
+            Err(_) => {
+                if !announced {
+                    println!("Waiting for {} to unlock before replacing the installation", path.display());
+                    announced = true;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+}
+
 /// Apply a staged bundle, backing up all owned files first and rolling back on failure.
 /// The worker runs from staging, waits for the original CLI, and never kills or restarts apps.
 pub(crate) fn apply_update(install: &Path, staging: &Path) -> Result<()> {
@@ -254,6 +286,8 @@ pub(crate) fn apply_update(install: &Path, staging: &Path) -> Result<()> {
     {
         bail!("update worker must run from its own staged bundle");
     }
+    // The staged process may move/delete its original working directory below.
+    std::env::set_current_dir(&install)?;
     let new = staging.join("new");
     let paths = manifest_paths(&new)?;
     let old_paths = if install.join(MANIFEST).exists() {
@@ -263,15 +297,10 @@ pub(crate) fn apply_update(install: &Path, staging: &Path) -> Result<()> {
     };
     let owned: BTreeSet<_> = paths.iter().chain(&old_paths).cloned().collect();
     let deadline = Instant::now() + Duration::from_secs(15);
-    while exclusive_file(&install.join("cmux.exe")).is_err() {
-        if Instant::now() >= deadline {
-            bail!("updating CLI did not exit; installation unchanged");
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    wait_exclusive(&install.join("cmux.exe"), deadline)?;
     for path in &owned {
         check_path(&install, path)?;
-        exclusive_file(&install.join(path)).with_context(|| format!("{path} is locked; close CMUX and other CMUX commands, then retry cmux --update; installation unchanged"))?;
+        wait_exclusive(&install.join(path), deadline)?;
     }
     for path in &paths {
         check_path(&new, path)?;

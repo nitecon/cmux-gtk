@@ -20,7 +20,7 @@ pub(super) fn build(root: &Path) {
     embed_app_icon(root, &output);
 }
 
-/// Wrap the existing PNG artwork in an ICO resource owned by the GUI executable.
+/// Wrap the existing PNG artwork in an ICO resource owned by the Windows entry points.
 /// windres produces the COFF object; no runtime icon handle or extra dependency is required.
 fn embed_app_icon(root: &Path, output: &Path) {
     let sizes = [48u32, 128, 256];
@@ -57,6 +57,10 @@ fn embed_app_icon(root: &Path, output: &Path) {
     assert!(status.success(), "compile CX icon resource");
     println!(
         "cargo:rustc-link-arg-bin=cmux-app={}",
+        output.join("cmux-icon.o").display()
+    );
+    println!(
+        "cargo:rustc-link-arg-bin=cmux={}",
         output.join("cmux-icon.o").display()
     );
 }

@@ -81,6 +81,11 @@ fn update_if_available(verbose: bool) -> Result<()> {
         .context("invalid compiled cmux version")?;
     if verbose {
         eprintln!("cmux: current version v{current}");
+        #[cfg(windows)]
+        eprintln!(
+            "cmux: updating the installation containing {}",
+            std::env::current_exe()?.display()
+        );
     }
 
     let client = http_client()?;
@@ -312,6 +317,12 @@ fn validate_staged_binary(name: &str, path: &Path) -> Result<String> {
         .build()
         .context("cannot initialize update preflight runtime")?;
     let mut command = tokio::process::Command::new(path);
+    #[cfg(windows)]
+    if let Some(directory) = path.parent() {
+        command
+            .current_dir(directory)
+            .env("PATH", windows::runtime_path(directory)?);
+    }
     command.arg("--version");
     let output = runtime
         .block_on(crate::task::run_output(

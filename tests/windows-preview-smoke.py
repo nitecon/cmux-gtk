@@ -215,6 +215,38 @@ def verify_workspace_shell(rpc, user32, window, profile):
     rpc("workspace.close", {"id": workspace["uuid"]})
 
 
+def verify_desktop_launcher(bundle, environment, profile):
+    """Launch the real desktop with bare cmux.exe and verify its responding process and version."""
+    env = environment.copy()
+    for key in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"):
+        env[key] = str(Path(profile) / "launcher" / key.lower())
+    log = Path(env["XDG_STATE_HOME"]) / "cmux/cmux.log"
+    pid = None
+    try:
+        subprocess.run([str(bundle / "cmux.exe")], env=env, check=True, capture_output=True, timeout=10)
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline:
+            if log.exists():
+                for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+                    try:
+                        pid = json.loads(line)["pid"]
+                        break
+                    except (ValueError, KeyError):
+                        continue
+            result = subprocess.run([str(bundle / "cmux.exe"), "--json", "raw", "system.diagnostics"],
+                                    env=env, text=True, capture_output=True, timeout=10)
+            if result.returncode == 0 and pid:
+                diagnostic = json.loads(result.stdout)
+                assert diagnostic["pid"] == pid, "Launcher connected to a different app"
+                print("Bare cmux.exe desktop launch PASS:", pid, diagnostic["version"])
+                return
+            time.sleep(0.25)
+        raise RuntimeError("Bare cmux.exe did not start a responding desktop")
+    finally:
+        if pid:
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], env=env, capture_output=True, timeout=15)
+
+
 def main():
     """Run from a clean profile and check terminal execution before bounded cleanup."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -264,6 +296,7 @@ def main():
             model.configure(Path(profile) / "codex-home")
             env["CODEX_HOME"] = str(Path(profile) / "codex-home")
         subprocess.run([str(runtime_bundle / "cmux.exe"), "--version"], env=env, check=True, timeout=20)
+        verify_desktop_launcher(runtime_bundle, env, profile)
         with (bundle / "smoke.log").open("w", encoding="utf-8") as log:
             app = subprocess.Popen([str(runtime_bundle / "cmux-app.exe")], env=env, stdout=log, stderr=subprocess.STDOUT)
             try:

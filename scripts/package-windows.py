@@ -50,7 +50,7 @@ def main():
         shutil.copy2(root / "packaging/icons/hicolor" / f"{size}x{size}/apps/io.cmux.App.png", bundle / relative)
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
     shutil.copy2(root / "Docs/WindowsPreview.md", bundle / "README.txt")
-    (bundle / "launch-cmux.cmd").write_text('@echo off\nset "PATH=%~dp0;%PATH%"\nset "XDG_DATA_DIRS=%~dp0share"\nstart "" "%~dp0cmux-app.exe"\n', encoding="utf-8")
+    (bundle / "launch-cmux.cmd").write_text('@echo off\nset "PATH=%~dp0;%PATH%"\nset "XDG_DATA_DIRS=%~dp0share"\nstart "" "%~dp0cmux.exe"\n', encoding="utf-8")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     (bundle / "build.json").write_text(json.dumps({"revision": revision, "platform": "windows-x86_64", "runtime_files": sorted(copied)}, indent=2) + "\n", encoding="utf-8")
     managed = sorted(path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file())

@@ -17,8 +17,7 @@ use clap::Parser;
 
 /// Parse arguments and translate command failures into the documented process exit codes.
 fn main() -> std::process::ExitCode {
-    let cli_args = cli::Cli::parse();
-    match cli::run(cli_args) {
+    match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(cli::CliError::Connection(msg)) => {
             eprintln!("Error: {}", msg);
@@ -31,4 +30,13 @@ fn main() -> std::process::ExitCode {
             std::process::ExitCode::from(1)
         }
     }
+}
+
+/// A bare Windows invocation opens the desktop; explicit arguments keep the CLI contract.
+fn run() -> Result<(), cli::CliError> {
+    #[cfg(windows)]
+    if std::env::args_os().nth(1).is_none() {
+        return cli::launch_desktop();
+    }
+    cli::run(cli::Cli::parse())
 }
