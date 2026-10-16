@@ -265,6 +265,7 @@ def main():
                                                   "--name", "^cmux$"], text=True).splitlines()[0]
                 subprocess.run(["xdotool", "windowsize", "--sync", window, "3000", "1800"],
                                check=True, timeout=10)
+                (root / "first.mode").write_text("dimensions")
                 def large_grid():
                     """Confirm actual PTY dimensions rather than assuming window pixels imply rows/columns."""
                     text = raw(app, "surface.read_text", id=surfaces["first"])["text"]
@@ -276,6 +277,7 @@ def main():
                 app.wait_for(lambda: any(f"task-{large}" in message for message in submissions(root / "first.input")),
                              "large-grid actual stdin submission")
                 subprocess.run(["xdotool", "windowsize", "--sync", window, "800", "600"], check=True, timeout=10)
+                (root / "first.mode").write_text("idle")
                 human = "unfinished native draft"
                 before = len(submissions(root / "first.input"))
                 raw(app, "surface.send_text", id=surfaces["first"], text=human)

@@ -5,6 +5,7 @@ All notable changes to cmux GTK are documented here.
 ## [Unreleased]
 
 ### Fixed
+- Preserve native Linux UI font settings instead of applying the Windows font baseline globally.
 - Capture gateway prompt grids only for queued recipients, below native input priority, and release render grids from delivery history.
 - Allow bounded fullscreen prompt capture and preserve fresh, unsent gateway input through transient reconnects in the same app process.
 - Reuse repository discovery across sibling tabs and defer incomplete scans instead of treating them as recipient loss.

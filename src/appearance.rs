@@ -19,7 +19,14 @@ pub(crate) fn install() {
     settings.set_gtk_application_prefer_dark_theme(true);
 
     let provider = gtk4::CssProvider::new();
+    #[cfg(not(target_os = "windows"))]
     provider.load_from_data(include_str!("appearance.css"));
+    #[cfg(target_os = "windows")]
+    provider.load_from_data(&format!(
+        "{}\n{}",
+        include_str!("appearance.css"),
+        include_str!("appearance-windows.css")
+    ));
     gtk4::style_context_add_provider_for_display(
         &display,
         &provider,

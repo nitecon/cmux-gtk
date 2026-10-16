@@ -1,0 +1,5 @@
+/* Keep Windows regular and bold UI labels in the same native sans family. */
+window, popover {
+    font-family: "Segoe UI", "Noto Sans", "DejaVu Sans", Sans;
+    font-size: 14px;
+}
