@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/ioctl.h>
 #include <sys/un.h>
 
 static void state(const char *path, char *value, size_t size);
@@ -66,9 +67,12 @@ static void state(const char *path, char *value, size_t size) {
 
 /** Emit a deterministic provider prompt and live caret without exposing fixture controls to the application. */
 static void render(const char *mode, const char *marker, const char *draft) {
+    struct winsize size = {0};
+    ioctl(STDIN_FILENO, TIOCGWINSZ, &size);
     if (strcmp(marker, "›") == 0) {
-        printf("\033[2J\033[H%s\r\n", strcmp(mode, "busy") == 0 ?
-               "Working · esc to interrupt" : "Gateway fixture: permission checks preserved");
+        printf("\033[2J\033[H%s [grid=%ux%u]\r\n", strcmp(mode, "busy") == 0 ?
+               "Working · esc to interrupt" : "Gateway fixture: permission checks preserved",
+               (unsigned)size.ws_col, (unsigned)size.ws_row);
         printf("\033[48;2;65;69;76m\033[K\r\n\033[1m%s \033[22m", marker);
         if (*draft) printf("%s", draft);
         else printf("\033[2mAsk Codex to do anything\033[22m");

@@ -46,13 +46,18 @@ pub fn start(state: &AppStateRef, runtime: &tokio::runtime::Handle) {
         runtime: runtime.clone(),
     });
     let weak = std::rc::Rc::downgrade(state);
-    glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        let Some(state) = weak.upgrade() else {
-            return glib::ControlFlow::Break;
-        };
-        snapshot(&state);
-        glib::ControlFlow::Continue
-    });
+    // Prompt observation must yield to native keyboard events and rendering.
+    glib::timeout_add_local_full(
+        std::time::Duration::from_millis(500),
+        glib::Priority::DEFAULT_IDLE,
+        move || {
+            let Some(state) = weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            snapshot(&state);
+            glib::ControlFlow::Continue
+        },
+    );
     let weak = std::rc::Rc::downgrade(state);
     glib::MainContext::default().spawn_local(async move {
         while let Some(mut delivery) = delivery_rx.recv().await {
@@ -98,7 +103,9 @@ fn terminals(state: &crate::app_state::AppState, capture_screen: bool) -> Vec<Te
             let capture = capture_screen
                 && state.gateway.as_ref().is_some_and(|gateway| {
                     let view = gateway.view.borrow();
-                    view.config.enabled && view.config.injection_approved
+                    view.config.enabled
+                        && view.config.injection_approved
+                        && view.prompt_surfaces.contains(&surface_id)
                 });
             // SAFETY: the engine owns this live surface on GTK; bounded capture does not yield.
             let screen = if capture {

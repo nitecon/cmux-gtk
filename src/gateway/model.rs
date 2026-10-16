@@ -368,6 +368,9 @@ pub struct View {
     pub projects: usize,
     pub agents: usize,
     pub receipts: VecDeque<Receipt>,
+    /// Live queue demand for GTK prompt capture; never serialized or persisted.
+    #[serde(skip)]
+    pub(crate) prompt_surfaces: std::collections::HashSet<String>,
 }
 
 /// Validate bounded nonempty identifiers without exposing their contents in errors.

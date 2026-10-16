@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real GTK app against a native lifecycle WebSocket and native foreground-agent fixtures in CI."""
 import json
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -244,11 +245,37 @@ def main():
                     app.wait_for(lambda: "esc to interrupt" in raw(app, "surface.read_text", id=surfaces[name])["text"], "busy process")
                 busy = gateway.add(content="Wait until both native prompts are safe")
                 wait_outcome(app, gateway, busy, "queued")
+                # Fresh, known-unsent input survives a transport gap in this process;
+                # events first seen during the gap still cannot become offline replay.
+                subscription_count = len(gateway.subscriptions)
+                gateway.disconnect()
+                offline_busy = gateway.add(content="Offline history must stay skipped")
+                app.wait_for(lambda: len(gateway.subscriptions) > subscription_count and
+                             status(app)["connection"] == "Connected", "busy-queue reconnect", timeout=20)
+                wait_outcome(app, gateway, offline_busy, "skipped")
+                assert gateway.outcome(busy) == "queued"
                 independent = gateway.add(project="second", kind="task_commented", content="Other project proceeds")
                 wait_outcome(app, gateway, independent, "injected")
                 for name in ("first", "peer"):
                     (root / (name + ".mode")).write_text("idle")
                 wait_outcome(app, gateway, busy, "injected")
+                # Fullscreen-sized terminals exceeded the former 16,384-cell capture cap.
+                app.cli("select-workspace", workspaces[0]["uuid"])
+                window = subprocess.check_output(["xdotool", "search", "--pid", str(app.process.pid),
+                                                  "--name", "^cmux$"], text=True).splitlines()[0]
+                subprocess.run(["xdotool", "windowsize", "--sync", window, "3000", "1800"],
+                               check=True, timeout=10)
+                def large_grid():
+                    """Confirm actual PTY dimensions rather than assuming window pixels imply rows/columns."""
+                    text = raw(app, "surface.read_text", id=surfaces["first"])["text"]
+                    size = re.search(r"grid=(\d+)x(\d+)", text)
+                    return size and int(size[1]) * int(size[2]) > 16384
+                app.wait_for(large_grid, "large native PTY grid")
+                large = gateway.add(content="Large terminal still receives native input")
+                wait_outcome(app, gateway, large, "injected")
+                app.wait_for(lambda: any(f"task-{large}" in message for message in submissions(root / "first.input")),
+                             "large-grid actual stdin submission")
+                subprocess.run(["xdotool", "windowsize", "--sync", window, "800", "600"], check=True, timeout=10)
                 human = "unfinished native draft"
                 before = len(submissions(root / "first.input"))
                 raw(app, "surface.send_text", id=surfaces["first"], text=human)

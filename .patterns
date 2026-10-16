@@ -21,6 +21,7 @@
 019df63f-9652-77d3-ad3c-fc585f4b1858:
   - Docs/Observability.md
   - src/cli/diff.rs
+  - src/gateway/mod.rs
 019df63f-3d1d-7a23-930b-3538dcaff23a:
   - src/browser/pixels.rs
 019df63f-14af-76e3-9bdf-a2641131368e:

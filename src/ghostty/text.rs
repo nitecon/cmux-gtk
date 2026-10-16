@@ -182,16 +182,15 @@ pub(crate) unsafe fn read_prompt_grid(
 ) -> Option<serde_json::Value> {
     // SAFETY: caller guarantees a live native surface throughout synchronous getters and allocation release.
     let size = unsafe { ffi::ghostty_surface_size(surface) };
-    if size.columns == 0
-        || size.rows == 0
-        || usize::from(size.columns) * usize::from(size.rows) > 16384
-    {
+    if size.columns == 0 || size.rows == 0 || size.columns > 512 || size.rows > 200 {
         return None;
     }
     let value = unsafe {
         ffi::ghostty_surface_render_grid_json_v2(surface, b"".as_ptr().cast(), 0, 0, 0, false, true)
     };
-    let result = if value.ptr.is_null() || value.len == 0 || value.len > MAX_BYTES {
+    // Match the readiness classifier's bounded 512-column/200-row screen instead
+    // of rejecting normal fullscreen terminals by their combined cell count.
+    let result = if value.ptr.is_null() || value.len == 0 || value.len > 2 * 1024 * 1024 {
         None
     } else {
         // SAFETY: allocation contains value.len readable bytes until ghostty_string_free below.

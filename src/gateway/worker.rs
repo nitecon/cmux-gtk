@@ -70,13 +70,20 @@ impl Worker {
 
     /// Publish bounded outcomes without task bodies, terminal screen contents or credentials.
     fn publish(&self) {
-        let mut receipts = self.journal.receipts.clone();
-        for r in &mut receipts {
-            r.payload = None;
-            r.event = None;
-            r.candidates.clear();
-            r.target = None;
-        }
+        // Copy only public metadata, not queued payloads or transient terminal grids.
+        let receipts = self
+            .journal
+            .receipts
+            .iter()
+            .map(|r| Receipt {
+                event_id: r.event_id.clone(),
+                recipient_session_id: r.recipient().map(str::to_owned),
+                outcome: r.outcome.clone(),
+                reason: r.reason.clone(),
+                confirmed: r.confirmed,
+                ..Default::default()
+            })
+            .collect();
         self.view.send_replace(View {
             instance_id: self.journal.instance_id.clone(),
             connection: self.connection.clone(),
@@ -90,6 +97,12 @@ impl Worker {
             projects: self.projects.len(),
             agents: self.agents,
             receipts,
+            prompt_surfaces: self
+                .pipeline
+                .pending
+                .iter()
+                .map(|pending| pending.target.terminal.surface_id.clone())
+                .collect(),
         });
     }
 
@@ -275,6 +288,9 @@ impl Worker {
             finalize(&mut receipt, "failed", "Gateway message queue is full");
         } else {
             receipt.candidates = self.sessions(terminals).await;
+            for candidate in &mut receipt.candidates {
+                candidate.terminal.screen = None;
+            }
             if receipt.candidates.is_empty() {
                 finalize(
                     &mut receipt,
@@ -482,12 +498,26 @@ impl Worker {
             .iter_mut()
             .filter(|r| r.outcome == "queued")
         {
-            if receipt
+            if let Some(session) = receipt
                 .target
                 .as_ref()
-                .is_some_and(|target| sessions.iter().any(|s| target.same_target(s)))
+                .and_then(|target| sessions.iter().find(|s| target.same_target(s)))
             {
-                receipt.reason = "Waiting for an empty native prompt; drafts, menus and busy work defer delivery".into();
+                receipt.reason = match session
+                    .terminal
+                    .screen
+                    .as_ref()
+                    .map(super::readiness::classify)
+                {
+                    None => "Waiting for a native prompt snapshot; capture unavailable or pending",
+                    Some(InputState::Unknown) => "Native prompt layout is not recognized; waiting",
+                    Some(InputState::Unfinished) => "Unfinished native input is preserved; waiting",
+                    Some(InputState::Busy) => {
+                        "Native agent is busy or showing a menu/dialog; waiting"
+                    }
+                    Some(InputState::EmptyReady) => "Native prompt is ready; waiting for delivery",
+                }
+                .into();
             }
         }
         Ok(())
@@ -495,7 +525,7 @@ impl Worker {
 
     /// Fsync a submitting fence, then request one GTK operation; lost replies become nonreplayable uncertainty.
     async fn drain_verified(&mut self, sessions: Vec<Session>) -> Result<(), String> {
-        let Some((pending, ready)) = self.pipeline.next(&self.projects, &sessions) else {
+        let Some((mut pending, ready)) = self.pipeline.next(&self.projects, &sessions) else {
             return Ok(());
         };
         let index = self
@@ -574,6 +604,7 @@ impl Worker {
                 receipt.outcome = "queued".into();
                 receipt.confirmed = false;
                 receipt.reason = "Native prompt changed before submission; waiting".into();
+                pending.target.terminal.screen = None;
                 self.pipeline.pending.push_front(pending);
             }
             Ok(DeliveryOutcome::Uncertain) => {
@@ -758,6 +789,9 @@ fn finalize(receipt: &mut Receipt, status: &str, reason: &str) {
     receipt.payload = None;
     receipt.event = None;
     receipt.candidates.clear();
+    if let Some(target) = &mut receipt.target {
+        target.terminal.screen = None;
+    }
 }
 
 /// Snapshot actual active foreground agents off GTK, before any slow repository lookup or receipt acknowledgment.
@@ -812,23 +846,28 @@ pub async fn context(
     }
 }
 
-/// Resolve foreground executable identities and selected Git upstreams within a bounded scan budget.
-async fn discover(candidates: Vec<Session>) -> Vec<Session> {
+/// Resolve each directory once per scan. An incomplete scan cannot prove a recipient disappeared.
+async fn discover(candidates: Vec<Session>) -> Option<Vec<Session>> {
     if candidates.len() > MAX_PENDING {
-        return Vec::new();
+        return None;
     }
     let started = Instant::now();
     let mut sessions = Vec::new();
+    let mut repositories = HashMap::new();
     for mut session in candidates {
         if started.elapsed() >= Duration::from_secs(5) {
-            return Vec::new();
+            return None;
         }
-        if let Some(repository) = upstream(&session.terminal).await {
+        let directory = session.terminal.directory.clone();
+        if !repositories.contains_key(&directory) {
+            repositories.insert(directory.clone(), upstream(&session.terminal).await);
+        }
+        if let Some(repository) = repositories.get(&directory).cloned().flatten() {
             session.repository = repository;
             sessions.push(session);
         }
     }
-    sessions
+    Some(sessions)
 }
 
 /// Discover the current branch's selected upstream remote, falling back to origin for untracked branches.
@@ -940,10 +979,16 @@ pub async fn run(
                                 Err(_)=>Err("Invalid gateway stream JSON".into())
                             }
                         }
-                        Some(Ok(tokio_tungstenite::tungstenite::Message::Ping(_)|tokio_tungstenite::tungstenite::Message::Pong(_)))=>Ok(()),
+                        Some(Ok(tokio_tungstenite::tungstenite::Message::Ping(_)|tokio_tungstenite::tungstenite::Message::Pong(_)))=>{
+                            connection.as_mut().unwrap().last_input=Instant::now();
+                            Ok(())
+                        },
                         _=>Err("Gateway disconnected; reconnecting".into()),
                     };
-                    if let Err(error)=result { worker.connection=error; connection=None; worker.retire_pending().await?; retry=Instant::now()+Duration::from_secs(5); }
+                    // A transport gap does not invalidate known-unsent, arrival-pinned messages.
+                    // Retain only the in-memory queue; expiry/process fences still apply after reconnect.
+                    // Restart loading and configuration changes continue to retire pending input.
+                    if let Err(error)=result { worker.connection=error; connection=None; retry=Instant::now()+Duration::from_secs(5); }
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     worker.publish();
                 }
@@ -974,7 +1019,9 @@ pub async fn run(
                             if !c.subscribed { return Ok(()); }
                             heartbeat(c).await?;
                             let terminals=snapshots.borrow().clone();
-                            let candidates=worker.sessions(&terminals).await; let mut sessions=discover(candidates).await; worker.observe(&mut sessions).await?;
+                            let candidates=worker.sessions(&terminals).await;
+                            let Some(mut sessions)=discover(candidates).await else { return Ok(()); };
+                            worker.observe(&mut sessions).await?;
                             worker.refresh_projects(c,&sessions).await?;
                             heartbeat(c).await?;
                             worker.route(c,&sessions).await?;
@@ -986,7 +1033,7 @@ pub async fn run(
                             worker.drain_verified(sessions).await?; worker.acknowledge(c).await?;
                             Ok::<_,String>(())
                         }.await;
-                        if let Err(error)=result { worker.connection=error; connection=None; worker.retire_pending().await?; retry=Instant::now()+Duration::from_secs(5); }
+                        if let Err(error)=result { worker.connection=error; connection=None; retry=Instant::now()+Duration::from_secs(5); }
                     }
                     if worker.storage_failed { return Err("Gateway storage failed; delivery paused".into()); }
                     worker.publish();
@@ -1069,7 +1116,7 @@ mod tests {
         std::fs::create_dir(&root).unwrap();
         let path = root.join("gateway.json");
         let (deliveries, mut receiver) = mpsc::channel::<Delivery>(2);
-        let (view, _) = watch::channel(View::default());
+        let (view, view_rx) = watch::channel(View::default());
         let mut journal = Journal::default();
         journal.config.enabled = true;
         journal.config.injection_approved = true;
@@ -1210,6 +1257,11 @@ mod tests {
             )
             .unwrap();
         worker.save().await.unwrap();
+        worker.publish();
+        assert!(view_rx
+            .borrow()
+            .prompt_surfaces
+            .contains(&session.terminal.surface_id));
         let restarted = storage::load(&path).unwrap();
         assert_eq!(restarted.receipts[0].outcome, "skipped");
         assert!(restarted.receipts[0].payload.is_none());
@@ -1235,6 +1287,8 @@ mod tests {
         worker.drain_verified(vec![session.clone()]).await.unwrap();
         gtk.await.unwrap();
         assert!(worker.pipeline.pending.is_empty());
+        worker.publish();
+        assert!(view_rx.borrow().prompt_surfaces.is_empty());
         let restored = storage::load(&path).unwrap();
         assert_eq!(restored.receipts[0].outcome, "injected");
         let mut replay = restored;

@@ -92,6 +92,10 @@ impl Pipeline {
         }
         for target in candidates {
             let own = is_origin(target);
+            // A delivery fence retains identity, never a historical render grid.
+            // Readiness is re-observed from the current session in next().
+            let mut target = target.clone();
+            target.terminal.screen = None;
             journal.receipts.push_back(Receipt {
                 event_id: message.event_id.clone(),
                 recipient_session_id: Some(target.session_id.clone()),
@@ -283,6 +287,14 @@ mod tests {
             );
         }
         assert!(pipeline.next(&projects, &sessions).is_none());
+        assert!(journal.receipts.iter().all(|receipt| receipt
+            .target
+            .as_ref()
+            .is_none_or(|target| target.terminal.screen.is_none())));
+        assert!(pipeline
+            .pending
+            .iter()
+            .all(|pending| pending.target.terminal.screen.is_none()));
         sessions[0].terminal.screen = None;
         assert!(pipeline.next(&projects, &sessions).is_none());
         sessions[0].terminal.screen = Some(ready_screen());
