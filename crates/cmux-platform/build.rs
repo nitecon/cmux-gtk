@@ -21,19 +21,17 @@ fn build_window_bridge() {
         other => panic!("unsupported cmux platform target OS: {other:?}"),
     };
     println!("cargo:rerun-if-changed={source}");
-    let flags = std::process::Command::new("pkg-config")
-        .arg("--cflags")
-        .args(packages)
-        .output()
-        .expect("pkg-config is required for the GTK platform feature");
-    assert!(
-        flags.status.success(),
-        "GTK4 native development headers are required"
-    );
     let mut bridge = cc::Build::new();
-    bridge.file(source).flag_if_supported("-Wall");
-    for flag in String::from_utf8_lossy(&flags.stdout).split_whitespace() {
-        bridge.flag(flag);
+    bridge.file(source).warnings(true);
+    for package in packages {
+        let headers = pkg_config::Config::new()
+            .cargo_metadata(false)
+            .probe(package)
+            .expect("GTK4 native development headers are required");
+        bridge.includes(headers.include_paths);
+        for (name, value) in headers.defines {
+            bridge.define(&name, value.as_deref());
+        }
     }
     bridge.compile("cmux_window_position");
     println!("cargo:rustc-link-lib={library}");

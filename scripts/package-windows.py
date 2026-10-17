@@ -15,6 +15,7 @@ def main():
     """Resolve native imports and record every bundled file for safe replacement."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prefix", required=True, type=Path)
+    parser.add_argument("--runtime-dir", required=True, type=Path, help="Visual C++ x64 CRT redistributable directory")
     parser.add_argument("--archive", type=Path, help="Write a flat portable ZIP and SHA256 manifest")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -33,17 +34,24 @@ def main():
             continue
         copied.add(source.name.lower())
         shutil.copy2(source, bundle / source.name)
-        output = subprocess.check_output(["objdump", "-p", str(source)], text=True)
-        for name in re.findall(r"DLL Name:\s*(\S+)", output):
-            dependency = ghostty if name.lower() == ghostty.name.lower() else args.prefix / "bin" / name
-            if dependency.is_file():
+        output = subprocess.check_output(["dumpbin.exe", "/nologo", "/dependents", str(source)], text=True)
+        for name in re.findall(r"^\s+([^\s]+\.dll)\s*$", output, re.MULTILINE | re.IGNORECASE):
+            candidates = (ghostty.parent / name, args.prefix / "bin" / name, args.runtime_dir / name)
+            dependency = next((path for path in candidates if path.is_file()), None)
+            if dependency:
                 pending.append(dependency)
             elif not (system / name).is_file() and not name.lower().startswith(("api-ms-", "ext-ms-")):
                 raise RuntimeError(f"Unresolved runtime import {name} from {source.name}")
-    for relative in ("share/glib-2.0/schemas", "share/icons/Adwaita", "share/icons/hicolor", "share/licenses"):
+    for relative in ("share/glib-2.0/schemas", "share/icons/Adwaita", "share/icons/hicolor"):
         source = args.prefix / relative
         if source.is_dir():
             shutil.copytree(source, bundle / relative, dirs_exist_ok=True)
+    # vcpkg stores each dependency's license beside its port metadata.
+    for source in (args.prefix / "share").glob("*/copyright"):
+        destination = bundle / "share/licenses" / source.parent.name
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination / "copyright")
+    shutil.copytree(args.prefix / "share/adwaita-icon-theme", bundle / "share/licenses/adwaita-icon-theme")
     for size in (48, 128, 256):
         relative = Path(f"share/icons/hicolor/{size}x{size}/apps/io.cmux.App.png")
         (bundle / relative).parent.mkdir(parents=True, exist_ok=True)
@@ -52,7 +60,7 @@ def main():
     shutil.copy2(root / "Docs/WindowsPreview.md", bundle / "README.txt")
     (bundle / "launch-cmux.cmd").write_text('@echo off\nset "PATH=%~dp0;%PATH%"\nset "XDG_DATA_DIRS=%~dp0share"\nstart "" "%~dp0cmux.exe"\n', encoding="utf-8")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    (bundle / "build.json").write_text(json.dumps({"revision": revision, "platform": "windows-x86_64", "runtime_files": sorted(copied)}, indent=2) + "\n", encoding="utf-8")
+    (bundle / "build.json").write_text(json.dumps({"revision": revision, "platform": "windows-x86_64", "toolchain": "msvc", "runtime_files": sorted(copied)}, indent=2) + "\n", encoding="utf-8")
     managed = sorted(path.relative_to(bundle).as_posix() for path in bundle.rglob("*") if path.is_file())
     managed = sorted(managed + ["managed-files.json"])
     (bundle / "managed-files.json").write_text(json.dumps(managed, indent=2) + "\n", encoding="utf-8")

@@ -24,10 +24,10 @@ jobs:
     permissions:
       contents: write
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     defaults:
       run:
-        shell: msys2 {0}
+        shell: pwsh
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -36,87 +36,59 @@ jobs:
 
       - name: Verify release version
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
         run: |
-          source scripts/release-version.sh
-          version="$(package_version Cargo.toml)"
-          test "$GITHUB_REF_NAME" = "v$version"
+          $version = [regex]::Match((Get-Content Cargo.toml -Raw), '(?m)^version = "([^"]+)"').Groups[1].Value
+          if (-not $version -or $env:GITHUB_REF_NAME -ne "v$version") { throw 'Release version mismatch' }
 
-      - name: Install native GTK and build tools
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
-        with:
-          msystem: UCRT64
-          update: true
-          path-type: inherit
-          install: >-
-            git
-            unzip
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-gtk4
-            mingw-w64-ucrt-x86_64-oniguruma
-            mingw-w64-ucrt-x86_64-pkgconf
-            mingw-w64-ucrt-x86_64-clang
-            mingw-w64-ucrt-x86_64-rust
-            mingw-w64-ucrt-x86_64-python
+      - name: Select native Rust MSVC toolchain
+        run: rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal
 
       - name: Restore native build cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            .tools
+            .tools/native
+            .tools/vcpkg-cache
+            .tools/downloads
+            .tools/zig-*
+            .tools/libclang
             ghostty/.zig-cache
             ghostty/zig-out
             target
-          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
+          key: windows-msvc-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.ps1', 'build_support/windows/**', '.gitmodules') }}-${{ github.sha }}
           restore-keys: |
-            windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-
-            windows-native-
+            windows-msvc-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.ps1', 'build_support/windows/**', '.gitmodules') }}-
+            windows-msvc-
 
-      - name: Install pinned Zig
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = [regex]::Match((Get-Content ghostty/build.zig.zon -Raw), 'minimum_zig_version = "([^"]+)"').Groups[1].Value
-          if (-not $version) { throw 'Missing pinned Zig version' }
-          $index = Invoke-RestMethod https://ziglang.org/download/index.json
-          $package = $index.$version.'x86_64-windows'
-          if (-not $package) { throw "No Windows Zig package for $version" }
-          New-Item -ItemType Directory -Force .tools | Out-Null
-          Invoke-WebRequest $package.tarball -OutFile .tools/zig.zip
-          if ((Get-FileHash .tools/zig.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $package.shasum) { throw 'Zig checksum mismatch' }
-          Expand-Archive .tools/zig.zip -DestinationPath .tools -Force
-          $directory = (Get-ChildItem .tools -Directory | Where-Object Name -Like "zig*windows*$version").FullName
-          if (-not $directory) { throw 'Zig archive layout unrecognized' }
-          Add-Content $env:GITHUB_PATH $directory
-          # Zig 0.16 ZIP dependency fetching requires this directory on fresh runners.
-          $zigCache = (& "$directory/zig.exe" env | Select-String '^\s*\.global_cache_dir = (".*"),$').Matches.Groups[1].Value | ConvertFrom-Json
-          New-Item -ItemType Directory -Force (Join-Path $zigCache 'tmp') | Out-Null
-
-      - name: Build native Ghostty terminal backend
+      - name: Prepare MSVC GTK and build Ghostty terminal backend
         id: terminal_backend
-        run: bash scripts/setup-windows.sh
+        run: . ./scripts/setup-windows.ps1
 
       - name: Cache completed native terminal backend
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            .tools
+            .tools/native
+            .tools/vcpkg-cache
+            .tools/downloads
+            .tools/zig-*
+            .tools/libclang
             ghostty/.zig-cache
             ghostty/zig-out
             target
-          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}
+          key: windows-msvc-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.ps1', 'build_support/windows/**', '.gitmodules') }}-${{ github.sha }}
 
       - name: Build Windows CMUX binaries
         env:
           CMUX_RELEASE_BUILD: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
-        run: LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo build --workspace --bins --release --locked
+        run: cargo build --workspace --bins --release --locked
 
       - name: Test native Windows storage and pipe boundaries
         run: cargo test -p cmux-platform --no-default-features --features async-io --locked
 
       - name: Test verified native Windows update archives
         run: |
-          LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo test --bin cmux updater:: --locked
+          cargo test --bin cmux updater:: --locked
 
       - name: Prepare real actor client and native provider fixture
         shell: pwsh
@@ -138,25 +110,33 @@ jobs:
           if ($LASTEXITCODE) { throw 'Native actor client compilation failed' }
 
       - name: Compile native provider fixture
-        run: gcc -Wall -Wextra -Werror -O2 tests/fixtures/windows_actor_agent.c -o target/actor-client/codex.exe
+        run: cl.exe /nologo /W4 /O2 /utf-8 tests/fixtures/windows_actor_agent.c /Fetarget/actor-client/codex.exe /Fotarget/actor-client/codex.obj
 
       - name: Fetch verified official Codex for native queue acceptance
         run: python scripts/fetch-codex-fixture.py target/codex-fixture --platform windows
 
       - name: Bundle portable preview
         id: bundle
-        run: python scripts/package-windows.py --prefix "$(cygpath -w /ucrt64)" --archive dist/cmux-gtk-windows-x86_64.zip
+        run: python scripts/package-windows.py --prefix "$env:CMUX_GTK_PREFIX" --runtime-dir "$env:CMUX_MSVC_RUNTIME_DIR" --archive dist/cmux-gtk-windows-x86_64.zip
+
+      - name: Prepare isolated software OpenGL for hosted-runner acceptance
+        run: . ./scripts/setup-windows-software-gl.ps1
 
       - name: Test portable preview startup and terminal RPC
         run: |
-          pacman -S --noconfirm mingw-w64-ucrt-x86_64-mesa
-          actor_client=target/actor-client-build/release/agent-tools.exe
-          test -f "$actor_client"
-          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --actor-client "$(cygpath -w "$actor_client")" --actor-fixture "$(cygpath -w target/actor-client/codex.exe)" --codex-fixture "$(cat target/codex-fixture/executable.txt)"
+          $actorClient = (Resolve-Path target/actor-client-build/release/agent-tools.exe).Path
+          $actorFixture = (Resolve-Path target/actor-client/codex.exe).Path
+          $codexFixture = (Get-Content target/codex-fixture/executable.txt -Raw).Trim()
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$env:CMUX_SOFTWARE_GL_DIR" --actor-client $actorClient --actor-fixture $actorFixture --codex-fixture $codexFixture
 
       - name: Test portable Windows updater
+        env:
+          CMUX_VERSION: 0.0.1
+          CMUX_UPDATE_TEST_API: http://127.0.0.1:50127/release
+          CMUX_RELEASE_BUILD: '0'
         run: |
-          CMUX_VERSION=0.0.1 CMUX_UPDATE_TEST_API=http://127.0.0.1:50127/release CMUX_RELEASE_BUILD=0 LIBCLANG_PATH="$(cygpath -w /ucrt64/bin)" cargo build --release --bin cmux --locked
+          cargo build --release --bin cmux --locked
+          if ($LASTEXITCODE) { throw 'Updater fixture build failed' }
           python scripts/test_windows_updater.py --bundle target/windows-preview --client target/release/cmux.exe --archive dist/cmux-gtk-windows-x86_64.zip
 
       - name: Upload Windows release archive
@@ -173,11 +153,15 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            .tools
+            .tools/native
+            .tools/vcpkg-cache
+            .tools/downloads
+            .tools/zig-*
+            .tools/libclang
             ghostty/.zig-cache
             ghostty/zig-out
             target
-          key: windows-native-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.sh', '.gitmodules') }}-${{ github.sha }}-compiled
+          key: windows-msvc-${{ hashFiles('Cargo.lock', 'scripts/setup-windows.ps1', 'build_support/windows/**', '.gitmodules') }}-${{ github.sha }}-compiled
 
       - name: Publish Windows GitHub release assets
         if: startsWith(github.ref, 'refs/tags/v')
@@ -240,18 +224,14 @@ jobs:
         run: gh run download $env:PREVIEW_BUILD_RUN --name cmux-windows-x86_64-preview --dir target/windows-preview
 
       - name: Install software OpenGL for the hosted runner
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
-        with:
-          msystem: UCRT64
-          update: true
-          path-type: inherit
-          install: mingw-w64-ucrt-x86_64-mesa
+        run: . ./scripts/setup-windows-software-gl.ps1
 
       - name: Test portable preview startup and terminal RPC
-        shell: msys2 {0}
         run: |
           python scripts/fetch-codex-fixture.py target/codex-fixture --platform windows
-          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$(cygpath -w /ucrt64/bin)" --codex-fixture "$(cat target/codex-fixture/executable.txt)"
+          if ($LASTEXITCODE) { throw 'Codex fixture download failed' }
+          $codexFixture = (Get-Content target/codex-fixture/executable.txt -Raw).Trim()
+          python tests/windows-preview-smoke.py target/windows-preview --software-gl-dir "$env:CMUX_SOFTWARE_GL_DIR" --codex-fixture $codexFixture
 
       - name: Upload preview with runtime evidence
         if: always() && steps.download.outcome == 'success'

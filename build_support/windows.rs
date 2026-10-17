@@ -1,4 +1,4 @@
-//! Windows Ghostty import-library preparation and DLL linking.
+//! MSVC Ghostty DLL linking and Windows executable resources.
 
 use std::{
     env, fs,
@@ -6,22 +6,29 @@ use std::{
     process::Command,
 };
 
-/// Prepare and link the native Windows Ghostty DLL import library.
+/// Link the native MSVC Ghostty DLL through its generated import library.
 /// Windows DLL symbol resolution does not require Linux's bundled-library symbol namespacing.
 pub(super) fn build(root: &Path) {
-    let library = root.join("ghostty/zig-out/lib/ghostty-internal.lib");
+    assert_eq!(
+        env::var("CARGO_CFG_TARGET_ENV").as_deref(),
+        Ok("msvc"),
+        "Windows builds require the MSVC Rust toolchain"
+    );
+    let directory = root.join("ghostty/zig-out/lib");
+    let library = directory.join("ghostty-internal.lib");
     let output = PathBuf::from(env::var("OUT_DIR").unwrap());
     println!("cargo:rerun-if-changed={}", library.display());
-    fs::copy(&library, output.join("libghostty.dll.a"))
-        .expect("Build Windows Ghostty first with scripts/setup-windows.sh");
-    println!("cargo:rustc-link-search=native={}", output.display());
-    // Zig owns the DLL's bundled C++ runtime and dependencies; keep its generated import library intact.
-    println!("cargo:rustc-link-lib=dylib=ghostty");
+    assert!(
+        library.is_file(),
+        "Build Ghostty first with scripts/setup-windows.ps1"
+    );
+    println!("cargo:rustc-link-search=native={}", directory.display());
+    println!("cargo:rustc-link-lib=dylib=ghostty-internal");
     embed_app_icon(root, &output);
 }
 
 /// Wrap the existing PNG artwork in an ICO resource owned by the Windows entry points.
-/// windres produces the COFF object; no runtime icon handle or extra dependency is required.
+/// The Windows SDK resource compiler produces the resource consumed by the MSVC linker.
 fn embed_app_icon(root: &Path, output: &Path) {
     let sizes = [48u32, 128, 256];
     let images: Vec<Vec<u8>> = sizes
@@ -49,18 +56,18 @@ fn embed_app_icon(root: &Path, output: &Path) {
     }
     fs::write(output.join("cmux.ico"), ico).expect("write CX ICO resource");
     fs::write(output.join("cmux.rc"), "1 ICON \"cmux.ico\"\n").expect("write icon resource script");
-    let status = Command::new("windres")
+    let status = Command::new("rc.exe")
         .current_dir(output)
-        .args(["-i", "cmux.rc", "-o", "cmux-icon.o", "-O", "coff"])
+        .args(["/nologo", "/fo", "cmux.res", "cmux.rc"])
         .status()
-        .expect("Windows build requires windres from the MinGW toolchain");
+        .expect("Windows build requires rc.exe from the Windows SDK");
     assert!(status.success(), "compile CX icon resource");
     println!(
         "cargo:rustc-link-arg-bin=cmux-app={}",
-        output.join("cmux-icon.o").display()
+        output.join("cmux.res").display()
     );
     println!(
         "cargo:rustc-link-arg-bin=cmux={}",
-        output.join("cmux-icon.o").display()
+        output.join("cmux.res").display()
     );
 }
