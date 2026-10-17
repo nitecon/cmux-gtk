@@ -479,9 +479,11 @@ pub fn create_surface(
         let cell = surface_cell.clone();
         move |_area, _ctx| {
             if let Some(surface) = *cell.borrow() {
+                let started = std::time::Instant::now();
                 unsafe {
                     ffi::ghostty_surface_draw(surface);
                 }
+                super::render_metrics::drawn(started);
             }
             gtk4::glib::Propagation::Stop // suppress GTK default render
         }

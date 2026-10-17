@@ -134,6 +134,7 @@ pub fn snapshot() -> serde_json::Value {
         "uptime_ms": STARTED.get().map(|started| started.elapsed().as_millis()),
         "resources": resources,
         "gtk_event_loop": event_loop::snapshot(),
+        "terminal_rendering": crate::ghostty::render_metrics::snapshot(),
         "browser_preview": crate::browser::metrics::snapshot(),
         "browser_commands": crate::browser::transport::snapshot(),
         "remote_forwarding": crate::ssh::forward_metrics::snapshot(),

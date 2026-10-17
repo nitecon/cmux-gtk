@@ -411,6 +411,13 @@ def main():
                     raise RuntimeError("GTK OpenGL ownership failed; see smoke.log")
                 print("Visible terminal pixels, dark application chrome and native keyboard text verified:", frame)
                 verify_workspace_shell(rpc, user32, windows[0], profile)
+                from windows_render_benchmark import verify as verify_rendering
+                def submit_rendering():
+                    """Submit the benchmark command through the native terminal key path."""
+                    for message, detail in ((0x100, 0x001C0001), (0x101, 0xC01C0001)):
+                        if not user32.PostMessageW(windows[0], message, 0x0D, detail):
+                            raise ctypes.WinError(ctypes.get_last_error())
+                verify_rendering(rpc, submit_rendering, profile, bundle / "render-benchmark.json")
                 if args.codex_fixture:
                     from process_input import verify as verify_process_input
                     def native_key(name):

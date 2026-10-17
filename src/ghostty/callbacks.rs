@@ -126,6 +126,7 @@ pub unsafe extern "C" fn action_cb(
     }
 
     if action.tag == ffi::ghostty_action_tag_e_GHOSTTY_ACTION_RENDER {
+        super::render_metrics::requested();
         queue_render_target(surface_target);
         return true;
     }

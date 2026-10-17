@@ -6,6 +6,7 @@ pub(crate) mod inherited;
 pub mod input;
 pub(crate) mod notifications;
 pub(crate) mod registry;
+pub(crate) mod render_metrics;
 pub mod surface;
 pub(crate) mod text;
 pub(crate) mod tty;
