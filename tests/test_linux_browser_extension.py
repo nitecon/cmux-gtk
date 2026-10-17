@@ -28,7 +28,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="cmux-browser-extension-") as directory:
         root = Path(directory)
         (root / "index.html").write_text('<!doctype html><title>Shared login fixture</title>'
-                                        '<label>Demo username <input id="name"></label>')
+                                        '<label>Demo username <input id="name"></label>'
+                                        '<script>document.addEventListener("click", () => {window.previewClicked=true})</script>')
         (root / "agent-browser.json").write_text('{}')
         browser_dir = root / "browser"
         browser_dir.mkdir()
@@ -64,10 +65,22 @@ def main():
                              "cmux page foreground after extension onboarding")
                 app.wait_for(lambda: json.loads(app.cli("diagnostics", "--json"))["browser_preview"]["textures_assigned"] > 0,
                              "live GTK picture with extension loaded", timeout=15)
-                browser("click", "#name")
                 windows = subprocess.check_output(["xdotool", "search", "--onlyvisible", "--pid", str(app.process.pid)],
                                                   env=app.environment, text=True, timeout=5).splitlines()
                 subprocess.run(["xdotool", "windowfocus", "--sync", windows[-1]], env=app.environment, check=True, timeout=5)
+                geometry = dict(line.split("=", 1) for line in subprocess.check_output(
+                    ["xdotool", "getwindowgeometry", "--shell", windows[-1]],
+                    env=app.environment, text=True, timeout=5,
+                ).splitlines())
+                # Surface selection focuses the URL bar. A user's click in the preview
+                # transfers GTK keyboard focus to the page before the agent selects a field.
+                subprocess.run(["xdotool", "mousemove", "--window", windows[-1],
+                                str(int(geometry["WIDTH"]) * 3 // 4),
+                                str(int(geometry["HEIGHT"]) * 3 // 4), "click", "1"],
+                               env=app.environment, check=True, timeout=5)
+                app.wait_for(lambda: browser("eval", "Boolean(window.previewClicked)")["result"],
+                             "physical pointer input in the shared page")
+                browser("click", "#name")
                 subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "15", "shared user"],
                                env=app.environment, check=True, timeout=5)
                 app.wait_for(lambda: browser("eval", "document.querySelector('#name').value")["result"] == "shared user",
