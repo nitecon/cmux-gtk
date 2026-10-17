@@ -106,5 +106,8 @@ if ($env:GITHUB_ENV) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value) { Add-Content $env:GITHUB_ENV "$name=$value" }
     }
-    $env:PATH -split ';' | Where-Object { $_ } | Select-Object -Unique | Add-Content $env:GITHUB_PATH
+    # The runner prepends each line, so write entries backward to preserve MSVC priority.
+    $nativePaths = @($env:PATH -split ';' | Where-Object { $_ } | Select-Object -Unique)
+    [array]::Reverse($nativePaths)
+    $nativePaths | Add-Content $env:GITHUB_PATH
 }
