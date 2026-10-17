@@ -30,6 +30,9 @@ def main():
     args = parser.parse_args()
     bundle = args.bundle.resolve()
     managed = json.loads((bundle / "managed-files.json").read_text())
+    # Lock a shipped dependency rather than assuming a particular GTK runtime set.
+    runtime_dll = next(name for name in managed
+                       if name.lower().endswith(".dll") and name != "ghostty-internal.dll")
     payload = args.archive.read_bytes()
     version = subprocess.check_output([str(bundle / "cmux.exe"), "--version"], text=True).strip().split()[-1]
     state = {"case": "download", "payload": payload}
@@ -86,7 +89,7 @@ def main():
             kernel.CreateFileW.restype = ctypes.c_void_p
             kernel.CloseHandle.argtypes = [ctypes.c_void_p]
             if case in ("locked", "transient-lock", "launch-during-update"):
-                locked_file = {"transient-lock": "vulkan-1.dll", "launch-during-update": "README.txt",
+                locked_file = {"transient-lock": runtime_dll, "launch-during-update": "README.txt",
                                "locked": "ghostty-internal.dll"}[case]
                 handle = kernel.CreateFileW(str(install / locked_file), 0x80000000, 0, None, 3, 0, None)
                 assert handle not in (None, ctypes.c_void_p(-1).value), ctypes.get_last_error()
