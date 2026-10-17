@@ -58,6 +58,8 @@ def verify(rpc, submit_native, profile, output):
         }
         Path(output).write_text(json.dumps(report, indent=2) + "\n")
         print("Windows rendering benchmark:", json.dumps(report), flush=True)
-        assert draws > 0, "Paced terminal output completed without a GTK draw"
+        # The broken Windows notifier drew only on cursor blinks (~2 Hz).
+        # Leave ample headroom for the hosted runner's software renderer.
+        assert report["draws_per_second"] >= 10, "Output redraws fell back to cursor-blink cadence"
     finally:
         rpc("workspace.close", {"id": workspace["uuid"]})
