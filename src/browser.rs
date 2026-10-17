@@ -476,7 +476,14 @@ impl BrowserManager {
         let proxy_port = self
             .remote_bridge
             .as_ref()
-            .and_then(|bridge| bridge.browser_proxy_ready());
+            .and_then(|bridge| {
+                // The listener survives SSH reconnects. Keep its launch configuration even
+                // while requests are unavailable, or agent-browser replaces the live page.
+                let port = bridge
+                    .browser_proxy_port
+                    .load(std::sync::atomic::Ordering::Acquire);
+                (port != 0).then_some(port)
+            });
         let permit = self.navigation_gate.clone().try_acquire_owned();
         crate::diagnostics::record(
             "browser.navigation.admission",
@@ -912,6 +919,43 @@ mod manager_tests {
             first.daemon_socket_path().file_stem(),
             first.stream_port_path().file_stem()
         );
+    }
+
+    /// Reconnecting SSH must not change the browser launch flags during UI-driven reads.
+    #[tokio::test]
+    async fn disconnected_remote_navigation_retains_proxy() {
+        let directory = std::env::temp_dir().join(format!("cmux-proxy-{}", Uuid::new_v4()));
+        cmux_platform::filesystem::create_private_directory(&directory).unwrap();
+        let binary = directory.join("browser fixture");
+        std::fs::write(
+            &binary,
+            br#"#!/bin/sh
+[ "$4" = '--proxy' ] && [ "$5" = 'socks5://127.0.0.1:12345' ] || exit 2
+[ "$6" = '--proxy-bypass' ] && [ "$7" = '<-loopback>' ] || exit 3
+[ "$8" = 'get' ] && [ "$9" = 'url' ] || exit 4
+printf '%s\n' '{"success":true,"data":{"url":"https://example.test/retained"}}'
+"#,
+        )
+        .unwrap();
+        cmux_platform::filesystem::set_executable_permissions(&binary).unwrap();
+        let bridge = std::sync::Arc::new(crate::ssh::bridge::SshBridge::default());
+        bridge
+            .browser_proxy_port
+            .store(12345, std::sync::atomic::Ordering::Release);
+        assert!(bridge.browser_proxy_ready().is_none());
+        let mut browser = BrowserManager::new();
+        browser.binary_path = Some(binary);
+        browser.remote_bridge = Some(bridge);
+        assert_eq!(
+            browser
+                .current_url_async(Uuid::new_v4())
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("https://example.test/retained")
+        );
+        drop(browser);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     /// Execute the public CLI path to verify ordered history commands and admission cleanup.
