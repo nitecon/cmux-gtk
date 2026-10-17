@@ -247,7 +247,27 @@ fresh snapshot after they finish. Both interact with the same browser context.
 
 `browser list` includes a live `session` identifier (null while suspended). For features outside
 the cmux wrapper, target that session explicitly: `agent-browser --session <session> <command>`.
+Pass the same profile and launch configuration on direct CLI calls; agent-browser can replace
+its browser when those options change. Alternatively, the generic proxy preserves the desktop's
+context, for example `cmux raw browser.tab_list --params '{"surface_ref":"surface:1"}'`.
 Use `cmux browser close --surface <ref>` for lifecycle cleanup so cmux retains ownership.
+
+Password-manager extensions can supply in-page autofill controls. For example, launch the desktop
+with `AGENT_BROWSER_EXTENSIONS=/absolute/path/to/unpacked-1password-extension` and
+`AGENT_BROWSER_EXECUTABLE_PATH=/absolute/path/to/chrome-for-testing`, then open a site with a
+dedicated `--profile` directory. Complete 1Password's own setup and unlock directly in the shared
+page. Its extension setup page can be opened inside the surface with
+`cmux browser goto <ref> 'chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html#/page/welcome?language=en'`.
+cmux renders page controls; Chrome's native toolbar and extension toolbar popups are outside the
+preview. Actual vault unlock and autofill require user verification.
+
+Use Chromium or Chrome for Testing for unpacked extensions; [branded Chrome removed the
+command-line extension-loading flag](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY/m/S0ET5wPjCAAJ).
+On Ubuntu systems restricting user namespaces, Chromium documents using an already-installed
+sandbox helper with `CHROME_DEVEL_SANDBOX=/opt/google/chrome/chrome-sandbox` in the desktop's
+environment ([Chromium guidance](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)).
+Desktop-app unlocking follows [1Password's browser support requirements](https://support.1password.com/additional-browsers/);
+the extension can also use its own sign-in workflow.
 
 Diff surfaces use the same browser automation boundary, so an agent can inspect and operate the
 viewer with `cmux browser`. Generated pages are self-contained, owner-only files under the cmux data

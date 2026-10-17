@@ -386,6 +386,10 @@ jobs:
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_real_browser_benchmark.py
 
+      - name: Test shared browser login and extensions
+        timeout-minutes: 5
+        run: dbus-run-session -- xvfb-run -a python3 tests/test_linux_browser_extension.py
+
       - name: Test real browser diff surface DOM
         timeout-minutes: 5
         run: dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1200x24' python3 tests/test_linux_real_diff_viewer.py

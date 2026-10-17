@@ -598,6 +598,27 @@ pub(crate) fn wire_browser_tab(
             }
         });
         let focus = gtk4::EventControllerFocus::new();
+        let state_for_focus = Rc::downgrade(state);
+        focus.connect_enter(move |_| {
+            let state = state_for_focus.clone();
+            // Focus signals can run during model mutations; defer borrowing until idle.
+            glib::idle_add_local_once(move || {
+                let Some(state) = state.upgrade() else {
+                    return;
+                };
+                let state = state.borrow();
+                if let (Some(runtime), Some(browser)) = (
+                    &state.runtime_handle,
+                    state.browser_sessions.get(&surface_uuid),
+                ) {
+                    let request =
+                        browser.send_command_async("bringtofront", serde_json::json!({}), None);
+                    runtime.spawn(async move {
+                        let _ = request.await;
+                    });
+                }
+            });
+        });
         let state_for_blur = Rc::downgrade(state);
         let session_for_blur = state
             .borrow()

@@ -344,6 +344,14 @@ impl BrowserManager {
                         message,
                     })?,
                 };
+                // Extension onboarding can open a background-owned tab and hide our page.
+                // Restore the streamed page without navigating or changing cmux selection.
+                let _ = transport::request_async(
+                    &socket_path,
+                    &Self::command_request("bringtofront", serde_json::json!({})),
+                    Some(trace_id),
+                )
+                .await;
                 Ok((binary, result, chrome))
             };
             tokio::select! {
@@ -1010,7 +1018,15 @@ esac
         let listener =
             cmux_platform::local_socket::Listener::bind(browser.daemon_socket_path()).unwrap();
         let server = tokio::spawn(async move {
-            for action in ["", "navigate", "stream_enable", "", "stream_enable"] {
+            for action in [
+                "",
+                "navigate",
+                "stream_enable",
+                "bringtofront",
+                "",
+                "stream_enable",
+                "bringtofront",
+            ] {
                 let (peer, _) = listener.accept().await.unwrap();
                 let mut peer = tokio::io::BufReader::new(peer);
                 let mut line = String::new();

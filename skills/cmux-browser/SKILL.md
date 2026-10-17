@@ -62,7 +62,15 @@ it does not display Chrome's native toolbar or extension toolbar popups.
 
 `cmux browser list` exposes the live `session` (null while suspended). Use
 `agent-browser --session <session> <command>` for features outside the cmux wrapper,
-with the same agent-browser socket directory and namespace as the desktop. Load
+with the same profile, launch configuration, socket directory and namespace as the desktop.
+Changing launch options can replace the browser and lose its current page. Prefer the generic
+proxy when possible, for example:
+
+```bash
+cmux raw browser.tab_list --params '{"surface_ref":"surface:7"}'
+```
+
+Load
 `agent-browser skills get core` before using its CLI. Target the session explicitly
 to keep user interaction and automation in the same browser.
 
