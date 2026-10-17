@@ -30,7 +30,7 @@ $env:VCPKG_DOWNLOADS = Join-Path $tools 'downloads'
 $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $tools 'vcpkg-cache'
 New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
 $installed = Join-Path $tools 'native'
-& "$vcpkg/vcpkg.exe" install "--x-manifest-root=$manifest" "--x-install-root=$installed" --triplet x64-windows-release "--overlay-triplets=$manifest/triplets"
+& "$vcpkg/vcpkg.exe" install "--x-manifest-root=$manifest" "--x-install-root=$installed" --triplet x64-windows-release --host-triplet x64-windows-release "--overlay-triplets=$manifest/triplets"
 $env:CMUX_GTK_PREFIX = Join-Path $installed 'x64-windows-release'
 $env:PKG_CONFIG_PATH = "$env:CMUX_GTK_PREFIX/lib/pkgconfig;$env:CMUX_GTK_PREFIX/share/pkgconfig"
 $env:PKG_CONFIG = "$env:CMUX_GTK_PREFIX/tools/pkgconf/pkgconf.exe"

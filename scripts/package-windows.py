@@ -52,10 +52,7 @@ def main():
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination / "copyright")
     shutil.copytree(args.prefix / "share/adwaita-icon-theme", bundle / "share/licenses/adwaita-icon-theme")
-    for size in (48, 128, 256):
-        relative = Path(f"share/icons/hicolor/{size}x{size}/apps/io.cmux.App.png")
-        (bundle / relative).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(root / "packaging/icons/hicolor" / f"{size}x{size}/apps/io.cmux.App.png", bundle / relative)
+    shutil.copytree(root / "packaging/icons/hicolor", bundle / "share/icons/hicolor", dirs_exist_ok=True)
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
     shutil.copy2(root / "Docs/WindowsPreview.md", bundle / "README.txt")
     (bundle / "launch-cmux.cmd").write_text('@echo off\nset "PATH=%~dp0;%PATH%"\nset "XDG_DATA_DIRS=%~dp0share"\nstart "" "%~dp0cmux.exe"\n', encoding="utf-8")
