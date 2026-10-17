@@ -5,7 +5,6 @@ import json
 import ctypes
 from ctypes import wintypes
 import os
-import ntpath
 from pathlib import Path
 import subprocess
 import shutil
@@ -200,7 +199,8 @@ def verify_workspace_shell(rpc, user32, window, profile):
     screen = rpc("surface.read_text", {"id": surface})["text"]
     actual_cwd = next((line.removeprefix("CMUX_CWD=") for line in screen.splitlines()
                        if line.startswith("CMUX_CWD=")), "")
-    cwd_ok = ntpath.normcase(ntpath.normpath(actual_cwd)) == ntpath.normcase(ntpath.normpath(str(directory)))
+    # Compare directory identity because Windows may expand an inherited 8.3 path.
+    cwd_ok = bool(actual_cwd) and os.path.samefile(actual_cwd, directory)
     print("Workspace directory expected/actual:", repr(str(directory)), repr(actual_cwd))
     rpc("surface.send_text", {"id": surface, "text": "echo CMUX_HISTORY_%CMUX_SMOKE%"})
     native_key(0x0D)
