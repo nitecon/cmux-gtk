@@ -2,5 +2,5 @@
   "name": "cmux-windows-dependencies",
   "version-string": "1",
   "builtin-baseline": "bf19794383e8fb95eba5aa553235bc8ec2271688",
-  "dependencies": ["gtk", "oniguruma", "pkgconf"]
+  "dependencies": ["gtk", "pkgconf"]
 }

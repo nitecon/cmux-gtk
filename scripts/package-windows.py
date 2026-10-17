@@ -52,6 +52,7 @@ def main():
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination / "copyright")
     shutil.copytree(args.prefix / "share/adwaita-icon-theme", bundle / "share/licenses/adwaita-icon-theme")
+    shutil.copytree(root / "ghostty/zig-out/share/licenses/oniguruma", bundle / "share/licenses/oniguruma")
     shutil.copytree(root / "packaging/icons/hicolor", bundle / "share/icons/hicolor", dirs_exist_ok=True)
     shutil.copy2(root / "LICENSE", bundle / "LICENSE")
     shutil.copy2(root / "Docs/WindowsPreview.md", bundle / "README.txt")

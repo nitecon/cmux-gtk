@@ -92,7 +92,8 @@ if (-not (Test-Path "$theme/index.theme")) {
 if (-not $SkipBackend) {
     Push-Location "$repository/ghostty"
     try {
-        zig build -Dtarget=x86_64-windows-msvc -Dapp-runtime=none -Dembedded-app-thread-render=true -Dfont-backend=freetype_windows -Doptimize=ReleaseFast -Dcpu=baseline -Dsentry=false -Di18n=false -Demit-xcframework=false -fsys=oniguruma
+        # Keep Oniguruma private to Ghostty; its exported data cannot use GNU auto-import on MSVC.
+        zig build -Dtarget=x86_64-windows-msvc -Dapp-runtime=none -Dembedded-app-thread-render=true -Dfont-backend=freetype_windows -Doptimize=ReleaseFast -Dcpu=baseline -Dsentry=false -Di18n=false -Demit-xcframework=false -fno-sys=oniguruma
         foreach ($artifact in @('lib/ghostty-internal.dll', 'lib/ghostty-internal.lib', 'include/ghostty.h')) {
             if (-not (Test-Path "zig-out/$artifact")) { throw "Missing Ghostty artifact: $artifact" }
         }

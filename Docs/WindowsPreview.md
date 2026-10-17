@@ -9,7 +9,7 @@ cargo build --workspace --bins --release --locked
 python scripts/package-windows.py --prefix "$env:CMUX_GTK_PREFIX" --runtime-dir "$env:CMUX_MSVC_RUNTIME_DIR" --archive dist/cmux-gtk-windows-x86_64.zip
 ```
 
-The setup script keeps its downloaded tools, pinned vcpkg dependencies and build caches under `.tools`. Dot-sourcing retains the compiler and library environment in the current shell. It downloads the Ghostty-pinned Zig version, builds GTK and Oniguruma for MSVC, and builds the native Ghostty DLL. Bindgen uses an existing libclang installation or a repository-local pinned libclang wheel. `-SkipBackend` prepares the environment and dependencies without compiling Ghostty. The first dependency build can take substantially longer than subsequent cached builds. Application tests run in GitHub Actions.
+The setup script keeps its downloaded tools, pinned vcpkg dependencies and build caches under `.tools`. Dot-sourcing retains the compiler and library environment in the current shell. It downloads the Ghostty-pinned Zig version, builds GTK for MSVC, and builds the native Ghostty DLL with its pinned static Oniguruma dependency. Bindgen uses an existing libclang installation or a repository-local pinned libclang wheel. `-SkipBackend` prepares the environment and dependencies without compiling Ghostty. The first dependency build can take substantially longer than subsequent cached builds. Application tests run in GitHub Actions.
 
 This experimental x86-64 build uses the same GTK workspace UI and Ghostty terminal engine as Linux, with native ConPTY shells. It requires Windows 10 version 1809 or newer, or Windows 11, and a driver supporting desktop OpenGL 4.3.
 
