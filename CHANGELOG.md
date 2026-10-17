@@ -4,6 +4,23 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.18] - 2026-10-17
+
+### Added
+- Report installed agent-browser availability and live browser sessions to Codex, with startup guidance for reusing shared browser panes.
+
+### Changed
+- Build Windows previews with PowerShell and the native MSVC Rust, GTK and Ghostty toolchain, including native resources, runtime packaging and dependency licenses.
+- Preserve browser executable, profile and proxy options during shared interaction so login state and compatible extensions remain in the same browser session.
+
+### Fixed
+- Restore output-driven Windows terminal redraws by sharing IOCP notifier state across copied handles, removing the cursor-blink-limited redraw cadence.
+- Keep the requested browser page visible when extensions open onboarding tabs, and verify physical typing, fixture extension fill and profile persistence.
+- Preserve browser proxy launch flags during SSH reconnects to retain the shared page and session.
+
+### Known limitations
+- Windows remains experimental. Real 1Password authentication, unlock and autofill still require manual verification; extension coverage uses an isolated fixture.
+
 ## [0.6.17] - 2026-10-16
 
 ### Changed
