@@ -1744,6 +1744,25 @@ pub fn codex_event(client: &mut SocketClient, event: CodexHookEvent) -> Result<(
                 },
             )?;
             record_turn_baseline(&payload, &surface, &id);
+            // SessionStart stdout is Codex developer context. Discover through the desktop
+            // rather than this shell's PATH, which may differ after a desktop launch.
+            if let Ok(capabilities) = client.call("system.capabilities", json!({})) {
+                let context = if capabilities
+                    .pointer("/browser/available")
+                    .and_then(Value::as_bool)
+                    == Some(true)
+                {
+                    "A shared browser is available inside cmux through agent-browser. Use `cmux browser list` first and reuse a relevant surface with `cmux browser snapshot <surface-ref> --interactive`; use `cmux browser open <url>` only when a new surface is needed. The user sees and can interact with the same page for login, MFA and password-manager autofill. Browser commands preserve terminal focus; use `cmux focus-surface <uuid>` when the user needs to interact. Re-snapshot after the user finishes. `cmux browser list` exposes each live agent-browser session for commands beyond the cmux wrapper."
+                } else {
+                    "cmux provides shared browser panes when agent-browser is installed. Check `cmux --json capabilities` for browser availability. Install with `npm install -g agent-browser && agent-browser install`."
+                };
+                println!(
+                    "{}",
+                    json!({"hookSpecificOutput": {
+                        "hookEventName": "SessionStart", "additionalContext": context
+                    }})
+                );
+            }
         }
         CodexHookEvent::PromptSubmit => record_turn_baseline(&payload, &surface, &id),
         CodexHookEvent::SessionEnd => clear_agent_resume(client, &surface, &id)?,

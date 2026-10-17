@@ -1,143 +1,70 @@
 ---
 name: cmux-browser
-description: End-user browser automation with cmux. Use when you need to open sites, interact with pages, wait for state changes, and extract data from cmux browser surfaces.
+description: Open and reuse shared browser pages inside cmux, automate websites, and let the user complete login or MFA in the same page. Use for browser tasks in a cmux terminal with agent-browser installed.
 ---
 
 # Browser Automation with cmux
 
-Use this skill for browser tasks inside cmux Chromium surfaces managed through
-`agent-browser`.
+cmux renders agent-browser pages as interactive browser surfaces. The agent and user
+share the same page, cookies and login state. Use the cmux CLI to create and close
+surfaces so the desktop retains ownership of their browser sessions.
 
-## Core Workflow
-
-1. Open or target a browser surface.
-2. Verify navigation with `get url` before waiting or snapshotting.
-3. Snapshot (`--interactive`) to get fresh element refs.
-4. Act with refs (`click`, `fill`, `type`, `select`, `press`).
-5. Wait for state changes.
-6. Re-snapshot after DOM/navigation changes.
+## Discover and reuse
 
 ```bash
-cmux --json browser open https://example.com
-# use returned surface ref, for example: surface:7
-
-cmux browser surface:7 get url
-cmux browser surface:7 wait --load-state complete --timeout-ms 15000
-cmux browser surface:7 snapshot --interactive
-cmux browser surface:7 fill e1 "hello"
-cmux --json browser surface:7 click e2 --snapshot-after
-cmux browser surface:7 snapshot --interactive
+cmux --json capabilities             # browser.available reports backend discovery
+cmux browser list                    # ref, uuid, workspace_uuid, url, profile, session
+cmux browser snapshot surface:7 --interactive
 ```
 
-## Surface Targeting
+Reuse a surface relevant to the task. Reading or automating a suspended surface
+starts its browser lazily. To navigate it, use `cmux browser goto surface:7 <url>`.
+Create a new surface when needed:
 
 ```bash
-# identify current context
-cmux identify --json
-
-# open routed to a specific topology target
-cmux browser open https://example.com --workspace workspace:2 --window window:1 --json
+cmux browser open https://example.com
+cmux browser open https://example.com --workspace <workspace-uuid>
+cmux browser open https://example.com --profile /absolute/path/to/dedicated-profile
 ```
 
-Notes:
-- CLI output defaults to short refs (`surface:N`, `pane:N`, `workspace:N`, `window:N`).
-- UUIDs are still accepted on input; only request UUID output when needed (`--id-format uuids|both`).
-- Keep using one `surface:N` per task unless you intentionally switch.
+Retain the returned `surface_ref` and `uuid`. `--profile` selects an agent-browser
+Chrome profile name or persistent directory and survives cmux restoration. Without
+it, cmux creates an isolated ephemeral browser context.
 
-## Wait Support
-
-cmux supports wait patterns similar to agent-browser:
+## Interact
 
 ```bash
-cmux browser <surface> wait --selector "#ready" --timeout-ms 10000
-cmux browser <surface> wait --text "Success" --timeout-ms 10000
-cmux browser <surface> wait --url-contains "/dashboard" --timeout-ms 10000
-cmux browser <surface> wait --load-state complete --timeout-ms 15000
-cmux browser <surface> wait --function "document.readyState === 'complete'" --timeout-ms 10000
+cmux browser get-url surface:7
+cmux browser wait surface:7 --load-state complete --timeout-ms 15000
+cmux browser snapshot surface:7 --interactive
+cmux browser fill surface:7 e1 "search terms"
+cmux browser click surface:7 e2
+cmux browser snapshot surface:7 --interactive
 ```
 
-## Common Flows
+Use fresh refs after navigation, page changes, or user interaction. Browser commands
+return JSON by default; `--no-json` requests human-readable output. Consult
+`cmux browser --help` and `cmux browser <command> --help` for the installed CLI's
+arguments. Commands follow `cmux browser <command> <surface> ...`.
 
-### Form Submit
+## Shared login
 
-```bash
-cmux --json browser open https://example.com/signup
-cmux browser surface:7 get url
-cmux browser surface:7 wait --load-state complete --timeout-ms 15000
-cmux browser surface:7 snapshot --interactive
-cmux browser surface:7 fill e1 "Jane Doe"
-cmux browser surface:7 fill e2 "jane@example.com"
-cmux --json browser surface:7 click e3 --snapshot-after
-cmux browser surface:7 wait --url-contains "/welcome" --timeout-ms 15000
-cmux browser surface:7 snapshot --interactive
-```
+Opening and automation preserve terminal focus. Use `cmux focus-surface <uuid>`
+when the user needs to type, use a password manager, or complete MFA. Let the user
+finish, then take a fresh snapshot. Avoid reading password values or vault contents.
 
-### Clear an Input
+For persistent logins, choose a dedicated profile at creation. Extension loading
+uses agent-browser's configuration or `AGENT_BROWSER_EXTENSIONS` in the desktop's
+environment. cmux displays page content, including extension-injected page controls;
+it does not display Chrome's native toolbar or extension toolbar popups.
 
-```bash
-cmux browser surface:7 fill e11 "" --snapshot-after --json
-cmux browser surface:7 get value e11 --json
-```
+## Additional agent-browser features
 
-### Stable Agent Loop (Recommended)
+`cmux browser list` exposes the live `session` (null while suspended). Use
+`agent-browser --session <session> <command>` for features outside the cmux wrapper,
+with the same agent-browser socket directory and namespace as the desktop. Load
+`agent-browser skills get core` before using its CLI. Target the session explicitly
+to keep user interaction and automation in the same browser.
 
-```bash
-# navigate -> verify -> wait -> snapshot -> action -> snapshot
-cmux browser surface:7 get url
-cmux browser surface:7 wait --load-state complete --timeout-ms 15000
-cmux browser surface:7 snapshot --interactive
-cmux --json browser surface:7 click e5 --snapshot-after
-cmux browser surface:7 snapshot --interactive
-```
-
-If `get url` is empty or `about:blank`, navigate first instead of waiting on load state.
-
-## Deep-Dive References
-
-| Reference | When to Use |
-|-----------|-------------|
-| [references/commands.md](references/commands.md) | Full browser command mapping and quick syntax |
-| [references/snapshot-refs.md](references/snapshot-refs.md) | Ref lifecycle and stale-ref troubleshooting |
-| [references/authentication.md](references/authentication.md) | Login/OAuth/2FA patterns and state save/load |
-| [references/authentication.md#saving-authentication-state](references/authentication.md#saving-authentication-state) | Save authenticated state right after login |
-| [references/session-management.md](references/session-management.md) | Multi-surface isolation and state persistence patterns |
-| [references/video-recording.md](references/video-recording.md) | Current recording status and practical alternatives |
-| [references/proxy-support.md](references/proxy-support.md) | Proxy behavior and network-level workarounds |
-
-## Ready-to-Use Templates
-
-| Template | Description |
-|----------|-------------|
-| [templates/form-automation.sh](templates/form-automation.sh) | Snapshot/ref form fill loop |
-| [templates/authenticated-session.sh](templates/authenticated-session.sh) | Login once, save/load state |
-| [templates/capture-workflow.sh](templates/capture-workflow.sh) | Navigate + capture snapshots/screenshots |
-
-## CLI Limits
-
-The embedded runtime uses Chromium/CDP, but the `cmux browser` CLI currently
-exposes only the command families documented above. It does not yet expose:
-- viewport emulation
-- offline emulation
-- trace/screencast recording
-- network route interception/mocking
-- low-level raw input injection
-
-Use supported high-level commands (`click`, `fill`, `press`, `scroll`, `wait`, `snapshot`) instead.
-
-## Troubleshooting
-
-### `js_error` on `snapshot --interactive` or `eval`
-
-Some complex pages can reject or break the JavaScript used for rich snapshots and ad-hoc evaluation.
-
-Recovery steps:
-
-```bash
-cmux browser surface:7 get url
-cmux browser surface:7 get text body
-cmux browser surface:7 get html body
-```
-
-- Use `get url` first so you know whether the page actually navigated.
-- Fall back to `get text body` or `get html body` when `snapshot --interactive` or `eval` returns `js_error`.
-- If the page is still failing, navigate to a simpler intermediate page, then retry the task from there.
+Close through `cmux browser close --surface surface:7`. An unqualified close closes
+all browser surfaces, so specify the intended surface.

@@ -25,6 +25,9 @@ def main():
             "SessionStart": [{"hooks": [{"type": "command", "command": "true"}]}]
         }}))
         env = dict(os.environ, PATH=str(binary_dir) + os.pathsep + os.environ["PATH"], CODEX_HOME=str(config))
+        browser = binary_dir / "agent-browser"
+        browser.write_text("#!/bin/sh\nexit 1\n")
+        browser.chmod(0o700)
         executable = str(Path("target/debug/cmux").resolve())
         subprocess.run([executable, "hooks", "setup", "codex"], env=env, check=True, timeout=10)
         first = hooks_path.read_bytes()
@@ -35,7 +38,11 @@ def main():
         assert hooks["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "true"
         commands = {name: entries[-1]["hooks"][0]["command"] for name, entries in hooks["hooks"].items()}
 
-        with running_app(root, {"PATH": env["PATH"], "CODEX_HOME": str(config)}) as app:
+        with running_app(root, {"PATH": env["PATH"], "CODEX_HOME": str(config), "CMUX_AGENT_BROWSER": str(browser)}) as app:
+            capabilities = json.loads(app.cli("capabilities", "--json"))
+            assert capabilities["browser"]["available"] is True
+            assert "browser.open" in capabilities["methods"]
+            assert "agent-browser available in cmux" in app.cli("capabilities")
             initial = next(row for row in app.surfaces() if row["active"])
             app.cli("new-workspace", "--name", "codex-hook-target")
             target = next(row["uuid"] for row in app.surfaces() if row["active"])
@@ -44,12 +51,19 @@ def main():
             native_id = "codex-session-id"
 
             def event(name, **extra):
+                """Deliver a provider hook and return the exact stdout Codex receives."""
                 payload = {"hook_event_name": name, "session_id": native_id, "cwd": str(root), **extra}
                 result = subprocess.run(["/bin/sh", "-c", commands[name]], env=hook_env,
                                         input=json.dumps(payload), text=True, capture_output=True, timeout=10)
                 assert result.returncode == 0, result.stderr
+                return result.stdout
 
-            event("SessionStart")
+            context = json.loads(event("SessionStart"))["hookSpecificOutput"]
+            assert context["hookEventName"] == "SessionStart"
+            assert "shared browser is available inside cmux" in context["additionalContext"]
+            assert "cmux browser list" in context["additionalContext"]
+            assert "cmux browser snapshot <surface-ref> --interactive" in context["additionalContext"]
+            assert not list((root / "runtime" / "agent-browser").glob("*.pid")), "discovery launched a browser"
             event("UserPromptSubmit")
             binding = json.loads(app.cli("surface", "resume", "show", "--surface", target, "--json"))["resume_binding"]
             assert binding["kind"] == "codex" and binding["checkpoint_id"] == native_id

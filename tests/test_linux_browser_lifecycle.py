@@ -81,6 +81,13 @@ def main():
                     if item["uuid"] == result["uuid"]
                 )
                 assert listed_profile["profile"] == str(profile), listed_profile
+                session = listed_profile["session"]
+                assert (browser_dir / f"{session}.pid").is_file(), listed_profile
+                before_reuse = set(browser_dir.glob("*.pid"))
+                app.cli("browser", "snapshot", listed_profile["ref"], "--interactive")
+                assert set(browser_dir.glob("*.pid")) == before_reuse, "snapshot started a second browser"
+                assert next(item for item in json.loads(app.cli("browser", "list"))["surfaces"]
+                            if item["uuid"] == result["uuid"])["session"] == session
                 trace = re.search(r"trace_id=([0-9a-f-]+)", opened.stderr).group(1)
 
                 def stream_correlated():

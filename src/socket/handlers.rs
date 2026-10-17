@@ -477,7 +477,32 @@ fn handle_socket_command_traced(
                 "debug.layout",
                 "debug.type",
             ];
-            let _ = resp_tx.send(ok(req_id, json!({"methods": methods})));
+            let Some(runtime) = state.borrow().runtime_handle.clone() else {
+                let _ = resp_tx.send(err(req_id, "not_running", "Async runtime unavailable"));
+                return;
+            };
+            // Executable discovery may inspect NVM directories; keep filesystem work off GTK.
+            spawn_browser_exchange(
+                &runtime,
+                async move {
+                    let available =
+                        tokio::task::spawn_blocking(crate::browser::agent_browser_available)
+                            .await
+                            .map_err(|_| "Browser discovery worker failed".to_string())?;
+                    Ok(json!({"methods": methods, "browser": {
+                        "available": available,
+                        "backend": "agent-browser",
+                        "display": "cmux",
+                        "install_command": "npm install -g agent-browser && agent-browser install",
+                        "list_command": "cmux browser list",
+                        "open_command": "cmux browser open <url>"
+                    }}))
+                },
+                req_id,
+                resp_tx,
+                "discovery_error",
+                trace_id,
+            );
         }
 
         // -- workspace.* --
@@ -1592,7 +1617,8 @@ fn handle_socket_command_traced(
                     Some(_) => "starting",
                     None => "suspended",
                 };
-                json!({"ref":reference,"uuid":id,"workspace_uuid":s.workspaces[index].uuid,"status":status,"url":widgets.url_entry.text().to_string(),"profile":widgets.profile})
+                let session = s.browser_sessions.get(&id).map(|browser| browser.session_identity());
+                json!({"ref":reference,"uuid":id,"workspace_uuid":s.workspaces[index].uuid,"status":status,"url":widgets.url_entry.text().to_string(),"profile":widgets.profile,"session":session})
             }).collect();
             let _ = resp_tx.send(ok(req_id, serde_json::json!({"surfaces": surfaces})));
         }

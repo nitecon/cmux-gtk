@@ -46,6 +46,7 @@
   - src/notification.rs
   - src/cli/diff.rs
   - src/gateway/worker.rs
+  - src/socket/handlers.rs
 019df63f-c5cd-7b93-bde1-507cb33d958c:
   - src/session.rs
   - crates/cmux-platform/src/linux/filesystem.rs

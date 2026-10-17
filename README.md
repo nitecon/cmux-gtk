@@ -209,21 +209,25 @@ owned by their package manager.
 Agents running inside cmux can discover and use browser automation via the `cmux browser` CLI:
 
 ```bash
+# Discover the optional browser backend and existing shared pages
+cmux --json capabilities                # browser.available reports installation
+cmux browser list                      # reuse a relevant surface before opening another
+
 # Open a site (https:// auto-prepended if no scheme)
 cmux browser open slashdot.org            # returns surface:1 handle
 cmux browser open gmail.com --profile Default  # reuse an agent-browser Chrome profile
 
 # Interact with the page
-cmux browser surface:1 snapshot --interactive  # accessibility tree with element refs
-cmux browser surface:1 click e3               # click element by ref
-cmux browser surface:1 fill e5 "search term"  # fill input field
-cmux browser surface:1 eval 'document.title'  # evaluate JavaScript
+cmux browser snapshot surface:1 --interactive  # accessibility tree with element refs
+cmux browser click surface:1 e3               # click element by ref
+cmux browser fill surface:1 e5 "search term"  # fill input field
+cmux browser eval surface:1 'document.title'  # evaluate JavaScript
 
 # Navigation
-cmux browser surface:1 goto example.com
-cmux browser surface:1 back
-cmux browser surface:1 forward
-cmux browser surface:1 reload
+cmux browser goto surface:1 example.com
+cmux browser back surface:1
+cmux browser forward surface:1
+cmux browser reload surface:1
 
 # Management
 cmux browser list                          # list browser surfaces
@@ -235,6 +239,15 @@ cmux browser close --surface surface:1     # close a surface
 survives cmux session restoration. Omitting it creates the existing isolated ephemeral context.
 
 Browser commands default to JSON output (agents are the primary consumers). Use `--no-json` for human-readable output.
+
+Codex sessions using `cmux hooks setup codex` receive browser availability and shared-page
+instructions through the existing SessionStart hook. Opening and automation preserve terminal
+focus. Use `cmux focus-surface <uuid>` when the user needs to log in or complete MFA, then take a
+fresh snapshot after they finish. Both interact with the same browser context.
+
+`browser list` includes a live `session` identifier (null while suspended). For features outside
+the cmux wrapper, target that session explicitly: `agent-browser --session <session> <command>`.
+Use `cmux browser close --surface <ref>` for lifecycle cleanup so cmux retains ownership.
 
 Diff surfaces use the same browser automation boundary, so an agent can inspect and operate the
 viewer with `cmux browser`. Generated pages are self-contained, owner-only files under the cmux data

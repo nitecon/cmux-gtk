@@ -168,6 +168,16 @@ fn format_capabilities(result: &Value, color: bool) -> String {
         let name = m.as_str().unwrap_or("?");
         lines.push(format!("  {}", dim(name, color)));
     }
+    if let Some(available) = result
+        .pointer("/browser/available")
+        .and_then(Value::as_bool)
+    {
+        lines.push(if available {
+            "Browser: agent-browser available in cmux. Use `cmux browser list` to reuse a surface or `cmux browser open <url>` to create one. The user can interact with the same page to log in.".into()
+        } else {
+            "Browser: agent-browser is not installed. Install: npm install -g agent-browser && agent-browser install".into()
+        });
+    }
     lines.join("\n")
 }
 
