@@ -52,15 +52,18 @@ def measure(root, report):
             app.wait_for(lambda: bool(app.children()), "initial terminal")
             terminal = selected_surface(app)
             tick = time.perf_counter_ns()
-            opened = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/", timeout=35))
+            opened = json.loads(app.cli("browser", "open", f"http://127.0.0.1:{server.server_port}/",
+                                        "--profile", str(root / "profile"), timeout=35))
             assert opened["success"] is True
             surface = opened["surface_ref"]
+            launch_hash = opened["data"]["lifecycle"]["effectiveLaunch"]["launchHash"]
             report["open_us"] = (time.perf_counter_ns() - tick) / 1000
 
             def browser(*args):
                 """Require daemon success and return its data through the real cmux CLI."""
                 result = json.loads(app.cli("browser", args[0], surface, *args[1:]))
                 assert result["success"] is True, "external browser command failed"
+                assert result["data"]["lifecycle"]["effectiveLaunch"]["launchHash"] == launch_hash, "browser launch context changed"
                 return result["data"]
 
             def resources():
@@ -72,6 +75,10 @@ def measure(root, report):
 
             app.wait_for(lambda: resources()["browser_preview"]["textures_assigned"] > 0,
                          "real browser frame assigned to GTK", timeout=15)
+            browser("eval", "window.cmuxSharedPage='preserved'")
+            app.cli("focus-surface", opened["uuid"])
+            assert browser("eval", "window.cmuxSharedPage")["result"] == "preserved"
+            app.cli("focus-surface", terminal)
             report["browser_user_agent"] = browser("eval", "navigator.userAgent")["result"]
             assert isinstance(report["browser_user_agent"], str) and len(report["browser_user_agent"]) <= 512
             assert browser("wait", "--url-contains", "127.0.0.1", "--timeout-ms", "1000")["waited"] == "function"

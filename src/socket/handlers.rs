@@ -1876,7 +1876,7 @@ pub(super) fn start_browser_lifecycle(
             _ = resp_tx.closed() => { task.abort(); let _ = task.await; return; }
             result = &mut task => result,
         };
-        let (binary, mut result) = match completed {
+        let (binary, mut result, browser_path) = match completed {
             Ok(Ok(result)) => result,
             Ok(Err(error)) => {
                 activity.finish("error");
@@ -1897,7 +1897,7 @@ pub(super) fn start_browser_lifecycle(
             if !s
                 .browser_manager
                 .as_mut()
-                .is_some_and(|browser| browser.install_startup(&session, binary))
+                .is_some_and(|browser| browser.install_startup(&session, binary, browser_path))
             {
                 activity.finish("stale_manager");
                 let _ = resp_tx.send(err(req_id, "not_running", "Browser session was replaced"));

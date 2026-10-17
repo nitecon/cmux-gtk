@@ -15,14 +15,18 @@ pub(super) async fn run(
     binary: &Path,
     session: &str,
     args: &[&str],
+    browser: Option<&Path>,
+    profile: Option<&str>,
+    proxy_port: Option<u16>,
     trace_id: uuid::Uuid,
 ) -> Result<Value, String> {
     let mut command = tokio::process::Command::new(binary);
-    command
-        .arg("--session")
-        .arg(session)
-        .arg("--json")
-        .args(args);
+    command.arg("--session").arg(session).arg("--json");
+    if let Some(browser) = browser {
+        command.arg("--executable-path").arg(browser);
+    }
+    configure_context(&mut command, profile, proxy_port);
+    command.args(args);
     run_command(
         command,
         if args == ["get", "url"] {
@@ -56,6 +60,18 @@ pub(super) async fn start(
     if let Some(browser) = browser {
         command.arg("--executable-path").arg(browser);
     }
+    configure_context(&mut command, profile, proxy_port);
+    command.args(["open", url]);
+    run_command(command, "cli_startup", trace_id).await
+}
+
+/// Reapply the surface's persistent profile and network route on every public CLI call.
+/// agent-browser reconciles launch flags even for reads; omitted flags can replace its browser.
+fn configure_context(
+    command: &mut tokio::process::Command,
+    profile: Option<&str>,
+    proxy_port: Option<u16>,
+) {
     if let Some(profile) = profile {
         command.arg("--profile").arg(profile);
     }
@@ -66,8 +82,6 @@ pub(super) async fn start(
             .arg("--proxy-bypass")
             .arg("<-loopback>");
     }
-    command.args(["open", url]);
-    run_command(command, "cli_startup", trace_id).await
 }
 
 /// Share pipe bounds, child cleanup, protocol decoding and timing across public CLI operations.

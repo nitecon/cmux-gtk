@@ -87,7 +87,7 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
     glib::MainContext::default().spawn_local(async move {
         let _owner = owner;
         let _cancel = cancel;
-        let binary = match task.await {
+        let (binary, browser_path) = match task.await {
             Ok(Ok(binary)) => binary,
             Ok(Err(error)) => {
                 activity.finish("error");
@@ -113,6 +113,7 @@ pub fn handle_browser_open(state: &Rc<RefCell<AppState>>) {
                 return;
             };
             browser.binary_path = Some(binary);
+            browser.browser_path = browser_path;
             browser.preview_state = super::PreviewState::Connected;
             let Some(index) = s
                 .workspaces
@@ -290,7 +291,7 @@ pub(crate) async fn initialize_browser_surface(
         uuid,
         session: session.clone(),
     };
-    let binary = completion
+    let (binary, browser_path) = completion
         .await
         .ok_or("browser surface closed")?
         .map_err(|_| "browser startup worker failed")??;
@@ -304,6 +305,7 @@ pub(crate) async fn initialize_browser_surface(
             .filter(|browser| browser.session_identity() == session)
             .ok_or("browser session replaced")?;
         browser.binary_path = Some(binary);
+        browser.browser_path = browser_path;
         browser.preview_state = super::PreviewState::Connected;
         widgets
     };

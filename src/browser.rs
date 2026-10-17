@@ -98,6 +98,7 @@ pub struct BrowserManager {
     navigation_gate: std::sync::Arc<tokio::sync::Semaphore>,
     navigation_shutdown: tokio::sync::watch::Sender<bool>,
     binary_path: Option<PathBuf>,
+    browser_path: Option<PathBuf>,
     stream_task: Option<tokio::task::JoinHandle<()>>,
     input_queue: Option<input_queue::InputQueue>,
 
@@ -116,6 +117,7 @@ impl BrowserManager {
             navigation_gate: std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
             navigation_shutdown: tokio::sync::watch::channel(false).0,
             binary_path: None,
+            browser_path: None,
             stream_task: None,
             input_queue: None,
             preview_state: PreviewState::Empty,
@@ -208,8 +210,9 @@ impl BrowserManager {
         &self,
         request: StartupRequest,
         trace_id: Uuid,
-    ) -> impl std::future::Future<Output = Result<(PathBuf, Value), StartupError>> + Send + 'static
-    {
+    ) -> impl std::future::Future<Output = Result<(PathBuf, Value, Option<PathBuf>), StartupError>>
+           + Send
+           + 'static {
         let session = self.session_name.clone();
         let profile = self.profile.clone();
         let remote_bridge = self.remote_bridge.clone();
@@ -292,9 +295,17 @@ impl BrowserManager {
                 }
                 let result = match request {
                     StartupRequest::Preview(_) => {
-                        if cli::run(&binary, &session, &["stream", "enable"], trace_id)
-                            .await
-                            .is_err()
+                        if cli::run(
+                            &binary,
+                            &session,
+                            &["stream", "enable"],
+                            chrome.as_deref(),
+                            profile.as_deref(),
+                            proxy_port,
+                            trace_id,
+                        )
+                        .await
+                        .is_err()
                         {
                             crate::diagnostics::record(
                                 "browser.preview.stream_enable.failed",
@@ -333,7 +344,7 @@ impl BrowserManager {
                         message,
                     })?,
                 };
-                Ok((binary, result))
+                Ok((binary, result, chrome))
             };
             tokio::select! {
                 biased;
@@ -355,12 +366,13 @@ impl BrowserManager {
         &self,
         url: String,
         trace_id: Uuid,
-    ) -> impl std::future::Future<Output = Result<PathBuf, String>> + Send + 'static {
+    ) -> impl std::future::Future<Output = Result<(PathBuf, Option<PathBuf>), String>> + Send + 'static
+    {
         let startup = self.startup_async(StartupRequest::Preview(url), trace_id);
         async move {
             startup
                 .await
-                .map(|(binary, _)| binary)
+                .map(|(binary, _, chrome)| (binary, chrome))
                 .map_err(|error| error.message)
         }
     }
@@ -371,11 +383,17 @@ impl BrowserManager {
     }
 
     /// Install the executable only when this manager still owns the startup completion.
-    pub(crate) fn install_startup(&mut self, session: &str, binary: PathBuf) -> bool {
+    pub(crate) fn install_startup(
+        &mut self,
+        session: &str,
+        binary: PathBuf,
+        browser_path: Option<PathBuf>,
+    ) -> bool {
         if self.session_name != session {
             return false;
         }
         self.binary_path = Some(binary);
+        self.browser_path = browser_path;
         self.preview_state = PreviewState::Connected;
         true
     }
@@ -445,6 +463,12 @@ impl BrowserManager {
         let mut shutdown = self.navigation_shutdown.subscribe();
         let binary = self.binary_path.clone();
         let session = self.session_name.clone();
+        let profile = self.profile.clone();
+        let browser_path = self.browser_path.clone();
+        let proxy_port = self
+            .remote_bridge
+            .as_ref()
+            .and_then(|bridge| bridge.browser_proxy_ready());
         let permit = self.navigation_gate.clone().try_acquire_owned();
         crate::diagnostics::record(
             "browser.navigation.admission",
@@ -465,10 +489,28 @@ impl BrowserManager {
                     binary.ok_or_else(|| "Browser daemon has not been initialized".to_string())?;
                 for command in commands {
                     let args: Vec<&str> = command.iter().map(String::as_str).collect();
-                    cli::run(&binary, &session, &args, trace_id).await?;
+                    cli::run(
+                        &binary,
+                        &session,
+                        &args,
+                        browser_path.as_deref(),
+                        profile.as_deref(),
+                        proxy_port,
+                        trace_id,
+                    )
+                    .await?;
                 }
                 if refresh_url {
-                    let data = cli::run(&binary, &session, &["get", "url"], trace_id).await?;
+                    let data = cli::run(
+                        &binary,
+                        &session,
+                        &["get", "url"],
+                        browser_path.as_deref(),
+                        profile.as_deref(),
+                        proxy_port,
+                        trace_id,
+                    )
+                    .await?;
                     Ok(data.get("url").and_then(Value::as_str).map(str::to_owned))
                 } else {
                     Ok(None)
@@ -988,7 +1030,7 @@ esac
                     .unwrap();
             }
         });
-        let (_, opened) = browser
+        let (_, opened, _) = browser
             .startup_async(
                 StartupRequest::Open(serde_json::json!({"url":"https://example.test"})),
                 Uuid::new_v4(),
@@ -996,7 +1038,7 @@ esac
             .await
             .unwrap();
         assert_eq!(opened["surface_id"], "fixture");
-        let (_, streaming) = browser
+        let (_, streaming, _) = browser
             .startup_async(StartupRequest::Stream, Uuid::new_v4())
             .await
             .unwrap();
@@ -1094,7 +1136,7 @@ printf '%s\n' '{"success":true,"data":{}}'
             .prepare_preview_async("about:blank".into(), Uuid::new_v4())
             .await
             .is_err());
-        assert_eq!(startup.await.unwrap(), binary);
+        assert_eq!(startup.await.unwrap().0, binary);
         let calls = std::fs::read_to_string(directory.join("browser fixture.calls")).unwrap();
         assert_eq!(
             calls,
