@@ -307,6 +307,7 @@ mod tests {
         // Equal goal names do not override exact actor echo suppression.
         let mut pipeline = Pipeline::default();
         b.selected_goal.as_mut().unwrap().goal = "alpha".into();
+        b.selected_goal.as_mut().unwrap().origin.session_id = uuid::Uuid::new_v4().to_string();
         let mut echo = message("echo", Kind::Commented);
         echo.goal = Some("alpha".into());
         echo.origin = Some(a.selected_goal.as_ref().unwrap().origin.clone());
