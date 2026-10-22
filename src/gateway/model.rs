@@ -82,6 +82,9 @@ pub struct Message {
     pub source_instance: Option<String>,
     #[serde(default)]
     pub origin: Option<Origin>,
+    /// An exact named queue; absent/null legacy events remain ungrouped.
+    #[serde(default)]
+    pub goal: Option<String>,
 }
 
 impl Message {
@@ -112,6 +115,9 @@ impl Message {
         }
         if let Some(origin) = &self.origin {
             origin.validate()?;
+        }
+        if normalize_goal(self.goal.as_deref())? != self.goal {
+            return Err("Gateway task goal must be normalized".into());
         }
         Ok(())
     }
@@ -177,6 +183,27 @@ pub struct Session {
     /// Logical actor provenance is independent of this terminal's durable delivery fence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub actor_origin: Option<Origin>,
+    /// Explicit client context, bound to a verified executor and repository, never inferred from labels.
+    #[serde(default)]
+    pub selected_goal: Option<GoalSelection>,
+}
+
+/// Mutable work context does not participate in the logical actor's identity.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GoalSelection {
+    pub repository: String,
+    pub goal: String,
+    pub origin: Origin,
+}
+
+/// Share the task goal's canonical form while rejecting terminal controls and oversized context.
+pub fn normalize_goal(value: Option<&str>) -> Result<Option<String>, String> {
+    let Some(value) = value else { return Ok(None) };
+    if value.len() > 128 || value.chars().any(char::is_control) {
+        return Err("Invalid task goal".into());
+    }
+    let value = value.trim();
+    Ok((!value.is_empty()).then(|| value.to_owned()))
 }
 
 impl Session {
@@ -207,6 +234,7 @@ impl Session {
             repository,
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.as_bytes()).to_string(),
             actor_origin: None,
+            selected_goal: None,
         }
     }
 
@@ -224,6 +252,7 @@ impl Session {
             "workspace_id": self.terminal.workspace_id,
             "repository": self.repository,
             "directory": self.terminal.directory,
+            "goal": self.selected_goal.as_ref().filter(|g| g.repository == self.repository).map(|g| &g.goal),
         })
     }
 
@@ -231,6 +260,9 @@ impl Session {
     pub fn is_origin(&self, origin: &Origin, legacy_instance: &str) -> bool {
         self.actor_origin.as_ref().is_some_and(|own| {
             own.session_id == origin.session_id && own.instance_id == origin.instance_id
+        }) || self.selected_goal.as_ref().is_some_and(|selection| {
+            selection.origin.session_id == origin.session_id
+                && selection.origin.instance_id == origin.instance_id
         }) || self.session_id == origin.session_id && legacy_instance == origin.instance_id
     }
 
@@ -240,6 +272,15 @@ impl Session {
             .screen
             .as_ref()
             .is_some_and(|frame| super::readiness::classify(frame) == InputState::EmptyReady)
+    }
+
+    /// Ungrouped routing is unchanged; named work requires explicit selection in this repository.
+    pub fn accepts_goal(&self, goal: Option<&str>) -> bool {
+        goal.is_none_or(|goal| {
+            self.selected_goal.as_ref().is_some_and(|selection| {
+                selection.goal == goal && selection.repository == self.repository
+            })
+        })
     }
 
     /// Pin queued messages to one workspace, surface, process generation and repository.

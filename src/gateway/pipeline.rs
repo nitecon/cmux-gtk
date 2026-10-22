@@ -53,6 +53,7 @@ impl Pipeline {
             .filter(|session| {
                 matching_project(&session.repository, projects)
                     == Some(message.project_ident.as_str())
+                    && session.accepts_goal(message.goal.as_deref())
             })
             .collect();
         if !fresh_at(message.created_at, now_millis())
@@ -68,7 +69,11 @@ impl Pipeline {
                 } else if !journal.config.injection_approved {
                     "Experimental injection approval is off"
                 } else if candidates.is_empty() {
-                    "No active agent in a matching repository"
+                    if message.goal.is_some() {
+                        "No active agent selected this goal in a matching repository"
+                    } else {
+                        "No active agent in a matching repository"
+                    }
                 } else {
                     "Gateway is disabled"
                 }
@@ -133,6 +138,9 @@ impl Pipeline {
             }
             let current = sessions.iter().find(|s| {
                 pending.target.same_target(s)
+                    && s.accepts_goal(pending.message.goal.as_deref())
+                    && (pending.message.goal.is_none()
+                        || pending.target.selected_goal == s.selected_goal)
                     && matching_project(&s.repository, projects)
                         == Some(pending.message.project_ident.as_str())
             });
@@ -199,6 +207,7 @@ mod tests {
             session_id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, surface.as_bytes())
                 .to_string(),
             actor_origin: None,
+            selected_goal: None,
         }
     }
 
@@ -214,6 +223,7 @@ mod tests {
             author_id: Some("human".into()),
             source_instance: None,
             origin: None,
+            goal: None,
         }
     }
 
@@ -229,6 +239,122 @@ mod tests {
                 upstream_urls: vec!["git@github.com:org/repo.git".into()],
             }],
         )
+    }
+
+    /// Named work reaches only arrival-time goal peers; legacy ungrouped events still broadcast.
+    #[test]
+    fn goals_isolate_repository_peers_without_changing_legacy_broadcasts() {
+        let (mut journal, projects) = context();
+        let mut a = session("a", true);
+        let mut b = session("b", true);
+        let ungrouped = session("ungrouped", true);
+        let origin = Origin {
+            session_id: uuid::Uuid::new_v4().to_string(),
+            instance_id: uuid::Uuid::new_v4().to_string(),
+            provider: "codex".into(),
+            os: "linux".into(),
+        };
+        a.selected_goal = Some(GoalSelection {
+            repository: a.repository.clone(),
+            goal: "alpha".into(),
+            origin: origin.clone(),
+        });
+        b.selected_goal = Some(GoalSelection {
+            repository: b.repository.clone(),
+            goal: "beta".into(),
+            origin,
+        });
+        let mut other_repo = a.clone();
+        other_repo.repository = "github.com/org/other".into();
+        let sessions = [a.clone(), b.clone(), ungrouped, other_repo];
+        let mut pipeline = Pipeline::default();
+        let mut grouped = message("goal", Kind::Created);
+        grouped.goal = Some("alpha".into());
+        assert_eq!(
+            pipeline
+                .admit(&mut journal, &projects, &sessions, grouped.clone())
+                .unwrap(),
+            Admission::Queued
+        );
+        assert_eq!(pipeline.pending.len(), 1);
+        assert_eq!(pipeline.pending[0].target.session_id, a.session_id);
+        assert!(pipeline.next(&projects, &sessions).unwrap().1);
+
+        grouped.event_id = "no-match".into();
+        grouped.goal = Some("missing".into());
+        assert_eq!(
+            pipeline
+                .admit(&mut journal, &projects, &sessions, grouped)
+                .unwrap(),
+            Admission::Skipped
+        );
+        assert_eq!(journal.receipts.back().unwrap().outcome, "skipped");
+        assert!(pipeline.pending.is_empty());
+
+        assert_eq!(
+            pipeline
+                .admit(
+                    &mut journal,
+                    &projects,
+                    &sessions,
+                    message("legacy", Kind::Completed)
+                )
+                .unwrap(),
+            Admission::Queued
+        );
+        assert_eq!(pipeline.pending.len(), 3);
+
+        // Equal goal names do not override exact actor echo suppression.
+        let mut pipeline = Pipeline::default();
+        b.selected_goal.as_mut().unwrap().goal = "alpha".into();
+        let mut echo = message("echo", Kind::Commented);
+        echo.goal = Some("alpha".into());
+        echo.origin = Some(a.selected_goal.as_ref().unwrap().origin.clone());
+        pipeline
+            .admit(&mut journal, &projects, &[a, b.clone()], echo)
+            .unwrap();
+        assert_eq!(pipeline.pending.len(), 1);
+        assert_eq!(pipeline.pending[0].target.session_id, b.session_id);
+    }
+
+    /// Clearing, switching goal or replacing a logical actor retires queued work, without retargeting it.
+    #[test]
+    fn goal_selection_is_rechecked_before_input() {
+        for change in ["clear", "switch", "actor", "repository"] {
+            let (mut journal, projects) = context();
+            let mut peer = session("peer", false);
+            peer.selected_goal = Some(GoalSelection {
+                repository: peer.repository.clone(),
+                goal: "alpha".into(),
+                origin: Origin {
+                    session_id: uuid::Uuid::new_v4().to_string(),
+                    instance_id: uuid::Uuid::new_v4().to_string(),
+                    provider: "codex".into(),
+                    os: "linux".into(),
+                },
+            });
+            let mut event = message("event", Kind::Commented);
+            event.goal = Some("alpha".into());
+            let mut pipeline = Pipeline::default();
+            pipeline
+                .admit(&mut journal, &projects, &[peer.clone()], event)
+                .unwrap();
+            assert!(pipeline.next(&projects, &[peer.clone()]).is_none());
+            match change {
+                "clear" => peer.selected_goal = None,
+                "switch" => peer.selected_goal.as_mut().unwrap().goal = "beta".into(),
+                "actor" => {
+                    peer.selected_goal.as_mut().unwrap().origin.session_id =
+                        uuid::Uuid::new_v4().to_string()
+                }
+                _ => {
+                    peer.selected_goal.as_mut().unwrap().repository = "github.com/org/other".into()
+                }
+            }
+            peer.terminal.screen = Some(ready_screen());
+            assert!(!pipeline.next(&projects, &[peer]).unwrap().1, "{change}");
+            assert!(pipeline.pending.is_empty());
+        }
     }
 
     /// Stale events never queue, and live events expire even while their executor is unavailable.

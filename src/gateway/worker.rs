@@ -13,6 +13,7 @@ pub enum Action {
     Actor {
         actor: super::actor::Actor,
         repository: Option<String>,
+        process: Option<cmux_platform::process::Identity>,
     },
     Configure {
         config: Config,
@@ -60,12 +61,42 @@ struct Worker {
     storage_failed: bool,
     connection: String,
     agents: usize,
+    goal_registrations: Vec<GoalRegistration>,
+}
+
+/// A local registration is useful for routing only while its native executor generation matches.
+struct GoalRegistration {
+    process: cmux_platform::process::Identity,
+    repository: String,
+    origin: Origin,
+    goal: Option<String>,
+}
+
+/// Multiple logical conversations on one executor are ambiguous; never select one by provider or order.
+fn selected_goal(
+    registrations: &[GoalRegistration],
+    process: &cmux_platform::process::Identity,
+) -> Option<GoalSelection> {
+    let mut matches = registrations.iter().filter(|r| &r.process == process);
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(GoalSelection {
+        repository: first.repository.clone(),
+        goal: first.goal.clone()?,
+        origin: first.origin.clone(),
+    })
 }
 
 impl Worker {
     /// Track owned running processes without any downstream UI, provider protocol or prompt observation.
     async fn sessions(&mut self, terminals: &[Terminal]) -> Vec<Session> {
-        active(terminals, &self.journal.instance_id).await
+        let mut sessions = active(terminals, &self.journal.instance_id).await;
+        for session in &mut sessions {
+            session.selected_goal = selected_goal(&self.goal_registrations, &session.process);
+        }
+        sessions
     }
 
     /// Publish bounded outcomes without task bodies, terminal screen contents or credentials.
@@ -137,8 +168,29 @@ impl Worker {
     async fn apply(&mut self, action: Action) -> Result<Value, String> {
         let (config, key) = match action {
             Action::Configure { config, key } => (config, key),
-            Action::Actor { actor, repository } => {
-                let result = actor.announcement(repository.as_deref())?;
+            Action::Actor {
+                actor,
+                repository,
+                process,
+            } => {
+                let mut result = actor.announcement(repository.as_deref())?;
+                let goal = normalize_goal(actor.goal.as_deref())?;
+                result["goal"] = json!(goal);
+                self.goal_registrations.retain(|r| r.origin != actor.origin);
+                if let (Some(repository), Some(process)) = (repository, process) {
+                    if self.goal_registrations.len() >= MAX_PENDING {
+                        return Err("Session goal registration capacity reached".into());
+                    }
+                    self.goal_registrations.push(GoalRegistration {
+                        process,
+                        repository,
+                        origin: actor.origin,
+                        goal,
+                    });
+                    result["goal_routing"] = json!("native_executor_verified");
+                } else {
+                    result["goal_routing"] = json!("unbound");
+                }
                 return Ok(result);
             }
         };
@@ -433,6 +485,7 @@ impl Worker {
                         received.candidates.iter().any(|c| {
                             c.same_attachment(s)
                                 && (c.repository.is_empty() || c.repository == s.repository)
+                                && (message.goal.is_none() || c.selected_goal == s.selected_goal)
                                 && c.actor_origin
                                     .as_ref()
                                     .is_none_or(|origin| s.actor_origin.as_ref() == Some(origin))
@@ -952,7 +1005,7 @@ pub async fn run(
         let (journal,key)=loaded.map_err(|_| "Gateway storage worker stopped")??;
         let pipeline=Pipeline::default();
         let mut worker=Worker {journal,key,path,projects:Vec::new(),pipeline,view:view.clone(),deliveries,
-            storage_failed:false,connection:"Disabled".into(),agents:0};
+            storage_failed:false,connection:"Disabled".into(),agents:0,goal_registrations:Vec::new()};
         worker.save().await?; worker.publish();
         let mut connection:Option<Connection>=None;
         let mut retry=Instant::now(); let mut tick=tokio::time::interval(Duration::from_millis(500));
@@ -1059,6 +1112,47 @@ fn cleanup_failed(error: &std::io::Error) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Selection is explicit, repository scoped and tied to one native generation, with no last-writer choice.
+    #[test]
+    fn goal_registration_never_guesses_an_actor_or_reuses_a_process() {
+        let process = cmux_platform::process::Identity {
+            pid: 42,
+            start_ticks: 7,
+            client: "codex".into(),
+        };
+        let origin = Origin {
+            session_id: uuid::Uuid::new_v4().to_string(),
+            instance_id: uuid::Uuid::new_v4().to_string(),
+            provider: "codex".into(),
+            os: "linux".into(),
+        };
+        let mut registrations = vec![GoalRegistration {
+            process: process.clone(),
+            repository: "github.com/org/repo".into(),
+            origin: origin.clone(),
+            goal: Some("alpha".into()),
+        }];
+        let selected = selected_goal(&registrations, &process).unwrap();
+        assert_eq!(selected.goal, "alpha");
+        assert_eq!(selected.origin, origin);
+        let mut replacement = process.clone();
+        replacement.start_ticks += 1;
+        assert!(selected_goal(&registrations, &replacement).is_none());
+        registrations[0].goal = None;
+        assert!(selected_goal(&registrations, &process).is_none());
+        registrations[0].goal = Some("alpha".into());
+        registrations.push(GoalRegistration {
+            process: process.clone(),
+            repository: "github.com/org/repo".into(),
+            origin: Origin {
+                session_id: uuid::Uuid::new_v4().to_string(),
+                ..origin
+            },
+            goal: Some("beta".into()),
+        });
+        assert!(selected_goal(&registrations, &process).is_none());
+    }
     use crate::gateway::pipeline::Admission;
 
     /// An older queued ACK cannot confirm a newer recipient result with the same aggregate status.
@@ -1143,6 +1237,7 @@ mod tests {
             repository: "github.com/org/repo".into(),
             session_id: uuid::Uuid::new_v4().to_string(),
             actor_origin: None,
+            selected_goal: None,
         };
         let message = Message {
             event_id: "event".into(),
@@ -1154,6 +1249,7 @@ mod tests {
             author_id: None,
             source_instance: None,
             origin: None,
+            goal: None,
         };
         let mut worker = Worker {
             journal,
@@ -1166,6 +1262,7 @@ mod tests {
             storage_failed: false,
             connection: "Connected".into(),
             agents: 1,
+            goal_registrations: Vec::new(),
         };
         // Metadata retries preserve the original process set and never adopt a later peer.
         let received = Receipt {
@@ -1302,6 +1399,7 @@ mod tests {
             author_id: None,
             source_instance: None,
             origin: None,
+            goal: None,
         };
         assert_eq!(
             worker

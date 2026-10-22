@@ -17,6 +17,9 @@ pub struct Actor {
     pub session_slot: Option<u32>,
     #[serde(default)]
     pub actor_id: Option<String>,
+    /// Selected task queue, independent of provider conversation and actor identity.
+    #[serde(default)]
+    pub goal: Option<String>,
 }
 
 /// Announcements without a version are the original client contract.
@@ -57,6 +60,7 @@ mod tests {
             base_id: None,
             session_slot: None,
             actor_id: None,
+            goal: None,
         }
     }
 
@@ -160,6 +164,7 @@ impl Actor {
     /// Recompute the public contract, rejecting client-chosen identities inconsistent with its inputs.
     pub fn validate(&self) -> Result<(), String> {
         self.origin.validate()?;
+        super::model::normalize_goal(self.goal.as_deref())?;
         let namespace = uuid::Uuid::parse_str(&self.origin.instance_id)
             .map_err(|_| "Invalid actor namespace")?;
         if namespace.to_string() != self.origin.instance_id {
@@ -270,6 +275,7 @@ impl Actor {
     /// Add versioned registration metadata to the announcement reply.
     pub fn describe(&self, context: &mut Value) {
         context["version"] = json!(self.version);
+        context["goal"] = json!(self.goal);
         if self.version == 2 {
             context["base_id"] = json!(self.base_id);
             context["session_slot"] = json!(self.session_slot);

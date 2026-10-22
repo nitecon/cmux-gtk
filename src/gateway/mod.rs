@@ -143,6 +143,9 @@ async fn deliver(
     expected: &Session,
 ) -> Result<DeliveryOutcome, String> {
     message.validate()?;
+    if !expected.accepts_goal(message.goal.as_deref()) {
+        return Err("Agent has not selected this task goal".into());
+    }
     let runtime = state
         .borrow()
         .gateway
@@ -331,13 +334,23 @@ pub fn rpc(
         runtime.spawn(async move {
             let checked_actor = actor.clone();
             let result = async {
-                tokio::task::spawn_blocking(move || checked_actor.verify_peer(peer_pid))
-                    .await
-                    .map_err(|_| "Caller identity worker stopped")??;
+                let process = tokio::task::spawn_blocking(move || {
+                    checked_actor.verify_peer(peer_pid)?;
+                    Ok::<_, String>(cmux_platform::process::agent_executor(
+                        peer_pid.into(),
+                        &checked_actor.origin.provider,
+                    ))
+                })
+                .await
+                .map_err(|_| "Caller identity worker stopped")??;
                 let (reply, result) = oneshot::channel();
                 requests
                     .try_send(worker::Request {
-                        action: worker::Action::Actor { actor, repository },
+                        action: worker::Action::Actor {
+                            actor,
+                            repository,
+                            process,
+                        },
                         reply,
                     })
                     .map_err(|_| "Gateway operation queue is full or stopped")?;

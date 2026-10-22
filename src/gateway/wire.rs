@@ -215,6 +215,14 @@ impl Client {
                 message.origin = Some(origin);
             }
         }
+        if let Some(message) = &mut message {
+            message.goal = match event["task"].get("goal") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(value)) => normalize_goal(Some(value))?,
+                _ => return Err("Invalid event task goal".into()),
+            };
+            message.validate()?;
+        }
         Ok(message)
     }
 }
@@ -270,6 +278,7 @@ fn normalize(
         author_id: comment["author"].as_str().map(str::to_owned),
         source_instance: None,
         origin: None,
+        goal: None,
     };
     message.validate()?;
     Ok(Some(message))
@@ -278,6 +287,56 @@ fn normalize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Decode additive goal metadata without letting malformed types fall back to legacy broadcast.
+    #[tokio::test]
+    async fn event_goal_is_optional_but_invalid_context_fails_closed() {
+        let client = Client::new(
+            &Config {
+                url: "http://localhost:1234".into(),
+                enabled: true,
+                injection_approved: true,
+            },
+            "test-key",
+        )
+        .unwrap();
+        let mut event = json!({"id":1,"project_ident":"project","task":{"id":"task"},"kind":"task_created","created_at":now_millis()});
+        assert!(client
+            .message(&event)
+            .await
+            .unwrap()
+            .unwrap()
+            .goal
+            .is_none());
+        event["task"]["goal"] = Value::Null;
+        assert!(client
+            .message(&event)
+            .await
+            .unwrap()
+            .unwrap()
+            .goal
+            .is_none());
+        event["task"]["goal"] = json!(" alpha ");
+        assert_eq!(
+            client
+                .message(&event)
+                .await
+                .unwrap()
+                .unwrap()
+                .goal
+                .as_deref(),
+            Some("alpha")
+        );
+        for invalid in [
+            json!(false),
+            json!(["alpha"]),
+            json!("bad\ngoal"),
+            json!("x".repeat(129)),
+        ] {
+            event["task"]["goal"] = invalid;
+            assert!(client.message(&event).await.is_err());
+        }
+    }
 
     /// Task notifications expose only kind and ID, regardless of author role or event body size.
     #[test]
