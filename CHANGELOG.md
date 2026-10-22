@@ -4,6 +4,12 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.19] - 2026-10-21
+
+### Fixed
+- Apply the saved font size to the whole GTK interface, including Windows project labels, menus, dialogs and document viewers, immediately and on restart.
+- Scale secondary interface text with the selected size instead of keeping it at fixed pixel sizes. Preferences now identifies the setting as the application font size.
+
 ## [0.6.18] - 2026-10-17
 
 ### Added
