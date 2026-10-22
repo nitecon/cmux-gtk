@@ -1430,6 +1430,7 @@ mod tests {
             author_id: Some("worker".into()),
             source_instance: None,
             origin: Some(origin.clone()),
+            goal: None,
         };
         worker
             .pipeline
