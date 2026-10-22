@@ -4,6 +4,11 @@ All notable changes to cmux GTK are documented here.
 
 ## [Unreleased]
 
+## [0.6.20] - 2026-10-21
+
+### Fixed
+- Enable the native Windows font-scaling regression check by isolating Unix-only test fixtures and locating the Ghostty runtime DLL. Includes the application-wide font preference fix from 0.6.19, whose Windows package was blocked by those test-build errors.
+
 ## [0.6.19] - 2026-10-21
 
 ### Fixed
