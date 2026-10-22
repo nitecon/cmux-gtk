@@ -176,7 +176,6 @@ fn remote_command(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn mosh_builder_probes_and_preserves_remote_intent() {
@@ -219,7 +218,9 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn mosh_command_executes_probed_client_with_ssh_management_options() {
+        use std::os::unix::fs::PermissionsExt;
         let root = std::env::temp_dir().join(format!("cmux-mosh-builder-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let ssh = root.join("ssh");

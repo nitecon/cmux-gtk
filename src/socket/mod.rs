@@ -167,7 +167,8 @@ async fn wait_for_disconnect(stream: &cmux_platform::local_socket::Stream) -> st
     }
 }
 
-#[cfg(test)]
+// These fixtures exercise Unix socket pairs, including Unix half-close semantics.
+#[cfg(all(test, unix))]
 mod connection_tests {
     use super::*;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt};

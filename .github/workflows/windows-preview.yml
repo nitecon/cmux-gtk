@@ -87,7 +87,9 @@ jobs:
         run: cargo test -p cmux-platform --no-default-features --features async-io --locked
 
       - name: Test application font scaling in native Windows GTK
-        run: cargo test --release --bin cmux-app application_font_size_updates_ui_and_documents --locked -- --ignored --test-threads=1
+        run: |
+          $env:PATH = "$PWD/ghostty/zig-out/lib;$env:PATH"
+          cargo test --release --bin cmux-app application_font_size_updates_ui_and_documents --locked -- --ignored --test-threads=1
 
       - name: Test verified native Windows update archives
         run: |

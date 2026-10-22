@@ -171,6 +171,7 @@ mod tests {
     use super::*;
 
     /// The public launch child receives explicit proxy and loopback routing without shell parsing.
+    #[cfg(unix)]
     #[tokio::test]
     async fn startup_passes_remote_proxy_arguments() {
         use std::os::unix::fs::PermissionsExt;
