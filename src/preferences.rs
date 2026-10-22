@@ -19,7 +19,7 @@ pub fn invert_scroll() -> bool {
     INVERT_SCROLL.load(Ordering::Relaxed)
 }
 
-/// Locate terminal preferences beside the application configuration.
+/// Locate application preferences beside the application configuration.
 fn path() -> PathBuf {
     crate::config::config_path().with_file_name("preferences.json")
 }
@@ -39,7 +39,7 @@ fn read_size(path: &Path) -> Option<f32> {
     read(path).map(|prefs| prefs.font_size).filter(|size| valid(*size))
 }
 
-/// Return the optional user-selected terminal size without changing native configuration.
+/// Return the optional shared UI and terminal point size without changing native configuration.
 pub fn saved_font_size() -> Option<f32> {
     read_size(&path())
 }
@@ -62,7 +62,7 @@ fn surfaces() -> Vec<usize> {
         .unwrap_or_default()
 }
 
-/// Display the font-size editor and apply successful changes to live terminal surfaces.
+/// Display preferences and apply successful font changes to GTK and live terminal surfaces.
 pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppStateRef) {
     let dialog = gtk4::Dialog::builder()
         .title("Preferences")
@@ -75,14 +75,14 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
     let notebook = gtk4::Notebook::new();
     dialog.content_area().append(&notebook);
     let content = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
-    notebook.append_page(&content, Some(&gtk4::Label::new(Some("Terminal"))));
+    notebook.append_page(&content, Some(&gtk4::Label::new(Some("Appearance"))));
     content.set_spacing(12);
     content.set_margin_top(20);
     content.set_margin_bottom(20);
     content.set_margin_start(20);
     content.set_margin_end(20);
     let row = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
-    let label = gtk4::Label::new(Some("Terminal font size (pt)"));
+    let label = gtk4::Label::new(Some("Application font size (pt)"));
     label.set_hexpand(true);
     label.set_xalign(0.0);
     let size = gtk4::SpinButton::with_range(6.0, 72.0, 0.5);
@@ -99,7 +99,7 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
     row.append(&size);
     content.append(&row);
     let help = gtk4::Label::new(Some(
-        "Applies to all terminal tabs, including new tabs.\nSaved for future launches.",
+        "Applies to terminals, projects, menus and document viewers.\nSaved for future launches.",
     ));
     help.set_xalign(0.0);
     help.set_wrap(true);
@@ -133,6 +133,7 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
             return;
         }
         INVERT_SCROLL.store(invert.is_active(), Ordering::Relaxed);
+        crate::appearance::apply_font_size(value);
         let action = format!("set_font_size:{value}");
         let mut failed = false;
         for surface in surfaces() {
@@ -146,7 +147,7 @@ pub fn show(parent: &gtk4::ApplicationWindow, state: &crate::app_state::AppState
             failed |= !applied;
         }
         crate::diagnostics::event(format_args!(
-            "terminal font size saved points={value} live_apply_failed={failed}"
+            "application font size saved points={value} terminal_live_apply_failed={failed}"
         ));
         if failed {
             error_label.set_text(

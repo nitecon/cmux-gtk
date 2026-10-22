@@ -467,6 +467,64 @@ mod tests {
         }
     }
 
+    /// Existing sidebar, menu and document text resize together; new windows inherit the size.
+    #[test]
+    #[ignore = "requires GTK display; run in GitHub Actions"]
+    fn application_font_size_updates_ui_and_documents() {
+        gtk4::init().unwrap();
+        crate::appearance::install();
+        crate::appearance::apply_font_size(10.0);
+        let window = gtk4::Window::new();
+        let content = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+        let projects = gtk4::ListBox::new();
+        projects.add_css_class("workspace-list");
+        projects.append(&gtk4::Label::new(Some("Project")));
+        content.append(&projects);
+        let document = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
+        display_blocks(
+            &document,
+            parse_document("# Heading\n\nProse\n\n```\nCode\n```\n\n| Column |\n| --- |\n| Cell |"),
+        );
+        content.append(&document);
+        let menu = gio::Menu::new();
+        menu.append(Some("Preferences"), Some("win.preferences"));
+        let menu_button = gtk4::MenuButton::new();
+        menu_button.set_menu_model(Some(&menu));
+        content.append(&menu_button);
+        window.set_child(Some(&content));
+        window.present();
+        menu_button.popup();
+        let popover = menu_button.popover().unwrap();
+        wait_until(|| popover.is_mapped());
+        let mut labels = descendants::<gtk4::Label>(&content.clone().upcast());
+        labels.extend(descendants::<gtk4::Label>(&popover.clone().upcast()));
+        labels.retain(|label| !label.text().is_empty());
+        assert!(labels.iter().any(|label| label.text() == "Preferences"));
+        assert!(labels.iter().any(|label| label.text() == "Cell"));
+        wait_until(|| labels.iter().all(|label| label.layout().pixel_size().0 > 0));
+        let widths: Vec<i32> = labels
+            .iter()
+            .map(|label| label.layout().pixel_size().0)
+            .collect();
+        crate::appearance::apply_font_size(20.0);
+        wait_until(|| {
+            labels.iter().zip(&widths).all(|(label, width)| {
+                label.layout().pixel_size().0 as f64 > *width as f64 * 1.7
+            })
+        });
+        let later = gtk4::Window::new();
+        let label = gtk4::Label::new(Some("Project"));
+        later.set_child(Some(&label));
+        later.present();
+        let project = labels
+            .iter()
+            .find(|label| label.text() == "Project")
+            .unwrap();
+        wait_until(|| label.layout().pixel_size() == project.layout().pixel_size());
+        later.close();
+        window.close();
+    }
+
     /// Folder expansion reveals documents; selecting one renders actual table and code widgets.
     #[test]
     #[ignore = "requires GTK display; run in GitHub Actions under Xvfb"]

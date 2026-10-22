@@ -1,5 +1,27 @@
 //! Shared desktop typography and palette, independent of native service backends.
 
+thread_local! {
+    /// GTK owns the display registration; this main-thread handle reloads it on Apply.
+    static PROVIDER: gtk4::CssProvider = gtk4::CssProvider::new();
+}
+
+/// Reload application typography on GTK's main thread, including existing dialogs and readers.
+/// Point units follow GTK's display DPI, matching the units of the terminal preference.
+pub(crate) fn apply_font_size(size: f32) {
+    load(Some(size));
+}
+
+/// Keep the platform baseline until a user selects a shared application font size.
+fn load(size: Option<f32>) {
+    let mut css = include_str!("appearance.css").to_owned();
+    #[cfg(target_os = "windows")]
+    css.push_str(include_str!("appearance-windows.css"));
+    if let Some(size) = size {
+        css.push_str(&format!("\nwindow, popover {{ font-size: {size}pt; }}"));
+    }
+    PROVIDER.with(|provider| provider.load_from_data(&css));
+}
+
 /// Install the application palette and request dark native controls before building the UI.
 /// Call on GTK's main thread after initialization. The display retains the CSS provider;
 /// dialogs and menus share it, while Ghostty retains ownership of terminal font settings.
@@ -18,18 +40,12 @@ pub(crate) fn install() {
     // This property supports the GTK 4.8 baseline; CssProvider's color-scheme API needs 4.20.
     settings.set_gtk_application_prefer_dark_theme(true);
 
-    let provider = gtk4::CssProvider::new();
-    #[cfg(not(target_os = "windows"))]
-    provider.load_from_data(include_str!("appearance.css"));
-    #[cfg(target_os = "windows")]
-    provider.load_from_data(&format!(
-        "{}\n{}",
-        include_str!("appearance.css"),
-        include_str!("appearance-windows.css")
-    ));
-    gtk4::style_context_add_provider_for_display(
-        &display,
-        &provider,
-        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
+    load(crate::preferences::saved_font_size());
+    PROVIDER.with(|provider| {
+        gtk4::style_context_add_provider_for_display(
+            &display,
+            provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    });
 }
