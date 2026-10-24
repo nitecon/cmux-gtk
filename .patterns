@@ -62,3 +62,4 @@
   - src/ssh/writer.rs
   - src/ssh/handshake.rs
   - src/gateway/worker.rs
+  - src/gateway/wire.rs

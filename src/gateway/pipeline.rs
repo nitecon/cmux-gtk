@@ -280,6 +280,17 @@ mod tests {
         assert_eq!(pipeline.pending[0].target.session_id, a.session_id);
         assert!(pipeline.next(&projects, &sessions).unwrap().1);
 
+        grouped.event_id = "unclaimed-goal".into();
+        grouped.kind = Kind::Unclaimed;
+        pipeline
+            .admit(&mut journal, &projects, &sessions, grouped.clone())
+            .unwrap();
+        assert_eq!(pipeline.pending.len(), 1);
+        let (pending, ready) = pipeline.next(&projects, &sessions).unwrap();
+        assert!(ready);
+        assert_eq!(pending.target.session_id, a.session_id);
+        assert_eq!(pending.message.kind, Kind::Unclaimed);
+
         grouped.event_id = "no-match".into();
         grouped.goal = Some("missing".into());
         assert_eq!(
@@ -399,6 +410,7 @@ mod tests {
             ("new", Kind::Created),
             ("comment", Kind::Commented),
             ("done", Kind::Completed),
+            ("unclaimed", Kind::Unclaimed),
         ] {
             assert_eq!(
                 pipeline
@@ -532,7 +544,11 @@ mod tests {
         let busy = session("busy", false);
         let sessions = vec![own.clone(), ready.clone(), busy.clone()];
         let mut pipeline = Pipeline::default();
-        for (event, kind) in [("comment", Kind::Commented), ("completed", Kind::Completed)] {
+        for (event, kind) in [
+            ("comment", Kind::Commented),
+            ("completed", Kind::Completed),
+            ("unclaimed", Kind::Unclaimed),
+        ] {
             let mut message = message(event, kind);
             message.origin = Some(Origin {
                 session_id: own.session_id.clone(),
@@ -553,13 +569,13 @@ mod tests {
                 Admission::Duplicate
             );
         }
-        assert_eq!(journal.receipts.len(), 6);
+        assert_eq!(journal.receipts.len(), 9);
         assert!(journal
             .receipts
             .iter()
             .filter(|r| r.recipient() == Some(own.session_id.as_str()))
             .all(|r| r.outcome == "skipped" && r.payload.is_none()));
-        for event in ["comment", "completed"] {
+        for event in ["comment", "completed", "unclaimed"] {
             let (pending, valid) = pipeline.next(&projects, &sessions).unwrap();
             assert!(valid);
             assert_eq!(pending.target.session_id, ready.session_id);
@@ -568,7 +584,7 @@ mod tests {
         assert!(pipeline.next(&projects, &sessions).is_none());
         let mut idle = sessions;
         idle[2].terminal.screen = Some(ready_screen());
-        for event in ["comment", "completed"] {
+        for event in ["comment", "completed", "unclaimed"] {
             let (pending, valid) = pipeline.next(&projects, &idle).unwrap();
             assert!(valid);
             assert_eq!(pending.target.session_id, busy.session_id);

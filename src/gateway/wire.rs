@@ -191,6 +191,7 @@ impl Client {
             Some("task_created") => Kind::Created,
             Some("task_commented") => Kind::Commented,
             Some("task_completed") => Kind::Completed,
+            Some("task_unclaimed") => Kind::Unclaimed,
             _ => return Err("Unsupported task lifecycle event".into()),
         };
         if kind == Kind::Created
@@ -363,6 +364,7 @@ mod tests {
         for (kind, label) in [
             (Kind::Created, "New delegated task received"),
             (Kind::Completed, "Task completed"),
+            (Kind::Unclaimed, "Task became unclaimed"),
         ] {
             let message = normalize(2, "project", "task", kind, &Value::Null, now_millis())
                 .unwrap()
@@ -384,6 +386,59 @@ mod tests {
         let mut value = json!({"content":"private-secret", "nested":["secret"]});
         redact(&mut value, "secret");
         assert!(!value.to_string().contains("secret"));
+    }
+
+    /// Unclaimed snapshots accept optional audit comments and preserve mutation provenance over ownership.
+    #[tokio::test]
+    async fn unclaimed_event_keeps_compact_content_and_origin() {
+        let client = Client::new(
+            &Config {
+                url: "http://localhost".into(),
+                ..Default::default()
+            },
+            "test-key",
+        )
+        .unwrap();
+        let origin = json!({
+            "session_id": uuid::Uuid::new_v4().to_string(),
+            "instance_id": uuid::Uuid::new_v4().to_string(),
+            "provider": "codex", "os": "linux"
+        });
+        let mut event = json!({
+            "id": 42, "project_ident": "project", "kind": "task_unclaimed",
+            "created_at": now_millis(),
+            "task": {"id": "task", "status": "todo", "owner_agent_id": null,
+                "owner_origin": null, "description": "Private task content"}
+        });
+        for comment in [
+            Value::Null,
+            json!({"author": "system", "content": "Private audit"}),
+        ] {
+            event["comment"] = comment;
+            let message = client.message(&event).await.unwrap().unwrap();
+            assert_eq!(message.kind, Kind::Unclaimed);
+            assert_eq!(message.event_id, "42");
+            assert_eq!(message.text, "task");
+            assert_eq!(message.origin, None);
+            assert_eq!(
+                message.terminal_text(),
+                "<Gateway message>Task became unclaimed: task</Gateway message>"
+            );
+        }
+        event["origin"] = origin.clone();
+        let message = client.message(&event).await.unwrap().unwrap();
+        assert_eq!(serde_json::to_value(message.origin.unwrap()).unwrap(), origin);
+        // Ordinary creation and reassignment audits retain the caller as the echo-suppression origin.
+        event["task"]["owner_origin"] = json!({
+            "session_id": uuid::Uuid::new_v4().to_string(),
+            "instance_id": uuid::Uuid::new_v4().to_string(),
+            "provider": "claude", "os": "windows"
+        });
+        for kind in ["task_created", "task_commented"] {
+            event["kind"] = json!(kind);
+            let message = client.message(&event).await.unwrap().unwrap();
+            assert_eq!(serde_json::to_value(message.origin.unwrap()).unwrap(), origin);
+        }
     }
 
     /// Five minutes is inclusive; older and legacy undated events cannot be delivered.

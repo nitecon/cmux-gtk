@@ -43,6 +43,7 @@ pub enum Kind {
     Created,
     Commented,
     Completed,
+    Unclaimed,
 }
 
 /// Mutation provenance identifies an exact agent; provider and OS describe it without selecting work.
@@ -128,6 +129,7 @@ impl Message {
             Kind::Created => "New delegated task received",
             Kind::Commented => "New comment on task",
             Kind::Completed => "Task completed",
+            Kind::Unclaimed => "Task became unclaimed",
         };
         format!("{START}{kind}: {}{STOP}", self.task_id)
     }
